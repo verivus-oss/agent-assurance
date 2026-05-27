@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security report
+    url: https://github.com/verivus-oss/agent-assurance/security/policy
+    about: Please report vulnerabilities privately instead of opening a public issue.
+  - name: Contribution guide
+    url: https://github.com/verivus-oss/agent-assurance/blob/main/CONTRIBUTING.md
+    about: Read the contribution process before proposing a spec change.

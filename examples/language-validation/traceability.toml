@@ -1,0 +1,77 @@
+# Cross-language traceability fixture for sqry-backed symbol validation.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version   = "0.1.0"
+template_kind    = "traceability"
+docs             = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+ontology_version = 1
+title            = "Language validator fixture"
+source_spec      = "docs/language-validators.md"
+owners           = ["verivus-oss"]
+created          = "2026-05-21"
+
+[[intents]]
+id          = "INT:language-symbol-validation"
+name        = "Language symbol validation"
+statement   = "Traceability code entries resolve to AST symbols in supported implementation languages."
+realized_by = ["REQ:sqry-backed-symbol-checks"]
+
+[[requirements]]
+id               = "REQ:sqry-backed-symbol-checks"
+statement        = "The validator MUST confirm Rust, Go, TypeScript, and Java symbols declared in traceability files exist in the referenced source path."
+requirement_kind = "functional"
+priority         = "must"
+source           = "docs/language-validators.md#validator"
+constrains       = ["IMP:validate-code-symbols"]
+verified_by      = ["TEST:language-validation::symbols"]
+
+[[implementations]]
+id         = "IMP:validate-code-symbols"
+name       = "sqry-backed code symbol validator"
+summary    = "Validate traceability code references by resolving symbols through sqry for supported languages."
+implements = ["REQ:sqry-backed-symbol-checks"]
+code       = [
+  "CODE:rust-fixture",
+  "CODE:go-fixture",
+  "CODE:typescript-fixture",
+  "CODE:java-fixture",
+]
+tests      = ["TEST:language-validation::symbols"]
+
+[[code]]
+id       = "CODE:rust-fixture"
+path     = "examples/language-validation/src/rust/receipt.rs"
+symbol   = "render_receipt"
+language = "rust"
+realizes = ["IMP:validate-code-symbols"]
+
+[[code]]
+id       = "CODE:go-fixture"
+path     = "examples/language-validation/src/go/receipt.go"
+symbol   = "RenderReceipt"
+language = "go"
+realizes = ["IMP:validate-code-symbols"]
+
+[[code]]
+id       = "CODE:typescript-fixture"
+path     = "examples/language-validation/src/typescript/receipt.ts"
+symbol   = "renderReceipt"
+language = "typescript"
+realizes = ["IMP:validate-code-symbols"]
+
+[[code]]
+id       = "CODE:java-fixture"
+path     = "examples/language-validation/src/java/ReceiptRenderer.java"
+symbol   = "renderReceipt"
+language = "java"
+realizes = ["IMP:validate-code-symbols"]
+
+[[tests]]
+id        = "TEST:language-validation::symbols"
+path      = "examples/language-validation/traceability.toml"
+test_kind = "smoke"
+verifies  = ["REQ:sqry-backed-symbol-checks"]
+command   = "python3 validators/validate_code_symbols.py examples/language-validation/traceability.toml --repo-root ."

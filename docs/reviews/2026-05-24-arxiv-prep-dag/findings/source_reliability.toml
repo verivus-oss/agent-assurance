@@ -1,0 +1,21 @@
+[section]
+step_reference = "agent.responsibilities.source_reliability"
+title = "Source Reliability Evaluation"
+status = "findings"
+
+[[findings]]
+id = "SR-001"
+step_reference = "agent.responsibilities.source_reliability"
+quoted_document_part = '''Every common rejection cause and every checklist item from the
+# authoritative sources'''
+problem_explanation = "The source list mixes official arXiv pages with third-party practitioner checklists. The third-party checklists are useful, but not authoritative in the same sense as official arXiv documentation."
+suggested_fix = "Distinguish 'official arXiv sources' from 'practitioner checklist sources' and reserve 'authoritative' for official arXiv/spec documents."
+severity = "minor"
+
+[[findings]]
+id = "SR-002"
+step_reference = "agent.responsibilities.source_reliability"
+quoted_document_part = '''llm_disclosure_location_verified_against_current_arxiv_policy = true   # see claim-analysis findings for paper/'''
+problem_explanation = "The cited current-policy dependency is not backed by a supplied official source in the trusted corpus."
+suggested_fix = "Add the official arXiv policy URL/content to the reference corpus or remove the current-policy assertion."
+severity = "major"

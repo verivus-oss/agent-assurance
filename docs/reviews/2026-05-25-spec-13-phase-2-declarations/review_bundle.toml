@@ -1,0 +1,408 @@
+# Round-1 review of SPEC §13 Phase 2 retrofit (declarations across 9 kinds).
+#
+# Scope: a single implementation commit landing the 9 Phase 2 kinds from
+# the previously-approved plan
+# (docs/planning/2026-05-25-spec-13-retrofit-scoping.md, approved
+# unanimously in docs/reviews/2026-05-25-spec-13-retrofit-scoping-plan-r2/).
+# Phase 1 (4 observation-record.v1 kinds) is committed and approved at
+# 140bd9e / ec37e7d.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-25"
+review_session = "2026-05-25-spec-13-phase-2-declarations"
+predecessor    = "2026-05-25-spec-13-phase-1-observation-record"
+
+[bundle]
+repo_root             = "/srv/repos/external/verivus-oss/agent-assurance"
+parent_commit         = "ec37e7d"
+head_commit           = "092bccc"
+commit_range          = "ec37e7d..092bccc"
+total_new_commits     = 1
+description           = """
+Single commit (092bccc) landing the Phase 2 retrofit from the
+approved plan. Adds two §13 blocks ([kind.abstraction_class] +
+[kind.capability_envelope], Family A — all 9 domains denied/zeroed,
+100ms CPU, 1MB memory) to 9 kind descriptors covering 6 new class ids.
+Three kinds share `policy-declaration.v1` and each carries a textually
+distinct kind-specific description per the per-kind-description rule
+in plan §6 (lines 201-209).
+"""
+
+[bundle.plan_lineage]
+plan_path                       = "docs/planning/2026-05-25-spec-13-retrofit-scoping.md"
+plan_approved_in                = "docs/reviews/2026-05-25-spec-13-retrofit-scoping-plan-r2/terminal_decision.toml"
+plan_approval_verdict           = "unanimous unconditional_approval (codex / gemini / grok)"
+phase_2_scope_in_plan           = "§8 Phase 2 (lines 250-256); §7 table rows 1, 3, 4, 5, 6, 8, 14, 15, 16"
+phase_1_predecessor_committed   = "140bd9e (retrofit) + ec37e7d (review session)"
+phase_1_predecessor_approved    = "docs/reviews/2026-05-25-spec-13-phase-1-observation-record/terminal_decision.toml (unanimous unconditional_approval)"
+cost_record_reference           = "profiles/cost/cost-record-kind.toml:282-327 (Phase 0 reference shape)"
+phase_1_reference_shape         = "the four Phase 1 retrofits at 140bd9e are load-bearing examples of the per-kind-description pattern"
+
+# Note: the plan §8 Phase 2 header literally reads "(8 kinds)" but the
+# enumeration immediately below the header lists 9 kinds. Counting the
+# whole plan: §3 inventory lists 18 blessed kinds without §13 at HEAD
+# (excluding cost-record); plan §8 phases total 4 + 8 + 5 = 17 by the
+# stated counts but 4 + 9 + 5 = 18 by the enumerated counts. 18 matches
+# the inventory, so the "(8 kinds)" header is a documented off-by-one
+# in the plan. Ship 9 per the enumeration; reviewers MAY flag a
+# follow-up issue if they want the plan header corrected separately
+# (out of scope for this PR per the original kickoff's
+# "Do NOT modify the plan" rule).
+
+# ----------------------------------------------------------------------
+# Units under review.
+# ----------------------------------------------------------------------
+
+[[bundle.units]]
+id           = "U01"
+commit_sha   = "092bccc"
+title        = "Retrofit policy-declaration.v1 to contract-declaration"
+file         = "core/contract-declaration-kind.toml"
+class_id     = "policy-declaration.v1"
+class_id_kind_count_after = 3
+summary      = """
+Appended [kind.abstraction_class] + [kind.capability_envelope] blocks
+after [kind.relation_to_ontology]. The kind-specific description names
+the [[contracts]] rows with id + one of (statement/contract/summary) +
+at least one outbound relation, plus the in-document reference-resolution
+and supersedes-acyclicity rules per INV01-INV02 (lines 82-96 of the
+pre-commit file). Envelope is Family A.
+"""
+verify = [
+  "git show 092bccc -- core/contract-declaration-kind.toml",
+  "python3 validators/validate_abstraction_class.py --repo-root . core/contract-declaration-kind.toml",
+  "grep -n closure_root core/contract-declaration-kind.toml   # MUST still show the empty-closure sentinel at line 5",
+]
+
+[[bundle.units]]
+id           = "U02"
+commit_sha   = "092bccc"
+title        = "Retrofit policy-declaration.v1 to readiness-gate"
+file         = "core/readiness-gate-kind.toml"
+class_id     = "policy-declaration.v1"
+class_id_kind_count_after = 3
+summary      = """
+Appended §13 blocks. Description names [[artifact_classes]] (id+name),
+[[gates]] (id+artifact_class+one of checks/required_documents/criteria/
+summary), the closed `review.status` vocabulary
+draft|blocked|ready|in_review|rereview_needed, and the cross-field rule
+gates[*].artifact_class -> artifact_classes[*].id (INV01-INV02 at
+lines 93-106 of the pre-commit file). Envelope is Family A. Description
+is textually distinct from contract-declaration's and spec-contract's.
+"""
+verify = [
+  "git show 092bccc -- core/readiness-gate-kind.toml",
+  "python3 validators/validate_abstraction_class.py --repo-root . core/readiness-gate-kind.toml",
+  "grep -n closure_root core/readiness-gate-kind.toml",
+]
+
+[[bundle.units]]
+id           = "U03"
+commit_sha   = "092bccc"
+title        = "Retrofit policy-declaration.v1 to spec-contract"
+file         = "profiles/agent-assurance/spec-contract-kind.toml"
+class_id     = "policy-declaration.v1"
+class_id_kind_count_after = 3
+summary      = """
+Appended §13 blocks. Description names [[contract.guarantees]] (GUAR:
+ids tied to measurable_by test refs), [[contract.non_goals]] (NG:
+exclusions), and [[contract.invariants]] (INV: ids tied to enforced_by
+code refs), plus the cross-document linkage from INV01-INV02 (lines
+92-105 of the pre-commit file: each GUAR SHOULD be referenced from a
+REQ in matching traceability; each INV SHOULD be enforced by a CODE
+reference). Envelope is Family A. Description is textually distinct
+from contract-declaration's and readiness-gate's.
+"""
+verify = [
+  "git show 092bccc -- profiles/agent-assurance/spec-contract-kind.toml",
+  "python3 validators/validate_abstraction_class.py --repo-root . profiles/agent-assurance/spec-contract-kind.toml",
+  "grep -n closure_root profiles/agent-assurance/spec-contract-kind.toml",
+]
+
+[[bundle.units]]
+id           = "U04"
+commit_sha   = "092bccc"
+title        = "Retrofit plan-decomposition.v1 to implementation-dag (R1 envelope)"
+file         = "core/implementation-dag-kind.toml"
+class_id     = "plan-decomposition.v1"
+class_id_kind_count_after = 1
+summary      = """
+Appended §13 blocks. The header comment is explicit that this envelope
+bounds the descriptor PARSE (text + DAG-shape validation), NOT the
+runtime capabilities the units it describes may demand — per plan §5
+Reading R1 (lines 109-140). The description names [units.Uxx] rows
+(layer/tier/status/depends_on/blocks/produces/consumes/files_modify/
+estimated_loc), the derived [computed] block (entry_points, leaf_nodes,
+critical_path, [computed.max_parallel], loc_totals), and the five
+graph-shape hard invariants INV01-INV05 (lines 122-160 of the
+pre-commit file). Envelope is Family A. This is the kind reviewers
+were flagged in plan §8 as having the most R1/R2 ambiguity — verify
+the descriptor's own §13 prose lands on R1.
+"""
+verify = [
+  "git show 092bccc -- core/implementation-dag-kind.toml",
+  "python3 validators/validate_abstraction_class.py --repo-root . core/implementation-dag-kind.toml",
+  "grep -n closure_root core/implementation-dag-kind.toml",
+  "sed -n '170,200p' core/implementation-dag-kind.toml   # the §13 header comment + abstraction_class block",
+]
+
+[[bundle.units]]
+id           = "U05"
+commit_sha   = "092bccc"
+title        = "Retrofit extension-declaration.v1 to profile-descriptor"
+file         = "core/profile-descriptor-kind.toml"
+class_id     = "extension-declaration.v1"
+class_id_kind_count_after = 1
+summary      = """
+Appended §13 blocks. Description names the singleton [profile] table
+with name + namespace (spec.reserved OR strict reverse-DNS prefix of
+name per SPEC §2.5), owner, license, acyclic extends, ontology
+pointer, and closed contained_kinds with the resolution requirements
+from INV01-INV05 (lines 169-213 of the pre-commit file). Envelope is
+Family A. The header comment is explicit that per SPEC §2.4 the
+recursion stops here — no profile-descriptor-kind-descriptor — and
+that this envelope bounds the descriptor parse itself.
+"""
+verify = [
+  "git show 092bccc -- core/profile-descriptor-kind.toml",
+  "python3 validators/validate_abstraction_class.py --repo-root . core/profile-descriptor-kind.toml",
+  "grep -n closure_root core/profile-descriptor-kind.toml",
+]
+
+[[bundle.units]]
+id           = "U06"
+commit_sha   = "092bccc"
+title        = "Retrofit relation-ledger.v1 to traceability"
+file         = "core/traceability-kind.toml"
+class_id     = "relation-ledger.v1"
+class_id_kind_count_after = 1
+summary      = """
+Appended §13 blocks. Description names the nine entity tables
+([[intents]] / [[features]] / [[requirements]] / [[regulations]] /
+[[decisions]] / [[implementations]] / [[code]] / [[tests]] / [[outputs]])
+and the closed core predicate vocabulary (derived_from / realized_by /
+constrained_by / implemented_by / verified_by / verifies / constrains /
+supersedes / implements / guided_by / ...), plus the five hard
+invariants from INV01-INV05 (lines 147-185 of the pre-commit file).
+Envelope is Family A. The header comment notes that the experimental
+sqry-backed symbol validator is RUNTIME-SPEC-adjacent and outside this
+envelope.
+"""
+verify = [
+  "git show 092bccc -- core/traceability-kind.toml",
+  "python3 validators/validate_abstraction_class.py --repo-root . core/traceability-kind.toml",
+  "grep -n closure_root core/traceability-kind.toml",
+]
+
+[[bundle.units]]
+id           = "U07"
+commit_sha   = "092bccc"
+title        = "Retrofit binding-declaration.v1 to adapter-registry-binding"
+file         = "profiles/agent-assurance/adapter-registry-binding-kind.toml"
+class_id     = "binding-declaration.v1"
+class_id_kind_count_after = 1
+summary      = """
+Appended §13 blocks. Description names the singleton [binding] table
+with adapter_ref + closed-vocabulary adapter_ref_syntax,
+registry_url_scheme (closed registry_scheme vocab) + registry_url
+(prefix MUST equal `<scheme>://`), opaque-ref [[binding.trust_anchor_refs]]
+and [[binding.policy_constraint_refs]] (constraint_id matches IJB
+assertion-id regex), per INV01-INV03 (lines 110-130 of the pre-commit
+file). Envelope is Family A. The header comment is explicit that
+trust-anchor verification / registry dereference / policy-constraint
+evaluation are RUNTIME-SPEC and outside this envelope — consistent with
+the kind's existing INV04 (lines 132-138).
+"""
+verify = [
+  "git show 092bccc -- profiles/agent-assurance/adapter-registry-binding-kind.toml",
+  "python3 validators/validate_abstraction_class.py --repo-root . profiles/agent-assurance/adapter-registry-binding-kind.toml",
+  "grep -n closure_root profiles/agent-assurance/adapter-registry-binding-kind.toml",
+]
+
+[[bundle.units]]
+id           = "U08"
+commit_sha   = "092bccc"
+title        = "Retrofit threat-declaration.v1 to threat-model"
+file         = "profiles/agent-assurance/threat-model-kind.toml"
+class_id     = "threat-declaration.v1"
+class_id_kind_count_after = 1
+summary      = """
+Appended §13 blocks. Description names [[threats]] rows with id
+(THREAT: prefix), title, closed-vocabulary likelihood / impact /
+residual_risk, free-form detection and mitigation, and optional
+mitigated_by references to TEST: ids in matching traceability, per
+INV01-INV02 (lines 106-119 of the pre-commit file). Envelope is
+Family A. The header comment is explicit that the IJB-forbidden phrase
+'risk posture' does NOT appear in the §13 description, per the kind's
+existing IJB-stance note (lines 64-77 pre-commit).
+"""
+verify = [
+  "git show 092bccc -- profiles/agent-assurance/threat-model-kind.toml",
+  "python3 validators/validate_abstraction_class.py --repo-root . profiles/agent-assurance/threat-model-kind.toml",
+  "grep -n closure_root profiles/agent-assurance/threat-model-kind.toml",
+  "grep -n 'risk posture' profiles/agent-assurance/threat-model-kind.toml   # MUST appear only inside the existing IJB-stance note, NOT in any §13 description",
+]
+
+[[bundle.units]]
+id           = "U09"
+commit_sha   = "092bccc"
+title        = "Retrofit attestation-record.v1 to disclosure-attestation"
+file         = "profiles/disclosure/disclosure-attestation-kind.toml"
+class_id     = "attestation-record.v1"
+class_id_kind_count_after = 1
+summary      = """
+Appended §13 blocks. Description names [[attestations]] rows with id
+(DISC: prefix), subject, closed-vocabulary disclosure_posture
+(full|partial|withheld|embargoed), signed_by, and at least one of
+rationale/covered_by (RED: refs)/proven_by (SDP: refs), plus the
+cross-field rules from INV02-INV03 (lines 109-125 of the pre-commit
+file: partial -> at least one covered_by RED:; embargoed -> [meta].
+embargo_until is set per SPEC §2.7). Envelope is Family A. The header
+comment is explicit that signature verification is RUNTIME-SPEC,
+consistent with the kind's existing prose at lines 69-70.
+"""
+verify = [
+  "git show 092bccc -- profiles/disclosure/disclosure-attestation-kind.toml",
+  "python3 validators/validate_abstraction_class.py --repo-root . profiles/disclosure/disclosure-attestation-kind.toml",
+  "grep -n closure_root profiles/disclosure/disclosure-attestation-kind.toml",
+]
+
+[[bundle.units]]
+id           = "U10"
+commit_sha   = "092bccc"
+title        = "All four §13 validators green at 14/19"
+summary      = """
+The four §9 verification commands from the plan all exit 0:
+  1. validate_abstraction_class.py over all 19 kind descriptors:
+     -> ABSTRACTION-CLASS VALIDATION PASSED (19 file(s) checked;
+        14 declared a §13 block).   [was 5 after Phase 1]
+  2. validate_ijb_conformance.py over all 19: PASS.
+  3. validate_kind_descriptor.py --check-references-exist over all 19: PASS.
+  4. validate_closure_root.py --discover . -> CLOSURE-ROOT VALIDATION
+     PASSED (74 file(s)).
+  5. taplo lint over all 19 kind descriptors: clean.
+
+This is plan-compliance text and MUST be independently verified.
+"""
+verify = [
+  "python3 validators/validate_abstraction_class.py --repo-root . core/*-kind.toml profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml profiles/cost/*-kind.toml",
+  "for f in core/*-kind.toml profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml profiles/cost/*-kind.toml; do python3 validators/validate_ijb_conformance.py \"$f\"; done",
+  "for f in core/*-kind.toml profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml profiles/cost/*-kind.toml; do python3 validators/validate_kind_descriptor.py \"$f\" --repo-root . --check-references-exist; done",
+  "python3 validators/validate_closure_root.py --discover .",
+  "taplo lint core/*-kind.toml profiles/*/*-kind.toml",
+]
+
+[[bundle.units]]
+id           = "U11"
+commit_sha   = "092bccc"
+title        = "Per-kind-description rule satisfied for shared class id"
+summary      = """
+Plan §6 (lines 201-209) requires kinds sharing a class id to declare
+textually distinct kind-specific descriptions tying back to their own
+required-fields/sections. Phase 2 has one such shared id —
+policy-declaration.v1 — used by three kinds:
+
+  - contract-declaration:   names [[contracts]] + outbound relations
+                            + in-document reference rules.
+  - readiness-gate:         names [[artifact_classes]] + [[gates]] +
+                            closed review.status vocabulary + the
+                            artifact_class -> id cross-field rule.
+  - spec-contract:          names [[contract.guarantees]] /
+                            [[contract.non_goals]] /
+                            [[contract.invariants]] + cross-document
+                            GUAR->REQ and INV->CODE linkage.
+
+The other six Phase 2 class ids are each used by exactly one kind in
+this PR — the per-kind-description rule is trivially satisfied for
+those. The full set of 14 §13-declaring kinds (cost-record from
+Phase 0 + 4 from Phase 1 + 9 from Phase 2) MUST have textually
+distinct descriptions for any shared class id.
+"""
+verify = [
+  "grep -nE '^description ' core/contract-declaration-kind.toml core/readiness-gate-kind.toml profiles/agent-assurance/spec-contract-kind.toml | grep -A0 'Declarative policy artefact' || true",
+  "grep -n 'policy-declaration.v1' core/*-kind.toml profiles/*/*-kind.toml profiles/cost/*-kind.toml profiles/disclosure/*-kind.toml",
+  "grep -n 'observation-record.v1' core/*-kind.toml profiles/*/*-kind.toml profiles/cost/*-kind.toml profiles/disclosure/*-kind.toml",
+]
+
+[[bundle.units]]
+id           = "U12"
+commit_sha   = "092bccc"
+title        = "closure_root sentinel preserved on all 9 files"
+summary      = """
+Per SPEC §12.11 + plan §9, kind descriptors that cite no upstream
+evidence emit the canonical empty-closure sentinel
+sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+both before and after this commit. The descriptor file's SHA-256
+changes (new bytes); the declared closure_root value does not. The §12
+validator confirms this empirically at 74 file(s) PASS.
+"""
+verify = [
+  "grep -n 'closure_root' core/contract-declaration-kind.toml core/readiness-gate-kind.toml core/implementation-dag-kind.toml core/profile-descriptor-kind.toml core/traceability-kind.toml profiles/agent-assurance/spec-contract-kind.toml profiles/agent-assurance/adapter-registry-binding-kind.toml profiles/agent-assurance/threat-model-kind.toml profiles/disclosure/disclosure-attestation-kind.toml",
+  "python3 validators/validate_closure_root.py --discover .",
+]
+
+[[bundle.units]]
+id           = "U13"
+commit_sha   = "092bccc"
+title        = "Scope discipline — only the 9 kind descriptors + CHANGELOG"
+summary      = """
+git show --stat 092bccc MUST show exactly 10 files changed:
+  - CHANGELOG.md
+  - core/contract-declaration-kind.toml
+  - core/implementation-dag-kind.toml
+  - core/profile-descriptor-kind.toml
+  - core/readiness-gate-kind.toml
+  - core/traceability-kind.toml
+  - profiles/agent-assurance/adapter-registry-binding-kind.toml
+  - profiles/agent-assurance/spec-contract-kind.toml
+  - profiles/agent-assurance/threat-model-kind.toml
+  - profiles/disclosure/disclosure-attestation-kind.toml
+
+No SPEC.md, no plan file, no validators, no ontology files, no Phase 1
+or Phase 3 kind descriptors touched. Per plan §11 and the original
+kickoff prompt's OUT OF SCOPE list (still in effect for Phase 2 modulo
+the Phase 2 / Phase 3 kinds themselves):
+  - SPEC.md is NOT modified.
+  - docs/planning/2026-05-25-spec-13-retrofit-scoping.md is NOT modified.
+  - The 5 Phase 3 kinds (rollback-plan, smoke-validation,
+    assertion-bundle, adapter-contract, selective-disclosure-proof)
+    are NOT touched.
+  - The 4 Phase 1 kinds + cost-record are NOT re-edited.
+  - ISS-005 (SPEC §13.4 vs §12.1 tension) is NOT addressed.
+"""
+verify = [
+  "git show --stat 092bccc",
+  "git diff --name-only ec37e7d..092bccc",
+]
+
+[roster]
+initiator       = "claude-opus-4-7 (session running on /srv/repos/external/verivus-oss/agent-assurance, 2026-05-25)"
+initiator_role  = "excluded from standard reviewer set per [policy.roles].initiator_excluded_as_standard_reviewer"
+reviewer_models = ["codex", "gemini", "grok"]
+
+[review_instructions]
+rules_source  = "tools/review-request-dag.toml [policy.*]"
+prompt_path   = "docs/reviews/2026-05-25-spec-13-phase-2-declarations/review_prompt.md"
+narrow_scope  = """
+Thirteen units (U01..U13). Each MUST be classified
+complete / incomplete / unverifiable with file:line evidence.
+Approval bases: inspected_code, executed_tests_with_output,
+inspected_docs, persisted_review_evidence. Forbidden bases:
+stated_intent, plan_compliance_claim, should_be_fixed_language.
+"""
+iteration_rule = "If initiator disagrees with a finding, response MUST cite code/doc evidence (file + line), not assertion."
+polling_cadence_seconds = 90
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-25-spec-13-phase-2-declarations/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "terminal_decision.toml",
+]

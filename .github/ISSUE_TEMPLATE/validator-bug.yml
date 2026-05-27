@@ -1,0 +1,58 @@
+name: Validator bug
+description: Report a reference validator accepting invalid input or rejecting valid input.
+title: "Validator: "
+labels: ["validator", "bug", "triage"]
+body:
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: I am reporting behavior in the validators shipped in this repository.
+          required: true
+  - type: dropdown
+    id: validator
+    attributes:
+      label: Validator
+      options:
+        - validate_implementation_dag.py
+        - validate_traceability.py
+        - validate_review_readiness.py
+        - validate_kind_descriptor.py
+        - validate_ijb_conformance.py
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: Paste the exact command you ran.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Minimal input
+      description: Paste the smallest TOML input or point to a file in this repository.
+      render: toml
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      description: What should the validator have reported?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: Paste the validator output.
+      render: shell
+    validations:
+      required: true

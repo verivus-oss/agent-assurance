@@ -1,0 +1,25 @@
+[package]
+name = "dagtoml-rdf"
+version = "0.1.0"
+edition = "2024"
+# MSRV floor — CI tracks current stable, which MUST be >= this value.
+# Bumping the floor is a breaking change for downstream consumers and
+# requires a CHANGELOG note.
+rust-version = "1.85"
+publish = false
+description = "Generate the DAG-TOML ontology as RDF/Turtle from core/ontology.toml + every profiles/<name>/ontology.toml + *-kind.toml descriptors. Non-normative reference tooling."
+license = "Apache-2.0"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+toml  = "0.9"
+oxttl = "0.2"  # Turtle parser for the `verify` subcommand
+
+[[bin]]
+name = "dagtoml-rdf"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = "z"
+lto       = true
+strip     = true

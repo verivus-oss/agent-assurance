@@ -1,0 +1,254 @@
+# Kind descriptor for `template_kind = "assertion-log-record"`.
+# Agent Assurance Profile artifact.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "kind-descriptor"
+ontology_version  = 1
+title             = "Assertion log record kind descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+describes_kind    = "assertion-log-record"
+framework_profile = "agent-assurance"
+authoritative_in  = "this file"
+
+[kind]
+name    = "assertion-log-record"
+summary = "One append-only log record citing an assertion bundle. Storage-agnostic; not git-coupled; not CI-coupled."
+prose   = """
+An assertion-log-record file declares one record in an append-only
+log of assertion bundles. Each record carries an index, a content
+hash of the previous record (or the sentinel `\"genesis\"`), the
+hash of the cited bundle, a signer identity, a signature, and a
+timestamp.
+
+The log itself is a sequence of these record documents stored
+wherever the operator chooses: flat files, S3, OCI artifacts, IPFS,
+sigstore Rekor, Trillian, LMDB. The SPEC layer defines the record
+shape; it does not pick a storage backend or transport.
+
+Records do NOT ride in git commits, notes, or tags. A repository
+MAY mirror records in git for convenience but the canonical log is
+independent of git. Appending is not CI-gated; any process with a
+signing identity is a valid appender.
+
+The SPEC-layer validator checks each record document in isolation:
+within-document syntactic and value-set checks only. Cross-record
+monotonicity (e.g., that `index` increases by 1 from the prior
+record, that `prev_hash` matches the prior record's content hash) is
+explicitly a RUNTIME-SPEC concern. Signature verification is
+RUNTIME-SPEC.
+
+ROOT SHAPE
+
+    [meta]
+    schema_version    = "0.1.0"
+    template_kind     = "assertion-log-record"
+    framework_profile = "agent-assurance"
+    title             = "Log record <index>"
+    created           = "YYYY-MM-DD"
+
+    [record]
+    index               = 42
+    prev_hash           = "0123...64hex"
+    bundle_hash         = "fedc...64hex"
+    signer_id           = "did:agent-assurance:signer:alice"
+    signature           = "base64sig=="
+    signature_algorithm = "ed25519"
+    hash_algorithm      = "sha256"
+    canonical_form      = "rfc8785-jcs"
+    timestamp           = "2026-05-21T03:14:15Z"
+
+VOCABULARIES
+
+- `[record].signature_algorithm` -> `record_signature_algorithm`
+- `[record].hash_algorithm`      -> `record_hash_algorithm`
+- `[record].canonical_form`      -> `record_canonical_form`
+
+VALIDATOR MUST NOT verify the signature, the prev_hash chain, the
+timestamp's corroboration, or any cross-record state. Those checks
+are RUNTIME-SPEC.
+"""
+references = [
+  "spec.md",
+  "profiles/agent-assurance/ontology.toml",
+]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[kind.required_fields]]
+path        = "meta.template_kind"
+must_equal  = "assertion-log-record"
+description = "Identifies this file as an assertion log record."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "meta.framework_profile"
+must_equal  = "agent-assurance"
+description = "Assertion log record is an Agent Assurance Profile artifact."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "record.index"
+description = "Non-negative integer record index."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "record.prev_hash"
+description = "Either the sentinel string `\"genesis\"` or a 64-character lowercase hex SHA-256."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "record.bundle_hash"
+description = "64-character lowercase hex SHA-256 of the cited bundle."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "record.signer_id"
+description = "Non-empty citation string referencing an attested identity."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "record.signature"
+description = "Non-empty base64 signature string."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "record.signature_algorithm"
+description = "Signature algorithm; value drawn from `record_signature_algorithm` vocabulary."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "record.hash_algorithm"
+description = "Hash algorithm; value drawn from `record_hash_algorithm` vocabulary."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "record.canonical_form"
+description = "Canonical serialization; value drawn from `record_canonical_form` vocabulary."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "record.timestamp"
+description = "RFC3339 UTC timestamp."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV01"
+statement   = "`record.index` MUST be a non-negative integer."
+enforced_by = "validators/validate_assertion_log_record.py (planned)"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV02"
+statement   = "`record.prev_hash` MUST equal `\"genesis\"` OR match `^[0-9a-f]{64}$`."
+enforced_by = "validators/validate_assertion_log_record.py (planned)"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV03"
+statement   = "`record.bundle_hash` MUST match `^[0-9a-f]{64}$`."
+enforced_by = "validators/validate_assertion_log_record.py (planned)"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV04"
+statement   = "SPEC-layer validation MUST NOT verify cross-record monotonicity (index, prev_hash chain), MUST NOT verify the signature, and MUST NOT verify timestamp corroboration. Those checks are RUNTIME-SPEC."
+enforced_by = "scope declaration; no validator action"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name           = "minimal assertion log record"
+file           = "examples/minimal-assertion-log-record.toml"
+inline_summary = "Single record at index 0 with prev_hash = `\"genesis\"`, ed25519 signature, sha256 / rfc8785-jcs canonical form."
+ijb_primitive = "observed"
+
+[kind.relation_to_ontology]
+entities_introduced = []
+ontology_entries    = "profiles/agent-assurance/ontology.toml [[attribute_vocabularies]]"
+attribute_vocabularies = [
+  "record_signature_algorithm",
+  "record_hash_algorithm",
+  "record_canonical_form",
+]
+note                = "No new entity or relation declarations. Log records are flat artifacts; each file is independently valid. The log is the sequence of these documents maintained outside SPEC scope."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# An assertion-log-record is observation-of-an-appended-record: it declares
+# one record in an append-only log that cites an assertion bundle by hash,
+# with closed-vocabulary signature / hash / canonical-form fields. It MUST
+# NOT, at the kind layer, become a transport for arbitrary capability
+# assertions. Naming the class here binds future log-record producers to
+# the contract; widening the envelope cascade-breaks downstream log
+# records (per §13.4). Signature verification, prev_hash chain checks,
+# and timestamp corroboration are explicitly RUNTIME-SPEC concerns and
+# lie outside this envelope.
+
+[kind.abstraction_class]
+id          = "observation-record.v1"
+description = "Read-only observation artefact: declares one append-only log record citing one assertion bundle by hash — `[record].index`, `[record].prev_hash`, `[record].bundle_hash`, `[record].signer_id`, `[record].signature`, closed-vocabulary `[record].signature_algorithm` / `[record].hash_algorithm` / `[record].canonical_form`, and an RFC3339 `[record].timestamp`. No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms      = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576  # 1 MB — an assertion-log record is a small flat document
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed      = false
+monotonic_clock_allowed = false
+precision_cap_ms        = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

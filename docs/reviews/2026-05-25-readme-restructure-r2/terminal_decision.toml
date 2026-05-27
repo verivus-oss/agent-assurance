@@ -1,0 +1,118 @@
+# Round-2 terminal decision for 2026-05-25-readme-restructure-r2.
+# Unanimous unconditional_approval. D1, D2, D3 (the r1 blockers)
+# all closed against bytes; D4 (initiator-flagged bonus
+# clarification) also closed. Regression check on r1's C01-C07
+# passes — narrow diff (5+/4-) did not disturb prior closures.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-readme-restructure-r2"
+predecessor    = "2026-05-25-readme-restructure"
+head_commit    = "953691b"
+
+[scope]
+commit_under_review = "953691b"
+parent_commit       = "b759eaf"
+unit                = "D1 + D2 + D3 (r1 blockers) + D4 (initiator-flagged Python-row clarification) + regression check on r1's C01-C07"
+verification_report = "docs/reviews/2026-05-25-readme-restructure-r2/verification_report.toml"
+
+# ----------------------------------------------------------------------
+# Verdicts (all three under full framework: verification report,
+# 90s polling, MCP tool access, full filesystem perms).
+# ----------------------------------------------------------------------
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "unconditional_approval"
+classification = "D1-D4 all closed; C01-C07 regression-clean; zero new defects"
+blocker_count  = 0
+raw_findings   = "raw_findings/codex.md"
+evidence_class = "live-executable (re-read primary-validator source for the 'cost' regression check, re-grep'd workflow for diff/compare, executed the corrected validate_abstraction_class command from README.md:180-181)"
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "unconditional_approval"
+classification = "D1-D4 all closed; C01-C07 regression-clean; zero new defects"
+blocker_count  = 0
+raw_findings   = "raw_findings/gemini.md"
+evidence_class = "live-executable (executed verify_by recipes for each D-closure; ran the corrected abstraction-class command; cross-checked Python row claims against validators/*.py)"
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "unconditional_approval"
+classification = "D1-D4 all closed; C01-C07 regression-clean; zero new defects"
+blocker_count  = 0
+raw_findings   = "raw_findings/grok.md"
+evidence_class = "live-executable (D1's original filer — explicitly cross-checked own r1 finding against the new bytes at README.md:180-181 and confirmed addressed)"
+note           = "Grok was the original D1 filer in r1. Its r2 review explicitly states 'The prior D1 finding I filed in r1 (grok.md:436-459) is directly addressed by the corrected command at README.md:180-181.' This is the highest-value binding signal — the reviewer that surfaced the most severe r1 defect is the one re-confirming the fix."
+
+# ----------------------------------------------------------------------
+# Defect closures (from r2 verification_report).
+# ----------------------------------------------------------------------
+
+[d_closures]
+
+[[d_closures.items]]
+id          = "D1"
+status      = "closed"
+binding     = "grok (original filer)"
+evidence    = "README.md:180-181 now contains `python3 validators/validate_abstraction_class.py --repo-root . core/*-kind.toml profiles/*/*-kind.toml`. Executed locally: exit 0, output `ABSTRACTION-CLASS VALIDATION PASSED (19 file(s) checked; 19 declared a §13 block)`."
+
+[[d_closures.items]]
+id          = "D2"
+status      = "closed"
+binding     = "codex + grok (convergent)"
+evidence    = "README.md:142 now reads `Authoritative for profile-descriptor, the disclosure-profile kinds, §2.5–§2.7 meta surface, and §11.1 [provenance.encryption] sub-table`. The word `cost` is removed. Verified by `grep -n 'Authoritative for.*cost' README.md` returning zero hits at 953691b."
+
+[[d_closures.items]]
+id          = "D3"
+status      = "closed"
+binding     = "codex + grok (convergent)"
+evidence    = "README.md:143 now reads `Same surface as Rust; CI runs both against every canonical example + tier file + profile descriptor on each push, and both must exit 0`. The phrase `bytewise agreement` is removed. Verified by `grep -n 'bytewise agreement' README.md` returning zero hits at 953691b."
+
+[[d_closures.items]]
+id          = "D4"
+status      = "closed"
+binding     = "initiator (proactive, accepted by all r2 reviewers)"
+evidence    = "README.md:144 now enumerates Python-only surfaces: cost-record, abstraction-class §13, closure-root §12, rollback-plan trigger closure, IJB conformance. Each is backed by an existing validators/<name>.py."
+
+# ----------------------------------------------------------------------
+# Regression check on r1 C-closures.
+# ----------------------------------------------------------------------
+
+[regression_check]
+checked_closures = ["C01", "C02", "C03", "C04", "C05", "C06", "C07"]
+status           = "all regression-clean"
+evidence         = "`git diff b759eaf..953691b -- README.md` touches only the three regions corresponding to D1, D2, D3, plus the D4 Python-row clarification. No edits to the Status table (C06), Repository Map (C02), Start Here groupings (C03), governance section (C07), 'after public' premise (C01 already removed), Local Validation block apart from the abstraction-class line (C04), or the Validation tooling section apart from D2/D3/D4 (C05). Confirmed by all three r2 reviewers."
+
+# ----------------------------------------------------------------------
+# Decision.
+# ----------------------------------------------------------------------
+
+[decision]
+outcome              = "unconditional_approval"
+unanimous            = true
+binding_reviewer     = "grok (original D1 filer; r2-confirms own r1 finding closed against bytes at README.md:180-181)"
+verdict_distribution = { unconditional_approval = 3, concrete_unresolvable_blocker = 0 }
+session_terminal     = true
+arc_terminal         = true
+next_action          = """
+README restructure work (b759eaf + 953691b) is approved end-to-end.
+The arc 2026-05-25-readme-restructure (r1 + r2) closes with all
+defects closed against bytes and all reviewers concurring under the
+full framework (verification report, 90s polling, MCP tools, full
+perms).
+"""
+
+[session_close]
+closed_at = "2026-05-25"
+closed_by = "consolidated reviewer verdicts at raw_findings/{codex,gemini,grok}.md"
+followup_notes = [
+  "Worked example of the framework operating as designed: r1 surfaced bytes-verified defects (codex + grok converged on D2/D3; grok independently caught D1); initiator could not rebut; revised in a tiny commit (5+/4-); r2 unanimously approved against bytes. The discipline at `tools/review-request-dag.toml [policy.*]` plus the per-session verification_report.toml (corrective-program spec) gave reviewers concrete `verify_by` recipes that surfaced real defects gemini's first-pass missed.",
+  "Process note: gemini's r1 was structurally correct but command-execution shallow. Under the same framework in r2, with the verification_report explicitly naming D1's command as a verify_by step, gemini DID run it and DID verify the closure. Suggests the framework's per-session verification_report is load-bearing — without an explicit command list, gemini may default to structural inspection only.",
+  "Worth absorbing into future docs-review prompts: when the document under review SHIPS commands in fenced blocks, the verify_by recipe MUST ask reviewers to execute those commands literally. The r1 prompt asked reviewers to 'verify against bytes' which gemini interpreted as 'read the file' rather than 'execute the commands the file ships'. The r2 verification_report's explicit `Execute the new command from repo root` step closed that ambiguity.",
+]

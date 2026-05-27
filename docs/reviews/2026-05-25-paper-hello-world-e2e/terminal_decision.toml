@@ -1,0 +1,120 @@
+# Round-1 terminal decision for 2026-05-25-paper-hello-world-e2e.
+# concrete_unresolvable_blocker. Codex and grok converged on the
+# load-bearing defect — the paper claims witness scripts use cmp
+# + byte-stream comparison (so trailing \n is verified), but the
+# actual scripts use $(cat) + string compare, so trailing \n is NOT
+# actually verified. This makes the headline 'C01 passes' claim
+# unsupported by the cited mechanism. Gemini approved (did not
+# probe the scripts).
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-paper-hello-world-e2e"
+head_commit    = "1e0e155"
+target_file    = "paper-hello-world/main.tex"
+
+[scope]
+unit                = "H01-H10 (whole-manuscript review)"
+verification_report = "docs/reviews/2026-05-25-paper-hello-world-e2e/verification_report.toml"
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "concrete_unresolvable_blocker"
+classification = "H01-H03/H05-H10 closed; H04 + H02 fail"
+blocker_count  = 2
+raw_findings   = "raw_findings/codex.md"
+evidence_class = "live-executable (built primary validators; ran every Table-2 command; inspected witness scripts at examples/proof-hello-world/{run_all,detect_semantic_rewrite,detect_awk_rewrite}.sh)"
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "unconditional_approval"
+classification = "H01-H10 all complete"
+blocker_count  = 0
+raw_findings   = "raw_findings/gemini.md"
+evidence_class = "live-executable (verify_by recipes for each H-closure)"
+note           = "Gemini's H02 check ran the witness scripts and confirmed they EXIT 0, but did not check WHETHER they actually verify the trailing \\n byte against an explicit byte stream as the paper claims. The check confirmed 'witness exits 0' (true) but not 'witness verifies what the paper says it verifies' (false). Codex and grok went deeper by reading the script bytes."
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "concrete_unresolvable_blocker"
+classification = "H02 specific defect (paper-vs-script claim mismatch)"
+blocker_count  = 1
+raw_findings   = "raw_findings/grok.md"
+evidence_class = "live-executable (read examples/proof-hello-world/run_all.sh:25-52 directly; confirmed it uses $(cat) + string compare not cmp + byte-stream)"
+
+[blockers]
+
+[[blockers.items]]
+id        = "C1"
+filer     = "codex + grok (convergent)"
+severity  = "concrete (substantive — paper makes a false claim about its own load-bearing witness)"
+location  = "paper-hello-world/main.tex:275-281 (the prose claim) vs examples/proof-hello-world/run_all.sh:28-39 + detect_semantic_rewrite.sh:53-55 + detect_awk_rewrite.sh:62-76 (the actual scripts)"
+defect    = """
+The manuscript states at lines 275-281 that the witness scripts
+'were therefore corrected to compare output files with cmp against
+an explicit Hello, world!\\n byte stream and to check stderr by file
+size. The outcomes in Table 2 are from the corrected witnesses.'
+
+Bytes-verified: all three witness scripts at examples/proof-hello-
+world/ still use $(cat "$out") + string compare with 'Hello, world!'
+(no trailing newline in the string literal, no cmp invocation
+anywhere). A witness with no trailing LF therefore satisfies the
+current check.
+
+This makes C01's trailing-\\n requirement (declared at CONTRACT_
+DECLARATION.toml:28 and re-stated at main.tex:160) NOT actually
+verified by the cited witness. The headline '5 PASS outcomes'
+remains TRUE (the witnesses do exit 0 against the canonical
+implementations, which happen to emit the LF), but the paper's
+CLAIM about WHY they pass (the corrected cmp-byte-stream
+comparison) is false against bytes.
+"""
+remediation_options = [
+  "(A) Fix the witness scripts to actually use cmp + explicit Hello, world!\\n byte stream as the paper claims. Mechanical; ~5 lines per script across 3 scripts. Re-run + update Table 2 if outcomes shift.",
+  "(B) Correct the prose to accurately describe the current scripts: $(cat) + string compare on 'Hello, world!' literal (no trailing \\n verified). And explicitly acknowledge in the Limitations section that the witness does NOT byte-exact-verify C01's trailing-\\n requirement. Honest.",
+  "(C) Both: fix the scripts AND correct the prose to reflect the new behaviour. Strongest.",
+]
+
+[[blockers.items]]
+id        = "C2"
+filer     = "codex"
+severity  = "concrete (mechanical)"
+location  = "paper-hello-world/main.tex:244-245"
+defect    = "Reports the traceability command with --check-paths-exist as exiting 0, but the exact command as written requires --repo-root . to succeed (otherwise exits 1). Mechanical fix: add --repo-root . to the command in the table."
+remediation = "Change the Table 2 row for validate_traceability.py to include --repo-root . in the cited invocation."
+
+[secondary_findings]
+
+[[secondary_findings.items]]
+id      = "S1"
+filer   = "codex"
+status  = "incomplete (H04 — Table 3 claim audit not 1:1 with Table 2)"
+defect  = "Table 3 (Claim Audit) has every row with evidence/status/boundary, but several Table 2 commands are absent from Table 3 as specific evidence rows. Closure-recipe interpretation: 1:1 was strict, codex flagged the gap honestly."
+
+[decision]
+outcome              = "concrete_unresolvable_blocker"
+unanimous            = false
+verdict_distribution = { unconditional_approval = 1, concrete_unresolvable_blocker = 2 }
+binding              = "concrete_unresolvable_blocker (codex + grok convergent on C1, the load-bearing defect; gemini's approval did not survive the deeper bytes-vs-prose check)"
+session_terminal     = false
+next_action          = """
+1. Decide C1 remediation (A / B / C above). A is the most defensible
+   for an academic paper claiming reproducibility; C is the most
+   honest if scripts can't be quickly fixed.
+2. Apply C2 fix (--repo-root . on Table 2 traceability row).
+3. Address H04 1:1 audit gap in r2.
+4. Dispatch r2 once remediation lands.
+"""
+
+[session_close]
+closed_at = "2026-05-25"
+closed_by = "consolidated reviewer verdicts at raw_findings/{codex,gemini,grok}.md"
+followup_notes = [
+  "C1 is the most operationally serious defect across all three e2e sessions: the paper's HEADLINE EVIDENCE for its narrow load-bearing claim is that C01 (exact \\n-terminated output) passes — but the witness that produces those PASS outcomes does not actually verify the trailing \\n. The paper says it does; the bytes say otherwise. This is the kind of defect that a multi-LLM review exists to catch.",
+  "Gemini's H02 approval is a useful negative data-point on the recipe-design front: 'witness exits 0' was the literal recipe check, and gemini honored it correctly. The DEFECT was the recipe was too shallow — it didn't ask the reviewer to read the script bytes to confirm the verification mechanism the paper describes. Worth absorbing into future paper-review verification_reports: when the paper makes a claim about its evidence mechanism, the recipe MUST ask reviewers to verify the mechanism, not just the exit code.",
+  "Mistral remains unavailable. 2/3 convergence on C1 with bytes evidence is binding over gemini's recipe-only approval.",
+]

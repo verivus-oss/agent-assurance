@@ -1,0 +1,176 @@
+# R2 — per-blocker classification across three reviewers.
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-unit-classifications"
+created        = "2026-05-23"
+review_session = "2026-05-23-paper-main-r2"
+prior_session  = "2026-05-23-paper-main"
+document       = "paper/main.tex@6ba15597a36096462cadd55aade3b7bac13c8e7abd86a26b3b53374001437025"
+reviewers      = ["codex", "gemini", "grok"]
+
+# ============================================================================
+# R1 blocker verification — what each reviewer said about each fix.
+# ============================================================================
+
+[[blocker]]
+id        = "B1"
+title     = "JPlag file-count direction contradiction"
+codex     = "partially_fixed"
+gemini    = "fixed"
+grok      = "fixed"
+majority_classification = "fixed (2 of 3) but with substantive evidence-backed dissent"
+detail    = """
+All three reviewers agree the arithmetic direction is now correct (84
+< 87 and 22 < 33). Codex ran JPlag locally and found the new causal
+clause ('the files JPlag cannot parse are excluded from its token
+corpus') is empirically false — JPlag indexed all 84/22 files and
+assigned token counts to parse-error files including
+metadata/languages.py (tokenCount=590). Grok flagged the SAME issue
+independently as N1 (medium) but did not elevate. Gemini accepted
+the prose without probing the parse-exclusion claim. Codex elevated
+to a new blocker; see independent_finding 'IF-R2-CX-01' below.
+"""
+
+[[blocker]]
+id        = "B2"
+title     = "Spec-vs-bundle conflation on verdict vocabulary"
+codex     = "fixed"
+gemini    = "fixed"
+grok      = "fixed"
+majority_classification = "fixed (unanimous)"
+detail    = "All three reviewers verified both §sec:spec item 3 (paper/main.tex:300-318) and §sec:verifier opening (paper/main.tex:1121-1124). All confirmed the wording now distinguishes core gate_decision_verdict (pass | fail) from this bundle's 8-value evidence vocabulary."
+
+[[blocker]]
+id        = "B3"
+title     = "C06e numeric-validation overclaim"
+codex     = "fixed"
+gemini    = "fixed"
+grok      = "fixed"
+majority_classification = "fixed (unanimous)"
+detail    = "All three reviewers verified the rewrite at paper/main.tex:1009-1027. Codex cross-checked against validate_numbers.py:304-307 and validation_report.json keys."
+
+[[blocker]]
+id        = "B4"
+title     = "Unpersisted sandbox-vs-workstation claim"
+codex     = "fixed"
+gemini    = "fixed"
+grok      = "fixed"
+majority_classification = "fixed (unanimous)"
+detail    = "All three reviewers verified the rewrite at paper/main.tex:749-763. Codex explicitly confirmed sandbox_vs_workstation.txt is absent (test -e exit 1) and noted the paper now acknowledges this."
+
+# ============================================================================
+# New independent findings raised by R2 reviewers.
+# ============================================================================
+
+[[independent_finding]]
+id        = "IF-R2-CX-01"
+raised_by = "codex"
+severity  = "high (blocker)"
+location  = "paper/main.tex:1339-1343"
+problem   = """
+The B1 fix's causal clause is empirically false. The paper now says
+'JPlag's bundled ANTLR Python 3 grammar emits parse errors on
+chardet/metadata/languages.py ... and the files JPlag cannot parse
+are excluded from its token corpus'. Codex's live JPlag rerun
+showed JPlag indexed all 84/22 files and assigned token counts to
+parse-error files (metadata/languages.py: tokenCount=590), so
+'excluded from its token corpus' is wrong.
+"""
+verified_by_initiator_at_aggregation = true
+verification_evidence = """
+Direct read of paper/figures/scripts/run_jplag.sh:30-50 confirms the
+script's own comment (lines 44-46): 'JPlag emits ANTLR parse errors
+on those data files BUT STILL COMPLETES THE COMPARISON; the token-level
+similarity is computed across all files JPlag could tokenize.' This
+contradicts the paper's 'excluded from its token corpus' claim.
+Additionally, the same comment confirms the actual reason for the
+84/22 count: JPlag was fed ONLY the v6/chardet/ and v7/src/chardet/
+implementation subtrees (lines 37-39), while the extractor walks
+full repo roots with test-filename exclusions.
+"""
+suggested_fix = """
+Rewrite the count sentence: '84 v6 .py files plus 22 v7 .py files
+are what JPlag indexed under the submission scope used at
+paper/figures/scripts/run_jplag.sh:34-39 — only the package
+implementation subtrees v6/chardet/ and v7/src/chardet/. The
+extractor's 87/33 count covers a broader walk of the full repo
+roots with explicit test-file exclusion. Parse errors on
+metadata/languages.py (PEP 515 underscore literals) are an
+additional v6-only effect; JPlag still tokenises those files and
+includes them in the comparison (run_jplag.sh:42-46), so the
+parse errors are noise at the data-table layer rather than the
+cause of the file-count difference.'
+"""
+
+[[independent_finding]]
+id        = "IF-R2-GR-01"
+raised_by = "grok"
+severity  = "medium"
+location  = "paper/main.tex:1336-1348 (and 1391-1398)"
+problem   = "Same as IF-R2-CX-01 above — Grok independently identified the parse-error story is at best a secondary effect that cannot explain the v7 file-count delta (33 - 22 = 11 files; languages.py is a v6-only data file). Grok rated medium and did not elevate to blocker, but the underlying observation is the same as Codex's."
+relationship_to_cx01 = "Same finding, different severity rating. The two together strengthen the case that this is a real factual error introduced by the B1 fix."
+
+[[independent_finding]]
+id        = "IF-R2-GE-01"
+raised_by = "gemini"
+severity  = "low"
+location  = "paper/main.tex:1081 (\\cref{tab:adversary})"
+problem   = "Cross-reference target is functionally correct (label at paper/main.tex:663 exists) but tab:adversary is physically located in §sec:c06e while the reference is in §sec:related, hundreds of lines later. Stylistically unusual past-tense 'summarised'. Not a defect."
+disposition = "Cosmetic; no action recommended."
+
+# ============================================================================
+# Sample of still-open R1 non-blocker findings (across the three reviewers'
+# samples).
+# ============================================================================
+
+[still_open_r1_findings]
+sampled = [
+  "F2-F02 — LoC drift (still present; all three reviewers confirmed)",
+  "L3-F01 — 'cone of plausible values' (still present; Grok + Gemini + Codex confirmed)",
+  "Q6-F01 — stale 'Section 9.4' bib note (still present; Grok + Gemini confirmed)",
+  "U4-F01 — Copyleaks unsubstantiated claim (still present; Grok + Gemini confirmed)",
+  "U4-F02 — '98--99% range' unsubstantiated (still present; Codex confirmed)",
+  "S1-F01 — reviewer-approval framing ambiguity (still present; Codex confirmed at paper/main.tex:1210-1211)",
+  "S1-F02 — abstract over-promises 'multi-LLM-reviewed' (still present; Codex confirmed at paper/main.tex:88-89)",
+  "S1-F04 — conversational pivot in abstract (still present; Gemini confirmed at paper/main.tex:81)",
+  "F2-F04 — 'means' overclaim on AST (still present; Grok confirmed at paper/main.tex:896-897)",
+]
+note = """
+The initiator did NOT claim to fix any of these in the R1 -> R2
+revision. They remain in the queue as 'should-do-before-resubmission'
+follow-ups (see prior gate_decision.toml:next_step rank 5).
+F2-F06 was incidentally improved according to Grok's sampling.
+"""
+
+# ============================================================================
+# Reviewer terminal verdicts
+# ============================================================================
+
+[reviewer_totals.codex]
+b1 = "partially_fixed"
+b2 = "fixed"
+b3 = "fixed"
+b4 = "fixed"
+independent_findings = 1
+terminal_verdict = "CONCRETE UNRESOLVABLE BLOCKERS (1)"
+basis = "live JPlag rerun + direct read of run_jplag.sh + token-count file listing from local report"
+
+[reviewer_totals.gemini]
+b1 = "fixed"
+b2 = "fixed"
+b3 = "fixed"
+b4 = "fixed"
+independent_findings = 1   # IF-R2-GE-01 (low, not blocker)
+terminal_verdict = "UNCONDITIONAL APPROVAL"
+basis = "static inspection of the four cited line ranges + sha verification"
+
+[reviewer_totals.grok]
+b1 = "fixed"
+b2 = "fixed"
+b3 = "fixed"
+b4 = "fixed"
+independent_findings = 1   # N1 (medium, NOT escalated to blocker)
+terminal_verdict = "UNCONDITIONAL APPROVAL"
+basis = "static inspection + live worktree file-count walks + label/cref hygiene check"
+note_on_n1 = "Grok identified the same issue as Codex's IF-R2-CX-01 but classified it medium and did not elevate to blocker."

@@ -1,0 +1,119 @@
+version: 2
+
+# Dependabot scope:
+# - github-actions: pinned by SHA org-wide; weekly bumps keep us current
+#   with the upstream maintainer's latest tag → SHA mapping.
+# - pip: only one runtime dep today (networkx), used by validators/.
+# - cargo: four primary-validator + reference tooling Rust crates under
+#   tools/. Each crate's lockfile is independent.
+# - gomod: three primary-validator + reference tooling Go modules under
+#   tools/. Each go.mod is independent.
+#
+# Security-only mode is NOT enabled — we want all updates (security +
+# version) so the toolchain stays current. The validator triad
+# (Python + Rust + Go) intentionally has minimal dependency surface, so
+# weekly PR volume is expected to be low.
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(pip)"
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "cargo"
+    directory: "/tools/dagtoml-validate-rs"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "deps(cargo)"
+    labels:
+      - "dependencies"
+      - "rust"
+
+  - package-ecosystem: "cargo"
+    directory: "/tools/toml-test-decode-rs"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "deps(cargo)"
+    labels:
+      - "dependencies"
+      - "rust"
+
+  - package-ecosystem: "cargo"
+    directory: "/tools/dagtoml-duckdb"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "deps(cargo)"
+    labels:
+      - "dependencies"
+      - "rust"
+
+  - package-ecosystem: "cargo"
+    directory: "/tools/dagtoml-rdf"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "deps(cargo)"
+    labels:
+      - "dependencies"
+      - "rust"
+
+  - package-ecosystem: "gomod"
+    directory: "/tools/dagtoml-validate-go"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "deps(gomod)"
+    labels:
+      - "dependencies"
+      - "go"
+
+  - package-ecosystem: "gomod"
+    directory: "/tools/dagtoml-duckdb-go"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "deps(gomod)"
+    labels:
+      - "dependencies"
+      - "go"
+
+  - package-ecosystem: "gomod"
+    directory: "/tools/dagtoml-rdf-go"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "deps(gomod)"
+    labels:
+      - "dependencies"
+      - "go"

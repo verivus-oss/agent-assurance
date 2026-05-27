@@ -1,0 +1,187 @@
+# Round-2 review of SPEC §13 Phase 2 retrofit.
+#
+# Codex r1 issued concrete_unresolvable_blocker on U08 (and an
+# informational quibble on U12). This r2 session reviews the follow-up
+# fix commit 6b63860 against those findings.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-25"
+review_session = "2026-05-25-spec-13-phase-2-declarations-r2"
+predecessor    = "2026-05-25-spec-13-phase-2-declarations"
+
+[bundle]
+repo_root             = "/srv/repos/external/verivus-oss/agent-assurance"
+parent_commit_pre_r2  = "092bccc"
+head_commit_post_r2   = "6b63860"
+commit_range_r2       = "092bccc..6b63860"
+total_new_commits     = 1
+description           = """
+Single follow-up commit (6b63860) closing codex r1 U08 blocker by
+rewriting the §13 header comment in
+profiles/agent-assurance/threat-model-kind.toml so the IJB-forbidden
+phrase 'risk posture' appears only in the kind's pre-existing
+IJB-stance note (lines 64-77), as that note itself requires
+("... only in this note where its forbidden status is the topic.").
+The commit also persists the r1 review session
+(docs/reviews/2026-05-25-spec-13-phase-2-declarations/) including
+the three reviewer findings + bundle + prompt.
+
+Scope: narrow — does the fix close the U08 blocker without introducing
+new defects? Does the r2 disposition of U12 (line-5 quibble) hold
+against parent-commit evidence?
+"""
+
+[bundle.r1_summary]
+verdicts = { codex = "concrete_unresolvable_blocker", gemini = "unconditional_approval", grok = "unconditional_approval" }
+binding_evidence_class = "live-executable + bytes (codex re-ran the grep and read the bytes at threat-model-kind.toml:156)"
+binding_evidence_path  = "docs/reviews/2026-05-25-spec-13-phase-2-declarations/raw_findings/codex.md"
+r1_findings_summary = """
+U08 (codex, high — BLOCKER): the §13 header comment at
+profiles/agent-assurance/threat-model-kind.toml:156 introduced a
+second occurrence of the IJB-forbidden phrase 'risk posture' in the
+file, violating the kind's existing IJB-stance note's "only in this
+note where its forbidden status is the topic" rule (lines 64-77
+pre-commit). The phrase only appeared in the §13 header comment
+(not in the [kind.abstraction_class].description itself), but it
+appeared in the FILE, which is what the existing rule forbids.
+
+U12 (codex, informational — NOT a blocker): three of the nine
+retrofitted descriptors have their closure_root sentinel on lines
+9 / 11 / 13 (implementation-dag-kind.toml, profile-descriptor-kind.toml,
+disclosure-attestation-kind.toml respectively) rather than line 5.
+Codex acknowledged these line positions PRE-EXISTED at parent commit
+ec37e7d (raw_findings/codex.md:195-201) and that the sentinel VALUE
+is preserved and the §12 validator passes (CLOSURE-ROOT VALIDATION
+PASSED, 74 file(s)). The r1 prompt's "at line 5" assertion was
+prompt-spec imprecision; the substantive requirement is "the sentinel
+value is preserved" and is met.
+
+Gemini and grok r1: both unconditional_approval. Gemini gracefully
+documented the line-number variance ("Line numbers vary (5, 9, 11, 13)
+due to header length"). Grok similarly ("Line varies with pre-existing
+header size; value identical everywhere").
+"""
+
+# ----------------------------------------------------------------------
+# Unit under review for r2.
+# ----------------------------------------------------------------------
+
+[[bundle.units]]
+id           = "U14"
+commit_sha   = "6b63860"
+title        = "U08 closure — remove 'risk posture' from threat-model §13 header"
+file         = "profiles/agent-assurance/threat-model-kind.toml"
+summary      = """
+The §13 header comment that previously occupied lines 143-157
+(post-092bccc) has been rewritten so it no longer contains the
+phrase 'risk posture'. The replacement reads:
+
+  # ... widening the
+  # envelope cascade-breaks downstream threat-models (per §13.4). The §13
+  # description below conforms to the IJB-stance note at lines 64-77 of
+  # this file.
+
+The [kind.abstraction_class].description (the actual descriptor
+field) was already clean at r1 — only the header comment leaked the
+phrase. The fix is comment-only; the kind's structural shape is
+unchanged.
+
+Initiator claim:
+
+  $ grep -n 'risk posture' profiles/agent-assurance/threat-model-kind.toml
+  74:for the full reasoning. The IJB-forbidden phrase "risk posture"
+
+  (single match, the original pre-existing IJB-stance note at line 74)
+
+This is plan-compliance language and MUST be independently verified
+against repo bytes by reviewers.
+"""
+changed_files = [
+  "profiles/agent-assurance/threat-model-kind.toml",
+]
+verify = [
+  "git show --stat 6b63860",
+  "git show 6b63860 -- profiles/agent-assurance/threat-model-kind.toml",
+  "grep -n 'risk posture' profiles/agent-assurance/threat-model-kind.toml   # MUST return exactly 1 line, at 74",
+  "sed -n '140,170p' profiles/agent-assurance/threat-model-kind.toml      # the rewritten §13 header + abstraction_class block",
+  "python3 validators/validate_abstraction_class.py --repo-root . profiles/agent-assurance/threat-model-kind.toml",
+  "python3 validators/validate_ijb_conformance.py profiles/agent-assurance/threat-model-kind.toml",
+  "python3 validators/validate_kind_descriptor.py profiles/agent-assurance/threat-model-kind.toml --repo-root . --check-references-exist",
+]
+
+[[bundle.units]]
+id           = "U15"
+commit_sha   = "6b63860"
+title        = "Aggregate validators still green after the fix"
+summary      = """
+The same five validator commands the r1 review ran MUST still exit 0
+with the same summary lines, since the fix is a comment-only edit
+that does not touch any structural field.
+"""
+verify = [
+  "python3 validators/validate_abstraction_class.py --repo-root . core/*-kind.toml profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml profiles/cost/*-kind.toml   # 19 file(s) checked; 14 declared a §13 block",
+  "for f in core/*-kind.toml profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml profiles/cost/*-kind.toml; do python3 validators/validate_ijb_conformance.py \"$f\"; done   # 19 PASS",
+  "for f in core/*-kind.toml profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml profiles/cost/*-kind.toml; do python3 validators/validate_kind_descriptor.py \"$f\" --repo-root . --check-references-exist; done   # 19 PASS",
+  "python3 validators/validate_closure_root.py --discover .   # 74 file(s) PASS",
+  "taplo lint core/*-kind.toml profiles/*/*-kind.toml   # no FAIL",
+]
+
+[[bundle.units]]
+id           = "U16"
+commit_sha   = "6b63860"
+title        = "U12 disposition — line-5 quibble is not a defect"
+summary      = """
+Codex r1 noted that three of the nine retrofitted descriptors have
+their closure_root sentinel on a line other than 5
+(implementation-dag-kind.toml:9, profile-descriptor-kind.toml:11,
+disclosure-attestation-kind.toml:13). Codex itself confirmed those
+line positions PRE-EXIST at the parent commit ec37e7d
+(raw_findings/codex.md:195-201).
+
+The substantive requirement (per SPEC §12.11 and plan §9) is that
+the sentinel VALUE is preserved; line position is incidental. The
+§12 validator confirms this empirically. The r1 prompt's "at line 5"
+phrasing was prompt-spec imprecision on the part of the initiator,
+not a defect introduced by this PR.
+
+Verification commands:
+"""
+verify = [
+  "git show ec37e7d:core/implementation-dag-kind.toml | grep -n 'closure_root'   # MUST show :9 (pre-existing position)",
+  "git show ec37e7d:core/profile-descriptor-kind.toml | grep -n 'closure_root'   # MUST show :11",
+  "git show ec37e7d:profiles/disclosure/disclosure-attestation-kind.toml | grep -n 'closure_root'   # MUST show :13",
+  "python3 validators/validate_closure_root.py --discover .   # MUST exit 0 (sentinel VALUE is what the §12 contract checks)",
+]
+
+[roster]
+initiator       = "claude-opus-4-7 (session running on /srv/repos/external/verivus-oss/agent-assurance, 2026-05-25)"
+initiator_role  = "excluded from standard reviewer set per [policy.roles].initiator_excluded_as_standard_reviewer"
+reviewer_models = ["codex", "gemini", "grok"]
+
+[review_instructions]
+rules_source  = "tools/review-request-dag.toml [policy.*]"
+prompt_path   = "docs/reviews/2026-05-25-spec-13-phase-2-declarations-r2/review_prompt.md"
+narrow_scope  = """
+Three units (U14 / U15 / U16). U14 + U15 are the closure of the codex
+r1 U08 blocker; U16 is the disposition of codex r1 U12. Each MUST be
+classified closed / partial / open with file:line evidence.
+Approval bases: inspected_code, executed_tests_with_output,
+inspected_docs, persisted_review_evidence. Forbidden bases:
+stated_intent, plan_compliance_claim, should_be_fixed_language.
+"""
+iteration_rule = "If initiator disagrees with a finding, response MUST cite code/doc evidence (file + line), not assertion."
+polling_cadence_seconds = 90
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-25-spec-13-phase-2-declarations-r2/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "terminal_decision.toml",
+]

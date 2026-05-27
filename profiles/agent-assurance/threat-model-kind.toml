@@ -1,0 +1,202 @@
+# Kind descriptor for `template_kind = "threat-model"`.
+# Agent Assurance Profile artifact. Collapses threat-model.md.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "kind-descriptor"
+ontology_version  = 1
+title             = "Threat model kind descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+describes_kind    = "threat-model"
+framework_profile = "agent-assurance"
+authoritative_in  = "this file (collapsed from profiles/agent-assurance/threat-model.md)"
+
+[kind]
+name    = "threat-model"
+summary = "Risk analysis of the change itself, not just the system under change."
+prose   = """
+A threat model surfaces ways the change can go wrong during
+authorship, review, deployment, or rollback, and what mitigation is
+expected.
+
+ROOT SHAPE
+
+    [meta]
+    schema_version    = "0.1.0"
+    template_kind     = "threat-model"
+    framework_profile = "agent-assurance"
+    title             = "Threat model for <feature>"
+    change_scope      = "src/checkout/**"
+    created           = "YYYY-MM-DD"
+
+    [[threats]]
+    id            = "THREAT:silent-tax-rounding"
+    title         = "Rounding inconsistency between currencies causes silent under-billing"
+    likelihood    = "low"
+    impact        = "high"
+    detection     = "Property test sweeps currency rounding modes."
+    mitigation    = "Centralise rounding in tax_engine::round_for_currency; add property test."
+    mitigated_by  = ["TEST:checkout::totals::rounding_sweep"]
+    residual_risk = "accepted"
+
+CATEGORIES TO COVER
+
+The threat model SHOULD include at least one threat per category that
+applies to the change:
+
+- Correctness: silent wrong-answer cases.
+- Safety: physical, regulated, customer harm.
+- Security: auth, authz, data exposure, injection.
+- Operational: deploy, rollback, observability gaps.
+- Process: agent-authorship-specific failure modes (omission,
+  hallucinated coverage, spurious refactors).
+
+VALUE SETS
+
+`likelihood`, `impact`, and `residual_risk` value sets are governed by
+the Agent Assurance Profile ontology
+(profiles/agent-assurance/ontology.toml [[attribute_vocabularies]]).
+Do not redeclare them here.
+
+IJB FOUNDATION STANCE
+
+The kind's purpose label is "Risk analysis of the change itself".
+That phrase describes what the kind does; it is not an in-data
+abstraction. Every field in a conforming threat-model instance
+reduces to one of the six IJB primitives: `[[threats]]` entries are
+thing/instance, the constraint vocabularies above are
+constraint/structural, and the set values on each threat are
+observed/instance. See spec.md §10.5 and
+profiles/agent-assurance/overview.md "IJB stance for threat-model"
+for the full reasoning. The IJB-forbidden phrase "risk posture"
+does not appear as a field name, value, kind label, or
+conforming-instance concept — only in this note where its
+forbidden status is the topic.
+"""
+references = [
+  "spec.md",
+  "profiles/agent-assurance/ontology.toml",
+]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[kind.required_fields]]
+path        = "meta.template_kind"
+must_equal  = "threat-model"
+description = "Identifies this file as a threat model."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "meta.framework_profile"
+must_equal  = "agent-assurance"
+description = "Threat model is an Agent Assurance Profile artifact."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "threats"
+description = "At least one threat with id, title, likelihood, impact, detection, mitigation, and residual_risk."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV01"
+statement   = "Every `THREAT:` entry has `likelihood` and `impact` values drawn from the profile ontology's allowed sets."
+enforced_by = "validators/validate_threat_model.py (planned)"
+see_also    = "profiles/agent-assurance/ontology.toml [[attribute_vocabularies]]"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV02"
+statement   = "`mitigated_by` references SHOULD resolve to `TEST:` entries in the matching traceability file."
+enforced_by = "validators/validate_threat_model.py (planned)"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name           = "minimal threat model"
+file           = "examples/minimal-threat-model.toml"
+inline_summary = "Three threats (silent-tax-rounding, agent-removes-idempotency-check, vat-rate-table-stale) with mitigations and residual-risk acceptance."
+ijb_primitive = "observed"
+
+[[kind.hard_invariants]]
+id          = "INV03"
+statement   = "Every entity prefix and relation predicate used in this kind's instance files resolves to an `ijb_primitive` declared in the ontology (core plus any active profile)."
+enforced_by = "validators/validate_ijb_conformance.py"
+see_also    = "foundations/ijb/primitives.md"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.relation_to_ontology]
+entities_introduced = ["THREAT"]
+ontology_entries    = "profiles/agent-assurance/ontology.toml [[entities]] (THREAT block)"
+attribute_vocabularies = ["likelihood", "impact", "residual_risk"]
+note                = "Value sets are profile-scoped closed vocabularies; see profile ontology for the exact lists."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# A threat-model is a threat-declaration: it enumerates ways the change
+# can go wrong during authorship, review, deployment, or rollback, with
+# closed-vocabulary likelihood / impact / residual_risk and free-form
+# detection / mitigation. It MUST NOT, at the kind layer, become a
+# transport for arbitrary capability assertions. Naming the class here
+# binds future threat-model producers to the contract; widening the
+# envelope cascade-breaks downstream threat-models (per §13.4). The §13
+# description below conforms to the IJB-stance note at lines 64-77 of
+# this file.
+
+[kind.abstraction_class]
+id          = "threat-declaration.v1"
+description = "Threat-declaration artefact: enumerates `[[threats]]` rows — each carrying `id` (`THREAT:` prefix), `title`, closed-vocabulary `likelihood` / `impact` / `residual_risk` (per profile ontology), free-form `detection` and `mitigation`, and an optional `mitigated_by` list of references to `TEST:` ids in the matching traceability file. Surfaces correctness, safety, security, operational, and agent-authorship-process failure modes. No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms      = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576  # 1 MB — a threat model is a small categorical document
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed      = false
+monotonic_clock_allowed = false
+precision_cap_ms        = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

@@ -1,0 +1,302 @@
+# Kind descriptor for `template_kind = "profile-descriptor"`.
+#
+# A profile-descriptor is the meta-meta layer: it documents profiles
+# the way `kind-descriptor` (core/) documents `template_kind`s. The
+# kind itself is defined normatively in spec.md §6.1. This file is
+# itself a regular `kind-descriptor` (the recursion boundary at
+# spec.md §2.4 still applies — there is no
+# `profile-descriptor-kind-descriptor.toml`).
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "kind-descriptor"
+ontology_version  = 1
+title             = "Profile descriptor kind descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+describes_kind    = "profile-descriptor"
+authoritative_in  = "spec.md §6.1"
+confidentiality   = "public"
+license           = "Apache-2.0"
+
+[kind]
+name    = "profile-descriptor"
+summary = "Machine-readable declaration of a DAG-TOML profile: its name, namespace partition, license, ontology, contained kinds, and inheritance chain."
+prose   = """
+A profile-descriptor is a single TOML document with
+`template_kind = "profile-descriptor"` whose `[profile]` table
+documents one profile published either by this spec
+(under `profiles/<name>/PROFILE.toml`, with `namespace = "spec.reserved"`)
+or by a third party (under their reverse-DNS prefix, e.g.
+`namespace = "com.example"`). Without a profile-descriptor, profile
+inheritance and namespacing have no machine-readable home, so adopters
+wing it and the public/private boundary drifts. The descriptor is the
+single artifact a validator loads to walk a profile's `extends` chain,
+list its contained kinds, and confirm its namespace partition.
+
+ROOT SHAPE
+
+    [meta]
+    schema_version    = "0.1.0"
+    template_kind     = "profile-descriptor"
+    ontology_version  = 1
+    title             = "<profile> profile descriptor"
+    confidentiality   = "public"
+    license           = "Apache-2.0"
+
+    [profile]
+    name            = "agent-assurance"
+    namespace       = "spec.reserved"
+    owner           = "verivus-oss"
+    license         = "Apache-2.0"
+    extends         = []
+    ontology        = "profiles/agent-assurance/ontology.toml"
+    contained_kinds = [
+      "spec-contract",
+      "threat-model",
+      "smoke-validation",
+      "rollback-plan",
+      "adapter-contract",
+      "adapter-registry-binding",
+      "assertion-bundle",
+      "assertion-log-record",
+      "gate-decision",
+    ]
+
+REQUIRED STRUCTURE
+
+- `[meta].template_kind` MUST equal `"profile-descriptor"`.
+- `[profile]` MUST declare `name`, `namespace`, `owner`, `license`,
+  `extends`, `ontology`, and `contained_kinds`.
+- `[profile].name` MUST conform to the SPEC §2.5 namespacing
+  partition (unprefixed kebab-case for spec-reserved profiles, reverse-DNS
+  for non-spec-reserved profiles), and MUST be consistent with
+  `[profile].namespace` (`spec.reserved` iff the name is unprefixed;
+  the reverse-DNS prefix MUST be a strict prefix of the name
+  otherwise).
+- `[profile].extends` is an array (possibly empty) of profile names.
+  Each entry MUST resolve to a loaded profile-descriptor. Cycles are
+  rejected.
+- `[profile].ontology` MUST resolve to an existing
+  `template_kind = "ontology"` TOML file under repo root.
+- Every entry in `[profile].contained_kinds` MUST resolve to a
+  loaded `*-kind.toml` whose `[meta].describes_kind` matches the
+  entry verbatim.
+- `[meta]` MAY carry `confidentiality`, `license`, `embargo_until`
+  per SPEC §2.7.
+
+INHERITANCE SEMANTICS
+
+`extends` is a declarative, validatable inheritance edge. A consumer
+loading a profile-descriptor walks `extends` and unions the resulting
+ontology entries and contained-kind sets. The spec does not ship a
+package manager for non-spec-reserved profile descriptors; consumers
+needing inheritance MUST place every transitively extended
+descriptor on disk alongside the child.
+
+RELATION TO ONTOLOGY
+
+A profile-descriptor does not introduce new entity prefixes; the
+`[profile]` table is treated as a singleton `thing/structural`
+declaration about the named profile. The contained kinds and the
+ontology pointed at by `[profile].ontology` are the entity-prefix
+and predicate sources.
+"""
+references = [
+  "spec.md",
+  "core/ontology.toml",
+]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[kind.required_fields]]
+path        = "meta.template_kind"
+must_equal  = "profile-descriptor"
+description = "Identifies this file as a profile descriptor."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "profile.name"
+description = "The exact string used as `framework_profile` in conforming documents. MUST conform to the SPEC §2.5 namespacing partition."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "profile.namespace"
+description = "Either `spec.reserved` (for spec-reserved unprefixed profiles) or the publisher's reverse-DNS prefix (for non-spec-reserved profiles)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "profile.owner"
+description = "Free-form short string identifying the publishing organisation."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "profile.license"
+description = "SPDX identifier or `LicenseRef-…` per SPEC §2.7."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "profile.extends"
+description = "Array (possibly empty) of profile names this profile layers on top of."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "profile.ontology"
+description = "Repo-relative path to the profile's `ontology.toml`."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "profile.contained_kinds"
+description = "Closed array of every `template_kind` slug the profile introduces; each MUST resolve to a `*-kind.toml` whose `describes_kind` matches the slug."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "profile"
+description = "The `[profile]` table is the singleton declaration about the named profile."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV01"
+statement   = "`[profile].name` and `[profile].namespace` are mutually consistent: namespace = `spec.reserved` iff name matches `^[a-z][a-z0-9-]*$`; otherwise namespace MUST be a strict reverse-DNS prefix of name."
+enforced_by = "validators/validate_profile_descriptor.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also    = "spec.md §2.5"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV02"
+statement   = "`[profile].extends` is acyclic — no profile may transitively extend itself."
+enforced_by = "validators/validate_profile_descriptor.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also    = "spec.md §6.1"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV03"
+statement   = "Every entry of `[profile].extends` resolves to a loaded profile-descriptor on disk; unknown names are rejected."
+enforced_by = "validators/validate_profile_descriptor.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also    = "spec.md §6.1"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV04"
+statement   = "`[profile].ontology` resolves to an existing file whose `[meta].template_kind` equals `\"ontology\"`."
+enforced_by = "validators/validate_profile_descriptor.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also    = "core/ontology.toml"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV05"
+statement   = "Every entry of `[profile].contained_kinds` resolves to a `*-kind.toml` under repo root whose `[meta].describes_kind` equals the entry verbatim."
+enforced_by = "validators/validate_profile_descriptor.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also    = "spec.md §2.3"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV06"
+statement   = "Every entity prefix and relation predicate used in this kind's instance files resolves to an `ijb_primitive` declared in the loaded ontology set."
+enforced_by = "validators/validate_ijb_conformance.py"
+see_also    = "foundations/ijb/primitives.md"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name           = "agent-assurance profile descriptor"
+file           = "profiles/agent-assurance/PROFILE.toml"
+inline_summary = "Spec-reserved (spec-reserved) profile descriptor for the Agent Assurance Profile. Extends nothing; lists all nine contained kinds."
+ijb_primitive = "observed"
+
+[[kind.example]]
+name           = "disclosure profile descriptor"
+file           = "profiles/disclosure/PROFILE.toml"
+inline_summary = "Spec-reserved (spec-reserved) profile descriptor for the disclosure profile. Extends nothing; lists three contained kinds."
+ijb_primitive = "observed"
+
+[kind.relation_to_ontology]
+entities_introduced = []
+ontology_entries    = "no new entity prefix; `[profile]` is a singleton thing/structural declaration about a named profile"
+predicates_used     = ["extends (profile-descriptor, declarative inheritance edge)"]
+note                = "The `extends` field is the only relation introduced by this kind. It is profile-descriptor-scoped and is declared inside this kind descriptor; it is NOT a core ontology predicate. Validators walking `extends` rely on the in-file declaration here plus the SPEC §6.1 rules."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# A profile-descriptor is an extension-declaration: it documents one
+# DAG-TOML profile (its name, namespace, owner, license, ontology
+# pointer, contained kinds, and declarative inheritance edges). It MUST
+# NOT, at the kind layer, become a transport for arbitrary capability
+# assertions. Naming the class here binds future profile-descriptor
+# producers to the contract; widening the envelope cascade-breaks
+# downstream profile-descriptors (per §13.4). Per SPEC §2.4 the
+# recursion stops here: there is no profile-descriptor-kind-descriptor
+# and there is no "envelope of profiles a descriptor describes" — this
+# envelope bounds the descriptor parse itself.
+
+[kind.abstraction_class]
+id          = "extension-declaration.v1"
+description = "Extension-declaration artefact: a singleton `[profile]` table naming a DAG-TOML profile via `name` + `namespace` (`spec.reserved` for spec-reserved unprefixed profiles, or a strict reverse-DNS prefix of `name` otherwise per SPEC §2.5), `owner`, `license`, an acyclic `extends` array of profile names (each MUST resolve to a loaded profile-descriptor on disk), an `ontology` repo-relative path (MUST resolve to a `template_kind = \"ontology\"` file), and a closed `contained_kinds` array (each entry MUST resolve to a `*-kind.toml` whose `describes_kind` matches verbatim). No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms      = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576  # 1 MB — a profile descriptor is a small singleton document
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed      = false
+monotonic_clock_allowed = false
+precision_cap_ms        = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

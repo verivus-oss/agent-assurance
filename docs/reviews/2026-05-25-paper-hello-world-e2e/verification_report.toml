@@ -1,0 +1,160 @@
+# End-to-end formal review — paper-hello-world/main.tex (Hello-World
+# proof manuscript) at HEAD 1e0e155. Werner-voice consistency edits
+# applied in 1e0e155 (Conclusion rewrite + Acknowledgments + fixed `---`).
+# Mistral CLI not installed; effective panel codex / gemini / grok.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "verification-report"
+created        = "2026-05-25"
+review_session = "2026-05-25-paper-hello-world-e2e"
+initiator      = "claude-opus-4-7"
+target_head    = "1e0e155"
+target_file    = "paper-hello-world/main.tex"
+
+[program]
+intent = """
+Whole-manuscript review of the Hello-World proof paper. Reports a
+deliberately minimal executable proof for a DAG-TOML contract: six
+canonical Hello-World implementations linked to one observable-output
+contract via implementation DAG + traceability + readiness gate +
+evidence matrix. The proof's load-bearing claim is narrow: the
+declared witnesses can be checked, the unsupported-language boundary
+is explicit, and the observed outcomes are reproducible.
+"""
+non_intent = """
+Not a benchmark or scalability claim. Not a review of the DAG-TOML
+spec (parallel session: docs/reviews/2026-05-25-spec-e2e). Not a
+Werner-Style-Spec lint — the spec lives at .local/werner-style-spec.md
+(gitignored). Reviewers verify the paper's specific claims against
+bytes; the proof artefact's bytes live at examples/proof-hello-world/.
+"""
+
+[[closures]]
+id        = "H01"
+title     = "Every \\cite{KEY} resolves to a real bib entry"
+verify_by = """
+1. Extract every `\\cite\\w*\\{KEY\\}` from paper-hello-world/main.tex.
+2. Confirm each KEY appears in `paper-hello-world/references.bib`'s `@TYPE{KEY,` lines.
+3. Missing keys are a concrete defect.
+"""
+
+[[closures]]
+id        = "H02"
+title     = "Every command in Table 2 (Observed Execution) actually runs and produces the claimed output"
+verify_by = """
+1. From repo root, run each command in the table:
+   - bash examples/proof-hello-world/run_all.sh
+   - bash examples/proof-hello-world/detect_semantic_rewrite.sh
+   - bash examples/proof-hello-world/detect_awk_rewrite.sh
+   - the dagtoml-validate-rs / dagtoml-validate-go binaries against one proof TOML each
+   - python3 validators/validate_implementation_dag.py examples/proof-hello-world/IMPLEMENTATION_DAG.toml
+   - python3 validators/validate_traceability.py examples/proof-hello-world/TRACEABILITY.toml --check-paths-exist
+   - python3 validators/validate_review_readiness.py examples/proof-hello-world/REVIEW_READINESS.toml
+   - python3 validators/validate_closure_root.py --discover examples/proof-hello-world/
+   - python3 validators/validate_ijb_conformance.py examples/proof-hello-world/IMPLEMENTATION_DAG.toml --repo-root .
+   - python3 validators/validate_code_symbols.py ...
+   - make toml-conformance-all
+2. Each must match the claimed outcome (5 pass 1 skip, 8 pass, 6 pass, exit 0, ABSTRACTION-CLASS PASSED 5 files, etc.).
+3. A command that does not produce the claimed result is a concrete defect — the table is the load-bearing evidence claim.
+"""
+
+[[closures]]
+id        = "H03"
+title     = "Implementation DAG validator's computed values match the paper"
+verify_by = """
+1. Run python3 validators/validate_implementation_dag.py examples/proof-hello-world/IMPLEMENTATION_DAG.toml --verbose (or read the file directly).
+2. Confirm: nine units, layer counts {0: 8, 1: 1}, entry points U01-U05/U07-U09, leaf nodes U06/U07/U09, critical path U05 → U06 with critical-path LOC 138.
+3. Mismatch is a defect.
+"""
+
+[[closures]]
+id        = "H04"
+title     = "Claim audit table (Table 3) is one-to-one with §3 contracts and Table 2 evidence"
+verify_by = """
+1. Every claim in Table 3 names: an evidence source, a status (directly observed / inferred), and a counterexample boundary.
+2. Cross-check: every C0N contract in Table 1 is covered by at least one claim in Table 3.
+3. Cross-check: every command in Table 2 is referenced as evidence for at least one claim in Table 3.
+"""
+
+[[closures]]
+id        = "H05"
+title     = "§1 spec-backdrop paragraph (validator triad + §12 + §13 + profiles + INV06) accurately describes HEAD 1e0e155"
+verify_by = """
+1. The paragraph names tools/dagtoml-validate-rs/ and tools/dagtoml-validate-go/; both exist.
+2. The paragraph cites the toml-test conformance harness; the Makefile targets toml-conformance and toml-conformance-rs both exist.
+3. The paragraph cites SPEC §12 (closure-root) and SPEC §13 (abstraction-class + capability-envelope); both sections exist in SPEC.md.
+4. The paragraph cites three profiles (agent-assurance, cost, disclosure) + the deployment-tier ladder + INV06; all exist on disk.
+"""
+
+[[closures]]
+id        = "H06"
+title     = "Werner Style Spec sanity floor (initiator computed CV 0.877 at HEAD)"
+verify_by = """
+1. `grep -c $'\\u2014' paper-hello-world/main.tex` returns 0 (no U+2014 em-dashes).
+2. `grep -cE -- '---' paper-hello-world/main.tex` returns 0 (no LaTeX em-dashes either — initiator fixed the one slip in 1e0e155).
+3. `grep -ciE '\\b(leverage|leverages|leveraging|leveraged|synergy|holistic|robust|streamline|cultivat(e|es|ing|ed)|foster(s|ing|ed)?)\\b' paper-hello-world/main.tex` returns 0 (C78 banned vocabulary).
+4. Sentence-length CV >= 0.4 (Werner burstiness floor; initiator computed 0.877 pre-review).
+"""
+
+[[closures]]
+id        = "H07"
+title     = "LaTeX structural integrity"
+verify_by = """
+1. Brace balance is 0.
+2. Every \\begin/\\end pair matches.
+3. Every \\ref{LABEL} / \\cref{LABEL} has a matching \\label{LABEL}.
+"""
+
+[[closures]]
+id        = "H08"
+title     = "Acknowledgments section names real tools + real reviewers"
+verify_by = """
+1. The new Acknowledgments section (added in 1e0e155) names tools/dagtoml-validate-rs/, tools/dagtoml-validate-go/, validators/, tools/toml-test-decode-rs/. Each path exists.
+2. It thanks the toml-lang/toml-test maintainers (real upstream project).
+3. It thanks the multi-LLM review panel (codex, gemini, grok). Cross-check: docs/reviews/ has actual sessions where those three reviewers participated under tools/review-request-dag.toml.
+"""
+
+[[closures]]
+id        = "H09"
+title     = "Conclusion (Werner-rewritten in 1e0e155) does not over-claim"
+verify_by = """
+1. The new Conclusion (~110 words, single long run-on) opens with concession-before-pivot ('I will not pretend this proof carries more than it does, because the whole point of declaring a narrow contract is that it stays narrow').
+2. It closes with the narrowing-claim 'inside one repository, on one runner, on one day' — bounded scope, no generalisation.
+3. No claims of semantic equivalence, scalability, paraphrase resistance at scale, or production assurance.
+"""
+
+[[closures]]
+id        = "H10"
+title     = "Limitations and Non-Claims section enumerates real exclusions"
+verify_by = """
+1. The section lists at least: general semantic equivalence, arbitrary obfuscation resistance, broad AWK AST similarity, copyright/licensing/authorship conclusions, production readiness, performance/scalability/precision/recall/benchmarks.
+2. The exact-claim paragraph (what this paper DOES claim) is intellectually honest and bounded.
+"""
+
+[approval]
+forbidden_bases = ["stated_intent", "plan_compliance_claim", "should_be_fixed_language"]
+required_bases  = ["inspected_code", "executed_tests_with_output", "inspected_docs", "persisted_review_evidence"]
+terminal_states = ["unconditional_approval", "concrete_unresolvable_blocker"]
+
+[iteration]
+initiator_rebuttal_rule = "Disagreement requires file:line evidence; assertion alone fails."
+polling_cadence_seconds = 90
+
+[reading_order]
+1 = "docs/reviews/2026-05-25-paper-hello-world-e2e/verification_report.toml (this file)"
+2 = "paper-hello-world/main.tex"
+3 = "paper-hello-world/references.bib"
+4 = "examples/proof-hello-world/ (the proof artefact the paper describes)"
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-25-paper-hello-world-e2e/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "terminal_decision.toml",
+]
+mistral_status = "unavailable on host"

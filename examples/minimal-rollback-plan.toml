@@ -1,0 +1,53 @@
+# Minimal rollback plan, Agent Assurance Profile.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "rollback-plan"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+framework_profile = "agent-assurance"
+title             = "Rollback plan: tax line on checkout receipt"
+created           = "2026-05-19"
+
+[plan]
+summary          = "Disable feature flag checkout.new_tax_engine in prod; redeploy previous tag if error rate does not recover within the rollback window."
+owner            = "checkout-oncall"
+estimated_ttr    = "PT15M"
+previous_release = "checkout@2026.05.12-r1"
+
+[[triggers]]
+id           = "TRIG:tax-error-rate"
+trigger_kind = "error_rate_threshold"
+metric       = "checkout.tax_engine.errors_per_minute"
+threshold    = 10
+window       = "PT5M"
+action       = "page checkout-oncall"
+
+[[triggers]]
+id           = "TRIG:determinism-regression"
+trigger_kind = "determinism_regression"
+metric       = "checkout.tax_engine.nondeterministic_outputs"
+threshold    = 1
+window       = "PT1H"
+action       = "page checkout-oncall"
+
+[[triggers]]
+id           = "TRIG:perf-regression"
+trigger_kind = "perf_regression"
+metric       = "checkout.p99_latency_ms"
+threshold    = 250
+window       = "PT15M"
+action       = "page checkout-oncall"
+
+[procedure]
+steps = [
+  "Set flag checkout.new_tax_engine = false in prod.",
+  "Verify checkout.tax_engine.errors_per_minute drops below 10 within 5 minutes.",
+  "If not, redeploy the previous tag checkout@2026.05.12-r1.",
+  "Reconcile any orders processed during the incident window against the upstream tax engine.",
+  "File a post-incident review within 24 hours.",
+]

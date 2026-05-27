@@ -1,0 +1,27 @@
+# Minimal disclosure-attestation example.
+# Demonstrates the disclosure-profile entry-point document: one
+# attestation declaring a partial-disclosure posture on one
+# assertion-bundle subject, citing the redaction manifest entry
+# and selective-disclosure proof that back the posture.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "disclosure-attestation"
+framework_profile = "disclosure"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/profiles/disclosure/PROFILE.toml"
+title             = "Disclosure attestation for assertion-bundle 12345"
+created           = "2026-05-22"
+confidentiality   = "public"
+license           = "Apache-2.0"
+
+[[attestations]]
+id                 = "DISC:bundle-12345"
+subject            = "bundle/12345"
+disclosure_posture = "partial"
+covered_by         = ["RED:bundle-12345-pii"]
+proven_by          = ["SDP:bundle-12345-merkle"]
+rationale          = "PII columns redacted per regulatory request; the remaining bytes are byte-faithful to the source assertion bundle."
+signed_by          = "release-captain@example.com"

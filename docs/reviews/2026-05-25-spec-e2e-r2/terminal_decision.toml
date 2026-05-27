@@ -1,0 +1,68 @@
+# Round-2 terminal decision for 2026-05-25-spec-e2e-r2.
+# Codex blocker on S08.1 (validate_gate_decision.py --help didn't
+# print INV01..INV06 as the verification recipe required). All other
+# closures S08.2-S08.8 + regression check confirmed. Fix is mechanical
+# (one-line argparse description). To be addressed in remediation
+# commit; r3 will re-verify.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-spec-e2e-r2"
+predecessor    = "2026-05-25-spec-e2e"
+head_commit    = "7782ade"
+
+[scope]
+unit                = "S08.1-S08.8 + regression check on r1-closed surfaces"
+verification_report = "docs/reviews/2026-05-25-spec-e2e-r2/verification_report.toml"
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "concrete_unresolvable_blocker"
+classification = "S08.2-S08.8 + regression closed; S08.1 open on --help string"
+blocker_count  = 1
+raw_findings   = "raw_findings/codex.md"
+evidence_class = "live-executable (ran validators against positive + both r1 negative variants on all three implementations; regression sweep across r1 S-closures)"
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "unconditional_approval"
+classification = "S08.1-S08.8 all closed; regression clean"
+blocker_count  = 0
+raw_findings   = "raw_findings/gemini.md"
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "unconditional_approval"
+classification = "S08.1-S08.8 all closed; regression clean"
+blocker_count  = 0
+raw_findings   = "raw_findings/grok.md"
+
+[blockers]
+
+[[blockers.items]]
+id        = "S08.1-help-string"
+filer     = "codex"
+severity  = "concrete (mechanical — verification_report recipe imprecision more than substrate defect)"
+location  = "validators/validate_gate_decision.py:259 vs docs/reviews/2026-05-25-spec-e2e-r2/verification_report.toml:58 (S08.1 verify_by:3)"
+defect    = "S08.1 verify_by:3 required `python3 validators/validate_gate_decision.py --help` to print a usage line citing `INV01..INV06`. The shipped script passes only `__doc__.splitlines()[0]` to argparse, so `--help` shows 'Validate a gate-decision instance against' without the invariant enumeration. The INV06 enforcement matrix itself (S08.2-S08.6) passes — codex confirmed all three validators reject both r1 negative variants — but the --help string doesn't satisfy the recipe."
+remediation = "One-line fix: expand the argparse description to include INV01..INV06 enumeration. After the fix, `validate_gate_decision.py --help` MUST mention all six invariant IDs."
+
+[decision]
+outcome              = "concrete_unresolvable_blocker"
+unanimous            = false
+verdict_distribution = { unconditional_approval = 2, concrete_unresolvable_blocker = 1 }
+binding              = "concrete_unresolvable_blocker (codex's bytes-verified recipe failure binds; gemini and grok approved without exercising the --help check)"
+session_terminal     = false
+next_action          = "Apply one-line --help fix; dispatch r3 on the remediation commit."
+
+[session_close]
+closed_at = "2026-05-25"
+closed_by = "consolidated reviewer verdicts at raw_findings/{codex,gemini,grok}.md"
+followup_notes = [
+  "Both gemini and grok approved the substrate while codex's deeper recipe-execution caught the --help string defect. Same pattern as r1 (gemini's r1 approval missed INV06 enforcement entirely, which codex's negative-variant test caught). The lesson generalises: when the verification_report ships explicit verify_by recipes that include command-output assertions, reviewers MUST literally run the commands.",
+  "The INV06 enforcement triad (Python + Rust + Go) IS verified-closed by all three reviewers. The remaining open is a recipe-literal --help string, not a substrate defect.",
+]

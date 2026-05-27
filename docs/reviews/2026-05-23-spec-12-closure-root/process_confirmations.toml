@@ -1,0 +1,45 @@
+# U06 — process confirmations.
+#
+# Per tools/review-request-dag.toml [policy.process_checks], reviewers
+# MUST report on the three cross-cutting process requirements. This
+# file aggregates the final round (round 3, against HEAD = 20c6207).
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-process-confirmations"
+created        = "2026-05-23"
+review_session = "2026-05-23-spec-12-closure-root"
+review_round   = 3
+commit_under_review = "20c620797d243da8ef929d9e829f3c4b4fc03244"
+
+# ----------------------------------------------------------------------
+# Check (a): active-user best-effort migration / behaviour-change
+# guidance is present.
+# ----------------------------------------------------------------------
+[confirmations.migration_guidance]
+codex_verdict = "confirmed"
+grok_verdict  = "confirmed"
+evidence      = "SPEC.md §12.11 (lines 1142–1191) — four-step migration: identify conforming docs, choose closure value (empty-closure sentinel for self-contained), place before first [table], re-emit + re-sign. CHANGELOG.md [Unreleased] entry pointing at §12.11. Backwards-incompatible nature surfaced explicitly with pre-public-release rationale."
+note          = "This blocker was unresolved in round 1 and round 2; resolved in commit 20c6207."
+
+# ----------------------------------------------------------------------
+# Check (b): no historical dated spec was retconned without a link or
+# correction note.
+# ----------------------------------------------------------------------
+[confirmations.no_retconning]
+codex_verdict = "confirmed"
+grok_verdict  = "confirmed"
+evidence      = "All §12 commits (bc2a7c5, dc3a7b0, 5c145c8, 20c6207) are purely additive. SPEC.md §12 was inserted after §11 with zero edits to prior normative sections. Back-references in §2.7, §5, §11 are new forward links. The original proposal at docs/research/2026-05-22-spec-foundations-research/follow-up-2/14-closure-root-spec-section-proposal.md still declares itself 'Not yet in SPEC.md' (unchanged status line)."
+
+# ----------------------------------------------------------------------
+# Check (c): all claimed tests were actually run with command output
+# and status.
+# ----------------------------------------------------------------------
+[confirmations.tests_run_with_output]
+codex_verdict = "confirmed"
+grok_verdict  = "confirmed_with_caveat"
+evidence      = "Both reviewers ran `bash validators/check_manifest_drift.sh` (exit 0, 'OK — manifest matches ontology'), the explicit 45-file canonical list command (PASSED), and `python3 validators/validate_closure_root.py --discover .`. Codex ran the discover command against a CLEAN ARCHIVE of HEAD (65 files, exit 0). Grok ran it against the WORKING TREE which included 5 untracked user-work files (70 candidates, 5 failures, exit 1). See terminal_decision.toml for the methodology-split rationale."
+caveat        = "Grok's working-tree --discover run failed on 5 untracked files (arxiv-prep-agent-dag.toml, claim-analysis-agent-gated-dag.toml, tools/claim-analysis-document-review-dag.toml, tools/review-request-dag.toml, tools/werner-style-policy.toml). These files are not in HEAD; the CI gate on `main` sees codex's view, not grok's."

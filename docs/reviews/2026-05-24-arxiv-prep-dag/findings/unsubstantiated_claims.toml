@@ -1,0 +1,20 @@
+[section]
+step_reference = "review_steps.step4"
+title = "Spot Unsubstantiated Claims"
+status = "findings"
+
+[[findings]]
+id = "UC-001"
+step_reference = "review_steps.step4"
+quoted_document_part = '''Transform a raw LaTeX paper tree into an arXiv-ready source bundle that passes automated processing on TeX Live 2025 (or 2023 fallback) with zero manual fixes required after upload.'''
+problem_explanation = "The 'zero manual fixes required' outcome is stronger than the evidence can guarantee; the document itself says arXiv's run is the final judge."
+suggested_fix = "Rephrase as 'aims to minimize manual fixes' or 'blocks known preflight failures before upload'."
+severity = "major"
+
+[[findings]]
+id = "UC-002"
+step_reference = "review_steps.step4"
+quoted_document_part = '''but the DAG makes failure *before* upload vanishingly unlikely.'''
+problem_explanation = "No failure-rate data or proof is supplied for 'vanishingly unlikely'."
+suggested_fix = "Replace with a measurable claim, such as 'reduces known checklist failures before upload'."
+severity = "minor"

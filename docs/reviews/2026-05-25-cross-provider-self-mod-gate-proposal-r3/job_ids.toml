@@ -1,0 +1,21 @@
+# llm-cli-gateway async job IDs for this review session (r3).
+# Initiator: claude-opus-4-7
+# Dispatched: 2026-05-25T03:15:17Z .. 2026-05-25T03:15:27Z (UTC)
+# Reviewing commit: 9b54702 (substantive fix) + f7b608a (audit-persistence, scope-confirming)
+
+[jobs]
+codex   = "9087d779-e6f2-461d-bee5-8843d7046567"
+gemini  = "22e4de22-cc96-457a-b949-2946e8e7e38c"
+grok    = "240a260b-7f5a-4ef9-b189-221845a26285"
+mistral = "skipped_cli_not_installed"
+
+[correlation_ids]
+codex   = "b732ede7-0d79-4702-81dd-666596b50b1e"
+gemini  = "97199ea8-979a-45f0-807c-f1ef2ee2a93f"
+grok    = "b34ceb90-f5cc-4e0d-8153-825d7a5f0101"
+
+[dispatch]
+codex_started_at  = "2026-05-25T03:15:17.524Z"
+gemini_started_at = "2026-05-25T03:15:20.493Z"
+grok_started_at   = "2026-05-25T03:15:27.980Z"
+polling_cadence_seconds = 90

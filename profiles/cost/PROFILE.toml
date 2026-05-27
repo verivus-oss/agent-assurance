@@ -1,0 +1,60 @@
+# Profile descriptor for the cost profile.
+#
+# The cost profile sits next to agent-assurance and disclosure as a
+# peer, not inside agent-assurance: a repo may adopt cost on its own,
+# in combination with agent-assurance, or not at all. Its single
+# kind — `cost-record` — records the cost of a costed action (an LLM
+# call, a CI evidence run, a human review, a notarisation, a
+# transparency-log write) such that:
+#
+# - A gate-decision can cite which cost-records witnessed its verdict
+#   and an auditor can see which class of deciding entity paid.
+# - An evidence-matrix entry can cite which cost-records were paid to
+#   produce each piece of evidence — distinguishing a deterministic
+#   check from an LLM consensus run as a structural property of the
+#   matrix, not as implementer flavour.
+# - The shape is closed enough that two independent runtimes produce
+#   interoperable records, and open enough (via producer-attested unit
+#   labels) that the spec does not become a billing dialect.
+#
+# Per the design directive in
+# docs/research/2026-05-22-spec-foundations-research/follow-up-2/13-stream-g-cost-witnessed-decision.md
+# the cost profile names Cost-Witnessed Decision as the third frontier
+# primitive, peer to Provable Intent (SPEC §12 closure-root rule) and
+# Structural Governance (SPEC §3 / §5 / §10 IJB foundation).
+#
+# Per spec.md §2.5 / §6.1 this is a spec-reserved profile published in
+# `profiles/<name>/` under the `spec.reserved` namespace. A
+# third-party costing profile would live under a reverse-DNS name.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "profile-descriptor"
+ontology_version  = 1
+title             = "Cost Profile descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md#61-the-profile-descriptor-kind"
+confidentiality   = "public"
+license           = "Apache-2.0"
+
+[meta.ijb_field_primitives]
+template_kind     = { ijb_primitive = "scope",      ijb_class = "structural" }
+schema_version    = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+ontology_version  = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+confidentiality   = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+license           = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+
+[profile]
+name              = "cost"
+namespace         = "spec.reserved"
+owner             = "verivus-oss"
+license           = "Apache-2.0"
+extends           = []
+ontology          = "profiles/cost/ontology.toml"
+contained_kinds   = [
+  "cost-record",
+]
+ijb_primitive     = "thing"
+ijb_class         = "structural"

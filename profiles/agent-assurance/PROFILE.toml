@@ -1,0 +1,46 @@
+# Profile descriptor for the Agent Assurance Profile.
+#
+# Authoritative machine-readable declaration of the spec-reserved
+# `agent-assurance` profile per spec.md §6.1. A consumer that loads
+# this descriptor sees every kind the profile introduces and the
+# ontology it ships, without scanning the directory.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "profile-descriptor"
+ontology_version  = 1
+title             = "Agent Assurance Profile descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md#61-the-profile-descriptor-kind"
+confidentiality   = "public"
+license           = "Apache-2.0"
+
+[meta.ijb_field_primitives]
+template_kind     = { ijb_primitive = "scope",      ijb_class = "structural" }
+schema_version    = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+ontology_version  = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+confidentiality   = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+license           = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+
+[profile]
+name              = "agent-assurance"
+namespace         = "spec.reserved"
+owner             = "verivus-oss"
+license           = "Apache-2.0"
+extends           = []
+ontology          = "profiles/agent-assurance/ontology.toml"
+contained_kinds   = [
+  "spec-contract",
+  "threat-model",
+  "smoke-validation",
+  "rollback-plan",
+  "adapter-contract",
+  "adapter-registry-binding",
+  "assertion-bundle",
+  "assertion-log-record",
+  "gate-decision",
+]
+ijb_primitive     = "thing"
+ijb_class         = "structural"

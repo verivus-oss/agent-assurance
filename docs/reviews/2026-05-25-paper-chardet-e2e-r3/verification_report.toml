@@ -1,0 +1,113 @@
+# Round-3 verification report for the paper-chardet-e2e review arc.
+# r2 closed B1+B2+B3 substrate. One r2 blocker open: B3-conclusion-overclaim
+# (codex) — paper/main.tex Conclusion at :1556-1559 still said
+# "scipy / numpy implementation" globally, which is false for C06e
+# (validated via stdlib digest + subprocess, not scipy/numpy).
+# r3 verifies the prose fix in 4fbc906 and probes for collateral damage.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "verification-report"
+created        = "2026-05-25"
+review_session = "2026-05-25-paper-chardet-e2e-r3"
+predecessor    = "2026-05-25-paper-chardet-e2e-r2"
+head_commit    = "4fbc906"
+
+[scope]
+unit               = "paper/main.tex — Werner-voice chardet manuscript; r2 mechanical B3-conclusion closure"
+authority          = "agent-aware-spec end-to-end review framework"
+review_layer       = "tier-3 (multi-LLM independent, bytes-verified)"
+panel              = ["codex", "gemini", "grok"]
+mistral_status     = "unavailable on host"
+remediation_commit = "4fbc906"
+predecessor_terminal_decision = "docs/reviews/2026-05-25-paper-chardet-e2e-r2/terminal_decision.toml"
+
+[directive]
+mode = "verify_against_bytes"
+discipline = """
+Reviewers MUST:
+1. Inspect paper/main.tex bytes; do not paraphrase from Claude.
+2. Compare the new Conclusion sentence with §10.3's corrected
+   paragraph — they MUST tell the same story about C06e's validation.
+3. Grep the entire paper for the phrase 'scipy / numpy' and assess
+   whether each remaining occurrence (if any) is accurate in its
+   local context. A stale claim anywhere — Abstract, Introduction,
+   Conclusion, Table caption, Appendix — IS a blocker.
+4. Run validate_numbers.py and confirm SKIP semantics still work
+   for C06e when chardet is unavailable; the prose claim about
+   'explicit SKIP semantics' must be a TRUE description of the
+   code, not aspirational.
+5. Iterate until your verdict is one of unconditional_approval or
+   concrete_unresolvable_blocker.
+6. Approval grounds: inspected bytes + executed scripts + observed
+   output. Not 'looks fixed' or 'should be correct'.
+"""
+
+[principal_question]
+question = """
+Has the r2 blocker B3-conclusion-overclaim been closed in commit 4fbc906
+such that the paper's Conclusion accurately describes BOTH validation
+paths (scipy/numpy for AUX1+C06a-d; stdlib digest + subprocess for C06e),
+AND has the B1+B2+B3 substrate (validate_numbers.py corpus-digest +
+C06e recompute_rates + §10.3 paragraph) survived the change?
+AND are there any OTHER locations in the paper that still make the
+inaccurate global claim?
+"""
+disposition_options = ["closed", "open_with_concrete_blocker"]
+
+[[verify_by]]
+order = 1
+action = "Read paper/main.tex lines 1555-1565 (the Conclusion sentence). Capture the exact text."
+expected = "The sentence must distinguish AUX1+C06a-d (scipy/numpy second-source) from C06e (stdlib digest re-derivation + subprocess + SKIP). It must NOT make a single global 'scipy/numpy' claim covering all contracts."
+
+[[verify_by]]
+order = 2
+action = "Grep the entire paper for the phrase 'scipy / numpy' AND for 'scipy/numpy' (with and without spaces): `grep -nE 'scipy ?/ ?numpy' paper/main.tex`."
+expected = "Every remaining occurrence must be in a CONTEXT that is true: e.g., §10.3 says 'AUX1 + C06a-d are cross-validated against scipy/numpy primitives' — that's true. The Conclusion's new sentence is also acceptable if it scopes the claim. A bare unscoped 'every contract is validated against scipy/numpy' anywhere = BLOCKER."
+
+[[verify_by]]
+order = 3
+action = "Read §10.3 paragraph (find by searching for 'C06e' or 'fingerprint_behavior'). Confirm the substrate-level paragraph is intact and still says C06e is validated via stdlib digest + subprocess, not scipy/numpy."
+expected = "§10.3 unchanged from r2-closed state (or only changed in ways that preserve the truth)."
+
+[[verify_by]]
+order = 4
+action = "Run: `python3 paper/figures/scripts/validate_numbers.py` from the repo root. Capture output."
+expected = "Output includes both pass/SKIP markers for C06e (depending on whether chardet is installed in the runner's env). Exit 0 if all assertions held; non-zero only if a numeric value drifted, not because chardet is absent."
+
+[[verify_by]]
+order = 5
+action = "Inspect validate_numbers.py for the recompute_c06e_rates function (or equivalent). Confirm it subprocesses paper/figures/scripts/fingerprint_behavior.py AND that the SKIP path is reached when chardet import fails."
+expected = "Subprocess call present; SKIP-on-ImportError or SKIP-on-subprocess-failure handler present and clearly named."
+
+[[verify_by]]
+order = 6
+action = "Confirm corpus-digest in validate_numbers.py uses `hashlib.sha256(b\"\\n\".join(corpus)).hexdigest()[:16]` matching fingerprint_behavior.py's digest computation (the r2 B3-substrate fix)."
+expected = "Bytewise-equal digest construction in both files; if you run both and they produce different first-16-hex digests on the same corpus, that's a regression and a blocker."
+
+[[verify_by]]
+order = 7
+action = "Spot-check the rest of the paper for B1 (Acknowledgments) and B2 (Abstract) r2-closed surfaces — confirm they still read as the r2 review approved."
+expected = "No regressions in the previously-closed surfaces."
+
+[[verify_by]]
+order = 8
+action = "TeX sanity: `grep -c 'U+2014\\|—' paper/main.tex` should be 0 (no em-dashes — Werner-style C81 forbids them); brace balance should hold."
+expected = "0 em-dashes; brace count balanced."
+
+[blocker_disposition_format]
+template = """
+For each blocker FOUND:
+  id            = "<unique-id>"
+  severity      = "concrete | substantive | minor"
+  location      = "paper/main.tex:<line>"
+  defect        = "<exact prose-citation of the problem>"
+  remediation   = "<concrete prose edit, not 'consider rephrasing'>"
+  verified_via  = "<grep command or line read>"
+"""
+
+[acceptance]
+unconditional_approval = "Every verify_by check passes against bytes; Conclusion now scopes the validation claims accurately; no stale 'scipy/numpy global' anywhere; substrate intact."
+concrete_unresolvable_blocker = "At least one verify_by fails; cite the failing check + bytes-evidence."

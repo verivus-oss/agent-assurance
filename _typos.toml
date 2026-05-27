@@ -1,0 +1,74 @@
+# typos config — consumed by crate-ci/typos in the CI workflow's
+# "Source-code spellcheck (typos)" step.
+#
+# Scope: catch genuine spec/code typos in normative surfaces (spec.md,
+# core/, profiles/, foundations/ijb/*.toml, validators/, tools/, paper/
+# main.tex). Skip non-normative surfaces where "wrong" words are
+# intentional (anti-pattern dictionaries, immutable audit trails,
+# historical research, canonical-grammar example identifiers).
+
+[default]
+# Add legitimate terms typos doesn't know. Each entry is `bad = "good"`,
+# meaning "if you see 'bad' in source, consider it correct and not a
+# typo of 'good'". For our purposes every entry below is treated as
+# already-correct.
+extend-ignore-identifiers-re = [
+  # IJB canonical-grammar identifiers (foundations/ijb/examples/*) use
+  # kebab- and snake-case structured names that typos mis-splits into
+  # substrings (e.g., "AKS-IntegrationHub" → "afe" from somewhere).
+  # Treat tokens that contain a digit, dash, or underscore as
+  # identifiers and skip them entirely.
+  "^[A-Z][A-Za-z0-9_-]+$",
+]
+
+[default.extend-words]
+# Cryptographic / standards acronyms used in normative spec content.
+COSE = "COSE"           # CBOR Object Signing and Encryption (RFC 9052)
+COSe = "COSe"           # case-insensitive match for COSE_Sign1
+cose = "cose"           # ditto
+# Vendor / company names.
+Synopsys = "Synopsys"   # EDA tools company; appears in research provenance
+# Database / DevOps lifecycle terms typos doesn't recognise.
+decomission = "decomission"  # commonly-used colloquial spelling alongside "decommission"
+# Variable names (3-letter abbreviations) that match common-typo patterns
+# in Python validator code: (ep, ec, ect), `rto = ...`, etc. These are
+# false-positive matches against `etc`/`to`. Identifier-mode regex above
+# should catch most but explicit allowlist as belt-and-braces.
+ect = "ect"             # (ep, ec, ect) tuple destructuring
+rto = "rto"             # relation_to_ontology shorthand
+ba = "ba"               # bytes alias
+afe = "afe"             # IJB example identifier substring
+vai = "vai"             # Werner shorthand for "Verifiable AI" (paper §13 label)
+
+[files]
+extend-exclude = [
+  # Historical / immutable audit trails — editing these would falsify
+  # the evidence record (matches spec ethos: audit trails are evidence).
+  "docs/reviews/**",
+  "docs/research/**",
+  "docs/claim_analysis/**",
+
+  # Anti-pattern dictionary: lists bad spellings as data the policy
+  # bans. typos cannot distinguish a flagged-bad-spelling from a
+  # genuine typo.
+  "tools/werner-style-policy.toml",
+
+  # User-quote artifact: paper/user-prompts.md preserves verbatim user
+  # messages including their original spellings.
+  "paper/user-prompts.md",
+
+  # IJB canonical-grammar example files use made-up structured
+  # identifiers (kebab + camel + snake mix). typos cannot reliably
+  # distinguish identifier substrings from English words.
+  "foundations/ijb/examples/06-*.md",
+  "foundations/ijb/examples/07-*.md",
+
+  # Local-only working copies (also gitignored).
+  "paper-arxiv-prep/**",
+  ".local/**",
+
+  # Lock files — typos doesn't usefully check these.
+  "**/Cargo.lock",
+  "**/go.sum",
+  "**/uv.lock",
+]

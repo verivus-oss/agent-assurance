@@ -1,0 +1,287 @@
+# Job manifest — research dossier 2026-05-22
+#
+# Every async LLM call and Exa Deep Researcher call made during dossier
+# preparation, with IDs, parameters, costs, durations, and outputs.
+# Format: TOML so it's first-class to this repo's tooling.
+
+[manifest]
+date = "2026-05-22"
+total_streams = 13
+total_cost_exa_deep_usd = "≈$8" # see [exa_deep_research] entries; CLI calls billed separately
+
+# ---------------------------------------------------------------------------
+# First wave — six-question brief on IJB primitives + spec design
+# ---------------------------------------------------------------------------
+
+[[llm_gateway_jobs]]
+wave = "first"
+cli = "codex"
+model = "gpt-5.5"
+job_id = "70050462-e0d4-4ce7-aff9-e8ebe2c893c5"
+status = "failed"
+exit_code = 2
+duration_ms = 30
+error = "unexpected argument '--ask-for-approval'"
+note = "gateway emitted askForApproval flag local Codex CLI rejected; retried without"
+
+[[llm_gateway_jobs]]
+wave = "first"
+cli = "codex"
+model = "gpt-5.5"
+job_id = "44e9d88a-b3f3-4315-84a9-db506b24559a"
+status = "failed"
+exit_code = 2
+duration_ms = 30
+error = "unexpected argument '--search'"
+note = "gateway emitted --search flag local Codex CLI rejected; Codex still has Exa via own MCP config; retried without"
+
+[[llm_gateway_jobs]]
+wave = "first"
+cli = "codex"
+model = "gpt-5.5"
+job_id = "1d0bcb23-8199-4015-850c-0dae2c9d163b"
+session_id = "a9079db2-4d90-43c5-8d6e-9b6155b9479e"
+status = "completed"
+exit_code = 0
+duration_ms = 414336
+stdout_bytes = 13018
+output_file = "../02-codex-with-exa.md"
+
+[[llm_gateway_jobs]]
+wave = "first"
+cli = "gemini"
+model = "gemini-3.1-pro-preview"
+job_id = "a484d116-043c-4dd4-9d5e-9e139b8829d9"
+session_id = "1ac141f1-0482-461a-a9df-15641f9025e2"
+status = "completed"
+exit_code = 0
+duration_ms = 153684
+stdout_bytes = 18530
+output_file = "../03-gemini-with-exa.md"
+note = "two transient 429 'no capacity' retries during run; succeeded"
+
+[[llm_gateway_jobs]]
+wave = "first"
+cli = "grok"
+model = "grok-build"
+job_id = "3e2046c9-4c03-417e-b818-e065bbb1cc1a"
+status = "failed"
+exit_code = 1
+duration_ms = 7439
+error = "Model grok-build does not support parameter reasoningEffort"
+note = "removed reasoningEffort=high parameter; retried"
+
+[[llm_gateway_jobs]]
+wave = "first"
+cli = "grok"
+model = "grok-build"
+job_id = "471c8ac0-9d02-404c-beea-a9f95c2e6410"
+session_id = "gw-f2bb3651-31e8-4d16-b386-ab6f2c541332"
+status = "completed"
+exit_code = 0
+duration_ms = 69754
+stdout_bytes = 20109
+output_file = "../04-grok-with-exa.md"
+
+# ---------------------------------------------------------------------------
+# First-wave Exa Deep Researcher
+# ---------------------------------------------------------------------------
+
+[[exa_deep_research]]
+wave = "first"
+research_id = "r_01ks6fpjaqrsh8e4dz6y7tkx8j"
+model = "exa-research-pro"
+topic = "IJB primitives prior art"
+status = "completed"
+cost_usd = 1.16
+num_searches = 36
+num_pages = 95.6
+reasoning_tokens = 5184
+output_file = "../01-exa-deep-researcher.md"
+
+# ---------------------------------------------------------------------------
+# Follow-up wave — four-stream combined brief (Streams A/B/C/D)
+# ---------------------------------------------------------------------------
+
+[[llm_gateway_jobs]]
+wave = "follow-up"
+cli = "codex"
+model = "gpt-5.5"
+job_id = "52998c97-663a-4ac8-8566-456f238fbab1"
+session_id = "a9079db2-4d90-43c5-8d6e-9b6155b9479e" # resumed same Codex session
+status = "completed"
+exit_code = 0
+duration_ms = 512041
+stdout_bytes = 21471
+output_file = "../follow-up/codex-streams-a-b-c-d.md"
+
+[[llm_gateway_jobs]]
+wave = "follow-up"
+cli = "gemini"
+model = "gemini-3.1-pro-preview"
+job_id = "a1bba74a-87ef-45c1-934c-48fadc1c1b94"
+session_id = "a0520329-0644-4826-a070-212acf5509ca"
+status = "completed"
+exit_code = 0
+duration_ms = 194714
+stdout_bytes = 21035
+output_file = "../follow-up/gemini-streams-a-b-c-d.md"
+note = "5x Exa rate-limit errors mid-run, completed regardless"
+
+[[llm_gateway_jobs]]
+wave = "follow-up"
+cli = "grok"
+model = "grok-build"
+job_id = "9fdc0084-a2d0-4ab4-a1e5-06a3d9e67af3"
+session_id = "gw-803b6d03-e6a4-4cfa-978d-7e0a1bb94b21"
+status = "completed"
+exit_code = 0
+duration_ms = 130344
+stdout_bytes = 19713
+output_file = "../follow-up/grok-streams-a-b-c-d.md"
+
+# ---------------------------------------------------------------------------
+# Follow-up-wave Exa Deep Researchers (one per stream)
+# ---------------------------------------------------------------------------
+
+[[exa_deep_research]]
+wave = "follow-up"
+research_id = "r_01ks6k93rr0jn5kps3b70v98fm"
+model = "exa-research"
+topic = "Stream A — Kind-descriptor / self-describing-schema drift mitigation"
+status = "completed"
+cost_usd = 1.16
+num_searches = 70
+num_pages = 160.7
+reasoning_tokens = 832
+output_file = "../follow-up/exa-deep-a-kind-descriptor-drift.md"
+
+[[exa_deep_research]]
+wave = "follow-up"
+research_id = "r_01ks6k8dwpnrb5zqgenfvvj0cq"
+model = "exa-research-pro"
+topic = "Stream B — Legal-grade one-shot immutable attestation"
+status = "completed"
+cost_usd = 2.22
+num_searches = 64
+num_pages = 186.8
+reasoning_tokens = 5632
+output_file = "../follow-up/exa-deep-b-legal-grade-attestation.md"
+
+[[exa_deep_research]]
+wave = "follow-up"
+research_id = "r_01ks6k9p13ym0bfj9x0ytbb1rd"
+model = "exa-research"
+topic = "Stream C — Separation-of-duty gate validation"
+status = "completed"
+cost_usd = 1.67
+num_searches = 93
+num_pages = 240.0
+reasoning_tokens = 640
+output_file = "../follow-up/exa-deep-c-separation-of-duty.md"
+
+[[exa_deep_research]]
+wave = "follow-up"
+research_id = "r_01ks6kackkhzfdckbt1e5a9zn5"
+model = "exa-research"
+topic = "Stream D — Alternative formats / new-format design"
+status = "completed"
+cost_usd = 0.93
+num_searches = 54
+num_pages = 129.8
+reasoning_tokens = 2752
+output_file = "../follow-up/exa-deep-d-format-selection.md"
+
+# ---------------------------------------------------------------------------
+# Third wave — Grok share fetch + "more processing power" + HW/SW/cognition
+# (in flight at time of manifest creation; will be backfilled when complete)
+# ---------------------------------------------------------------------------
+
+[[llm_gateway_jobs]]
+wave = "third"
+cli = "grok"
+model = "grok-build"
+job_id = "5890cc4e-4893-498f-9849-386cb9684a20"
+purpose = "fetch Grok share URL conversation history"
+status = "running"
+
+[[llm_gateway_jobs]]
+wave = "third"
+cli = "codex"
+model = "gpt-5.5"
+job_id = "e62206d8-a507-43a7-bc34-afc9ffe2e193"
+purpose = "more processing power — cognitive automation lineage"
+status = "running"
+
+[[llm_gateway_jobs]]
+wave = "third"
+cli = "gemini"
+model = "gemini-3.1-pro-preview"
+job_id = "43477f57-1ac2-4a72-b261-9874f35c223e"
+purpose = "more processing power — cognitive automation lineage"
+status = "running"
+
+[[llm_gateway_jobs]]
+wave = "third"
+cli = "grok"
+model = "grok-build"
+job_id = "9659467f-ce27-4c0e-a18b-dbf88273d87f"
+purpose = "HW/SW/cognition layering as inference cost declines"
+status = "running"
+
+[[exa_deep_research]]
+wave = "third"
+research_id = "r_01ks6nprxecw3tpm25axv9xc31"
+model = "exa-research-pro"
+topic = "Cognitive-automation lineage — calculator/compiler/search/LLM frontiers"
+status = "running"
+
+[[exa_deep_research]]
+wave = "third"
+research_id = "r_01ks6ntbafxnm45dtfwxw1qjxe"
+model = "exa-research"
+topic = "HW/SW/cognition layering for trust infrastructure"
+status = "running"
+
+# ---------------------------------------------------------------------------
+# CLI configuration changes made before research could run
+# ---------------------------------------------------------------------------
+
+[[cli_config_changes]]
+cli = "gemini"
+action = "mcp add exa /home/werner/.local/bin/exa-mcp-from-azure (user scope)"
+before = "No MCP servers configured."
+after = "Configured MCP servers: ✓ exa (stdio) - Connected"
+
+[[cli_config_changes]]
+cli = "grok"
+action = "mcp add exa --command /home/werner/.local/bin/exa-mcp-from-azure"
+before = "No MCP servers configured."
+after = "  exa: /home/werner/.local/bin/exa-mcp-from-azure"
+
+[[cli_config_changes]]
+cli = "codex"
+action = "no change required"
+note = "Codex already had [mcp_servers.exa] in ~/.codex/config.toml"
+
+# ---------------------------------------------------------------------------
+# Per-wave totals (for budgeting and reproducibility)
+# ---------------------------------------------------------------------------
+
+[wave_totals.first]
+exa_deep_cost_usd = 1.16
+exa_deep_searches = 36
+agent_jobs_attempted = 5 # 2 codex retries + 1 codex success + 1 gemini + 1 grok retry + 1 grok success → 5 successful or final attempts
+agent_jobs_succeeded = 3
+total_agent_stdout_bytes = 51657
+
+[wave_totals.follow-up]
+exa_deep_cost_usd = 5.98
+exa_deep_searches = 281
+agent_jobs_attempted = 3
+agent_jobs_succeeded = 3
+total_agent_stdout_bytes = 62219
+
+[wave_totals.third_in_flight]
+exa_deep_running = 2
+agent_jobs_running = 4

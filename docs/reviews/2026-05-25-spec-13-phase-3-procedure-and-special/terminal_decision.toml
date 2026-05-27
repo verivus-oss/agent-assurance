@@ -1,0 +1,133 @@
+# Round-1 terminal decision for
+# 2026-05-25-spec-13-phase-3-procedure-and-special.
+# Unanimous unconditional_approval; phase-terminal commit takes the
+# §13 retrofit from 14/19 to 19/19. R1/R2 challenge on
+# adapter-contract was tested against bytes by all three reviewers
+# and rejected; R1 (envelope = SPEC-layer text/closed-vocab/ABNF/
+# digest-shape; runtime policy is instance-side under [adapter])
+# stands.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-spec-13-phase-3-procedure-and-special"
+predecessor    = "2026-05-25-spec-13-phase-2-declarations-r2"
+
+[scope]
+commit_under_review = "3749398"
+parent_commit       = "8a5e715"
+unit                = "U01-U09 (5 §13 retrofits across procedure-bearing + special kinds; aggregate validators; forbidden-phrase / sentinel / changelog process checks)"
+
+# ----------------------------------------------------------------------
+# Verdicts.
+# ----------------------------------------------------------------------
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "unconditional_approval"
+classification = "U01-U09 all complete; U04 R1 stands against bytes; no blocker"
+blocker_count  = 0
+raw_findings   = "raw_findings/codex.md"
+evidence_class = "live-executable (grep, validators, taplo, byte-level reads of adapter-contract-kind.toml:26-31/107-121, examples/minimal-adapter-contract.toml:17-24, new §13 prose at :201-210/:212-218)"
+note           = "codex was prompt-flagged as the R1/R2 adversary on U04 (adapter-contract). It explicitly tested R2 (envelope bounding deployed adapter runtime permissions) against the pre-existing required-field surface and the worked example, found 'no byte-level evidence requiring an R2 blocker', and upheld R1"
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "unconditional_approval"
+classification = "U01-U09 all complete; no blocker"
+blocker_count  = 0
+raw_findings   = "raw_findings/gemini.md"
+evidence_class = "live-executable (grep + validators + taplo + targeted reads of the 5 retrofitted kinds)"
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "unconditional_approval"
+classification = "U01-U09 all complete; U04 R1 stands against bytes; no blocker"
+blocker_count  = 0
+raw_findings   = "raw_findings/grok.md"
+evidence_class = "live-executable (grep + validators + taplo) + R1/R2 byte cross-check on adapter-contract-kind.toml:20-78/108-123/161-162 + examples/minimal-adapter-contract.toml:42-49; persisted file before returning summary"
+
+# ----------------------------------------------------------------------
+# R1/R2 challenge disposition (plan §5 + §7 row 7 + §8 Phase 3).
+# ----------------------------------------------------------------------
+
+[r1_r2_challenge_disposition]
+
+[[r1_r2_challenge_disposition.items]]
+unit        = "U04"
+kind        = "adapter-contract"
+class_id    = "interface-contract.v1"
+challenge   = "R2: should [kind.capability_envelope] bound the deployed adapter's runtime permissions (network/clock/env) rather than only the descriptor's SPEC-layer validation surface?"
+ruling      = "rejected (R1 stands)"
+binding_reviewer = "codex (prompt-flagged adversary) and grok (independent confirmer)"
+evidence    = """
+Two independent byte-level reads converge on the same finding:
+
+  - profiles/agent-assurance/adapter-contract-kind.toml:26-31 (existing
+    prose, pre-retrofit) carves out runtime concerns: the contract
+    'does NOT carry the adapter binary itself' and execution,
+    hermeticity enforcement, and digest verification are RUNTIME-SPEC,
+    out of SPEC-layer validation scope.
+
+  - adapter-contract-kind.toml:107-121 places runtime policy on the
+    INSTANCE surface as required fields under the [adapter] table
+    (runtime_kind, runtime_network_policy, runtime_clock_policy,
+    runtime_env_allowlist) — not on the descriptor.
+
+  - examples/minimal-adapter-contract.toml:17-24 demonstrates the
+    contract: runtime_* are declared in the instance [adapter] table.
+
+  - The new §13 prose at adapter-contract-kind.toml:201-210 binds the
+    envelope to text parse + closed-vocabulary + ABNF + digest-shape
+    checks (the descriptor's actual SPEC-layer work); lines 212-218
+    explicitly reject R2 as either unbounded (runtime behaviour is
+    not a SPEC-layer concern) or duplicative (the instance surface
+    already carries it).
+
+Therefore R2 would be a category error: §13 envelopes describe what
+the descriptor's OWN validator authority bounds at SPEC-time, not
+what a runtime executing an instance of the descriptor may do at
+deploy-time. The runtime envelope, if any, belongs in a future
+runtime-spec layer, not in agent-assurance §13.
+"""
+
+# ----------------------------------------------------------------------
+# Decision.
+# ----------------------------------------------------------------------
+
+[decision]
+outcome              = "unconditional_approval"
+unanimous            = true
+binding_reviewer     = "codex (prompt-designated R1/R2 adversary on U04 — explicitly tested R2 against bytes and rejected it)"
+verdict_distribution = { unconditional_approval = 3, concrete_unresolvable_blocker = 0 }
+session_terminal     = true
+phase_terminal       = true
+next_action          = """
+Phase 3 retrofit (commit 3749398) is approved. All 19 of 19 blessed
+kind descriptors now declare the §13 contract:
+
+  - Phase 0 (cost-record): 1 kind
+  - Phase 1 (observation-record.v1): 4 kinds
+  - Phase 2 (declaration kinds): 9 kinds
+  - Phase 3 (procedure-bearing + special): 5 kinds
+
+The SPEC.md:1478-1486 follow-up is fully closed. No further §13
+retrofit work is queued. Subsequent §13 work would be normal
+maintenance (new kinds declare §13 at birth; existing kinds
+update §13 alongside any change to their abstraction class or
+validator authority).
+"""
+
+[session_close]
+closed_at = "2026-05-25"
+closed_by = "consolidated reviewer verdicts at raw_findings/{codex,gemini,grok}.md"
+followup_notes = [
+  "Phase 3 totals: 5 kinds retrofitted; 5 new unique class ids (no shared ids — the per-kind-description rule from plan §6 is trivially satisfied); aggregate §13 count 14 → 19. End-state: 19/19 blessed kinds declare §13.",
+  "Plan §7 row 7 + §8 Phase 3 flagged adapter-contract for R1/R2 reviewer challenge. The challenge was honoured: codex (prompt-designated adversary) and grok (independent) both read the pre-retrofit required-field surface and worked example before voting, and both rejected R2 with file:line citations. This is the discipline the plan was written to invoke; it worked.",
+  "The arc Phase 1 → Phase 2 (incl. r2) → Phase 3 closes the §13 retrofit cleanly. The single r2 round in the whole arc (Phase 2) was triggered by a self-authored 'risk posture' leak that the discipline at tools/review-request-dag.toml [policy.*] caught — a worked counter-example to initiator self-approval, already recorded in the Phase 2 r2 terminal decision's followup_notes. Phase 3 implementer absorbed that lesson: no forbidden-phrase invariant violations were filed by any reviewer this round (U07 passed with zero matches).",
+  "CHANGELOG.md entry for commit 3749398 should record: '§13 Phase 3 retrofit — all 19/19 blessed kind descriptors now declare [kind.abstraction_class] + [kind.capability_envelope]; SPEC.md:1478-1486 follow-up closed.' (The commit-message subject already captures this; a [Unreleased] line in CHANGELOG.md per CONTRIBUTING.md should be confirmed before the next release tag.)",
+]

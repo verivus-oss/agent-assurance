@@ -1,0 +1,60 @@
+[report]
+document_path = "arxiv-prep-agent-dag.toml"
+document_sha256 = "b8e3bcbe8cda1c5a0a1bdb4de31f1d4b35e4233ad3aaa7990b3ff4a5e031cca2"
+workflow = "tools/claim-analysis-document-review-dag.toml"
+overall_assessment = "Good structural DAG with validator-clean implementation shape, but major revisions are needed for evidence-artifact consistency, overclaims, and current-policy source binding."
+
+trusted_sources = [
+  "docs/reviews/2026-05-24-arxiv-prep-dag/arxiv-checklists-reference.txt",
+  "SPEC.md",
+  "core/implementation-dag-kind.toml",
+]
+
+validation_observations = [
+  "python3 validators/validate_implementation_dag.py arxiv-prep-agent-dag.toml: passed",
+  "python3 validators/validate_ijb_conformance.py arxiv-prep-agent-dag.toml --repo-root .: passed",
+  "Manual coverage check found ART:compile-log references with no producing unit.",
+]
+
+[per_step_sections.step1]
+title = "Scan for Structure and Clarity"
+findings = ["SC-001", "SC-002"]
+
+[per_step_sections.step2]
+title = "Verify Factual Accuracy"
+findings = ["FA-001", "FA-002", "FA-003"]
+
+[per_step_sections.step3]
+title = "Examine Logical Leaps"
+findings = ["LL-001", "LL-002", "LL-003"]
+
+[per_step_sections.step4]
+title = "Spot Unsubstantiated Claims"
+findings = ["UC-001", "UC-002"]
+
+[per_step_sections.step5]
+title = "Assess Compliance and Risks"
+findings = ["CR-001", "CR-002"]
+
+[per_step_sections.step6]
+title = "Overall Quality Check"
+findings = ["Q-001"]
+
+[agent_responsibility_sections.factual_accuracy_verification]
+findings = ["FA-001", "FA-002", "FA-003"]
+
+[agent_responsibility_sections.logical_coherence_analysis]
+findings = ["LL-001", "LL-002", "LL-003"]
+
+[agent_responsibility_sections.source_reliability_evaluation]
+findings = ["SR-001", "SR-002"]
+
+[prioritized_recommendations]
+items = [
+  "Replace unresolved ART:compile-log references with ART:compile-and-pdf-evidence or add a produced compile-log artifact.",
+  "Bind the LLM disclosure/current arXiv policy invariant to an official trusted source, or remove it from mandatory evidence.",
+  "Reduce overclaims: replace 'zero manual fixes', 'vanishingly unlikely', and 'every checklist item' with narrower, verifiable language.",
+  "Resolve the flattening/subdirectory policy by separating Trevor-style flattening from official arXiv-compatible subdirectory handling.",
+  "Clarify package contents, especially whether generated main.pdf belongs in the submission bundle or only in the evidence pack.",
+  "Make the evidence pack exhaustive by listing every produced ART artifact that must be included.",
+]

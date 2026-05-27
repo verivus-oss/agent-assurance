@@ -1,0 +1,93 @@
+# lychee link-checker config.
+#
+# Consumed by the "Link-rot scan (lychee)" step in
+# .github/workflows/validate.yml. Lychee walks every tracked Markdown,
+# TOML, and TeX file looking for http(s):// URLs and confirms each one
+# resolves.
+
+# File-scan scope: lychee auto-detects markdown, html, plain-text,
+# TOML, TeX, and bib files from the path passed on the command line
+# (`.` in the CI workflow). We do NOT set `include` here — that
+# config key takes URL-regex patterns (filters which URLs to check
+# AFTER discovery), not file-glob patterns (which would filter which
+# files to walk). The earlier attempt to use `**/*.md` here failed
+# regex parsing in lychee v0.23.0 with
+# "regex parse error ... repetition operator missing expression".
+# File-extension scoping is handled by lychee's built-in extractor
+# selection, controlled by exclude_path below.
+
+exclude_path = [
+    ".git",
+    "target",
+    "node_modules",
+    # Audit trails reference URLs as evidence; the URLs are intentionally
+    # stable but we don't want false-positive failures on transient
+    # outages of cited resources. The audit-trail integrity is enforced
+    # by SHA pins on artifacts, not by URL liveness.
+    "docs/reviews",
+    # Research dossiers are historical evidence (snapshots of external
+    # sources at a point in time). Excluded for the same reason:
+    # link rot in a frozen research record doesn't invalidate the
+    # dossier as an audit artefact.
+    "docs/research",
+    "docs/claim_analysis",
+    # Local Werner Style Spec working copy.
+    ".local",
+    # Reference seed SQL/RDF files may inline URIs as data (RDF schema
+    # IRIs, namespace URIs) that aren't meant to be live endpoints.
+    "reference/database/rdf",
+]
+
+# Accept these HTTP status codes as "the URL exists" even though the
+# response wasn't 2xx. Mostly covers anti-bot heuristics.
+accept = ["200..=299", "403", "429"]
+
+# Honour exit-on-any-failure semantics. The action sets `fail: true`
+# too; both flags are belt-and-braces.
+max_retries = 3
+retry_wait_time = 2
+
+# Skip example/RFC-reserved domains that intentionally don't resolve,
+# plus the file:// scheme entirely (broken-link detection inside the
+# repo is the job of the path-existence validators under validators/,
+# not lychee, which exists to catch external link rot).
+exclude = [
+    # IETF document-example reserved domains
+    "^https?://(www\\.)?example\\.(com|net|org)",
+    # Generic placeholder domains in spec examples.
+    "^https?://([a-z0-9-]+\\.)?yourdomain\\.com",
+    # Werner's personal config domain — referenced from spec examples
+    # as an illustrative external resource, not as a load-bearing
+    # dependency we control.
+    "^https?://config\\.kasselman\\.com\\.au",
+    # Localhost / loopback / private ranges (witness scripts reference
+    # them as data)
+    "^https?://(127\\.0\\.0\\.1|localhost|0\\.0\\.0\\.0)",
+    # The legacy AGDF codename URL pattern referenced in profile alias
+    # docs — kept as historical text, not meant to resolve.
+    "verivus\\.com/agdf-internal",
+    # www.fco-im.nl — Dutch academic publisher hosting FCO-IM
+    # methodology papers cited from foundations/ijb/fco-im-integration-options.md.
+    # The site times out from GitHub Actions runners (slow non-CDN
+    # academic host); the papers themselves are stable academic
+    # references, not load-bearing dependencies. Excluded so transient
+    # remote unavailability doesn't block the build.
+    "^https?://(www\\.)?fco-im\\.nl",
+    # file:// scheme — internal-file existence is checked by
+    # validators/validate_implementation_dag.py, validators/
+    # validate_traceability.py, and the kind-descriptor validators
+    # via their --check-references-exist mode. lychee duplicating
+    # that check produces false-positive failures when relative
+    # paths in narrative prose don't match repo layout.
+    "^file://",
+]
+
+# Cache successful checks across runs to reduce CI cost and rate-limit
+# pressure. The cache lives under .lycheecache and is regenerated
+# weekly by lychee's TTL default.
+cache = true
+max_cache_age = "7d"
+
+# Operational
+no_progress = true
+verbose = "info"

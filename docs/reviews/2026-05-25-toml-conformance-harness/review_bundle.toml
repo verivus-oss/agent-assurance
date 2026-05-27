@@ -1,0 +1,181 @@
+# Round-1 review of the toml-test parser-conformance harness wired
+# into CI.
+#
+# Scope: a small CI/build-tooling change (3 files, 98 insertions,
+# 0 deletions). It does NOT modify SPEC.md, core/, profiles/,
+# validators/, examples/, or any DAG-TOML instance. It adds an
+# independent third-party conformance signal about the TOML parser
+# that the existing Go validator (tools/dagtoml-validate-go) imports.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-25"
+review_session = "2026-05-25-toml-conformance-harness"
+predecessor    = "2026-05-25-spec-13-phase-3-procedure-and-special"
+
+[bundle]
+repo_root         = "/srv/repos/external/verivus-oss/agent-assurance"
+parent_commit     = "8cc1110"
+head_commit       = "afe354c"
+commit_range      = "8cc1110..afe354c"
+total_new_commits = 1
+description       = """
+Single commit (afe354c) wiring the toml-lang/toml-test
+spec-conformance suite into CI. The new step runs the BurntSushi/toml
+`toml-test-decoder` shim against the embedded valid+invalid test
+corpus and asserts the parser exits 0 on every valid fixture and
+non-zero on every invalid fixture (modulo a documented skiplist).
+
+The decoder shim is shipped by the same BurntSushi/toml v1.4.0
+module that tools/dagtoml-validate-go's go.mod requires, so a green
+run is direct evidence about the parser the Go validator actually
+uses at runtime — not about an unrelated library.
+
+The change does NOT touch the SPEC, the kind descriptors, the
+ontologies, the Python validators, or the example instances. It
+adds a Makefile, a CI step, and a CHANGELOG entry.
+"""
+
+[bundle.lineage]
+predecessor_review_terminal = "docs/reviews/2026-05-25-spec-13-phase-3-procedure-and-special/terminal_decision.toml"
+authorising_recommendation  = """
+Initiator (claude-opus-4-7) proposed the harness in conversation as
+"the minimal next step" with explicit promise: 'one Go go install +
+a make target'. User accepted: 'Wire toml-test against the two
+existing port binaries.' Initiator scoped honestly: the promise
+covers the Go side only; the Rust shim is flagged as deferred
+follow-up in the CHANGELOG entry.
+"""
+
+[bundle.files_changed]
+list = [
+  "Makefile",                          # new
+  ".github/workflows/validate.yml",    # +1 step
+  "CHANGELOG.md",                      # +1 entry under [Unreleased]
+]
+
+[bundle.pinned_versions]
+toml_test          = "v1.6.0"
+toml_test_decoder  = "v1.4.0"
+notes              = "toml_test_decoder version MUST match the BurntSushi/toml line in tools/dagtoml-validate-go/go.mod, otherwise the conformance signal is about a different parser than the Go validator uses."
+
+# ----------------------------------------------------------------------
+# Units to classify.
+# ----------------------------------------------------------------------
+
+[[bundle.units]]
+id           = "U01"
+name         = "version-pinning-binds-conformance-to-validator-parser"
+summary      = """
+The toml-test-decoder version pinned in the Makefile MUST match the
+BurntSushi/toml version that tools/dagtoml-validate-go actually
+depends on, otherwise the harness signals about a different parser.
+"""
+verify       = """
+1. Read Makefile line 'TOML_TEST_DECODER_VERSION := v1.4.0'.
+2. Read tools/dagtoml-validate-go/go.mod 'require github.com/BurntSushi/toml v1.4.0'.
+3. Confirm major.minor.patch agreement (exact match preferred;
+   compatible-range acceptable iff the harness skiplist is
+   documented as recomputed for the actual decoder version installed).
+4. If they diverge, file a concrete_unresolvable_blocker.
+"""
+
+[[bundle.units]]
+id           = "U02"
+name         = "skiplist-baseline-is-honest"
+summary      = """
+The 13-entry TOML_CONFORMANCE_SKIPS list MUST correspond to the
+actual set of invalid-test names that BurntSushi/toml v1.4.0 fails
+to reject. The list MUST be documented as a permissiveness baseline
+to revisit on every version bump, NOT as a permanent allowance.
+"""
+verify       = """
+1. Read Makefile TOML_CONFORMANCE_SKIPS (lines around 38-52).
+2. Execute (locally; output should match):
+     go install github.com/toml-lang/toml-test/cmd/toml-test@v1.6.0
+     go install github.com/BurntSushi/toml/cmd/toml-test-decoder@v1.4.0
+     "$GOBIN"/toml-test "$GOBIN"/toml-test-decoder
+   Confirm the failure list matches the skiplist exactly (no extra
+   skips, no missing entries).
+3. Read the rationale comment block above TOML_CONFORMANCE_SKIPS:
+   verify it says (a) what category these are (b) that the list is
+   a baseline not a green light (c) that bumps must revisit it.
+4. If the skiplist hides additional failures or lacks the
+   bump-discipline note, file a finding (severity: medium — this
+   is the load-bearing honesty contract for the harness).
+"""
+
+[[bundle.units]]
+id           = "U03"
+name         = "ci-step-is-mandatory-not-soft"
+summary      = """
+The CI step MUST cause the workflow to fail if the suite fails.
+A soft step (continue-on-error, set +e without exit, etc.) would
+mean a regression in the parser silently lands.
+"""
+verify       = """
+1. Read .github/workflows/validate.yml around the new
+   'TOML 1.0 spec conformance' step.
+2. Confirm: `set -e` at top of script (or default Action behaviour
+   where any non-zero exit fails the step); NO `continue-on-error: true`;
+   `make toml-conformance` is the final command (exit code propagates).
+3. If the step is soft, file a concrete_unresolvable_blocker.
+"""
+
+[[bundle.units]]
+id           = "U04"
+name         = "no-spec-or-validator-byte-changed"
+summary      = """
+The change MUST NOT modify any SPEC/profile/validator/instance bytes.
+The commit message claims this; reviewers verify by diff inspection.
+"""
+verify       = """
+1. Run: git diff 8cc1110..afe354c --name-only
+2. Confirm the result is exactly:
+     .github/workflows/validate.yml
+     CHANGELOG.md
+     Makefile
+3. If any path under SPEC.md, core/, profiles/, validators/,
+   examples/, ontology files, or kind descriptors appears in the
+   diff, file a concrete_unresolvable_blocker (the change has
+   silently scope-crept beyond what was described).
+"""
+
+[[bundle.units]]
+id           = "U05"
+name         = "changelog-and-followup-honest"
+summary      = """
+The CHANGELOG entry MUST: (a) live under [Unreleased]; (b) name the
+load-bearing claim — that the decoder shim parses with the same
+module the Go validator uses; (c) state the Rust-side gap honestly
+as a follow-up, not as 'done'.
+"""
+verify       = """
+1. Read the new entry at the top of CHANGELOG.md under [Unreleased].
+2. Confirm (a)/(b)/(c) above.
+3. If the entry overclaims (e.g., implies the Rust validator's
+   parser is covered, or hides the skiplist behind 'fully passes'),
+   file a finding (severity: medium).
+"""
+
+# ----------------------------------------------------------------------
+# Approval policy (from tools/review-request-dag.toml [policy.*]).
+# ----------------------------------------------------------------------
+
+[approval]
+forbidden_bases = [
+  "stated_intent",
+  "plan_compliance_claim",
+  "should_be_fixed_language",
+]
+required_bases = [
+  "inspected_code",
+  "executed_tests_with_output",
+  "inspected_docs",
+  "persisted_review_evidence",
+]
+terminal_states = ["unconditional_approval", "concrete_unresolvable_blocker"]

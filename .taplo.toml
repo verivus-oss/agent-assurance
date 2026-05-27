@@ -1,0 +1,19 @@
+# Taplo configuration.
+#
+# CI runs `taplo lint` against every project TOML to catch syntax errors,
+# duplicate keys, and trailing-comma issues that `tomllib` accepts but
+# which are stricter under the TOML v1.0.0 spec. Formatter rules are
+# intentionally NOT enforced here — they live in CONTRIBUTING.md and the
+# `*-kind.toml` style guidance. Run `taplo fmt --check` locally if you
+# want a formatter pass.
+
+include = [
+  "**/*.toml",
+]
+
+exclude = [
+  ".git/**",
+  ".github/**",
+  ".claude/**",
+  "schemas/**",
+]

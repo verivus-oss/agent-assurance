@@ -1,0 +1,130 @@
+# Round-4 verification report for the paper-chardet-e2e review arc.
+# r3 closed B3-conclusion but gemini's r3 review surfaced a new
+# instance of the same defect class at paper/main.tex:1022-1025
+# (§10.3 introductory sentence used 'scipy AND numpy' framing that
+# r3's grep recipe — narrowed to the slash variant — missed).
+# r4 verifies the prose fix in <PENDING_COMMIT> and uses a broader
+# grep alternation to catch any remaining variants.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "verification-report"
+created        = "2026-05-25"
+review_session = "2026-05-25-paper-chardet-e2e-r4"
+predecessor    = "2026-05-25-paper-chardet-e2e-r3"
+head_commit    = "6d64887"
+
+[scope]
+unit               = "paper/main.tex §10.3 intro prose fix (B3-section10.3-overclaim)"
+authority          = "agent-aware-spec end-to-end review framework"
+review_layer       = "tier-3 (multi-LLM independent, bytes-verified)"
+panel              = ["codex", "gemini", "grok"]
+mistral_status     = "unavailable on host"
+predecessor_terminal_decision = "docs/reviews/2026-05-25-paper-chardet-e2e-r3/terminal_decision.toml"
+
+[directive]
+mode = "verify_against_bytes"
+discipline = """
+Reviewers MUST:
+1. Inspect paper/main.tex bytes; do not paraphrase from Claude.
+2. Execute the EXACT grep alternations specified in verify_by:2 —
+   they explicitly enumerate slash, 'and', '+', and bare-comma
+   forms to prevent the r3 recipe-narrowness defect.
+3. If you find any unscoped global scipy/numpy claim ANYWHERE,
+   file a concrete blocker with the exact byte location.
+4. Verify the new §10.3 intro accurately scopes the claim to
+   AUX1+C06a-d AND explains why C06e is handled separately
+   (matching the Conclusion's scoping pattern).
+5. Verify the validation script still works (positive + SKIP paths).
+6. Iterate until verdict is one of unconditional_approval or
+   concrete_unresolvable_blocker.
+
+Note on r3 dynamics absorbed here:
+- Codex r3: ran the literal pattern in the recipe; pattern was too
+  narrow. Recipe author's responsibility, not codex's. r4 fixes
+  the recipe.
+- Grok r3: broader grep DID surface the 'and' instance but assessed
+  it as context-redeemed-acceptable. r4 adopts the spec-ethos
+  position: framing must stand on its own; context cannot redeem
+  an inaccurate intro sentence in audit-grade prose.
+- Gemini r3: filed the correct blocker. Bytes-verified by Claude.
+"""
+
+[principal_question]
+question = """
+Has the §10.3 introductory sentence at paper/main.tex:1022-1025 been
+rewritten to scope the scipy/numpy validation claim to AUX1+C06a-d
+explicitly (matching the structure of the Conclusion at :1556-1564),
+AND does the rewrite explain why C06e is handled separately,
+AND does the rewrite NOT re-introduce any other unscoped global
+claim anywhere in the paper?
+"""
+disposition_options = ["closed", "open_with_concrete_blocker"]
+
+[[verify_by]]
+order = 1
+action = "Read paper/main.tex lines 1019-1045 (the §10.3 subsection start through the C06d bootstrap)."
+expected = """
+The intro sentence MUST:
+1. Scope the scipy/numpy claim to AUX1 and C06a-d explicitly.
+2. NOT use phrases like 'each number', 'every number', 'all numbers'
+   in connection with scipy/numpy validation.
+3. Explain that C06e is handled separately (either inline or with a
+   forward-pointer to the later C06e paragraph).
+Reading the bytes literally must satisfy all three.
+"""
+
+[[verify_by]]
+order = 2
+action = """
+Execute this broad alternation grep against the paper and report
+EVERY hit:
+  grep -nE 'scipy|numpy' paper/main.tex
+Then for each hit, classify it as one of:
+  (A) listing-specific second-source method (e.g.,
+      'scipy.spatial.distance.cosine' for C06c) — acceptable
+  (B) scoped composite reference (e.g., 'AUX1 and C06a-d via
+      scipy / numpy') — acceptable
+  (C) unscoped global claim ('each number ... scipy', 'all
+      numbers ... numpy') — BLOCKER
+  (D) negative-clause clarification (e.g., 'there is no scipy or
+      numpy primitive for X') — acceptable
+"""
+expected = "Every hit classified as A, B, or D. Zero hits of class C anywhere in paper/main.tex. If ANY hit is class C, file a concrete blocker citing the exact line."
+
+[[verify_by]]
+order = 3
+action = "Check the new §10.3 intro for internal consistency with the C06e paragraph at :1041+ and the Conclusion sentence at :1556-1564. All three should agree on what C06e's validation path is (stdlib digest + subprocess to fingerprint_behavior.py, with SKIP)."
+expected = "Triple-agreement: §10.3 intro, §10.3 C06e paragraph, and Conclusion all describe C06e's validation as stdlib digest + subprocess + SKIP, not scipy/numpy."
+
+[[verify_by]]
+order = 4
+action = "Run: `python3 paper/figures/scripts/validate_numbers.py` from repo root."
+expected = "Exit 0; output contains c06e.corpus_digest matched pair AND either c06e.exact_rate/bucket_rate measured pair OR c06e.rates_recompute SKIP row with `all agree: True`. The script's design has not changed since r3-approved state."
+
+[[verify_by]]
+order = 5
+action = "TeX sanity: count em-dashes and braces."
+expected = "0 em-dashes; brace balance = 0; no orphan refs/cites introduced by the prose change."
+
+[[verify_by]]
+order = 6
+action = "Regression sweep on the r3-approved Conclusion at :1556-1564 and the C06e paragraph at :1041-1060: confirm no edits there (r4 should only touch the §10.3 intro at :1022-1031 ish)."
+expected = "Both the Conclusion and the C06e paragraph are byte-identical to r3-closed state (modulo trivial whitespace if any). No collateral damage."
+
+[blocker_disposition_format]
+template = """
+For each blocker FOUND:
+  id            = "<unique-id>"
+  severity      = "concrete | substantive | minor"
+  location      = "paper/main.tex:<line>"
+  defect        = "<exact prose-citation>"
+  remediation   = "<concrete edit, not 'consider rephrasing'>"
+  verified_via  = "<grep command or line read with output>"
+"""
+
+[acceptance]
+unconditional_approval = "All 6 verify_by pass against bytes; §10.3 intro is scoped; no class-C grep hits; triple-agreement on C06e; script runs; TeX clean; no collateral damage."
+concrete_unresolvable_blocker = "Any verify_by fails; cite the failing check + bytes-evidence."

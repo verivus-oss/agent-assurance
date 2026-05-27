@@ -1,0 +1,46 @@
+# U01 — review bundle for SPEC §13 (abstraction class + capability envelope).
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-23"
+review_session = "2026-05-23-spec-13-abstraction-class"
+
+[bundle]
+change_under_review   = "SPEC §13 — Abstraction class + capability envelope (Stream F V2 + Turn-6 abstraction-class type safety)"
+repo_commit           = "27c10203d5b23a3750ee85f6fc50377234bc4303"
+parent_commit         = "3697066"
+repo_root             = "/srv/repos/external/verivus-oss/agent-assurance"
+proposal_sources      = [
+  "docs/research/2026-05-22-spec-foundations-research/follow-up-2/16-stream-F-synthesis-v2.md",
+  "docs/research/2026-05-22-spec-foundations-research/follow-up-2/10-abstraction-class-thread.md",
+  "docs/research/2026-05-22-spec-foundations-research/follow-up-2/12-canonical-thread.md",
+]
+spec_section          = "SPEC.md §13 (§13.1–§13.10)"
+new_validator         = "validators/validate_abstraction_class.py"
+ontology_additions    = [
+  "core/ontology.toml `capability_envelope.domain` attribute vocabulary (9 closed WASI Preview 2 domain values)",
+  "core/ontology.toml `abstraction_class.id_pattern` attribute vocabulary (closed `<slug>.v<integer>` pattern)",
+]
+worked_example        = "profiles/cost/cost-record-kind.toml (the first kind to declare §13: observation-record.v1)"
+count_mirror_deltas   = "attribute_vocabularies 41→43; attribute_value_allowed 106→116; attribute_values_declared 170→180; attribute_values_closed 99→109; expected_triple_counts.schema 1291→1329"
+
+[bundle.workflow_dag]
+file        = "tools/review-request-dag.toml"
+
+[roster]
+initiator_model           = "claude-opus-4-7"
+initiator_excluded_as_standard_reviewer = true
+reviewer_models           = ["codex", "grok"]
+
+[permissions]
+codex_sandbox       = "workspace-write"
+codex_bypass        = true
+codex_mcp           = ["sqry", "ref_tools"]
+grok_permission     = "bypassPermissions"
+grok_always_approve = true
+grok_mcp            = ["sqry", "ref_tools"]
+
+[outputs]
+raw_findings_dir         = "docs/reviews/2026-05-23-spec-13-abstraction-class/raw_findings/"
+gate_decision            = "docs/reviews/2026-05-23-spec-13-abstraction-class/gate_decision.toml"

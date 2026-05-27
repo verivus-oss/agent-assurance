@@ -1,0 +1,173 @@
+# U09 — terminal decision for the 2026-05-23 paper review.
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-terminal-decision"
+created        = "2026-05-23"
+review_session = "2026-05-23-paper-main"
+document       = "paper/main.tex@9664be061e4bc8493de2e5054d3c3d61737bd666e56077b9856c19585dbde306"
+
+# ============================================================================
+# Roll-up
+# ============================================================================
+
+[reviewer_verdicts]
+codex  = "CONCRETE UNRESOLVABLE BLOCKERS (3)"
+gemini = "CONCRETE UNRESOLVABLE BLOCKERS (4)"
+grok   = "CONCRETE UNRESOLVABLE BLOCKERS (2)"
+unanimous_terminal_state = "concrete_unresolvable_blocker"
+unconditional_approvals  = 0
+forbidden_basis_violations = 0   # No reviewer based a verdict on intent / plan-compliance / "should be fixed" language.
+
+# ============================================================================
+# Terminal decision
+# ============================================================================
+
+[decision]
+verdict = "REJECTED — concrete unresolvable blockers"
+status  = "rerevision_required"
+notes   = """
+All three reviewers issued the same terminal state (concrete
+unresolvable blockers). None issued unconditional approval. None
+approved subject to fixes. Per `[policy.approval].terminal_states`
+in tools/review-request-dag.toml, this is one of the two permitted
+terminal outcomes; the loop terminates here.
+
+The decision is binding on this review session. The paper may
+either be revised and re-reviewed (a new review session under
+docs/reviews/<new-date>-paper-main/), or shipped as-is with the
+blockers as a known-issues list.
+"""
+
+# ============================================================================
+# Unanimous blockers (every reviewer raised these or their equivalent)
+# ============================================================================
+
+[[blocker]]
+rank          = 1
+title         = "JPlag file-count internal contradiction"
+location      = "paper/main.tex:1305-1313"
+raised_by     = ["codex", "gemini", "grok"]
+self_review_id = "F2-F01"
+evidence      = """
+- paper/main.tex:1307 says '84 ... higher than the extractor's 87' — false on the integers.
+- paper/figures/scripts/validation_report.json:3-5 records aux1_v6_files=87 and aux1_v7_files=33.
+- paper/main.tex:1353-1357 (next paragraph) correctly identifies JPlag's PEP 515 parse errors as why JPlag sees FEWER files (Grok independently flagged this as I-F01: adjacent-paragraph self-refutation).
+"""
+unblock_by    = """
+Either (a) keep the 84/22 figures and rewrite the causal clause: 'the v6 file count is LOWER than the extractor's 87 because JPlag's ANTLR Python 3 grammar emits parse errors on chardet/metadata/languages.py (PEP 515 underscore literals); see the parse-error paragraph below'; or (b) re-run JPlag, capture the true per-version count, and replace the digits if they are wrong. The 'neither affects the headline' parenthetical also needs editing (Grok I-F02) — the discrepancy IS material because JPlag's effective corpus is a strict subset of the extractor's.
+"""
+
+[[blocker]]
+rank          = 2
+title         = "Spec-vs-bundle conflation on verdict vocabulary"
+location      = "paper/main.tex:300-303 + 1092-1103"
+raised_by     = ["codex", "gemini", "grok"]
+self_review_id = "F2-F03 (with Q6-F03 as the broader pattern)"
+evidence      = """
+- paper/main.tex:300-303 presents the 8-value enum PASS/FAIL/MEASURED/OBSERVED/DELEGATED/SKIP/ABSENT/INCONCLUSIVE as one of 'five aspects of the DAG-TOML spec'.
+- profiles/agent-assurance/ontology.toml:210-214 defines the only core verdict attribute — gate_decision_verdict — as a closed 2-value enum pass|fail.
+- examples/proof-chardet-relicense/TRACEABILITY.toml:40 declares the 8-value enum as a project-local hard invariant of THIS bundle, not of the spec.
+- paper/main.tex:1092-1103 repeats the same conflation when describing 'the spec ships three validators'.
+"""
+unblock_by    = """
+Rewrite §sec:spec item 3 to: 'The spec provides the hard-invariants mechanism for declaring closed verdict vocabularies; each bundle declares its own. This bundle's TRACEABILITY.toml:40 declares the 8-value vocabulary PASS / FAIL / MEASURED / OBSERVED / DELEGATED / SKIP / ABSENT / INCONCLUSIVE used in §sec:results. The core spec separately defines a 2-value gate_decision_verdict (pass | fail) at profiles/agent-assurance/ontology.toml:210-214 for the readiness-gate decision.' Audit §sec:verifier (lines 1092-1103) for the same correction.
+"""
+
+# ============================================================================
+# Codex-only blocker (single reviewer, but with verified evidence; the
+# initiator independently verified at aggregation time, so the blocker
+# stands per [policy.evidence].disagreement_requires_code_or_doc_evidence)
+# ============================================================================
+
+[[blocker]]
+rank          = 3
+title         = "C06e numeric-validation claim is false as written"
+location      = "paper/main.tex:992-998"
+raised_by     = ["codex"]
+self_review_id = "MISSED — IF-CX-01"
+severity      = "high"
+verified_by_initiator_at_aggregation = true
+evidence      = """
+- paper/main.tex:992-998 says: 'For C06e the validation script deterministically re-derives the input corpus from the seed (20260522, length cap 4,096); the harness's reported corpus_digest of 58e54831f84183c7 is reproducible from the same seed under the harness's specific RNG-draw order, and the 0/1000 exact-match rate (the only headline number C06e reports) is reproducible across runs as well.'
+- paper/figures/scripts/validate_numbers.py:300-310 says verbatim 'we do not actually invoke chardet here; the harness writes corpus_digest and rates into VERIFICATION_REPORT.toml'. The function recomputes a sha over a different RNG-draw order.
+- paper/figures/scripts/validation_report.json records two DIFFERENT 16-char digests:
+    .harness_headline.c06e_corpus_digest = 58e54831f84183c7
+    .independent.c06e_corpus_check.corpus_digest_truncated_16 = 8fbc70630c023315
+  These are not equal. The independent re-derivation does not reproduce the headline digest.
+- Initiator-verified at aggregation via direct file reads, NOT via Codex's summary.
+"""
+unblock_by    = """
+Two options:
+  (i) Tighten validate_numbers.py so it hashes the corpus exactly as fingerprint_behavior.py:193-194 does (same byte order, same loop) and adds a C06e exact-rate + bucket-rate comparison; OR
+  (ii) Rewrite §sec:numeric-validation lines 992-998 to: 'The C06e rates and corpus_digest are taken from the persisted harness output (paper/figures/scripts/validation_report.json:harness_headline) and are NOT independently re-derived by validate_numbers.py — the script confirms only that an independent random draw with the same seed is reproducible byte-for-byte, not that it reproduces the harness's specific draw order.'
+Option (ii) is the smaller change and is honest about what the script actually proves.
+"""
+
+# ============================================================================
+# Gemini-only blocker (single reviewer; backed by verbatim evidence)
+# ============================================================================
+
+[[blocker]]
+rank          = 4
+title         = "Unpersisted sandbox-vs-workstation claim"
+location      = "paper/main.tex:743-746"
+raised_by     = ["gemini"]
+self_review_id = "F2-F05"
+severity      = "medium"
+evidence      = """
+- paper/main.tex:743-746 says: 'We tested the harness on a developer workstation with full write access and inside a sandbox in which the upstream clone path was bind-mounted read-only. Both runs produced identical static signal values.'
+- No side-by-side diff is persisted in the repository. validation_report.json is a single-run report (Codex confirmed: 'validation_report.json:150-278 is a single comparison table with no sandbox-vs-workstation dimension').
+"""
+unblock_by    = """
+Either persist the comparison (commit paper/figures/scripts/sandbox_vs_workstation.txt with both runs' headline signal values and a diff line) or downgrade the claim to a theoretical expectation: 'Because all static signals are deterministic functions of the input bytes (§sec:determinism), sandboxed and unsandboxed runs are expected to produce identical static signal values. We have observed this on developer-workstation runs and on one sandboxed reviewer run; the side-by-side comparison is not persisted in the bundle.'
+"""
+
+# ============================================================================
+# Approval-basis audit
+# ============================================================================
+
+[approval_basis_audit]
+status = "clean"
+note   = """
+Per [policy.approval].forbidden_approval_bases, the workflow forbids
+verdicts based on stated intent, plan-compliance claims, or 'should
+be fixed' language. NO reviewer based its verdict on any of those.
+Every blocker cites a specific file + line + verbatim evidence and
+specifies a concrete unblock path. The terminal decision is therefore
+admissible under the workflow's approval rules.
+"""
+
+# ============================================================================
+# Iteration recommendation
+# ============================================================================
+
+[iteration]
+should_iterate = false
+reason = """
+All three reviewers terminated on concrete unresolvable blockers
+with edit-actionable unblock paths. The blockers are not 'fix and
+re-review until satisfied'; they are precise sentence-level
+corrections. Iterating WITHOUT first applying the fixes would
+produce identical findings. The correct next step is for the
+initiator (or the human author) to apply the four corrections
+listed above, sha-bind the resulting file, and start a NEW review
+session at docs/reviews/<post-fix-date>-paper-main/.
+"""
+
+# ============================================================================
+# Single-reviewer / multi-reviewer asymmetry note
+# ============================================================================
+
+[single_reviewer_note]
+codex_blocker_3_concern = """
+Blocker #3 (C06e numeric-validation) was raised only by Codex. The
+workflow DAG does not require unanimous agreement to elevate to
+blocker — it requires concrete code/doc evidence. Codex provided
+the evidence (file:line + verbatim quote of the contradicting
+docstring + the two different digests in validation_report.json).
+The initiator independently re-verified the evidence at aggregation
+time via direct file reads (process_confirmations.toml records the
+re-verification). The blocker therefore stands at full strength
+regardless of single-reviewer status.
+"""

@@ -1,0 +1,25 @@
+[package]
+name = "dagtoml-validate-rs"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Safe-Rust primary validator for the DAG-TOML profile-descriptor kind, the disclosure profile, and the SPEC §11.1 [provenance.encryption] sub-table. Python validators under validators/ are retained as cross-check references."
+license = "Apache-2.0"
+rust-version = "1.85"
+
+# Dependencies are pure-Rust, no `unsafe`-using code in our crate.
+# `toml` ships its own deny-list policy and is the de-facto TOML parser
+# for Rust. `serde` is used only for Deserialize derives.
+[dependencies]
+toml  = { version = "0.8", default-features = false, features = ["parse"] }
+serde = { version = "1",   default-features = false, features = ["derive", "alloc"] }
+sha2  = { version = "0.10", default-features = false }
+
+[[bin]]
+name = "dagtoml-validate-rs"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = "z"
+lto       = true
+strip     = true

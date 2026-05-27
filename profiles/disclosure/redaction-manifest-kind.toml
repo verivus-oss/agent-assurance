@@ -1,0 +1,199 @@
+# Kind descriptor for `template_kind = "redaction-manifest"`
+# (disclosure profile).
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "kind-descriptor"
+ontology_version  = 1
+title             = "Redaction manifest kind descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/profiles/disclosure/PROFILE.toml"
+describes_kind    = "redaction-manifest"
+authoritative_in  = "this file"
+confidentiality   = "public"
+license           = "Apache-2.0"
+
+[kind]
+name    = "redaction-manifest"
+summary = "Per-redaction record: what was removed from the source artifact, by what method, and on what justification."
+prose   = """
+A redaction manifest enumerates one entry per redaction performed
+before publication. Each entry names what was removed (a byte range
+or field path), how it was removed (the redaction method), and why
+(the redaction reason). A recipient combining the manifest with the
+matching `selective-disclosure-proof` can verify that the published
+bytes match the source modulo the listed redactions, without ever
+seeing the redacted bytes themselves.
+
+ROOT SHAPE
+
+    [meta]
+    schema_version    = "0.1.0"
+    template_kind     = "redaction-manifest"
+    framework_profile = "disclosure"
+    title             = "Redactions applied to <bundle>"
+    created           = "YYYY-MM-DD"
+    confidentiality   = "public"
+    license           = "Apache-2.0"
+
+    [[redactions]]
+    id               = "RED:bundle-12345-pii"
+    subject          = "bundle/12345"
+    locator          = "$.records[*].email"
+    redaction_method = "field-path-mask"
+    redaction_reason = "pii"
+    notes            = "Customer email addresses masked with sha256 truncation."
+
+REQUIRED STRUCTURE
+
+- At least one `[[redactions]]` entry.
+- Each entry MUST carry `id` (matching the `RED:` prefix), `subject`
+  (free-form short string identifying the source artifact),
+  `locator` (a string identifying the location of the redaction —
+  byte range like `bytes 100..200`, JSONPath, or other), and
+  `redaction_method` / `redaction_reason` drawn from the closed
+  vocabularies in `profiles/disclosure/ontology.toml`.
+- When `redaction_reason = "other"`, the entry MUST also carry a
+  free-form `notes` field justifying the use of the open reason.
+"""
+references = [
+  "spec.md",
+  "core/ontology.toml",
+  "profiles/disclosure/ontology.toml",
+]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[kind.required_fields]]
+path        = "meta.template_kind"
+must_equal  = "redaction-manifest"
+description = "Identifies this file as a redaction manifest."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "meta.framework_profile"
+must_equal  = "disclosure"
+description = "Selects the disclosure profile."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "redactions"
+description = "At least one `[[redactions]]` entry with `id` (RED:-prefixed), `subject`, `locator`, `redaction_method`, `redaction_reason`."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV01"
+statement   = "Every `[[redactions]].redaction_method` value is drawn from the (extensible) `redaction_method` vocabulary in `profiles/disclosure/ontology.toml`."
+enforced_by = "validators/validate_disclosure.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also    = "profiles/disclosure/ontology.toml"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV02"
+statement   = "Every `[[redactions]].redaction_reason` value is drawn from the (extensible) `redaction_reason` vocabulary."
+enforced_by = "validators/validate_disclosure.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also    = "profiles/disclosure/ontology.toml"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV03"
+statement   = "When `redaction_reason = \"other\"`, the entry has a non-empty `notes` field."
+enforced_by = "validators/validate_disclosure.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also    = "profiles/disclosure/ontology.toml"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV04"
+statement   = "Every entity prefix and relation predicate used in this kind's instance files resolves to an `ijb_primitive` declared in the loaded ontology set."
+enforced_by = "validators/validate_ijb_conformance.py"
+see_also    = "foundations/ijb/primitives.md"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name           = "minimal redaction manifest"
+file           = "examples/minimal-redaction-manifest.toml"
+inline_summary = "Single redaction (PII email field) on one bundle subject."
+ijb_primitive = "observed"
+
+[kind.relation_to_ontology]
+entities_introduced = ["RED"]
+ontology_entries    = "profiles/disclosure/ontology.toml [[entities]] with id_prefix RED"
+predicates_used     = []
+note                = "Redaction entries are referenced by id from disclosure-attestation `covered_by` fields; no namespaced relation predicate is introduced."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# A redaction-manifest is observation-of-removals: it enumerates each
+# redaction performed before publication, naming what was removed
+# (subject + locator), how (closed-vocabulary `redaction_method`), and
+# why (closed-vocabulary `redaction_reason`). It MUST NOT, at the kind
+# layer, become a transport for arbitrary capability assertions. Naming
+# the class here binds future redaction-manifest producers to the
+# contract; widening the envelope cascade-breaks downstream
+# redaction-manifests (per §13.4). Cryptographic verification that the
+# published bytes match the source modulo the listed redactions is
+# delegated to the matching selective-disclosure-proof and is
+# RUNTIME-SPEC; the manifest itself is a categorical enumeration.
+
+[kind.abstraction_class]
+id          = "observation-record.v1"
+description = "Read-only observation artefact: declares one or more `[[redactions]]` entries naming what was removed from a source artefact (`subject`, `locator`), by what method (closed-vocabulary `redaction_method`), and on what justification (closed-vocabulary `redaction_reason`, plus a free-form `notes` field that is mandatory when `redaction_reason = \"other\"`). No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms      = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576  # 1 MB — a redaction manifest is a small categorical document
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed      = false
+monotonic_clock_allowed = false
+precision_cap_ms        = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

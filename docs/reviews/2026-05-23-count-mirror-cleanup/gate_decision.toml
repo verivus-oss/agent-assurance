@@ -1,0 +1,128 @@
+# U10 — final gate decision.
+#
+# This is the first review session in the entire 2026-05-23 cycle
+# where BOTH dispatched reviewers issued `UNCONDITIONAL APPROVAL`
+# against the same commit (`208e453`). No methodology-split
+# adjudication was required.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-gate-decision"
+created        = "2026-05-23"
+review_session = "2026-05-23-count-mirror-cleanup"
+commit_under_review = "208e453"
+head_at_approval    = "012c1e9fabb0fb4805548f7344e8c89356b3ccee"
+
+[decision]
+verdict  = "approved"
+basis    = "both_reviewers_unconditional_approval_round_3"
+binding_evidence_codex = "docs/reviews/2026-05-23-count-mirror-cleanup/raw_findings/codex-r3.md"
+binding_evidence_grok  = "docs/reviews/2026-05-23-count-mirror-cleanup/raw_findings/grok-r3.md"
+binding_verbatim_codex = "UNCONDITIONAL APPROVAL."
+binding_verbatim_grok  = "UNCONDITIONAL APPROVAL — All r2 blockers resolved. `DriftReport.print()` at `validators/check_attribute_values.py:231-249` now iterates `self.failures` verbatim under a labelled block; the legacy-field diagnostic (Test 2) and the cargo/--no-rdf instruction (Test 4) are emitted exactly as the prior review demanded; NF-002 wording corrected to \"hard fail\". All five re-review tests pass with the required visible diagnostics and no regressions. The count-mirror gate is now explainable on every failure path."
+
+# ----------------------------------------------------------------------
+# Round history — what the gate decision covers cumulatively
+# ----------------------------------------------------------------------
+[[rounds]]
+round = 1
+commit = "9996826"
+reviewer = "codex"
+verdict = "concrete_unresolvable_blockers"
+blocker_count = 2
+raw_finding = "raw_findings/codex.md"
+findings_summary = "(1) RDF expected_triple_counts not gated by check_manifest_drift.sh (perturbation returned exit 0). (2) Legacy attribute_values field could silently coexist with the new attribute_values_declared (injection returned exit 0)."
+
+[[rounds]]
+round = 1
+commit = "9996826"
+reviewer = "grok"
+verdict = "unconditional_approval"
+blocker_count = 0
+raw_finding = "raw_findings/grok.md"
+note = "Grok r1 approved; codex r1 found the holes grok missed (different test methodology — grok verified static value match, codex perturbed to test gate behaviour). Both reviewers were needed."
+
+[[rounds]]
+round = 2
+commit = "dc19203"
+reviewer = "codex"
+verdict = "concrete_unresolvable_blockers"
+blocker_count = 1
+raw_finding = "raw_findings/codex-r2.md"
+findings_summary = "DriftReport.print() never iterated self.failures — the diagnostic strings the dc19203 fix added were dead output. Enforcement fired (EXIT=1) but operator saw only a count, no named reason."
+
+[[rounds]]
+round = 2
+commit = "dc19203"
+reviewer = "grok"
+verdict = "concrete_unresolvable_blockers"
+blocker_count = 2
+raw_finding = "raw_findings/grok-r2.md"
+findings_summary = "Same root cause as codex r2 (DriftReport.print dead output). Plus NF-002: misleading 'fail-soft per design' wording on the missing-RDF summary line contradicted actual hard-fail behaviour."
+
+[[rounds]]
+round = 3
+commit = "208e453"
+reviewer = "codex"
+verdict = "unconditional_approval"
+blocker_count = 0
+raw_finding = "raw_findings/codex-r3.md"
+
+[[rounds]]
+round = 3
+commit = "208e453"
+reviewer = "grok"
+verdict = "unconditional_approval"
+blocker_count = 0
+raw_finding = "raw_findings/grok-r3.md"
+
+# ----------------------------------------------------------------------
+# Reviewer roster
+# ----------------------------------------------------------------------
+[roster]
+reviewers_dispatched = ["codex", "grok"]
+reviewers_completed  = ["codex", "grok"]
+reviewers_skipped    = ["mistral"]
+mistral_skip_reason  = "vibe CLI not installed locally; gateway has no install pathway."
+
+# ----------------------------------------------------------------------
+# Cumulative deliverable
+# ----------------------------------------------------------------------
+[deliverable]
+parent_commit = "fccc1dc"
+head_commit   = "012c1e9"
+commits_in_range = [
+  "9996826",  # full count-mirror cleanup (Opus+critics path)
+  "5b1eca1",  # 3 issues logged with safeguards
+  "dc19203",  # close codex-r1 holes (RDF gate, legacy coexistence)
+  "208e453",  # emit failure diagnostics verbatim (codex-r2 + grok-r2)
+  "012c1e9",  # persist r2 reviews
+]
+files_changed_count = 30
+ci_status_at_head = "green (drift gate + all 5 perturbation tests pass with visible verbatim diagnostics)"
+
+# ----------------------------------------------------------------------
+# Open items (recorded, not blocking)
+# ----------------------------------------------------------------------
+[open_items_for_follow_up]
+iss001 = { title = "Initiator self-approval discipline gate", severity = "high", path = "docs/issues/2026-05-23-ISS-001-self-approval-discipline.md" }
+iss002 = { title = "Graph cypher UNWIND data missing disclosure + cost + profile-descriptor", severity = "medium", path = "docs/issues/2026-05-23-ISS-002-graph-cypher-seed-incomplete.md" }
+iss003 = { title = "dagtoml-duckdb hardcoded EXPECTED_COUNTS duplication", severity = "low", path = "docs/issues/2026-05-23-ISS-003-duckdb-hardcoded-counts-duplication.md" }
+
+# ----------------------------------------------------------------------
+# Workflow integrity note
+# ----------------------------------------------------------------------
+[workflow_integrity]
+self_approval = false
+initiator_adjudication = false
+text = """
+This session's final terminal state is bound to two independent
+reviewer verdicts on the same commit. No initiator adjudication
+was required. This is the configuration ISS-001's safeguard A
+proposes to enforce mechanically going forward (the gate would
+reject any merge that lacks at least one reviewer's
+unconditional_approval against the merged tree). The pattern is
+the worked-example success case the issue cites.
+"""

@@ -1,0 +1,13 @@
+ARXIV SUBMISSION CHECKLISTS - FULL TEXT (from Exa fetch 2026-05)
+
+=== 1. https://trevorcampbell.me/html/arxiv.html ===
+[full text as previously fetched: flatten subdirs, delete junk including .git hidden unused tex/sty/pdf/aux, add the typeout 4-pass line at end of main.tex, compile in tmp and verify]
+
+=== 2. https://info.arxiv.org/help/faq/mistakes.html ===
+[all the common mistakes: absolute filenames, spaces in names, missing style files, last minute changes, user intervention .inp, concatenated files, old styles, dvips incompat, non-tex, unusual fonts, \protect\cite in captions, 00README for ignore, boundingbox, \include subdirs write perms, double sub/sup, hyperref bookmarks=false, ifpdf not \ifx pdfoutput, mixed figures, Bbbk error, minted frozencache non-hidden, bbl version, breqn hyperref fix, etc.]
+
+=== 3. https://www.ianhuston.net/2011/03/checklist-for-arxiv-submission/ ===
+[spellcheck authors, remove unused sections/comments/extraneous/rev control, read equations, move bbl or include bib, punctuation in eqs, update journal refs, check bib text/style]
+
+=== Current official (submit_tex + texlive) ===
+[TL2025 default, processor choice, bib auto now supported with version rules, .bbl compat 3.3 for 2025, hidden files deleted on announce, 00README, no JS in PDF, figure formats per processor, ifpdf, minted cache non-hidden, hyperref before hyperxmp, no \today, etc. Full details in prior tool output.]

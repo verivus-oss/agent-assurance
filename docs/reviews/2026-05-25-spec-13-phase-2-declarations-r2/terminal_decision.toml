@@ -1,0 +1,124 @@
+# Round-2 terminal decision for
+# 2026-05-25-spec-13-phase-2-declarations-r2.
+# Unanimous unconditional_approval; codex r1 U08 blocker closed against
+# bytes; U12 disposition accepted by all three r2 reviewers.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-spec-13-phase-2-declarations-r2"
+predecessor    = "2026-05-25-spec-13-phase-2-declarations"
+
+[scope]
+commit_under_review = "6b63860"
+parent_commit       = "092bccc"
+unit                = "U14 (U08 closure), U15 (aggregate validators), U16 (U12 disposition)"
+
+# ----------------------------------------------------------------------
+# Verdicts.
+# ----------------------------------------------------------------------
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "unconditional_approval"
+classification = "U14 closed; U15 complete; U16 closed (not-a-defect)"
+blocker_count  = 0
+raw_findings   = "raw_findings/codex.md"
+evidence_class = "live-executable (grep, sed, git show ec37e7d, validators, taplo lint); inspected the rewritten §13 header at threat-model-kind.toml:147-155 confirming only one 'risk posture' match remains at line 74 (the pre-existing IJB-stance note)"
+note           = "codex was the r1 blocker filer; it now explicitly closes U14 with file:line evidence"
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "unconditional_approval"
+classification = "U14 closed; U15 complete; U16 closed"
+blocker_count  = 0
+raw_findings   = "raw_findings/gemini.md"
+evidence_class = "live-executable (grep + validator + git show ec37e7d)"
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "unconditional_approval"
+classification = "U14 closed; U15 complete; U16 closed"
+blocker_count  = 0
+raw_findings   = "raw_findings/grok.md"
+evidence_class = "live-executable (grep + validator + git show ec37e7d) + r1 findings cross-check + tools/review-request-dag.toml policy walk; persisted file before returning summary"
+
+# ----------------------------------------------------------------------
+# R1 blocker disposition.
+# ----------------------------------------------------------------------
+
+[r1_blocker_disposition]
+
+[[r1_blocker_disposition.items]]
+id          = "U08"
+severity_r1 = "high"
+status      = "closed"
+evidence    = """
+3/3 reviewers independently confirmed:
+  - `grep -n 'risk posture' profiles/agent-assurance/threat-model-kind.toml`
+    returns exactly one line:
+    `74:for the full reasoning. The IJB-forbidden phrase \"risk posture\"`
+    which is the original pre-existing IJB-stance note.
+  - The new §13 header comment at lines 147-155 references the
+    IJB-stance note by location ("conforms to the IJB-stance note at
+    lines 64-77 of this file") without naming the forbidden phrase.
+  - `[kind.abstraction_class].description` at line 161 was already
+    clean at r1 — only the header comment leaked.
+  - Per-kind and aggregate validators still exit 0:
+    `ABSTRACTION-CLASS VALIDATION PASSED (19 file(s) checked;
+    14 declared a §13 block).`
+    `CLOSURE-ROOT VALIDATION PASSED (74 file(s)).`
+"""
+
+[[r1_blocker_disposition.items]]
+id          = "U12"
+severity_r1 = "informational (not a defect of this PR)"
+status      = "closed (parent-commit evidence)"
+evidence    = """
+3/3 reviewers independently confirmed via
+`git show ec37e7d:<file> | grep -n closure_root` that the non-line-5
+sentinel positions PRE-EXIST at parent commit ec37e7d:
+  - implementation-dag-kind.toml:9
+  - profile-descriptor-kind.toml:11
+  - disclosure-attestation-kind.toml:13
+The line positions are determined by each file's pre-existing
+header-comment length; the Phase 2 retrofit did NOT change them.
+SPEC §12.11 specifies the sentinel VALUE, not the line number; the
+§12 validator confirms the contract is met (74 file(s) PASS). The r1
+prompt's "at line 5" phrasing was prompt-spec imprecision on the
+initiator's part, not a defect introduced by the Phase 2 commit.
+Codex r1 itself acknowledged this in raw_findings/codex.md:195-201.
+"""
+
+# ----------------------------------------------------------------------
+# Decision.
+# ----------------------------------------------------------------------
+
+[decision]
+outcome              = "unconditional_approval"
+unanimous            = true
+binding_reviewer     = "codex (originally filed the U08 blocker; re-classifies it as closed)"
+verdict_distribution = { unconditional_approval = 3, concrete_unresolvable_blocker = 0 }
+session_terminal     = true
+next_action          = """
+Phase 2 retrofit (commits 092bccc + 6b63860) is approved. Fourteen
+of nineteen blessed kind descriptors now declare the §13 contract
+(cost-record + 4 Phase 1 + 9 Phase 2). Phase 3 (5 procedure-bearing
+and special kinds: rollback-plan, smoke-validation, assertion-bundle,
+adapter-contract, selective-disclosure-proof) remains the final
+follow-up PR per docs/planning/2026-05-25-spec-13-retrofit-scoping.md §8.
+"""
+
+[session_close]
+closed_at = "2026-05-25"
+closed_by = "consolidated reviewer verdicts at raw_findings/{codex,gemini,grok}.md"
+followup_notes = [
+  "The arc 2026-05-25-spec-13-phase-2-declarations / -r2 is a worked counter-example to initiator self-approval: codex r1 caught the 'risk posture' leak in a self-authored §13 comment that gemini and grok r1 both passed. The phrase appeared in my (initiator's) comment as a NEGATION ('does not appear in the §13 description below') but the file-level invariant declared by the kind itself ('only in this note') forbids any occurrence outside the original note. The discipline at tools/review-request-dag.toml [policy.*] caught the defect; self-approval would have shipped it.",
+  "Phase 3 implementer should learn from this: when retrofitting a kind whose existing prose declares a 'phrase MUST NOT appear outside this note' rule, the §13 header comment is part of the same file and therefore subject to the rule. Reference the rule by location, do not repeat the phrase even to negate it.",
+  "The R1 prompt's 'at line 5' assertion for closure_root in U12 was prompt-spec imprecision. Phase 3 reviewer prompts should require the sentinel VALUE only (the §12.11 contract); line numbers should be reported by validator, not asserted by the prompt. This is a process-improvement note for the Phase 3 review prompt; no spec/code change required.",
+  "Phase 2 totals: 9 kinds retrofitted; 6 new class ids (one — policy-declaration.v1 — shared across 3 kinds); aggregate §13 count 5 → 14. Phase 3 will take that to 19/19.",
+]

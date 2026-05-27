@@ -1,0 +1,218 @@
+# Kind descriptor for `template_kind = "rollback-plan"`.
+# Agent Assurance Profile artifact. Collapses rollback-plan.md.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "kind-descriptor"
+ontology_version  = 1
+title             = "Rollback plan kind descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+describes_kind    = "rollback-plan"
+framework_profile = "agent-assurance"
+authoritative_in  = "this file (collapsed from profiles/agent-assurance/rollback-plan.md)"
+
+[kind]
+name    = "rollback-plan"
+summary = "Pre-declared rollback procedure with explicit, observable triggers."
+prose   = """
+A rollback plan answers \"if this change goes wrong in production, how
+do we know, and how do we undo it?\"
+
+ROOT SHAPE
+
+    [meta]
+    schema_version    = "0.1.0"
+    template_kind     = "rollback-plan"
+    framework_profile = "agent-assurance"
+    title             = "Rollback plan for <feature>"
+    created           = "YYYY-MM-DD"
+
+    [plan]
+    summary       = "Disable feature flag checkout.new_tax_engine; redeploy previous tag."
+    owner         = "checkout-oncall"
+    estimated_ttr = "PT15M"             # ISO 8601 duration
+
+    [[triggers]]
+    id           = "TRIG:tax-error-rate"
+    trigger_kind = "error_rate_threshold"
+    metric       = "checkout.tax_engine.errors_per_minute"
+    threshold    = 10
+    window       = "PT5M"
+    action       = "page checkout-oncall"
+
+    [procedure]
+    steps = [
+      "Set flag checkout.new_tax_engine = false in prod.",
+      "Verify error-rate metric drops below threshold within 5 minutes.",
+      "If not, redeploy the previous tag <previous-release>.",
+      "File a post-incident review within 24 hours.",
+    ]
+
+TRIGGER_KIND VOCABULARY
+
+The `trigger_kind` value set is governed by the Agent Assurance
+Profile ontology
+(profiles/agent-assurance/ontology.toml [[attribute_vocabularies]],
+attribute = "trigger_kind"). It is the single source of truth. Do
+not copy the value list here. The profile ontology also notes which
+values are platform-specific templates intended to be renamed per
+deployment.
+
+HARD EXPECTATIONS
+
+- At least one trigger MUST be present. A plan with no triggers is not
+  actionable.
+- `metric` references SHOULD resolve to a metric the operating
+  environment can actually observe.
+- `estimated_ttr` is informational, not contractual; reviewers SHOULD
+  sanity-check it against the procedure.
+
+LEGACY ALIAS
+
+Existing files may use `kind` instead of `trigger_kind`. Conforming
+validators MUST accept `kind` as an alias and SHOULD emit a
+deprecation warning.
+"""
+references = [
+  "spec.md",
+  "profiles/agent-assurance/ontology.toml",
+]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[kind.required_fields]]
+path        = "meta.template_kind"
+must_equal  = "rollback-plan"
+description = "Identifies this file as a rollback plan."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "meta.framework_profile"
+must_equal  = "agent-assurance"
+description = "Rollback plan is an Agent Assurance Profile artifact."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "plan.summary"
+description = "Short summary of how rollback is performed."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "triggers"
+description = "At least one trigger with id, trigger_kind, metric, threshold, action."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "procedure"
+description = "Ordered steps to execute the rollback."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV01"
+statement   = "At least one `[[triggers]]` entry is present."
+enforced_by = "validators/validate_rollback_plan.py (planned)"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV02"
+statement   = "Every `[[triggers]].trigger_kind` value is drawn from the profile ontology's allowed set (or the explicit `kind` alias)."
+enforced_by = "validators/validate_rollback_plan.py (planned)"
+see_also    = "profiles/agent-assurance/ontology.toml [[attribute_vocabularies]] trigger_kind"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name           = "minimal rollback plan"
+file           = "examples/minimal-rollback-plan.toml"
+inline_summary = "Three triggers (tax-error-rate, determinism-regression, perf-regression), five-step procedure, ISO-8601 TTR."
+ijb_primitive = "observed"
+
+[[kind.hard_invariants]]
+id          = "INV03"
+statement   = "Every entity prefix and relation predicate used in this kind's instance files resolves to an `ijb_primitive` declared in the ontology (core plus any active profile)."
+enforced_by = "validators/validate_ijb_conformance.py"
+see_also    = "foundations/ijb/primitives.md"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.relation_to_ontology]
+entities_introduced = ["TRIG"]
+ontology_entries    = "profiles/agent-assurance/ontology.toml [[entities]] (TRIG block)"
+attribute_vocabularies = ["trigger_kind"]
+note                = "trigger_kind value set is extensible at the profile layer; adding values bumps the profile's ontology_version (after first publication)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# A rollback-plan is a procedure-declaration: it declares the triggers
+# that signal a failed change and the procedure steps a runtime executes
+# to undo it. It MUST NOT, at the kind layer, become a transport for
+# arbitrary capability assertions. Naming the class here binds future
+# rollback-plan producers to the contract; widening the envelope
+# cascade-breaks downstream rollback-plans (per §13.4). Per Reading R1
+# (docs/planning/2026-05-25-spec-13-retrofit-scoping.md §5), this
+# envelope bounds the processing of the descriptor itself, NOT the
+# runtime evaluation of the declared triggers (metric scraping,
+# threshold comparison, paging) or the runtime execution of the
+# procedure steps (flag flips, redeploys, post-incident review filing).
+# Trigger evaluation and procedure-step execution are RUNTIME-SPEC and
+# lie outside this envelope.
+
+[kind.abstraction_class]
+id          = "procedure-declaration.v1"
+description = "Procedure-declaration artefact: declares a `[plan]` (summary + owner + ISO-8601 `estimated_ttr`), at least one `[[triggers]]` row (each carrying `id`, closed-vocabulary `trigger_kind`, `metric`, `threshold`, `window`, `action`), and an ordered `[procedure].steps` list a runtime executes to undo the change. Bounds the descriptor parse only; runtime trigger evaluation (metric scraping, threshold comparison, paging) and procedure-step execution (flag flips, redeploys) are RUNTIME-SPEC and lie outside this envelope. No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms      = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576  # 1 MB — the descriptor parse is a small categorical workload
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed      = false
+monotonic_clock_allowed = false
+precision_cap_ms        = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

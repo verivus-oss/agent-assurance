@@ -1,0 +1,153 @@
+# Review bundle for the tooling sweep + §12 closure_root sentinel
+# additions made on 2026-05-24 by the initiator session
+# (claude-opus-4-7). Dispatched per tools/review-request-dag.toml.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+# This document is self-contained: no [provenance], no cites_upstream
+# fields, no upstream evidence rows. Per §12.11 the empty sentinel
+# is the correct value.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"   # unblessed process-artefact kind
+created        = "2026-05-24"
+review_session = "2026-05-24-tooling-sweep-and-closure-root-sentinels"
+
+[bundle]
+repo_root              = "/srv/repos/external/verivus-oss/agent-assurance"
+parent_commit_pre      = "7328dfd7"   # last commit before this session
+head_commit_post       = "d027178"
+commit_range           = "7328dfd..d027178"
+total_commits          = 3
+description            = "Three commits landed by the initiator on main without prior independent review. Two are file-tracking sweeps (DAG-TOML tooling instances + paper / review artefacts + .gitignore additions); the third closes a §12 closure_root CI gap by adding the canonical empty-closure sentinel to five blessed-kind documents."
+
+[bundle.workflow_dag]
+file        = "/srv/repos/external/verivus-oss/agent-assurance/tools/review-request-dag.toml"
+description = "Exact DAG-TOML process governing this multi-reviewer review. Reviewers MUST obey all [policy.*] rules in that file: fresh / clean context, evidence from files (sqry semantic search first for code-like structures, read_file / grep for prose), verbatim quotes, file:line citations + severity, classification of every unit under review."
+
+# ----------------------------------------------------------------------
+# Units under review — one per commit. Reviewers MUST classify each as
+# complete / incomplete / unverifiable per [policy.unit_classification]
+# with file:line evidence.
+# ----------------------------------------------------------------------
+
+[[bundle.units]]
+id           = "U01"
+commit_sha   = "47b6acd"
+title        = "Track 3 orphan DAG-TOML instances in tools/ (one relocated from repo root)"
+summary      = """
+Adds three previously-untracked TOMLs:
+  - tools/claim-analysis-agent-gated-dag.toml      (relocated from repo root)
+  - tools/review-request-dag.toml                  (kept in place)
+  - tools/werner-style-policy.toml                 (kept in place)
+All three declare blessed [meta].template_kind values
+(implementation-dag x 2, contract-declaration x 1) — i.e. they fall
+under SPEC §12.1's closure_root requirement. The commit DID NOT add
+closure_root to any of them (that gap is closed by U03 below).
+"""
+changed_files = [
+  "tools/claim-analysis-agent-gated-dag.toml",
+  "tools/review-request-dag.toml",
+  "tools/werner-style-policy.toml",
+]
+verify = [
+  "git show --stat 47b6acd",
+  "git show 47b6acd",
+]
+
+[[bundle.units]]
+id           = "U02"
+commit_sha   = "320a901"
+title        = "Track review artefacts + arxiv-prep + hello-world paper; extend .gitignore"
+summary      = """
+Adds 62 files / 7227 insertions across seven previously-untracked trees:
+  - docs/reviews/2026-05-23-paper-main/ and paper-main-r2/
+  - docs/reviews/2026-05-23-spec-13-abstraction-class/
+  - docs/reviews/2026-05-23-polsia-osint-dossier-review/
+  - docs/claim_analysis/2026-05-22-paper-main/
+  - paper-arxiv-prep/   (sources + main.pdf + audit/evidence TOMLs + 2 tar.gz bundles)
+  - paper-hello-world/  (sources + main.pdf + README)
+.gitignore extended with LaTeX build-intermediate globs
+(*.{aux,bbl,blg,log,out,toc,fls,fdb_latexmk,synctex.gz}) and
+root-only ignores for labels.txt / refs.txt.
+"""
+changed_files_partial = [
+  ".gitignore",
+  "paper-arxiv-prep/",
+  "paper-hello-world/",
+  "docs/reviews/2026-05-23-paper-main*/",
+  "docs/reviews/2026-05-23-spec-13-abstraction-class/",
+  "docs/reviews/2026-05-23-polsia-osint-dossier-review/",
+  "docs/claim_analysis/2026-05-22-paper-main/",
+]
+verify = [
+  "git show --stat 320a901",
+  "git diff --stat 7328dfd..320a901 -- .gitignore",
+  "git ls-files paper-arxiv-prep/ paper-hello-world/",
+]
+
+[[bundle.units]]
+id           = "U03"
+commit_sha   = "d027178"
+title        = "§12 closure_root gate: add empty-closure sentinel to 5 blessed-kind files"
+summary      = """
+Closes the §12 closure_root CI failure on main by adding the canonical
+empty-closure sentinel
+`sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
+to five self-contained blessed-kind documents (no [provenance],
+no cites_upstream fields, no upstream evidence rows; per §12.11
+they qualify for the empty sentinel):
+  - arxiv-prep-agent-dag.toml                       (implementation-dag)
+  - tools/claim-analysis-document-review-dag.toml   (implementation-dag, pre-existing)
+  - tools/claim-analysis-agent-gated-dag.toml       (implementation-dag, added in U01)
+  - tools/review-request-dag.toml                   (implementation-dag, added in U01)
+  - tools/werner-style-policy.toml                  (contract-declaration, added in U01)
+Initiator claim: validate_closure_root.py --discover . reports
+"CLOSURE-ROOT VALIDATION PASSED (74 file(s))" after the change.
+This claim is itself plan-compliance language and MUST NOT be
+accepted by reviewers without independent execution.
+"""
+changed_files = [
+  "arxiv-prep-agent-dag.toml",
+  "tools/claim-analysis-document-review-dag.toml",
+  "tools/claim-analysis-agent-gated-dag.toml",
+  "tools/review-request-dag.toml",
+  "tools/werner-style-policy.toml",
+]
+verify = [
+  "git show --stat d027178",
+  "git show d027178",
+  "python3 validators/validate_closure_root.py --discover .",
+  "taplo lint <each file>",
+]
+
+[roster]
+initiator       = "claude-opus-4-7 (session running on /srv/repos/external/verivus-oss/agent-assurance, 2026-05-24)"
+initiator_role  = "excluded from standard reviewer set per [policy.roles].initiator_excluded_as_standard_reviewer"
+reviewer_models = ["codex", "gemini", "grok"]
+
+[review_instructions]
+rules_source  = "tools/review-request-dag.toml [policy.*]"
+prompt_path   = "docs/reviews/2026-05-24-tooling-sweep-and-closure-root-sentinels/review_prompt.md"
+key_rules = [
+  "Fresh / clean-context session — no prior memory of these commits.",
+  "Verify every claim by reading the actual changed bytes (sqry / read_file / grep / git show). Never accept the initiator summary or prior self-review as evidence.",
+  "Find file + line citations for every finding; include severity.",
+  "Output full verbatim review text (no summarisation in the primary artefact).",
+  "Classify U01, U02, U03 each as complete / incomplete / unverifiable per [policy.unit_classification].",
+  "Confirm process items per [policy.process_checks].",
+  "Terminal: unconditional_approval OR concrete_unresolvable_blocker. No 'should be fixed' or intent-based approval.",
+]
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-24-tooling-sweep-and-closure-root-sentinels/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "unit_classifications.toml",
+  "process_confirmations.toml",
+  "gate_decision.toml",
+  "terminal_decision.toml",
+]

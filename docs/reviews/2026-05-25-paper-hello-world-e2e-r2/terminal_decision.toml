@@ -1,0 +1,74 @@
+# Round-2 terminal decision for 2026-05-25-paper-hello-world-e2e-r2.
+# UNANIMOUS unconditional_approval (3/3). All r1 blockers C1 + C2
+# closed against bytes by all three reviewers including the
+# independent regression test (deliberately-broken implementation
+# without trailing \n) that the verification recipe demanded —
+# answering r1's lesson about gemini's shallow approval.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-paper-hello-world-e2e-r2"
+predecessor    = "2026-05-25-paper-hello-world-e2e"
+head_commit    = "7782ade"
+
+[scope]
+unit                = "C1 + C2 closures + regression on r1-closed H-surfaces"
+verification_report = "docs/reviews/2026-05-25-paper-hello-world-e2e-r2/verification_report.toml"
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "unconditional_approval"
+classification = "C1 + C2 closed; regression clean"
+blocker_count  = 0
+raw_findings   = "raw_findings/codex.md"
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "unconditional_approval"
+classification = "C1 + C2 closed; regression clean"
+blocker_count  = 0
+raw_findings   = "raw_findings/gemini.md"
+note           = "Gemini's r1 approval was shallow (didn't probe witness scripts). r2 with explicit mechanism-probe recipe (deliberately-broken implementation regression test) was passed correctly. The framework adjustment worked."
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "unconditional_approval"
+classification = "C1 + C2 closed; regression clean"
+blocker_count  = 0
+raw_findings   = "raw_findings/grok.md"
+note           = "Grok was the original C1 r1 filer; r2 re-confirms own r1 finding against the new bytes."
+
+[d_closures]
+
+[[d_closures.items]]
+id       = "C1"
+status   = "closed"
+binding  = "codex + grok (both ran the independent regression test against deliberately-broken implementations and confirmed the new mechanism fails where the old passed)"
+evidence = "All three witness scripts now use printf 'Hello, world!\\n' > expected + cmp -s + [[ -s err ]]; paper prose at :275-(end-of-paragraph) accurately describes the mechanism with the r1 review session citation."
+
+[[d_closures.items]]
+id       = "C2"
+status   = "closed"
+binding  = "codex"
+evidence = "Table 2 traceability row now includes --repo-root .; the cited command exits 0; omitting --repo-root . exits 1 (confirming the addition was necessary)."
+
+[decision]
+outcome              = "unconditional_approval"
+unanimous            = true
+binding_reviewer     = "grok (original C1 filer) and codex (deepest regression-test execution)"
+verdict_distribution = { unconditional_approval = 3, concrete_unresolvable_blocker = 0 }
+session_terminal     = true
+arc_terminal         = true
+next_action          = "Hello-world paper review arc (r1 + r2) closes. No further rounds needed for this paper."
+
+[session_close]
+closed_at = "2026-05-25"
+closed_by = "consolidated reviewer verdicts at raw_findings/{codex,gemini,grok}.md"
+followup_notes = [
+  "The framework adjustment worked: r1 gemini approved shallowly (witness exits 0 was the literal recipe check); r2 verification_report explicitly demanded a mechanism-probe (construct a deliberately-broken implementation and confirm the new check fails where the old passed), and r2 gemini ran the deeper check and verified honestly. Worth absorbing into all future paper-review verification_reports: when a paper claims a VERIFICATION MECHANISM, the recipe MUST ask reviewers to break the mechanism's input and observe rejection, not just to observe the success case.",
+  "C1's substance — the witness-script cmp + byte-stream fix — was the most operationally serious defect across all three e2e r1 sessions because it affected the paper's headline-evidence mechanism. Closing it cleanly across 3/3 reviewers including the original filer (grok) is the strongest possible signal.",
+]

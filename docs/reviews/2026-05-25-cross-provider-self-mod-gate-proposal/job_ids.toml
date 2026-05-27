@@ -1,0 +1,15 @@
+# llm-cli-gateway async job IDs for this review session.
+# Initiator: claude-opus-4-7
+# Dispatched: 2026-05-25T02:03:38Z .. 2026-05-25T02:04:58Z (UTC)
+
+[jobs]
+codex   = "d7927292-ecfd-4c0d-a06c-508fc03a69a4"
+gemini  = "110e5868-2142-42af-9d72-119121b0123b"
+grok    = "a65703ac-7928-4ada-997b-5303b001af83"
+mistral = "b905894f-f038-4a1c-8c2c-fb7c1fc1115a"
+
+[correlation_ids]
+codex   = "xprov-selfmod-2026-05-25-codex"
+gemini  = "xprov-selfmod-2026-05-25-gemini"
+grok    = "xprov-selfmod-2026-05-25-grok"
+mistral = "xprov-selfmod-2026-05-25-mistral"

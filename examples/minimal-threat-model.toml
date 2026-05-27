@@ -1,0 +1,48 @@
+# Minimal threat model, Agent Assurance Profile.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "threat-model"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+framework_profile = "agent-assurance"
+title             = "Threat model: tax line on checkout receipt"
+change_scope      = "src/checkout/**"
+created           = "2026-05-19"
+
+[[threats]]
+id            = "THREAT:silent-tax-rounding"
+title         = "Rounding inconsistency between currencies causes silent under-billing"
+category      = "correctness"
+likelihood    = "low"
+impact        = "high"
+detection     = "Property test sweeps currency rounding modes; nightly diff against upstream tax engine reference outputs."
+mitigation    = "Centralise rounding in tax_engine::round_for_currency; add property test."
+mitigated_by  = ["TEST:checkout::totals::rounding_sweep"]
+residual_risk = "accepted"
+
+[[threats]]
+id            = "THREAT:agent-removes-idempotency-check"
+title         = "Agent-authored refactor silently removes idempotency guard"
+category      = "process"
+likelihood    = "medium"
+impact        = "high"
+detection     = "Spec contract INV:no-double-charge is verified by an integration test; CI blocks merge if the invariant is not exercised."
+mitigation    = "Spec-contract invariant plus review-readiness gate that requires the matching test to exist and pass."
+mitigated_by  = ["TEST:checkout::idempotency::double_submit"]
+residual_risk = "accepted"
+
+[[threats]]
+id            = "THREAT:vat-rate-table-stale"
+title         = "Stale VAT rate table causes systematic under- or over-billing in a jurisdiction"
+category      = "operational"
+likelihood    = "medium"
+impact        = "high"
+detection     = "Nightly comparison of the local rate table against the upstream provider; alert on drift."
+mitigation    = "Daily refresh job; escalation runbook attached to the rollback plan."
+mitigated_by  = ["TEST:audit::vat::rate_table_freshness"]
+residual_risk = "mitigated"

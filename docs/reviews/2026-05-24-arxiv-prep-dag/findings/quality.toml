@@ -1,0 +1,12 @@
+[section]
+step_reference = "review_steps.step6"
+title = "Overall Quality Check"
+status = "findings"
+
+[[findings]]
+id = "Q-001"
+step_reference = "review_steps.step6"
+quoted_document_part = '''Also emit evidence pack (all *audit*.toml + logs + manifest + human sign-off).'''
+problem_explanation = "The evidence-pack description appears incomplete because important evidence artifacts such as source-fix-log.toml and source-manifest.toml are not audit files."
+suggested_fix = "Enumerate exact evidence-pack contents or define an artifact glob that includes all produced ART evidence files."
+severity = "minor"

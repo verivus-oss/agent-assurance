@@ -1,0 +1,132 @@
+# Cost Profile — ontology extension.
+#
+# Declares the entities, attribute vocabularies, and (currently no)
+# namespaced relation predicates the cost profile adds on top of the
+# core DAG-TOML ontology (../../core/ontology.toml). Carries its own
+# `ontology_version` that tracks ONLY this profile's vocabulary; the
+# core ontology's `ontology_version` is unaffected by changes here.
+#
+# Stream G argues that *cost is a structural property of agent-driven
+# systems, not implementer flavour*. The three closed vocabularies
+# below — cost dimension categories, decider classes, and the kinds
+# that can cite a cost-record — are the structural surface auditors
+# read to know what threat surface a verdict defends against.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "ontology"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+ontology_version  = 1
+framework_profile = "cost"
+title             = "Cost Profile ontology extension"
+extends           = "../../core/ontology.toml"
+authoritative_in  = "./PROFILE.toml"
+confidentiality   = "public"
+license           = "Apache-2.0"
+
+[meta.ijb_field_primitives]
+framework_profile = { ijb_primitive = "scope",      ijb_class = "structural" }
+template_kind     = { ijb_primitive = "scope",      ijb_class = "structural" }
+schema_version    = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+ontology_version  = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+confidentiality   = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+license           = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+
+# ============================================================================
+# PROFILE-DEFINED ENTITIES
+# ============================================================================
+
+[[entities]]
+id_prefix    = "COST"
+section      = "record"
+schema       = "cost-record"
+profile      = "cost"
+description  = "A single cost-record entry: the declared cost of one costed action, witnessed by `producer_id` at `incurred_at`, decided by `decider_class`, with a closed-set dimensions array."
+extensible   = false
+attributes   = ["decider_class", "cost_citing_kind"]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+# ============================================================================
+# PROFILE-DEFINED ATTRIBUTE VOCABULARIES
+# ============================================================================
+
+[[attribute_vocabularies]]
+attribute   = "cost_dimension_category"
+applies_to  = "COST"
+values      = [
+  "token_equivalent",
+  "compute_time_seconds",
+  "storage_bytes",
+  "bandwidth_bytes",
+  "human_review_time_seconds",
+  "energy_equivalent",
+  "evidence_run_count",
+]
+extensible  = false
+notes       = "Closed set of cost dimension categories. The unit label inside each category is producer-attested and free-form; comparability across producers requires an explicit conversion artefact and is intentionally out of SPEC scope. Real-valued quantities are expressed by choosing a finer-grained unit label (e.g. wall-clock-milliseconds) rather than introducing a new dimension category. After first public release, adding a value bumps THIS profile's ontology_version; no value MAY be removed (brittleness over completeness)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "decider_class"
+applies_to  = "COST"
+values      = [
+  "deterministic_check",
+  "llm_single",
+  "llm_consensus",
+  "human_reviewer",
+  "tee_attested_compute",
+  "notarisation",
+  "transparency_log_write",
+  "other",
+]
+extensible  = false
+notes       = "Closed set declaring the class of deciding entity that incurred the cost. Auditors read this to know what threat surface the decision defends against. `other` is deliberately present: a producer that cannot honestly place their decider in the closed set MUST use `other` and accept more suspicious treatment from downstream consumers — silent mislabelling (e.g. tagging an LLM call as `deterministic_check`) is a separation-of-duty violation visible at the schema layer. After first public release, adding a value bumps THIS profile's ontology_version; no value MAY be removed."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "cost_citing_kind"
+applies_to  = "COST"
+values      = [
+  "gate-decision",
+  "evidence-matrix",
+  "assertion-bundle",
+  "smoke-validation",
+  "threat-model",
+  "rollback-plan",
+  "other",
+]
+extensible  = false
+notes       = "Closed set of kinds whose execution may pay a cost. A cost-record names which kind paid for it via `[record].citing_kind`; the actual citing artefact reference is in `[record].citing_ref`. `other` is present for producers running costed actions outside the listed kinds (e.g. a custom profile's costed action), accepted with the same suspicious-treatment posture as `decider_class.other`. After first public release, adding a value bumps THIS profile's ontology_version."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# PROFILE-DEFINED RELATIONS
+# ============================================================================
+#
+# Profile predicates MUST be namespaced per core/ontology.md §3.3
+# (`cost:<predicate>`). The profile currently introduces no
+# namespaced relation predicates: cost-records cite their incurring
+# artefact by free-form `[record].citing_ref` strings (typically a
+# content hash + section pointer), and the inverse direction
+# (gate-decision -> cost-record citation) is the subject of a separate
+# downstream additive change to the gate-decision kind, not declared
+# here. Adding a namespaced predicate in a future version bumps this
+# profile's ontology_version.
+
+# ============================================================================
+# EXTENSION RULES (profile-scoped)
+# ============================================================================
+
+[extension_rules]
+entity_kinds       = "closed_within_profile"
+relation_predicates = "must_be_namespaced_as_cost:<predicate>"
+version_bump_rule  = "After the first public release, adding a profile entity, an attribute value (any of the three closed vocabularies), or a namespaced relation predicate bumps this file's ontology_version. The core ontology's ontology_version is unaffected. Pre-publication, ontology_version stays at 1 while drafts are revised in place. Removing any value from a closed vocabulary is forbidden — brittleness over completeness; once an auditor has read a `decider_class` value, the closed-set guarantee is what makes that read trustworthy."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"

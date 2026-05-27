@@ -1,0 +1,105 @@
+# Round-1 terminal decision for 2026-05-25-readme-restructure.
+# concrete_unresolvable_blocker (codex + grok converged on
+# bytes-verified defects; gemini approved on a less-rigorous
+# pass). Initiator could not rebut — bytes supported the
+# reviewers. Revised at 953691b; r2 dispatched as
+# 2026-05-25-readme-restructure-r2.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-readme-restructure"
+predecessor    = "2026-05-25-toml-conformance-harness"
+head_commit    = "b759eaf"
+
+[scope]
+commit_under_review = "b759eaf"
+parent_commit       = "1f08dea"
+unit                = "C01-C07 (verification_report.toml closures) + 7-row Status table + Validation tooling section"
+verification_report = "docs/reviews/2026-05-25-readme-restructure/verification_report.toml"
+
+# ----------------------------------------------------------------------
+# Verdicts.
+# ----------------------------------------------------------------------
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "concrete_unresolvable_blocker"
+classification = "C01-C07 all closed; 2 NEW defects (D2 + D3) filed at README.md:142-143"
+blocker_count  = 2
+raw_findings   = "raw_findings/codex.md"
+evidence_class = "live-executable (read source of both primary validators, cross-referenced workflow YAML, grep'd README) + file:line citations to tools/dagtoml-validate-rs/src/main.rs:1045-1055, tools/dagtoml-validate-go/main.go:822-829, .github/workflows/validate.yml:184-187"
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "unconditional_approval"
+classification = "C01-C07 all closed; no defects found"
+blocker_count  = 0
+raw_findings   = "raw_findings/gemini.md"
+evidence_class = "live-executable (verify_by recipes + U01-U06 unit checks + 42-link audit + version cross-check)"
+note           = "Gemini's r1 pass was less rigorous than codex+grok; did not exercise validate_abstraction_class.py with --discover, did not read the primary validators' source for the 'cost' claim, did not grep the workflow for compare/diff steps. Gemini's approval here is not binding against codex+grok's bytes-verified blockers."
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "concrete_unresolvable_blocker"
+classification = "C01-C07 all closed; 3 NEW defects (D1 + D2 + D3) filed"
+blocker_count  = 3
+raw_findings   = "raw_findings/grok.md"
+evidence_class = "live-executable (ran validate_abstraction_class.py --discover, observed unrecognized-args error; cross-verified codex's D2/D3 with independent file reads) + persisted_review_evidence acknowledgment"
+note           = "Grok independently surfaced D1 (codex missed it). Both reviewers converged on D2 + D3."
+
+# ----------------------------------------------------------------------
+# Defects filed by r1 (closed in 953691b → see r2 terminal decision).
+# ----------------------------------------------------------------------
+
+[r1_defects]
+
+[[r1_defects.items]]
+id       = "D1"
+filer    = "grok"
+location = "README.md:179 (at b759eaf)"
+defect   = "`python3 validators/validate_abstraction_class.py --discover .` — script's argparse rejects --discover with `unrecognized arguments: --discover`"
+status   = "closed in 953691b (r2 verified)"
+
+[[r1_defects.items]]
+id       = "D2"
+filer    = "codex + grok"
+location = "README.md:142 (at b759eaf)"
+defect   = "Primary-validator coverage list overstated to include `cost`; primaries only have modes auto|profile|disclosure|provenance|meta. Cost is Python-only via validators/validate_cost.py."
+status   = "closed in 953691b (r2 verified)"
+
+[[r1_defects.items]]
+id       = "D3"
+filer    = "codex + grok"
+location = "README.md:143 (at b759eaf)"
+defect   = "`CI requires bytewise agreement` overstated; .github/workflows/validate.yml:184-187 runs both primaries sequentially without a diff/compare step. Both must exit 0, but no bytewise output comparison."
+status   = "closed in 953691b (r2 verified)"
+
+# ----------------------------------------------------------------------
+# Decision.
+# ----------------------------------------------------------------------
+
+[decision]
+outcome              = "concrete_unresolvable_blocker"
+unanimous            = false
+verdict_distribution = { unconditional_approval = 1, concrete_unresolvable_blocker = 2 }
+binding              = "concrete_unresolvable_blocker (codex + grok converged on bytes-verified defects; gemini's approval did not survive the verify_by discipline)"
+session_terminal     = false
+next_action          = """
+Revise the README to close D1, D2, D3 per the verify_by recipes
+in verification_report.toml. Dispatch r2 once revisions are
+committed. The r1 C01-C07 closures need only a sanity regression-
+check at r2 (the fix should not touch those surfaces).
+"""
+
+[session_close]
+closed_at = "2026-05-25"
+closed_by = "consolidated reviewer verdicts at raw_findings/{codex,gemini,grok}.md"
+followup_notes = [
+  "Initiator (claude-opus-4-7) cannot rebut D1, D2, D3. Bytes support all three findings. Verified independently with: `python3 validators/validate_abstraction_class.py --discover .` (errors); `grep -E 'mode.*cost' tools/dagtoml-validate-rs/src/main.rs` (no match); `grep -E 'diff|compare|cmp.*output' .github/workflows/validate.yml` (no match in primary-validator steps). The iteration rule binds: revise and re-dispatch.",
+  "Process note: gemini's r1 pass illustrates the gap between 'verify the structural claims' (gemini did this) and 'execute the commands the doc cites' (codex + grok did this). The verification_report.toml requires `executed_tests_with_output` as a required approval base — gemini's r1 pass arguably did not satisfy this base for the commands the README ships in its Local Validation block. Worth tightening the gemini prompt or accepting that 3/3 unanimity requires all reviewers to run the verify_by recipes literally.",
+  "Worked counter-example to the toml-conformance-harness review pattern (single-cycle unanimous approval): when the document under review SHIPS commands, reviewers MUST execute them. The toml-conformance harness was its own command, so executing the bundle's verify_by recipe automatically exercised the shipped surface. Here the shipped surface (validate_abstraction_class.py --discover) was hidden inside a fenced shell block and required a reviewer to type it out. Worth documenting for future README/docs reviews.",
+]

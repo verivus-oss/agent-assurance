@@ -1,0 +1,84 @@
+# Run manifest for one execution of
+# tools/claim-analysis-document-review-dag.toml.
+#
+# This file is the U01 binding: it records the exact bytes that the
+# review applies to. Every finding in this run's findings/ TOMLs
+# refers to line numbers and quoted spans of the document identified
+# here.
+
+[meta]
+schema_version  = "0.1.0"
+template_kind   = "claim-analysis-run-manifest"   # local kind; not a core kind
+docs            = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "internal"
+license         = "Apache-2.0"
+title           = "Claim analysis run — paper/main.tex"
+created         = "2026-05-22"
+
+[dag]
+file            = "tools/claim-analysis-document-review-dag.toml"
+title           = "Claim Analysis Agent — document review workflow"
+
+[policy_instance]
+document_path        = "paper/main.tex"
+document_sha         = "9664be061e4bc8493de2e5054d3c3d61737bd666e56077b9856c19585dbde306"
+document_line_count  = 1659
+triggering_event     = "DocumentationChanged"
+run_label            = "2026-05-22-paper-main"
+initiator_model      = "claude-opus-4-7[1m]"
+reviewer_models      = ["claude-opus-4-7[1m]"]   # single-reviewer run (self-review); see policy note
+trusted_sources = [
+  "paper/references.bib",
+  "examples/proof-chardet-relicense/contract_declaration.toml",
+  "examples/proof-chardet-relicense/traceability.toml",
+  "examples/proof-chardet-relicense/evidence_matrix.toml",
+  "examples/proof-chardet-relicense/review_readiness.toml",
+  "examples/proof-chardet-relicense/verification_report.toml",
+  "examples/proof-chardet-relicense/implementation_dag.toml",
+  "examples/proof-chardet-relicense/README.md",
+  "examples/proof-chardet-relicense/extract_signals.py",
+  "examples/proof-chardet-relicense/fingerprint_behavior.py",
+  "examples/proof-chardet-relicense/detect.sh",
+  "paper/figures/scripts/validate_numbers.py",
+  "paper/figures/scripts/validation_report.json",
+  "paper/figures/scripts/jplag_chardet_results.json",
+  "paper/figures/scripts/run_jplag.sh",
+  "paper/user-prompts.md",
+  "paper/verification_report.toml",
+  "core/ontology.toml",
+  "core/implementation-dag-kind.toml",
+  "core/traceability-kind.toml",
+  "profiles/agent-assurance/gate-decision-kind.toml",
+  "profiles/agent-assurance/ontology.toml",
+]
+corporate_standards = [
+  "spec.md",
+  "CONTRIBUTING.md",
+  "CLAUDE.md",
+]
+commit_or_diff_ref = "638a90e8a0dc68c3e4aa8dfa29b51f6466d435fe"
+changed_files      = ["paper/main.tex"]
+review_session_label = "2026-05-22-paper-main"
+
+# Single-reviewer note. The DAG's roles policy excludes the
+# initiator as a standard reviewer and allows it as a reviewer
+# only in a fresh / clean-context session. This run is executed
+# from the SAME session that previously discussed the workflow
+# DAG and authored other artefacts in this repo. It is therefore
+# a self-review, NOT a fresh-context independent review, and the
+# output should be read as a structured author self-audit. For a
+# fresh-context independent multi-reviewer run, dispatch this DAG
+# to Codex / Gemini / Grok via tools/review-request-dag.toml.
+
+[unit_status]
+U01 = "completed"   # capture-trigger-and-fetch-document
+U02 = "completed"   # load-reference-corpus
+U03 = "completed"   # structure-and-clarity
+U04 = "completed"   # factual-accuracy
+U05 = "completed"   # logical-leaps
+U06 = "completed"   # unsubstantiated-claims
+U07 = "completed"   # source-reliability
+U08 = "completed"   # compliance-and-risks
+U09 = "completed"   # overall-quality
+U10 = "completed"   # aggregate
+U11 = "completed"   # emit

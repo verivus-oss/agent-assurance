@@ -1,0 +1,54 @@
+# Minimal traceability file — one requirement, one test, one code reference.
+# Demonstrates the role-specific field names (requirement_kind, test_kind)
+# introduced in DAG-TOML schema_version 0.1.0.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version   = "0.1.0"
+template_kind    = "traceability"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+ontology_version = 1
+title            = "Traceability for: tax line on checkout receipt"
+source_spec      = "docs/planning/spec.md"
+owners           = ["checkout-team"]
+created          = "2026-05-19"
+
+[[intents]]
+id           = "INT:trustworthy-billing"
+name         = "Trustworthy billing"
+statement    = "Customers can trust the bill they are shown."
+realized_by  = ["REQ:receipt-shows-tax-line"]
+
+[[requirements]]
+id               = "REQ:receipt-shows-tax-line"
+statement        = "Every paid receipt MUST include a line item labelled 'Tax' with the computed amount in the customer's display currency."
+requirement_kind = "functional"
+priority         = "must"
+source           = "docs/planning/spec.md#receipt"
+constrains       = ["IMP:render-receipt"]
+verified_by      = ["TEST:checkout::receipt::shows_tax_line"]
+
+[[implementations]]
+id            = "IMP:render-receipt"
+name          = "Render the receipt with a tax line"
+summary       = "Render a Tax line on every paid receipt with the computed amount."
+implements    = ["REQ:receipt-shows-tax-line"]
+code          = ["CODE:src/checkout/receipt.rs"]
+tests         = ["TEST:checkout::receipt::shows_tax_line"]
+
+[[code]]
+id       = "CODE:src/checkout/receipt.rs"
+path     = "src/checkout/receipt.rs"
+symbol   = "render_receipt"
+realizes = ["IMP:render-receipt"]
+
+[[tests]]
+id        = "TEST:checkout::receipt::shows_tax_line"
+path      = "tests/checkout/test_receipt.py"
+test_kind = "integration"
+verifies  = ["REQ:receipt-shows-tax-line"]
+command   = "pytest tests/checkout/test_receipt.py"

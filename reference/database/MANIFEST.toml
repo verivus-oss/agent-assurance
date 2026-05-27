@@ -1,0 +1,318 @@
+# DAG-TOML reference database manifest (non-normative).
+#
+# Machine-readable companion to reference/database/README.md. An ingestion
+# tool, schema-drift check, or agent can read this file to discover the
+# reference artifacts, their targets, and the ontology-derived counts the
+# checked-in seed/schema are expected to honour.
+#
+# This file is NOT a DAG-TOML kind (no template_kind, no IJB tags). It is
+# project metadata. The validators under validators/ do not inspect it
+# beyond TOML parse-ability. The README.md remains the human entry point.
+
+[meta]
+document_kind = "reference-database-manifest"
+schema_version = "0.1.0"
+normative      = false
+human_readme   = "README.md"
+last_verified  = "2026-05-21"  # date the counts and exec verification were re-checked
+
+# Source of truth this manifest derives from. If any of these files
+# change, the counts below MUST be re-derived and the seed regenerated.
+[ontology_source]
+core_ontology       = "../../core/ontology.toml"
+profile_ontology    = "../../profiles/agent-assurance/ontology.toml"
+core_kind_glob      = "../../core/*-kind.toml"
+profile_kind_glob   = "../../profiles/agent-assurance/*-kind.toml"
+spec                = "../../spec.md"
+
+# Counts the checked-in seed inserts and that an ingestion implementation
+# should expect after loading reference/database/postgres/seed.sql or the
+# UNWIND blocks in reference/database/graph/schema.cypher. Any drift here
+# vs. the ontology is a CI failure-in-waiting; regenerate, do not patch.
+[counts]
+template_kinds         = 20    # 6 core + 9 agent-assurance + 3 disclosure + 1 cost + 1 meta `kind-descriptor`
+entity_kinds           = 27    # 17 core + 6 agent-assurance + 3 disclosure + 1 cost (COST)
+relation_predicates    = 31    # one per [[relations]] block in core/ontology.toml (includes SPEC §12 `cites_upstream`)
+attribute_vocabularies = 46    # 12 core + 27 agent-assurance + 4 disclosure + 3 cost (agent-assurance gains subject_class, provider_id, model_family_id for gate-decision INV06 cross-provider self-modification)
+# attribute_values_declared = sum of len(values) over every
+# [[attribute_vocabularies]] block in core + every profile ontology,
+# regardless of whether each vocabulary is closed or extensible. This
+# is the ontology's documented surface — the total number of literal
+# values the spec ships in its vocabulary catalogs.
+attribute_values_declared = 202
+
+# attribute_values_closed = same sum restricted to vocabularies with
+# `extensible = false`. This is the size of the enforcement rejection
+# surface the validators actually use:
+#   tools/dagtoml-validate-rs/src/main.rs:519-544  (Rust `check_vocab`)
+#   validators/validate_disclosure.py:82-105       (Python `_check_vocab`)
+# In both, `extensible = true` ⇒ accept any value (no membership
+# enforcement); `extensible = false` ⇒ reject unseen values.
+attribute_values_closed = 109
+
+# Both numbers are CI-gated by `validators/check_attribute_values.py`
+# (invoked from `validators/check_manifest_drift.sh`). The two
+# aggregates are categorically different from the four block-counts
+# above: a *block* count is one row per declaration; a *value* count
+# is one row per element inside `values = [...]`. Engine-specific
+# emission counts (the number of rows the seeds actually INSERT into
+# `attribute_value_allowed` after enum-promotion decisions) live
+# under the per-engine `expected_seed_counts` blocks below.
+
+# Predicate names that the core ontology declares more than once with
+# distinct domain/range tuples. The relational schema can only carry one
+# row per PK, so these are emitted as `<scope>:<predicate>` rows in the
+# registry. An ingestion tool MUST translate an asserted contract-scoped
+# edge into the namespaced predicate name when writing into `relation`.
+[namespaced_predicates]
+contract_depends_on  = "contract:depends_on"
+contract_supersedes  = "contract:supersedes"
+contract_verified_by = "contract:verified_by"  # also target_freeform = true
+
+# Relation predicates that the ontology declares with the same name as
+# another predicate but with a free-form (unconstrained_label) range.
+# Ingestion MUST resolve these to a :FreeFormTarget (graph) or a
+# relation.target_label string (Postgres) — they will never have a typed
+# entity target.
+[freeform_target_predicates]
+predicates = [
+  "applies_to",
+  "contract:verified_by",
+]
+
+# Postgres reference schema.
+[postgres]
+schema_path   = "postgres/schema.sql"
+seed_path     = "postgres/seed.sql"
+target        = "postgresql>=14"  # uses gen_random_uuid() from core (PG 13+), JSONB GIN, recursive CTE
+search_path   = "dagtoml"
+extensions    = []  # none required
+# Closed attribute vocabularies that are modelled as PostgreSQL enums
+# instead of text + attribute_value_allowed. Mirrors ontology entries
+# where extensible = false.
+closed_enums  = [
+  "ijb_primitive",
+  "ijb_class",
+  "ijb_constraint_type",
+  "spec_layer",
+  "priority_level",
+  "unit_status",
+  "review_status",
+  "risk_level",
+  "residual_risk",
+  "smoke_decision",
+  "gate_verdict",
+  "severity_tier",
+  "runtime_kind",
+  "network_policy",
+  "clock_policy",
+  "adapter_id_derivation",
+  "adapter_ref_syntax",
+  "override_rule_op",
+]
+invariant_views = [
+  "invariant_violations_depends_blocks",
+  "invariant_violations_multi_producer",
+  "invariant_violations_unresolved_refs",
+]
+invariant_functions = [
+  "find_depends_on_cycles",
+]
+convenience_views = [
+  "dag_unit",
+  "dag_edge",
+  "requirement_coverage",
+  "gate_status",
+]
+
+# SQLite / libSQL (Turso) reference schema. Same file works on both
+# engines — libSQL is a maintained SQLite fork and supports every feature
+# used here (STRICT tables, json1, partial indexes, recursive CTEs,
+# expression DEFAULTs, foreign-key constraints with PRAGMA foreign_keys).
+[sqlite]
+schema_path   = "sqlite/schema.sql"
+seed_path     = "sqlite/seed.sql"
+target        = "sqlite>=3.38 OR libsql>=0.24"
+# SQLite has no schemas; table names are prefixed with `dagtoml_`.
+table_prefix  = "dagtoml_"
+# Mirrors postgres.closed_enums but enforced via column-level CHECK lists
+# instead of CREATE TYPE.
+closed_checks = [
+  "priority",
+  "unit_status",
+  "review_status",
+  "likelihood",
+  "impact",
+  "residual",
+  "smoke_status",
+  "ijb_primitive",
+  "ijb_class",
+  "ijb_constraint_type",
+  "layer",
+  "framework_profile",
+]
+invariant_views = [
+  "dagtoml_inv_depends_blocks",
+  "dagtoml_inv_multi_producer",
+  "dagtoml_inv_depends_cycles",     # CTE wrapped as a view (no stored functions in SQLite)
+  "dagtoml_inv_unresolved_refs",
+]
+convenience_views = [
+  "dagtoml_dag_unit",
+  "dagtoml_dag_edge",
+  "dagtoml_requirement_coverage",
+  "dagtoml_gate_status",
+]
+# Translation table from the PG reference (informative).
+[sqlite.pg_translation]
+"CREATE TYPE x AS ENUM (...)"   = "TEXT CHECK (x IN (...))"
+"JSONB"                          = "TEXT (use json_* / json1 functions for queries)"
+"UUID"                           = "TEXT (use lower(hex(randomblob(16))) as DEFAULT)"
+"text[]"                         = "TEXT holding a JSON array (json_array(...), json_each(...))"
+"gen_random_uuid()"              = "lower(hex(randomblob(16)))"
+"CREATE OR REPLACE FUNCTION"     = "recursive VIEW (no stored functions in SQLite)"
+"GIN index on JSONB"             = "not modelled (json1 query syntax is enough for this schema)"
+
+# Turso-specific notes. The schema is engine-agnostic; this captures the
+# operational entry points.
+[sqlite.turso]
+compatible_with = "libsql>=0.24"
+local_dev       = "podman run --rm -p 8080:8080 ghcr.io/tursodatabase/libsql-server"
+http_api        = "POST /v2/pipeline (Hrana v2)"
+notes           = "Schema loads identically. Use the libsql-shell or any libsql client (Go, Rust, JS, Python) to apply schema.sql + seed.sql, or POST each statement to /v2/pipeline."
+
+# RDF / Turtle reference. The ontology rendered as Linked Data — every
+# IJB primitive, entity kind, relation predicate, and attribute
+# vocabulary becomes an RDF class or property. The artifact is a single
+# text file that loads in any RDF tool (Apache Jena, RDF4J, oxigraph,
+# rdflib) without a server. SHACL shapes encode the graph-shaped
+# invariants the schema.ttl owl:oneOf ranges do not cover.
+[rdf]
+schema_path = "rdf/schema.ttl"
+shapes_path = "rdf/shapes.ttl"
+target      = "any RDF 1.1 / Turtle 1.1 compliant tool"
+generator   = "tools/dagtoml-rdf (Rust, no Python)"
+verifier    = "tools/dagtoml-rdf verify -o rdf/schema.ttl  (oxttl re-parse)"
+prefixes = [
+  { prefix = "dagtoml", uri = "https://verivus-oss.org/dagtoml/v1#" },
+  { prefix = "dagprof", uri = "https://verivus-oss.org/dagtoml/profile/agent-assurance/v1#" },
+  { prefix = "ijb",     uri = "https://verivus-oss.org/dagtoml/ijb/v1#" },
+]
+# Shape-classes the SHACL file declares — useful for consumers wanting
+# to slice a SHACL validation report by category.
+shacl_shapes = [
+  "GateArtifactClassShape",
+  "MatrixCardinalityShape",
+  "ArtifactSingleProducerShape",
+  "DependsOnBlocksSymmetryShape",
+  "DependsOnAcyclicShape",
+  "RequirementPriorityShape",
+  "UnitStatusShape",
+  "ThreatRiskShape",
+  "RequirementIdPrefixShape",
+  "ImplementationIdPrefixShape",
+  "TestIdPrefixShape",
+]
+
+# DuckDB reference. Embeddable analytical SQL with native ENUM types
+# (PG-style), native LIST<T> arrays, native UUID/JSON. The schema is a
+# port of the Postgres reference, NOT of the SQLite one (DuckDB sits
+# closer to PG in expressive power). The artifact is a single
+# `agent_assurance.duckdb` file built by `dagtoml-duckdb`; the artifact
+# is binary and intentionally NOT checked into git — consumers
+# regenerate from the checked-in schema.sql + seed.sql in seconds.
+[duckdb]
+schema_path = "duckdb/schema.sql"
+seed_path   = "duckdb/seed.sql"
+target      = "duckdb>=1.5"
+generator   = "tools/dagtoml-duckdb (Rust, wraps duckdb CLI)"
+# The build tool defaults the output file stem to `agent_assurance`
+# because DuckDB derives the catalog name from the file stem, and a
+# stem of `dagtoml` collides with the schema name and breaks fully-
+# qualified `dagtoml.<table>` references.
+default_output_stem = "agent_assurance"
+invariant_views = [
+  "dagtoml.inv_depends_blocks",
+  "dagtoml.inv_multi_producer",
+  "dagtoml.inv_depends_cycles",
+  "dagtoml.inv_unresolved_refs",
+]
+convenience_views = [
+  "dagtoml.dag_unit",
+  "dagtoml.dag_edge",
+  "dagtoml.requirement_coverage",
+]
+
+# Property-graph reference schema.
+[graph]
+schema_path = "graph/schema.cypher"
+target      = "neo4j>=5"
+node_labels = [
+  "Entity",
+  "InstanceFile",
+  "KindDescriptor",
+  "EntityKind",
+  "RelationPredicate",
+  "FreeFormTarget",
+]
+# Cross-reference convention. Relationship types follow Neo4j
+# UPPER_SNAKE_CASE; the canonical ontology predicate (lowercase, optionally
+# namespaced) MUST be stored as `r.predicate` on every edge so queries
+# joining to :RelationPredicate work correctly and so contract-scoped
+# variants can coexist on the same relationship type.
+relationship_type_case   = "UPPER_SNAKE_CASE"
+canonical_predicate_path = "r.predicate"
+
+# Verification commands used to demonstrate the schemas execute cleanly.
+# Reproduce by running these against rootless podman containers; non-zero
+# exit codes are a CI failure-in-waiting.
+[verification.postgres]
+container_image = "docker.io/library/postgres:16-alpine"
+commands = [
+  "podman cp postgres/schema.sql pg-test:/tmp/schema.sql",
+  "podman cp postgres/seed.sql   pg-test:/tmp/seed.sql",
+  "podman exec pg-test psql -U postgres -v ON_ERROR_STOP=1 -f /tmp/schema.sql",
+  "podman exec pg-test psql -U postgres -v ON_ERROR_STOP=1 -f /tmp/seed.sql",
+]
+expected_seed_counts = { kind_descriptor = 20, entity_kind_descriptor = 27, relation_descriptor = 31, attribute_vocabulary = 46, attribute_value_allowed = 138 }
+
+[verification.graph]
+container_image = "docker.io/library/neo4j:5-community"
+plugins = ["apoc"]
+commands = [
+  "podman cp graph/schema.cypher neo-test:/tmp/schema.cypher",
+  "podman exec neo-test cypher-shell -u neo4j 'MATCH (n) DETACH DELETE n'",
+  "podman exec neo-test cypher-shell -u neo4j --file /tmp/schema.cypher",
+]
+expected_node_counts = { KindDescriptor = 20, EntityKind = 27, RelationPredicate = 31 }
+
+[verification.rdf]
+generator_build = "cargo build --release -p dagtoml-rdf --manifest-path tools/dagtoml-rdf/Cargo.toml"
+commands = [
+  "tools/dagtoml-rdf/target/release/dagtoml-rdf --repo-root . -o reference/database/rdf/schema.ttl",
+  "tools/dagtoml-rdf/target/release/dagtoml-rdf verify -o reference/database/rdf/schema.ttl",
+  "tools/dagtoml-rdf/target/release/dagtoml-rdf verify -o reference/database/rdf/shapes.ttl",
+]
+# At generation, schema.ttl footer records observed counts. Drift check
+# parses the footer and compares to ontology block counts.
+expected_footer_counts = { template_kinds = 20, entity_kinds = 27, relation_predicates = 31, attribute_vocabularies = 46 }
+expected_triple_counts = { schema = 1400, shapes = 148 }
+
+[verification.duckdb]
+generator_build = "cargo build --release -p dagtoml-duckdb --manifest-path tools/dagtoml-duckdb/Cargo.toml"
+prerequisite    = "duckdb CLI on PATH (https://duckdb.org/)"
+commands = [
+  "tools/dagtoml-duckdb/target/release/dagtoml-duckdb --repo-root . -o /tmp/agent_assurance.duckdb",
+  "tools/dagtoml-duckdb/target/release/dagtoml-duckdb verify -o /tmp/agent_assurance.duckdb",
+]
+expected_seed_counts = { kind_descriptor = 20, entity_kind_descriptor = 27, relation_descriptor = 31, attribute_vocabulary = 46, attribute_value_allowed = 138 }
+
+[verification.sqlite]
+container_image = "docker.io/library/alpine:latest"
+setup           = "apk add --no-cache sqlite"
+commands = [
+  "podman cp sqlite/schema.sql sqlite-test:/tmp/schema.sql",
+  "podman cp sqlite/seed.sql   sqlite-test:/tmp/seed.sql",
+  "podman exec sqlite-test sh -c 'sqlite3 /tmp/d.db < /tmp/schema.sql && sqlite3 /tmp/d.db < /tmp/seed.sql'",
+]
+expected_seed_counts = { dagtoml_kind_descriptor = 20, dagtoml_entity_kind_descriptor = 27, dagtoml_relation_descriptor = 31, dagtoml_attribute_vocabulary = 46, dagtoml_attribute_value_allowed = 138 }

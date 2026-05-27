@@ -1,0 +1,138 @@
+# U09 — R2 terminal decision.
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-terminal-decision"
+created        = "2026-05-23"
+review_session = "2026-05-23-paper-main-r2"
+document       = "paper/main.tex@6ba15597a36096462cadd55aade3b7bac13c8e7abd86a26b3b53374001437025"
+
+# ============================================================================
+# Reviewer roll-up
+# ============================================================================
+
+[reviewer_verdicts]
+codex  = "CONCRETE UNRESOLVABLE BLOCKERS (1)"
+gemini = "UNCONDITIONAL APPROVAL"
+grok   = "UNCONDITIONAL APPROVAL"
+unanimous_terminal_state = false
+unconditional_approvals  = 2
+blocker_verdicts         = 1
+forbidden_basis_violations = 0   # No reviewer cited intent, plan-compliance, or "should be fixed" language
+
+# ============================================================================
+# Disagreement among reviewers (Codex vs Gemini+Grok on B1)
+# ============================================================================
+
+[disagreement]
+exists = true
+about  = "Severity classification of the B1-fix causal clause"
+codex_position = "B1 partially_fixed; new causal clause is empirically false per live JPlag rerun. Elevated to blocker."
+grok_position  = "B1 fixed (arithmetic). Same issue noted as N1 medium severity, NOT elevated to blocker."
+gemini_position = "B1 fixed. Did not probe the parse-exclusion claim."
+
+agreement_about_facts = """
+Codex and Grok independently agree that:
+  (a) The 84/22 count is the submission-tree scope, not parse-exclusion.
+  (b) v7 parse errors cannot involve languages.py (it is v6-only),
+      so the v7 delta cannot be explained by parse exclusion.
+The disagreement is ONLY about severity (block vs annotate).
+"""
+
+resolution_principle = """
+Per [policy.evidence], approval rests on inspected code + executed
+tests + persisted evidence. Codex executed a live JPlag rerun and
+read run_jplag.sh end-to-end. The initiator independently verified
+Codex's evidence at aggregation time: paper/figures/scripts/run_jplag.sh:
+30-50 contains a comment explicitly stating 'JPlag emits ANTLR parse
+errors on those data files but still completes the comparison; the
+token-level similarity is computed across all files JPlag could
+tokenize.' This directly contradicts the paper's 'excluded from its
+token corpus' claim. Therefore the blocker stands at full strength,
+notwithstanding the two unconditional approvals.
+"""
+
+# ============================================================================
+# Active blocker for R3
+# ============================================================================
+
+[[blocker]]
+rank          = 1
+title         = "B1 partially_fixed: causal clause empirically false"
+location      = "paper/main.tex:1339-1343"
+raised_by     = ["codex (high)", "grok (medium)"]
+elevated_by   = ["codex"]
+verified_by_initiator_at_aggregation = true
+evidence      = """
+- Paper says: '... JPlag's bundled ANTLR Python 3 grammar emits parse errors on \\texttt{chardet/metadata/languages.py} (PEP 515 underscore numeric literals like \\texttt{1\\_536}), and the files JPlag cannot parse are excluded from its token corpus.'
+- paper/figures/scripts/run_jplag.sh:33-39 documents the actual submission scope: 'We submit the chardet/ implementation tree from v6 and the src/chardet/ implementation tree from v7 as two sibling submissions.' → that explains 84 / 22.
+- paper/figures/scripts/run_jplag.sh:42-46 (script's own comment): 'JPlag emits ANTLR parse errors on those data files BUT STILL COMPLETES THE COMPARISON; the token-level similarity is computed across all files JPlag could tokenize.' → directly refutes 'excluded from token corpus'.
+- Codex's live JPlag rerun: metadata/languages.py had tokenCount=590 in the report despite the parse errors.
+- v7 count delta (11 files) cannot be explained by a v6-only data-file caveat (Grok N1).
+"""
+unblock_by    = """
+Rewrite paper/main.tex:1337-1348 to separate submission-scope file
+counts from parser-error caveats. Suggested wording:
+
+  'JPlag tokenised 84 v6 \\texttt{.py} files plus 22 v7 \\texttt{.py}
+   files. The submission scope under
+   \\texttt{paper/figures/scripts/run\\_jplag.sh:34-39} is the
+   package implementation subtree only (v6/chardet/ and v7/src/chardet/),
+   while the extractor's 87 / 33 counts walk the full repo roots with
+   explicit test-filename exclusion (\\cref{sec:test-exclusion}). JPlag
+   additionally emits ANTLR parse errors on
+   \\texttt{chardet/metadata/languages.py} (PEP 515 underscore numeric
+   literals like \\texttt{1\\_536}) — but per the script's own comment
+   at lines 42--46, JPlag completes the comparison anyway and
+   token-counts the affected files, so the parse errors are data-table
+   noise rather than the cause of the count delta. The token-level
+   similarity in \\cref{tab:jplag-vs-c06} is therefore measured on the
+   full 84/22 submission, including data-table files, which makes the
+   contrast with the extractor's higher-layer signals robust.'
+"""
+
+# ============================================================================
+# Approval-basis audit
+# ============================================================================
+
+[approval_basis_audit]
+status = "clean for the rejecting reviewer; questionable for the approving reviewers"
+note   = """
+Codex's blocker rests on live-executed evidence (JPlag rerun + script
+comment + token counts). That is the strongest evidence class
+admissible under [policy.approval].required_approval_bases.
+
+Gemini's unconditional approval rests on static inspection of the
+prose and SHA verification only. Gemini did not probe the
+parse-exclusion claim, and its judgment line ('which is consistent
+with the explanation that JPlag's parser fails on some files') effectively
+treats the paper's own prose as evidence. That edges close to
+[policy.evidence].reviewers_must_not_accept_summary_as_evidence,
+though Gemini did inspect the cited validation_report.json keys for B3.
+
+Grok's unconditional approval rests on static inspection + worktree
+walks. Grok DID independently identify the same problem as Codex
+(N1, medium) but chose to annotate rather than block. Grok's
+approval is internally inconsistent: 'no new unresolvable
+contradictions of the same class' is hard to defend when Grok
+itself documented N1 in section 3 of its review.
+
+The terminal verdict therefore follows the evidence, not the
+reviewer count. Two of three approve; one rejects with the
+strongest evidence class. The rejection holds.
+"""
+
+# ============================================================================
+# Iteration recommendation
+# ============================================================================
+
+[iteration]
+should_iterate = true
+recommendation = "Apply the IF-R2-CX-01 unblock fix verbatim (or a paraphrase that preserves the submission-scope-vs-parse-error distinction), then dispatch a third review session at docs/reviews/<new-date>-paper-main-r3/. R3 scope should be narrow: verify the B1 rewrite against run_jplag.sh and against the JPlag report's actual file/token output."
+reason = """
+The fix is a one-paragraph rewrite with clear unblock language
+provided by the rejecting reviewer. Applying and re-reviewing is
+strictly less work than debating the disagreement. The other three
+R1 blockers remain fixed at full strength across all three R2
+reviewers, so R3 needs to verify only the B1 rewrite.
+"""

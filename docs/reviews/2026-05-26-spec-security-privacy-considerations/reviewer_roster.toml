@@ -1,0 +1,32 @@
+schema_version = "1.0"
+review_id = "2026-05-26-spec-security-privacy-considerations"
+
+[[reviewer]]
+name = "claude"
+provider = "llm-cli-gateway"
+required_terminal_state = "unconditional_approval or concrete_unresolvable_blocker"
+
+[[reviewer]]
+name = "gemini"
+provider = "llm-cli-gateway"
+required_terminal_state = "unconditional_approval or concrete_unresolvable_blocker"
+
+[[reviewer]]
+name = "grok"
+provider = "llm-cli-gateway"
+required_terminal_state = "unconditional_approval or concrete_unresolvable_blocker"
+
+[iteration_policy]
+permission_refresh_interval_seconds = 90
+reviewer_must_verify_claims_against = [
+  "code",
+  "docs",
+  "exact diff",
+  "validation command output",
+]
+reviewer_must_not_approve_based_on = [
+  "intent",
+  "plan compliance claims",
+  "should be fixed language",
+  "Codex summary without independent inspection",
+]

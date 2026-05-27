@@ -1,0 +1,136 @@
+# Round-1 terminal decision for 2026-05-25-spec-e2e (end-to-end DAG-TOML spec review).
+# concrete_unresolvable_blocker. Codex filed one substantive blocker on
+# S08 (INV06 enforcement gap) plus three secondary open closures; gemini
+# and grok both approved. Initiator cannot rebut: codex constructed two
+# negative variants (same-provider/different-family and different-
+# provider/same-family) and both passed both primary validators,
+# directly contradicting INV06's documented contract.
+# Mistral CLI unavailable on host; effective panel = codex / gemini / grok.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-spec-e2e"
+predecessor    = "(none; first whole-spec e2e under the framework)"
+head_commit    = "1e0e155"
+
+[scope]
+unit                = "S01-S12 (whole-spec audit including SPEC.md, core/, profiles/, validators/, tools/, CI workflow, README)"
+verification_report = "docs/reviews/2026-05-25-spec-e2e/verification_report.toml"
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "concrete_unresolvable_blocker"
+classification = "S02/S05/S06/S07/S08/S10/S11 closed; S03/S09/S12 partial-or-open; S01/S04 verify_by recipe defects; S08 blocker"
+blocker_count  = 1
+raw_findings   = "raw_findings/codex.md"
+evidence_class = "live-executable (built both primary validators; ran them on canonical sweep; constructed two negative INV06 variants in /tmp and observed BOTH pass; cross-checked workflow at .github/workflows/validate.yml:1-505; full byte-level audit)"
+note           = "Codex went deeper than the verify_by recipe required by constructing executable negative variants for INV06 — that is the strongest possible evidence of an enforcement gap and unrebuttable by the initiator."
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "unconditional_approval"
+classification = "S01-S12 all complete; no defects"
+blocker_count  = 0
+raw_findings   = "raw_findings/gemini.md"
+evidence_class = "live-executable (verify_by recipes for all 12 closures)"
+note           = "Gemini did not exercise the INV06 enforcement claim with negative variants. The closure recipe asked for byte-level conformance of the descriptor; gemini verified the descriptor exists and is well-formed but did not test whether shipped validators actually reject negative cases. Codex's deeper probe surfaces what gemini's recipe-only pass missed."
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "unconditional_approval"
+classification = "S01-S12 all complete; no defects"
+blocker_count  = 0
+raw_findings   = "raw_findings/grok.md"
+evidence_class = "live-executable (verify_by recipes)"
+note           = "Same as gemini: passed the recipe-shaped check but did not exercise the contract with negative variants."
+
+[blockers]
+
+[[blockers.items]]
+id        = "S08"
+filer     = "codex"
+severity  = "concrete (unrebuttable: bytes-verified)"
+location  = "profiles/agent-assurance/gate-decision-kind.toml:101-103, :200-202 vs tools/dagtoml-validate-rs/src/main.rs:1043-1055 + tools/dagtoml-validate-go/main.go:822-829"
+defect    = """
+The agent-assurance gate-decision kind descriptor declares INV06 as
+a hard SPEC-layer invariant requiring BOTH provider_id AND
+model_family_id to differ between proposing and deciding agents for
+self-modification gate-decisions. The descriptor explicitly says the
+SPEC layer verifies field presence, vocabulary membership, and both
+inequality predicates.
+
+But: no shipped validator enforces this. The primary validators
+(Rust + Go) auto-route only profile-descriptor and disclosure kinds.
+validators/validate_gate_decision.py does not exist.
+validate_review_readiness.py cannot detect template_kind for the
+worked example examples/self-modification-gate-decision.toml
+(fails with 'unable to detect template kind from TOML content').
+
+Codex constructed two NEGATIVE variants in /tmp:
+  (a) same-provider/different-family
+  (b) different-provider/same-family
+
+INV06's documented predicate (conjunctive AND) says BOTH must fail.
+Both variants PASSED both primary validators. The descriptor's
+SPEC-layer-enforcement claim is therefore false against bytes.
+"""
+remediation_options = [
+  "(A) Ship the INV06 validator: add a profile-specific validator (validators/validate_gate_decision.py + Rust/Go mode='gate-decision') that enforces the AND predicate.",
+  "(B) Re-classify INV06 as runtime-spec-enforced: edit the descriptor to say SPEC-layer validates field SHAPE only; the AND predicate is enforced by a runtime gate. Mirrors how §13 cleanly separates SPEC vs RUNTIME concerns.",
+  "(C) Mark INV06 as 'aspirational/declared but not yet enforced' in the descriptor and CHANGELOG. Honest but ships a known-unenforced invariant.",
+]
+
+[partial_opens]
+
+[[partial_opens.items]]
+id     = "S03"
+filer  = "codex"
+status = "open (closure_root spot-check unmet)"
+defect = "verify_by:3 required at least one non-empty closure_root somewhere in the repo. Every TOML uses the empty sentinel sha256:e3b0c4… — the §12.11 contract is met but the spot-check premise is not. Either remove the spot-check from the recipe (no non-empty closure_root is required, the empty sentinel is itself in-graph) or land at least one example with a real upstream-evidence cite."
+
+[[partial_opens.items]]
+id     = "S12"
+filer  = "codex"
+status = "open (README Repository Map omits paper/ subdirs)"
+defect = "README.md's Repository Map omits paper/, paper-hello-world/ (and paper-arxiv-prep/ which is now gitignored). The first two are tracked top-level directories with substantial content; their omission is a doc-vs-reality gap."
+
+[[partial_opens.items]]
+id     = "S01"
+filer  = "codex"
+status = "open (recipe-defect, not bytes-defect — initiator-side closure-recipe imprecision)"
+defect = "S01's verify_by recipe asked to confirm 'every kind named in SPEC.md has an actual *-kind.toml descriptor'. Codex verified all 19 do. But several recipes elsewhere (S04, S09) assume validator commands that need --repo-root and don't behave as written; not a spec defect, but a verification_report defect to fix in r2."
+
+[[partial_opens.items]]
+id     = "S11"
+filer  = "codex"
+status = "partial (review-trail completeness)"
+defect = "Codex found early 2026-05-21 commits to SPEC/core/profiles/validators (b1a4f38, 9f2fecf, 9db54c4, 7965aa4, 7a159ca) that pre-date the earliest persisted review session (2026-05-23). The verify_by claim 'every commit touching SPEC.md / core/ / profiles/ / validators/ since 2026-05-21 has a corresponding docs/reviews/...' is stronger than the persisted record. Either weaken the claim or document the early-period exemption."
+
+[decision]
+outcome              = "concrete_unresolvable_blocker"
+unanimous            = false
+verdict_distribution = { unconditional_approval = 2, concrete_unresolvable_blocker = 1 }
+binding              = "concrete_unresolvable_blocker (codex's bytes-verified negative-variant test is the strongest possible evidence; gemini and grok's recipe-only passes do not survive codex's deeper probe)"
+session_terminal     = false
+next_action          = """
+1. Decide remediation for S08 (A / B / C above). All three are
+   substantive; the initiator does not have authority to pick
+   without author direction.
+2. Re-verify S03 and S12 with the same author direction (closure_root
+   spot-check semantics; README Repository Map paper-dir omission).
+3. Fix the verify_by recipe defects (S01/S04/S09) in r2's
+   verification_report.
+4. Dispatch r2 once remediation lands.
+"""
+
+[session_close]
+closed_at = "2026-05-25"
+closed_by = "consolidated reviewer verdicts at raw_findings/{codex,gemini,grok}.md"
+followup_notes = [
+  "Codex's negative-variant construction for INV06 is a template for future contract-invariant reviews — recipe-only verification proves shape, not enforcement. Where a descriptor claims SPEC-layer enforcement of an inequality predicate, reviewers MUST construct at least one negative variant and confirm it is rejected. Worth absorbing into future verification_report templates.",
+  "Mistral remains unavailable on host. Effective panel was 3/4. Per the established precedent (cross-provider self-mod r1/r2/r3), 3-of-4 unanimity is binding; one reviewer filing a bytes-verified blocker overrides two recipe-only approvals.",
+]

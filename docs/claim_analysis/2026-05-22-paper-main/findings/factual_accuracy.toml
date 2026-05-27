@@ -1,0 +1,74 @@
+# U04 — Document Review Prompt step 2.
+#   "Verify Factual Accuracy"
+# Imperative: cross-reference facts, data, figures, dates, statements
+# against reliable knowledge or logic. Identify inaccuracies, outdated
+# info, contradictions.
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "claim-analysis-finding-set"
+unit           = "U04"
+step           = "step2"
+title          = "Verify Factual Accuracy"
+document       = "paper/main.tex@9664be061e4bc8493de2e5054d3c3d61737bd666e56077b9856c19585dbde306"
+
+[summary]
+total_findings   = 6
+severity_counts  = { high = 1, medium = 2, low = 3 }
+section_outcome  = "issues_present"
+
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id                    = "F2-F01"
+step_reference        = "step2"
+severity              = "high"
+quoted_document_part  = """We ran JPlag v6.3.0 on the chardet v6.0.0 / v7.0.0 pair as two sibling submissions (84 v6 \\texttt{.py} files plus 22 v7 \\texttt{.py} files; the v6 file count is higher than the extractor's 87 because JPlag's submission layout includes some \\texttt{.py} files our extractor's test-filename regex excludes; neither affects the headline)."""
+location              = "paper/main.tex:1305-1313 (section sec:related-tools)"
+problem_explanation   = """The sentence contains a direct numeric contradiction. It states that v6 has 84 files in JPlag's run and 87 files under the C06 extractor, then asserts '84 is higher than 87' — which is false. The accompanying causal explanation ('JPlag's submission layout includes some .py files our extractor's test-filename regex excludes') would predict JPlag has MORE files than the extractor; the actual reported numbers show JPlag has FEWER (84 < 87 for v6; 22 < 33 for v7). The validation_report.json at paper/figures/scripts/validation_report.json:4-5 confirms the extractor counts as aux1_v6_files=87 and aux1_v7_files=33. Cross-checked against paper/figures/scripts/run_jplag.sh:45-48 which documents that JPlag's ANTLR Python 3 grammar emitted PARSE ERRORS on chardet/metadata/languages.py (PEP 515 underscore literals like 1_536). A parse failure would explain JPlag seeing FEWER files than the extractor, consistent with 84 < 87. So either: (a) the numbers '84' and '22' are correct and 'higher' should read 'lower', with the causal explanation rewritten to reference the parse-error issue documented later in the paragraph; or (b) the numbers are typo-swapped digits and JPlag actually saw e.g. 94 / 32 files, in which case the original explanation stands but the printed digits need correction. Without re-running JPlag I cannot disambiguate, but the sentence as written cannot be self-consistent."""
+suggested_fix         = """Re-run JPlag, capture the actual per-version file count from its stdout, and either (a) keep '84/22' and rewrite as 'the v6 file count is LOWER than the extractor's 87 because JPlag's ANTLR Python 3 grammar emits parse errors on chardet/metadata/languages.py (PEP 515 underscore literals); see also paragraph below'; or (b) correct the printed digits if they are wrong. Either way, remove the internal contradiction."""
+
+[[finding]]
+id                    = "F2-F02"
+step_reference        = "step2"
+severity              = "medium"
+quoted_document_part  = """the full implementations are in the bundle and are 589 plus 228 lines of code respectively (verified via \\texttt{wc -l} at commit \\texttt{220cff4})."""
+location              = "paper/main.tex:427-429 (section sec:signals)"
+problem_explanation   = """Numbers are accurate AT THE CITED COMMIT — git show 220cff4:.../extract_signals.py | wc -l returns 589, and git show 220cff4:.../fingerprint_behavior.py | wc -l returns 228 (verified). However, at HEAD (638a90e), fingerprint_behavior.py is 232 lines, a 4-line growth since 220cff4 (extract_signals.py is still 589). The paper's claim is therefore time-bound: a reader who runs wc -l on the current repo state will see 232, not 228, and may believe the paper is wrong even though it is precisely accurate for the commit it cites. This is not an error per se, but is a fragile form of citation."""
+suggested_fix         = """Either (i) re-pin the LoC count to the current HEAD with an explicit '(verified at commit 638a90e on 2026-05-22)' note, or (ii) add 'at the time of this writing' framing, or (iii) shift the claim to count something less drift-prone — e.g. 'approximately 600 + 230 lines total'. Option (i) is most defensible as a one-time PR change for arXiv camera-ready."""
+
+[[finding]]
+id                    = "F2-F03"
+step_reference        = "step2"
+severity              = "medium"
+quoted_document_part  = """Verdicts are drawn from a closed set: \\texttt{PASS / FAIL / MEASURED / OBSERVED / SKIP /\\\\\\\\\\nDELEGATED / ABSENT / INCONCLUSIVE}."""
+location              = "paper/main.tex:300-303 (section sec:spec, item 3 of the five-aspect list)"
+problem_explanation   = """The 8-value enum the paper presents as a property of the DAG-TOML spec is in fact NOT a core-ontology attribute. Cross-checked against profiles/agent-assurance/ontology.toml:210-214, the only verdict vocabulary the spec actually defines is the gate_decision_verdict attribute, which is a CLOSED TWO-VALUE ENUM 'pass | fail' (the entry notes 'an override does NOT introduce a third value'). The 8-value enum the paper quotes is declared in this PROOF BUNDLE's traceability.toml:40 as a project-local hard invariant, not in core/ontology.toml or profiles/agent-assurance/ontology.toml. The paper's wording 'Verdicts are drawn from a closed set:' reads as a statement about the spec, when it is a statement about the bundle-local convention. This is a real conflation."""
+suggested_fix         = """Rewrite as: 'Each bundle declares its own verdict vocabulary as a hard invariant. The chardet proof bundle uses the 8-value enum PASS / FAIL / MEASURED / OBSERVED / DELEGATED / SKIP / ABSENT / INCONCLUSIVE (declared in traceability.toml). The core spec defines a separate two-value gate_decision_verdict (pass | fail) which governs the readiness-gate decision but not per-contract evidence reporting.'"""
+
+[[finding]]
+id                    = "F2-F04"
+step_reference        = "step2"
+severity              = "low"
+quoted_document_part  = """sqry parses source code into an AST and builds a graph of symbols and relationships, so a query searches by what code \\emph{means} (structure) rather than by what code \\emph{says} (text)."""
+location              = "paper/main.tex:879-882 (section sec:sqry)"
+problem_explanation   = """Acceptable as informal exposition, but 'what code means' is a strong claim. AST-graph queries reflect SYNTACTIC structure (calls, imports, definitions); they do not capture semantics in the formal sense (denotational, operational, axiomatic). A pedantic referee will note that AST-graph structure is closer to a strong form of syntax than to semantics. The paper itself acknowledges this elsewhere ('searches by what code means (structure)' is parenthetically equated with structure, not with semantics-the-PL-concept). The risk is low because the surrounding text is careful, but the gloss could mislead a non-PL reader."""
+suggested_fix         = """Soften to 'searches by code structure rather than by code text', removing the 'means'/'says' framing, OR keep the rhetorical contrast but parenthesise: 'what code means (in the structural rather than semantic sense)'. The latter preserves the punch."""
+
+[[finding]]
+id                    = "F2-F05"
+step_reference        = "step2"
+severity              = "low"
+quoted_document_part  = """We tested the harness on a developer workstation with full write access and inside a sandbox in which the upstream clone path was bind-mounted read-only. Both runs produced identical static signal values."""
+location              = "paper/main.tex:743-746 (section sec:sandbox)"
+problem_explanation   = """Claim is plausible (the determinism analysis in §sec:determinism supports it) but no artefact in the bundle persists the side-by-side comparison the sentence implies. validation_report.json captures a single run, not 'sandbox vs workstation'. A strict reviewer will look for a persisted diff."""
+suggested_fix         = """Either (i) commit a small file recording both runs' headline signal values and reference it ('see paper/figures/scripts/sandbox_vs_workstation.txt'), or (ii) downgrade the claim to 'We expect identical static signal values across sandboxed and unsandboxed runs because all static signals are deterministic functions of the input bytes (§sec:determinism); we have observed this on developer-workstation runs and on one sandboxed reviewer run.'"""
+
+[[finding]]
+id                    = "F2-F06"
+step_reference        = "step2"
+severity              = "low"
+quoted_document_part  = """Two reviewers issued unconditional approval after iteration; one returned a small set of remaining concerns that we list with our response in the bundle's review history."""
+location              = "paper/main.tex:1122-1125 (section sec:threats, Internal --- signal correctness)"
+problem_explanation   = """This statement, read at the §sec:threats point in the paper, is misleading at the BUNDLE level. The Acknowledgments enumeration at lines 1559-1607 shows ALL THREE reviewers issued unconditional approval on the BUNDLE (Codex in Round 3; Grok in Round 1; Gemini in Round 1). The 'one returned a small set of remaining concerns' framing matches an earlier-round Codex state, but Codex DID issue unconditional approval in Round 3. The sentence therefore states a snapshot from an intermediate round as if it were the final state. Cross-checked against the Codex bullet at lines 1559-1579 which explicitly says 'Round 3 UNCONDITIONAL APPROVAL on all 15 bundle contracts'. See also S1-F01 for the related ambiguity at §sec:llm-review."""
+suggested_fix         = """Rewrite as: 'All three reviewers issued unconditional approval on the bundle after iteration (Grok and Gemini in their first review round; Codex after two earlier rejections that surfaced the SUMMARY-undercount bug and the sandbox-incompatible worktree creation issue; see Acknowledgments for the full history).'"""

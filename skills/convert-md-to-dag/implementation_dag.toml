@@ -1,0 +1,110 @@
+# Implementation DAG for the convert-md-to-dag skill.
+
+# SHA-256 over the SPEC §12.8 source-hash closure stream.
+closure_root = "sha256:f9fb8ccb9b178fc6bf53ae33f259bf9d451b896f01490c5f79b519de84b52a93"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "implementation-dag"
+docs           = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+title          = "Convert Markdown to governed DAG-TOML package"
+spec           = "skills/convert-md-to-dag/SKILL.md"
+decomposition  = "skills/convert-md-to-dag/implementation_dag.toml"
+created        = "2026-05-21"
+total_units    = 5
+tier1_units    = ["U01", "U02", "U03", "U04", "U05"]
+tier2_units    = []
+tier3_units    = []
+
+[provenance]
+source_path        = "skills/convert-md-to-dag/SKILL.md"
+source_sha256      = "sha256:588c0afa76c35363ca01a9574f72aa66f3e968926eeb8781b00a8b9736d124b8"
+source_bytes       = 3077
+captured_at        = "2026-05-21T11:20:00Z"
+extraction_method  = "manual-analysis"
+source_description = "Skill instructions for converting Markdown files into governed DAG-TOML packages."
+
+[units.U01]
+name           = "analyze-input-markdown"
+summary        = "Read the source Markdown and extract intent, success criteria, constraints, assumptions, and edge cases."
+layer          = 0
+tier           = 1
+status         = "pending"
+depends_on     = []
+blocks         = ["U02"]
+estimated_loc  = 120
+files_modify   = ["generated/CONTEXT.md"]
+produces       = ["ART:source-analysis"]
+consumes       = []
+
+[units.U02]
+name           = "design-implementation-dag"
+summary        = "Turn the source analysis into atomic implementation units with dependencies, artifact flow, and computed critical path."
+layer          = 1
+tier           = 1
+status         = "pending"
+depends_on     = ["U01"]
+blocks         = ["U03"]
+estimated_loc  = 150
+files_modify   = ["generated/implementation_dag.toml"]
+produces       = ["ART:dag-design"]
+consumes       = ["ART:source-analysis"]
+
+[units.U03]
+name           = "build-assurance-artifacts"
+summary        = "Create contract, readiness, traceability, threat, and rollback artifacts using current DAG-TOML and Agent Assurance Profile shapes."
+layer          = 2
+tier           = 1
+status         = "pending"
+depends_on     = ["U02"]
+blocks         = ["U04"]
+estimated_loc  = 180
+files_modify   = [
+  "generated/contract_declaration.toml",
+  "generated/review_readiness.toml",
+  "generated/traceability.toml",
+  "generated/threat_model.toml",
+  "generated/rollback_plan.toml",
+]
+produces       = ["ART:assurance-package"]
+consumes       = ["ART:dag-design"]
+
+[units.U04]
+name           = "perform-multi-llm-review"
+summary        = "Submit the package to at least three distinct LLM reviewers through llm-cli-gateway when available, then capture findings."
+layer          = 3
+tier           = 1
+status         = "pending"
+depends_on     = ["U03"]
+blocks         = ["U05"]
+estimated_loc  = 90
+files_modify   = ["generated/review_readiness.toml", "generated/traceability.toml"]
+produces       = ["ART:multi-llm-review-findings"]
+consumes       = ["ART:assurance-package"]
+
+[units.U05]
+name           = "finalize-governed-package"
+summary        = "Incorporate or explicitly reject review feedback, run validators, and produce the final package."
+layer          = 4
+tier           = 1
+status         = "pending"
+depends_on     = ["U04"]
+blocks         = []
+estimated_loc  = 80
+files_modify   = ["generated/package.toml", "generated/supporting-notes.md"]
+produces       = ["OUT:governed-dag-toml-package"]
+consumes       = ["ART:multi-llm-review-findings"]
+
+[computed]
+entry_points      = ["U01"]
+leaf_nodes        = ["U05"]
+critical_path     = ["U01", "U02", "U03", "U04", "U05"]
+critical_path_loc = 620
+loc_totals        = { tier1 = 620 }
+
+[computed.max_parallel]
+layer0 = 1
+layer1 = 1
+layer2 = 1
+layer3 = 1
+layer4 = 1

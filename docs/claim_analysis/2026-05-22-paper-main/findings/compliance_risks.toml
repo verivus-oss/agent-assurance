@@ -1,0 +1,55 @@
+# U08 — Document Review Prompt step 5.
+#   "Assess Compliance and Risks"
+# Imperative: corporate quality standards, disclaimers, regulatory
+# adherence, sensitive-info handling, potential legal risks.
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "claim-analysis-finding-set"
+unit           = "U08"
+step           = "step5"
+title          = "Assess Compliance and Risks"
+document       = "paper/main.tex@9664be061e4bc8493de2e5054d3c3d61737bd666e56077b9856c19585dbde306"
+
+[summary]
+total_findings   = 4
+severity_counts  = { high = 0, medium = 2, low = 2 }
+section_outcome  = "issues_present"
+
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id                    = "C5-F01"
+step_reference        = "step5"
+severity              = "medium"
+quoted_document_part  = """It does not constitute legal advice and does not take a position on whether v7's relicensing is valid."""
+location              = "paper/main.tex:156-158 (section sec:intro)"
+problem_explanation   = """The 'not legal advice' disclaimer appears once, near the start. Best practice for a paper that names live disputants (the chardet maintainer Dan Blanchard at line 170, GitHub user @gooba42 at line 192, the FSF director by role at line 196, IP lawyer Heather Meeker at line 205) and offers two readings of a current legal question is to repeat the disclaimer at the legal-framing section (§sec:legal) and in the conclusion. The current placement risks a reader who jumps to §sec:legal directly missing the disclaimer."""
+suggested_fix         = """Add a one-line non-legal-advice footnote at §sec:legal: 'The two readings below are presented for technical-evidentiary purposes. They do not constitute legal advice and are not a substitute for counsel.' Optionally repeat in §sec:conclusion."""
+
+[[finding]]
+id                    = "C5-F02"
+step_reference        = "step5"
+severity              = "medium"
+quoted_document_part  = """Under a strict LGPL interpretation, the protected work includes the implementation's internal organisation --- the structure, sequence, and organisation of the codebase."""
+location              = "paper/main.tex:1023-1026 (section sec:legal, Reading B)"
+problem_explanation   = """The phrase 'structure, sequence, and organisation' is a US copyright doctrine term-of-art from Whelan v. Jaslow Dental Laboratory (3d Cir. 1986) and its successors (Computer Associates v. Altai, 1992). The doctrine is a feature of US copyright law, not of the LGPL itself — the LGPL is a license that grants permissions on top of whatever copyright protects. Conflating 'strict LGPL interpretation' with 'SSO test' is loose: a court applying Reading B would invoke US (or jurisdictional equivalent) copyright doctrine to define 'derivative work', and the LGPL's role would be to determine the consequences of that classification, not to define the classification. The legal-framing section does not cite Whelan v. Jaslow or Altai, leaving the SSO claim unsourced."""
+suggested_fix         = """Rewrite as: 'Under a reading that treats v7 as a derivative work of v6, the protected expression includes the codebase's internal organisation — its structure, sequence, and organisation, in the sense of Whelan v. Jaslow Dental Laboratory, 797 F.2d 1222 (3d Cir. 1986) and its successors. The LGPL's role on this reading is to determine the licensing consequences once derivation is established, not to define the test for derivation.' Adding Whelan/Altai citations strengthens the legal precision."""
+
+[[finding]]
+id                    = "C5-F03"
+step_reference        = "step5"
+severity              = "low"
+quoted_document_part  = """The detection harness in this paper does not measure training-data provenance and cannot resolve the memorisation question; what it does is shrink the space within which the dispute can be conducted by producing output-only structural signals that a reviewer can re-derive from the artefacts a court would actually see."""
+location              = "paper/main.tex:1457-1462 (section sec:related-memo)"
+problem_explanation   = """Good honest framing. Minor: 'the artefacts a court would actually see' is rhetorically strong but legally imprecise — a court would also see (potentially via discovery) training-data inventories, model weights, internal vendor logs, and so on. The harness produces output-only signals from PUBLIC artefacts; that is the narrower and more defensible claim."""
+suggested_fix         = """Rewrite to: 'output-only structural signals derivable from the artefacts publicly available at the time of dispute (the source repositories of v6 and v7).'"""
+
+[[finding]]
+id                    = "C5-F04"
+step_reference        = "step5"
+severity              = "low"
+quoted_document_part  = """\\author{ \\n  Werner Kasselman \\\\\\n  Verivus OSS \\\\\\n  \\texttt{werner@verivus.com} \\n}"""
+location              = "paper/main.tex:57-61 (title block)"
+problem_explanation   = """The title-page author block lists only Werner Kasselman, despite an explicit prior commit (acecdf1 'Credit all contributors in the title-page author block, not just Claude') and the fact that the Acknowledgments section at lines 1545-1550 records that 'The manuscript was drafted by Claude Opus 4.7 (Anthropic), via the Claude Code agent harness.' Some venues (arXiv post-November 2025 guidance; IEEE author-attribution policies) now require LLM tool disclosure either in the author block or in a dedicated 'AI-assistance' statement. The Acknowledgments paragraph at lines 1545-1550 IS that statement and is appropriately specific (model name, version, harness). The compliance question is whether arXiv submission policy at time of upload requires LLM-tool disclosure in a particular location."""
+suggested_fix         = """Verify against arXiv's current author-attribution policy at submission time. If the Acknowledgments paragraph satisfies the policy, no change needed. If not, add an unstarred footnote on the title page: 'Manuscript drafted by Claude Opus 4.7 (Anthropic); see Acknowledgments for full attribution.'"""

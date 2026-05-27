@@ -1,0 +1,147 @@
+# Round-2 review of the issue-ledger session.
+# Codex r1 issued concrete_unresolvable_blocker on two high-severity
+# findings (U05-F1 false repo-path claim; U05-F2 unmet acceptance
+# criteria). This r2 session reviews the follow-up fix commit
+# 79fe0aa against those blockers.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-24"
+review_session = "2026-05-24-iss-001-closure-and-iss-004-filing-r2"
+predecessor    = "2026-05-24-iss-001-closure-and-iss-004-filing"
+
+[bundle]
+repo_root             = "/srv/repos/external/verivus-oss/agent-assurance"
+parent_commit_pre_r2  = "ca50b2c"
+head_commit_post_r2   = "79fe0aa"
+commit_range_r2       = "ca50b2c..79fe0aa"
+total_new_commits     = 1
+description           = "Single follow-up commit (79fe0aa) that closes the codex r1 blockers by (a) moving both disciplines into CONTRIBUTING.md as a contributor-visible repo file, (b) replacing all dead repo-path references to `memory/feedback_*.md` / `MEMORY.md` with explicit descriptions of Claude Code per-session auto-memory + CONTRIBUTING.md pointers, and (c) marking the original ISS-001 acceptance criteria as superseded with inline strikethrough explanations. Scope is narrow: does 79fe0aa close the two r1 blockers and introduce no new defect."
+
+[bundle.r1_summary]
+verdicts = { codex = "concrete_unresolvable_blocker", grok = "unconditional_approval", gemini = "unconditional_approval" }
+binding_evidence_class = "live-executable (ls / cat for the cited repo paths returned 'No such file or directory'); line-by-line inspection of issue file vs acceptance criteria"
+binding_evidence_path  = "docs/reviews/2026-05-24-iss-001-closure-and-iss-004-filing/raw_findings/codex.md"
+r1_blockers_summary = """
+Codex r1 raised TWO blockers:
+
+U05-F1 (high) — ISS-001 (lines 128, 148, 174, 221, 225, 235) and
+ISS-004 (lines 91, 96, 104, 119) referenced
+`memory/feedback_no_self_approval.md`,
+`memory/feedback_blessed_kind_closure_root_in_same_commit.md`, and
+`MEMORY.md` as if they were committed repo files. Live check at
+HEAD:
+  $ ls MEMORY.md memory/feedback_no_self_approval.md
+  ls: cannot access ... No such file or directory
+
+U05-F2 (high) — ISS-001 had `status: closed` + `closed_by: 884f290`
+in the header (lines 4-9), but its `## Acceptance criteria` section
+(lines 169-179) still verbatim demanded the very CI infrastructure
+the closing note said was wrong framing. A reader jumping to AC saw
+unmet requirements with no superseded marker.
+
+Grok r1 flagged the same MEMORY.md issue at low severity (U05-F1,
+U05-F2) but did not elevate. Gemini r1 missed it entirely.
+"""
+
+# ----------------------------------------------------------------------
+# Unit under review for r2.
+# ----------------------------------------------------------------------
+
+[[bundle.units]]
+id           = "U06"
+commit_sha   = "79fe0aa"
+title        = "Move discipline into CONTRIBUTING.md; mark superseded AC; remove dead repo-path refs"
+summary      = """
+Three files changed:
+
+  (a) CONTRIBUTING.md
+      - New "Review Discipline" section (between "Spec Change
+        Process" and "Local Checks") with two subsections:
+          1. No initiator self-approval — cites ISS-001 +
+             tools/review-request-dag.toml [policy.approval] +
+             docs/reviews/ as the audit trail vehicle.
+          2. Blessed-kind files MUST land with closure_root in
+             the same commit — cites ISS-004 + SPEC §12.11 +
+             validate_closure_root.py + .github/workflows/validate.yml.
+      - Agent-specific note explicitly stating per-session
+        host-specific auto-memory (e.g. Claude Code's per-project
+        memory dir) is NOT a load-bearing safeguard.
+      - Added validate_closure_root.py command to Local Checks.
+
+  (b) docs/issues/2026-05-23-ISS-001-self-approval-discipline.md
+      - All references to `memory/feedback_no_self_approval.md`
+        and `MEMORY.md` (Symptom-area, Resolution Steps, Closing
+        note) replaced with explicit descriptions of
+        Claude Code's per-session host-specific auto-memory
+        + pointers to CONTRIBUTING.md "Review Discipline"
+        section 1.
+      - Original Acceptance criteria preserved verbatim with a
+        leading "**Superseded by closing note 2026-05-24.**"
+        paragraph + strikethroughs on the four items, each with
+        an inline parenthetical explaining what superseded it.
+      - Closing note's "live mechanism" list points at
+        CONTRIBUTING.md (with relative link) instead of the
+        non-existent memory file.
+
+  (c) docs/issues/2026-05-24-ISS-004-blessed-kind-files-must-land-with-closure-root.md
+      - Same treatment: references to
+        `memory/feedback_blessed_kind_*.md` and
+        `[[memory/feedback_no_self_approval.md]]` replaced with
+        descriptions of per-agent auto-memory + pointers to the
+        ISS-001 closing note in the sibling issue file.
+      - Resolution Steps reordered: CONTRIBUTING.md is now step
+        1 (load-bearing); auto-memory is step 3 (per-agent
+        convenience, not load-bearing).
+      - Acceptance criteria updated similarly: load-bearing AC
+        is now "CONTRIBUTING.md includes the discipline ...".
+
+Initiator claim:
+  $ grep -n 'MEMORY.md\\|memory/feedback_' docs/issues/2026-05-23-ISS-001-self-approval-discipline.md
+  189:- ~~`memory/feedback_no_self_approval.md` exists.~~ (Replaced by ...
+
+  $ grep -n 'MEMORY.md\\|memory/feedback_' docs/issues/2026-05-24-ISS-004-blessed-kind-files-must-land-with-closure-root.md
+  (no matches)
+
+  $ python3 validators/validate_closure_root.py --discover .
+  CLOSURE-ROOT VALIDATION PASSED (74 file(s)).
+
+This claim is plan-compliance language and MUST be independently
+verified.
+"""
+changed_files = [
+  "CONTRIBUTING.md",
+  "docs/issues/2026-05-23-ISS-001-self-approval-discipline.md",
+  "docs/issues/2026-05-24-ISS-004-blessed-kind-files-must-land-with-closure-root.md",
+]
+verify = [
+  "git show --stat 79fe0aa",
+  "git show 79fe0aa",
+  "grep -n 'MEMORY.md\\|memory/feedback_' docs/issues/2026-05-23-ISS-001-self-approval-discipline.md docs/issues/2026-05-24-ISS-004-blessed-kind-files-must-land-with-closure-root.md",
+  "ls MEMORY.md memory/feedback_no_self_approval.md memory/feedback_blessed_kind_closure_root_in_same_commit.md 2>&1 # MUST still return No such file or directory",
+  "read_file CONTRIBUTING.md   # full file, especially the new Review Discipline section",
+  "python3 validators/validate_closure_root.py --discover .",
+]
+
+[roster]
+initiator       = "claude-opus-4-7 (session running on /srv/repos/external/verivus-oss/agent-assurance, 2026-05-24)"
+initiator_role  = "excluded from standard reviewer set per [policy.roles].initiator_excluded_as_standard_reviewer"
+reviewer_models = ["codex", "gemini", "grok"]
+
+[review_instructions]
+rules_source  = "tools/review-request-dag.toml [policy.*]"
+prompt_path   = "docs/reviews/2026-05-24-iss-001-closure-and-iss-004-filing-r2/review_prompt.md"
+narrow_scope  = "Verify 79fe0aa closes codex r1's two blockers (U05-F1 false repo-path refs; U05-F2 unmet AC) without introducing a new defect. ISS-001 status remains closed; ISS-004 remains open."
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-24-iss-001-closure-and-iss-004-filing-r2/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "terminal_decision.toml",
+]

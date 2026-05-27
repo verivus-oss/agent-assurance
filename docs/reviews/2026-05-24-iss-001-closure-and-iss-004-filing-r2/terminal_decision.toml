@@ -1,0 +1,139 @@
+# Round-2 terminal decision for
+# 2026-05-24-iss-001-closure-and-iss-004-filing-r2.
+# Unanimous unconditional_approval. The two codex r1 blockers
+# (U05-F1 false repo-path refs; U05-F2 unmet acceptance criteria)
+# are both closed against actual repo bytes.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-24-iss-001-closure-and-iss-004-filing-r2"
+predecessor    = "2026-05-24-iss-001-closure-and-iss-004-filing"
+
+[scope]
+commit_under_review = "79fe0aa"
+parent_commit       = "ca50b2c"
+unit                = "U06"
+narrow_scope        = "Does 79fe0aa close codex r1's two blockers (U05-F1, U05-F2) without introducing new defects."
+
+# ----------------------------------------------------------------------
+# Verdicts.
+# ----------------------------------------------------------------------
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "unconditional_approval"
+classification = "complete"
+blocker_count  = 0
+raw_findings   = "raw_findings/codex.md"
+evidence_class = "live-executable (grep, ls, git show, validate_closure_root.py) + byte inspection of CONTRIBUTING.md and superseded-AC block"
+note           = "codex was the reviewer that filed the original r1 blockers; it now classifies both as closed"
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "unconditional_approval"
+classification = "complete"
+blocker_count  = 0
+raw_findings   = "raw_findings/gemini.md"
+evidence_class = "live-executable command output for grep, ls, validator + section-level byte inspection of CONTRIBUTING.md"
+note           = "gemini missed the r1 inconsistency; r2 prompt explicitly directed it to re-run grep/ls and not infer state, which it did"
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "unconditional_approval"
+classification = "complete"
+blocker_count  = 0
+raw_findings   = "raw_findings/grok.md"
+evidence_class = "live-executable + explicit self-correction of r1 severity classification"
+note           = "grok explicitly acknowledged its own r1 LOW classification was wrong: 'the r1 LOW classification under-weighted the severity; it was a process-trust error in the ledger and warranted MEDIUM or HIGH'. Self-correction recorded for the audit trail."
+
+# ----------------------------------------------------------------------
+# R1 blocker disposition.
+# ----------------------------------------------------------------------
+
+[r1_blocker_disposition]
+
+[[r1_blocker_disposition.items]]
+id          = "U05-F1"
+severity_r1 = "high (codex), low (grok), missed (gemini)"
+status      = "closed"
+evidence    = """
+3/3 reviewers independently confirmed:
+  - `grep -n 'MEMORY.md\\|memory/feedback_'` on both issue files
+    returns exactly ONE match — the intentional strikethrough at
+    ISS-001:189 inside the superseded-AC block.
+  - `ls MEMORY.md memory/feedback_no_self_approval.md memory/feedback_blessed_kind_closure_root_in_same_commit.md`
+    returns three 'No such file or directory' errors.
+  - CONTRIBUTING.md:49-108 contains the new 'Review Discipline'
+    section with explicit auto-memory-is-not-load-bearing note.
+  - CONTRIBUTING.md is the contributor-visible load-bearing
+    artefact, replacing the false repo-path references.
+"""
+
+[[r1_blocker_disposition.items]]
+id          = "U05-F2"
+severity_r1 = "high (codex), info (grok), missed (gemini)"
+status      = "closed"
+evidence    = """
+3/3 reviewers independently confirmed:
+  - The ISS-001 `## Acceptance criteria` section now begins with
+    'Superseded by closing note 2026-05-24' (file line ~174).
+  - The four original AC items remain in the file (preserved
+    verbatim) wrapped in `~~strikethrough~~` with inline
+    parenthetical notes explaining what replaced each.
+  - Header status remains `closed` / `closed_by: 884f290`.
+  - No retcon: ca50b2c is still in history as an ancestor of
+    79fe0aa; the original wording is not deleted, only marked
+    superseded.
+"""
+
+# ----------------------------------------------------------------------
+# Self-correction recorded for audit trail.
+# ----------------------------------------------------------------------
+
+[reviewer_self_corrections]
+
+[[reviewer_self_corrections.items]]
+reviewer = "grok"
+round    = "r1 of 2026-05-24-iss-001-closure-and-iss-004-filing"
+original_classification = "low"
+revised_classification  = "medium or high"
+quote = "the r1 LOW classification under-weighted the severity; it was a process-trust error in the ledger and warranted MEDIUM or HIGH"
+context = "grok originally flagged the false MEMORY.md repo-path refs at low severity in r1 (verdict still unconditional_approval). In r2, when asked to re-examine, it acknowledged the under-elevation given the durable committed nature of the ledger artefact."
+significance = "Confirms the strongest-evidence-wins rule: codex's r1 concrete_unresolvable_blocker bound the verdict even though 2 of 3 reviewers approved, because codex's evidence (executable file-existence checks) was higher class than the others' missed/under-elevated findings."
+
+# ----------------------------------------------------------------------
+# Process checks.
+# ----------------------------------------------------------------------
+
+[process_checks]
+active_user_migration_or_behavior_change_guidance = "confirmed (3/3 reviewers; new CONTRIBUTING.md section is the contributor-visible artefact)"
+no_historical_dated_spec_retconned                = "confirmed (3/3 reviewers; original AC text preserved, ca50b2c still in history, no SPEC/core/profile/validator changes)"
+claimed_tests_were_actually_run                   = "confirmed (3/3 reviewers re-executed grep + ls + validate_closure_root.py with matching literal output)"
+initiator_excluded_from_reviewer_set              = "confirmed (claude-opus-4-7 named as initiator in [roster] of both r1 and r2 bundles)"
+required_approval_bases_met                       = "confirmed (inspected_code, executed_tests_with_output, inspected_docs, persisted_review_evidence)"
+
+# ----------------------------------------------------------------------
+# Decision.
+# ----------------------------------------------------------------------
+
+[decision]
+outcome              = "unconditional_approval"
+unanimous            = true
+binding_reviewer     = "codex (originally filed both r1 blockers; re-classifies both as closed)"
+verdict_distribution = { unconditional_approval = 3, concrete_unresolvable_blocker = 0 }
+session_terminal     = true
+next_action          = "none required for this scope; ISS-001 remains closed (by 884f290); ISS-004 remains open; CONTRIBUTING.md now carries the load-bearing disciplines"
+
+[session_close]
+closed_at = "2026-05-25"
+closed_by = "consolidated reviewer verdicts at raw_findings/{codex,gemini,grok}.md"
+followup_notes = [
+  "The three-session arc 2026-05-24-tooling-sweep-and-closure-root-sentinels → 2026-05-24-tooling-sweep-and-closure-root-sentinels-r2 → 2026-05-24-iss-001-closure-and-iss-004-filing → 2026-05-24-iss-001-closure-and-iss-004-filing-r2 forms a complete worked counter-example for ISS-001. Each round of self-approval missed a real defect (invalid TOML in r1 of session 1; false repo-path refs in r1 of session 3) that the dispatched reviewers caught with live-executable evidence. The pattern is now documented at three layers: SPEC §12 validator + tools/review-request-dag.toml [policy.approval] + CONTRIBUTING.md Review Discipline section.",
+  "ISS-001 remains closed (by 884f290 — the r1+r2 review-session artefacts commit). The 79fe0aa fix did not re-open it; it repaired the closure-note prose without disturbing the closed status. This is correct: the closure was warranted on substantive grounds; the prose-level defects codex caught were artefact quality issues, not closure-warrant issues.",
+  "Three pre-existing modified files in the working tree (examples/proof-hello-world/*, paper/*) were untouched throughout this entire arc and remain for the user's separate disposition.",
+]

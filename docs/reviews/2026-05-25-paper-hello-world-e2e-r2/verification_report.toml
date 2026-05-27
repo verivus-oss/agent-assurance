@@ -1,0 +1,105 @@
+# Round-2 verification report for the hello-world paper remediation
+# at commits 97b0971 (C2 mechanical fix: traceability command needs
+# --repo-root .) + b61adfe (C1 substantive fix: witness scripts +
+# paper prose). R1 closed at concrete_unresolvable_blocker (codex +
+# grok convergent on C1; gemini approved-shallow without probing
+# script bytes).
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "verification-report"
+created        = "2026-05-25"
+review_session = "2026-05-25-paper-hello-world-e2e-r2"
+predecessor    = "2026-05-25-paper-hello-world-e2e"
+initiator      = "claude-opus-4-7"
+target_head    = "7782ade"
+remediation_commits = ["97b0971", "b61adfe"]
+
+[program]
+intent = """
+Close C1 (the load-bearing defect: paper claimed cmp + byte-stream
+comparison; bytes showed $(cat)+string-compare on no-newline
+literal, meaning C01's trailing-\\n was never verified) and C2
+(mechanical: validate_traceability.py needs --repo-root .).
+
+User direction at the r1 remediation menu: option C (BOTH fix the
+scripts AND update the prose). Commit b61adfe ships both.
+"""
+
+[[closures]]
+id        = "C1"
+title     = "Witness scripts now use cmp + explicit byte stream; trailing \\n is byte-exact verified"
+verify_by = """
+1. grep -nE '\\$\\(cat \"\\$\\{out\\}\"\\)' examples/proof-hello-world/run_all.sh — MUST return ZERO matches (old mechanism gone).
+2. grep -nE '(cmp -s|cmp)' examples/proof-hello-world/run_all.sh — MUST return at least one match (new mechanism present).
+3. grep -nE \"printf 'Hello, world!\\\\\\\\n'\" examples/proof-hello-world/run_all.sh — MUST find the materialised expected file.
+4. Same checks for examples/proof-hello-world/detect_semantic_rewrite.sh and detect_awk_rewrite.sh.
+5. Run all three witnesses:
+     bash examples/proof-hello-world/run_all.sh
+     bash examples/proof-hello-world/detect_semantic_rewrite.sh
+     bash examples/proof-hello-world/detect_awk_rewrite.sh
+   Each MUST exit 0 with the same per-language outcome distribution Table 2 reports (5/1/0, 8/0/0, 6/0/0 modulo skips for unavailable toolchains on the reviewer's runner).
+6. Independent regression test: create a deliberately-broken implementation in /tmp that prints 'Hello, world!' WITHOUT a trailing \\n, point run_all.sh at it (via -e modification or by patching the rust hello.rs), and confirm the new check FAILS where the old one passed. This proves the verification mechanism actually verifies the byte the paper claims.
+7. The paper prose at paper-hello-world/main.tex:275-(end of paragraph) MUST:
+   - cite the round-1 multi-LLM review session that flagged the gap
+   - describe the actual PREVIOUS mechanism using its real shell syntax (\\$(cat) + string compare on 'Hello, world!')
+   - describe the corrected mechanism using its real syntax (printf > expected; cmp -s; [[ -s err ]])
+   - acknowledge that PASS counts did not shift on this runner because canonical implementations already emitted the \\n, but a future regression that drops the trailing byte will now FAIL
+"""
+
+[[closures]]
+id        = "C2"
+title     = "Table 2 validate_traceability.py row now includes --repo-root ."
+verify_by = """
+1. grep -n 'validate_traceability.py' paper-hello-world/main.tex MUST show the Table 2 row with '--repo-root .' included (not 'validate_traceability.py ... --check-paths-exist' alone).
+2. Run the exact command shown in the row (with the elided '...' replaced by the actual TRACEABILITY.toml path):
+     python3 validators/validate_traceability.py --repo-root . examples/proof-hello-world/TRACEABILITY.toml --check-paths-exist
+   MUST exit 0.
+3. Confirm omitting --repo-root . exits 1 (proving the addition was necessary):
+     python3 validators/validate_traceability.py examples/proof-hello-world/TRACEABILITY.toml --check-paths-exist
+   MUST exit non-zero.
+"""
+
+[regression_check]
+must_still_pass = ["H01", "H03", "H05", "H06", "H07", "H08", "H09", "H10"]
+recipe = """
+Sanity-check that the remediations did not regress any r1-closed
+surface:
+  - H01 every \\cite resolves: re-extract and verify.
+  - H06 Werner-style sanity: 0 U+2014, 0 LaTeX ---, 0 banned C78 vocab, sentence-length CV >= 0.4.
+  - H07 LaTeX structural integrity.
+  - H08 acknowledgments named tools all exist.
+  - H09 conclusion does not over-claim.
+
+A regression here is a concrete blocker for r2.
+"""
+
+[approval]
+forbidden_bases = ["stated_intent", "plan_compliance_claim", "should_be_fixed_language"]
+required_bases  = ["inspected_code", "executed_tests_with_output", "inspected_docs", "persisted_review_evidence"]
+terminal_states = ["unconditional_approval", "concrete_unresolvable_blocker"]
+
+[iteration]
+initiator_rebuttal_rule = "Disagreement requires file:line evidence; assertion alone fails. Per the r1 gemini-shallow-approval lesson: when the paper makes a claim about a verification MECHANISM, the recipe MUST probe the mechanism, not just the exit code. This r2 recipe asks for an independent regression test (a deliberately-broken implementation) to prove the mechanism actually verifies what the prose says."
+polling_cadence_seconds = 90
+
+[reading_order]
+1 = "docs/reviews/2026-05-25-paper-hello-world-e2e-r2/verification_report.toml (this file)"
+2 = "docs/reviews/2026-05-25-paper-hello-world-e2e/raw_findings/{codex,grok}.md (the r1 blockers being closed; gemini's approval was shallow)"
+3 = "paper-hello-world/main.tex (focus on lines 275-end-of-paragraph and Table 2)"
+4 = "examples/proof-hello-world/run_all.sh"
+5 = "examples/proof-hello-world/detect_semantic_rewrite.sh"
+6 = "examples/proof-hello-world/detect_awk_rewrite.sh"
+7 = "git diff 97b0971..b61adfe (the C1 fix)"
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-25-paper-hello-world-e2e-r2/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "terminal_decision.toml",
+]
+mistral_status = "unavailable on host"

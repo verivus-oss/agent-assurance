@@ -1,0 +1,329 @@
+# Reusable multi-reviewer independent-review workflow, encoded as a
+# DAG-TOML `implementation-dag`. Author: Werner Kasselman.
+#
+# PURPOSE
+#
+# This DAG is the durable, machine-readable form of an instruction
+# that was previously a free-text prompt. From now on, when a piece
+# of work needs an independent multi-LLM review, instantiate this
+# DAG, fill the [policy.instance] block, and execute the units in
+# order.
+#
+# The DAG does NOT mock the review — it sequences the real steps
+# (assemble bundle, dispatch reviews to named models, classify each
+# DAG unit under review, rebut disagreements with code/doc evidence,
+# persist the verbatim review text, iterate until terminal). The
+# [policy] table carries the hard process rules that the units must
+# obey; comments above each unit map the rule to the unit.
+#
+# LINEAGE
+#
+# - Spec: spec.md (DAG-TOML core).
+# - Kind descriptor: core/implementation-dag-kind.toml.
+# - Worked example used as shape reference: examples/minimal-implementation-dag.toml.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+# This document is self-contained: no [provenance], no cites_upstream
+# fields, no upstream evidence rows. Per §12.11 the empty sentinel
+# is the correct value.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "implementation-dag"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+title             = "Multi-reviewer independent review workflow"
+spec              = "tools/review-request-dag.toml"
+decomposition     = "tools/review-request-dag.toml"
+created           = "2026-05-22"
+total_units       = 10
+tier1_units       = ["U01", "U02", "U03", "U04", "U05", "U06", "U07", "U08", "U09", "U10"]
+tier2_units       = []
+tier3_units       = []
+
+# ============================================================================
+# [policy] — cross-cutting rules every instantiation MUST obey.
+#
+# These are NOT validator-recognised core fields; they document the
+# binding constraints that the *units* below implement and that the
+# initiator MUST honour. They are intentionally placed at the top
+# so an operator reading this file in order sees the rules before
+# the steps.
+# ============================================================================
+
+[policy.roles]
+# The initiator is the agent that authored the change under review.
+# It MUST be named and excluded from the *standard* reviewer set.
+# It MAY be invoked as a reviewer ONLY in a fresh session with
+# empty / clean context — never reusing the implementing session.
+initiator_must_be_named            = true
+initiator_excluded_as_standard_reviewer = true
+initiator_allowed_as_fresh_session_reviewer = true
+reviewer_models_must_be_named      = true
+
+[policy.evidence]
+# Reviewers MUST verify claims against code and docs. They MUST NOT
+# accept the initiator's summary as evidence. If the initiator
+# disagrees with a reviewer finding, the response MUST cite code or
+# doc evidence (file + line), not assertion.
+reviewers_verify_against_code_and_docs = true
+reviewers_must_not_accept_summary_as_evidence = true
+disagreement_requires_code_or_doc_evidence    = true
+findings_require_file_line_and_severity       = true
+search_order = ["sqry_semantic_first", "literal_only_for_exact_confirmation"]
+
+[policy.approval]
+# Approval may NOT be based on intent, plan-compliance claims, or
+# "should be fixed" language. Approval MUST be based on inspected
+# code, tests, docs, and persisted review evidence. Iterate until
+# either unconditional approval OR a concrete blocker that cannot
+# be resolved is listed.
+forbidden_approval_bases = [
+  "stated_intent",
+  "plan_compliance_claim",
+  "should_be_fixed_language",
+]
+required_approval_bases = [
+  "inspected_code",
+  "executed_tests_with_output",
+  "inspected_docs",
+  "persisted_review_evidence",
+]
+terminal_states = ["unconditional_approval", "concrete_unresolvable_blocker"]
+
+[policy.unit_classification]
+# Every DAG unit under review must be classified by every reviewer.
+values = ["complete", "incomplete", "unverifiable"]
+classification_requires_file_line_evidence = true
+not_applicable_requires_file_line_evidence = true
+already_handled_requires_file_line_evidence = true
+
+[policy.process_checks]
+# Required process confirmations the reviewers MUST report on.
+confirm_active_user_migration_or_behavior_change_guidance = true
+confirm_no_historical_dated_spec_retconned_without_link_or_correction_note = true
+confirm_claimed_tests_were_actually_run_with_command_output_and_status = true
+confirm_standard_slopscan_completed = true
+standard_slopscan_reference = "tools/README.md#standard-slopscan"
+standard_slopscan_scope = [
+  "dependency_hallucination_and_slopsquatting",
+  "python_ai_code_antipatterns",
+  "go_ai_code_antipatterns",
+  "rust_ai_code_antipatterns",
+]
+
+[policy.permissions]
+# Reviewers run with full permission grants and MCP/sqry tool access.
+# If the permission grant in the host harness is not durable,
+# progress polling cadence is fixed.
+mcp_and_sqry_tool_access_required = true
+full_permission_grants_required   = true
+poll_progress_interval_seconds_if_grant_not_durable = 90
+
+[policy.persistence]
+# The full reviewer text is stored verbatim. Summaries / paraphrases
+# are NOT the source of truth.
+persist_full_review_text_verbatim = true
+persistent_storage_path           = "docs/reviews/"
+source_of_truth                   = "persisted_full_text"
+
+[policy.completion]
+# The initiator MUST NOT mark a DAG unit complete until either:
+#   (a) that unit's implementation evidence has been reviewed, or
+#   (b) the unit is explicitly queued for review.
+no_unit_complete_without_reviewer_evidence_or_queued_status = true
+
+# ============================================================================
+# [policy.instance] — fill these in at the point of use.
+#
+# Empty strings / empty lists are intentional placeholders. The
+# initiator fills them before dispatching unit U04. They are NOT
+# validated by the core implementation-dag validator (the validator
+# does not constrain the policy table), so the *initiator* is
+# responsible for completeness here.
+# ============================================================================
+
+[policy.instance]
+initiator_model       = ""             # e.g. "claude-opus-4-7"
+reviewer_models       = []             # e.g. ["codex", "gemini", "grok"]
+verification_report   = ""             # path to the corrective-program spec
+implementation_plan   = ""             # path to the impl plan
+dag_paths             = []             # paths to the implementation-dag(s) under review
+commit_or_diff_ref    = ""             # exact SHA, range, or PR ref
+changed_files         = []             # explicit list if no SHA is available
+review_session_label  = ""             # short slug for filing under docs/reviews/
+
+# ============================================================================
+# UNITS
+# ============================================================================
+
+# U01 — assemble the review bundle.
+# Implements: policy.evidence + policy.instance.
+[units.U01]
+name           = "assemble-review-bundle"
+summary        = "Collect verification report, plan, DAG paths, exact commit/diff or changed-file list into one bundle."
+layer          = 0
+tier           = 1
+status         = "pending"
+depends_on     = []
+blocks         = ["U04"]
+estimated_loc  = 30
+files_modify   = ["docs/reviews/__session__/review_bundle.toml"]
+produces       = ["ART:review-bundle"]
+consumes       = []
+
+# U02 — declare the initiator and the reviewer roster.
+# Implements: policy.roles.
+[units.U02]
+name           = "declare-initiator-and-reviewer-roster"
+summary        = "Name the initiating model (excluded as standard reviewer) and the reviewer models; record that initiator MAY only be a reviewer in a fresh, clean-context session."
+layer          = 0
+tier           = 1
+status         = "pending"
+depends_on     = []
+blocks         = ["U04"]
+estimated_loc  = 20
+files_modify   = ["docs/reviews/__session__/reviewer_roster.toml"]
+produces       = ["ART:reviewer-roster"]
+consumes       = []
+
+# U03 — grant tool + permission access.
+# Implements: policy.permissions.
+[units.U03]
+name           = "grant-tool-and-permission-access"
+summary        = "Provision MCP/sqry tool access and full permission grants per reviewer; if grant is not durable, set 90s progress-poll cadence."
+layer          = 0
+tier           = 1
+status         = "pending"
+depends_on     = []
+blocks         = ["U04"]
+estimated_loc  = 25
+files_modify   = ["docs/reviews/__session__/permission_grant.toml"]
+produces       = ["ART:tool-permission-grant"]
+consumes       = []
+
+# U04 — dispatch independent reviews in parallel.
+# Implements: policy.evidence (verify against code/docs, sqry-first).
+[units.U04]
+name           = "dispatch-independent-reviews"
+summary        = "Send the review bundle to every named reviewer model in parallel; each reviewer MUST verify claims against code and docs (sqry first, literal for exact confirmation), not accept the initiator's summary as evidence."
+layer          = 1
+tier           = 1
+status         = "pending"
+depends_on     = ["U01", "U02", "U03"]
+blocks         = ["U05", "U06", "U08"]
+estimated_loc  = 60
+files_modify   = ["docs/reviews/__session__/raw_findings/"]
+produces       = ["ART:reviewer-raw-findings"]
+consumes       = ["ART:review-bundle", "ART:reviewer-roster", "ART:tool-permission-grant"]
+
+# U05 — per-unit classification.
+# Implements: policy.unit_classification.
+[units.U05]
+name           = "classify-each-dag-unit"
+summary        = "For every DAG unit under review, every reviewer classifies it complete / incomplete / unverifiable, with file+line evidence and severity. `not applicable` and `already handled` claims also require file+line evidence."
+layer          = 2
+tier           = 1
+status         = "pending"
+depends_on     = ["U04"]
+blocks         = ["U07", "U09"]
+estimated_loc  = 50
+files_modify   = ["docs/reviews/__session__/unit_classifications.toml"]
+produces       = ["ART:unit-classifications"]
+consumes       = ["ART:reviewer-raw-findings"]
+
+# U06 — confirm cross-cutting process requirements.
+# Implements: policy.process_checks.
+[units.U06]
+name           = "confirm-process-requirements"
+summary        = "Reviewers explicitly confirm: active-user best-effort migration/behavior-change guidance is present; no historical dated spec was retconned without a link/correction note; all claimed tests were actually run with command output and status; the standard slopscan in tools/README.md was completed for changed code and manifests."
+layer          = 2
+tier           = 1
+status         = "pending"
+depends_on     = ["U04"]
+blocks         = ["U07", "U09"]
+estimated_loc  = 40
+files_modify   = ["docs/reviews/__session__/process_confirmations.toml"]
+produces       = ["ART:process-confirmations"]
+consumes       = ["ART:reviewer-raw-findings"]
+
+# U07 — initiator rebuts disagreements with code/doc evidence.
+# Implements: policy.evidence (disagreement requires evidence).
+[units.U07]
+name           = "rebut-disagreements-with-evidence"
+summary        = "If the initiator disagrees with any reviewer finding, the response MUST cite code or doc evidence (file + line), not assertion. Otherwise the finding stands."
+layer          = 3
+tier           = 1
+status         = "pending"
+depends_on     = ["U05", "U06"]
+blocks         = ["U09"]
+estimated_loc  = 45
+files_modify   = ["docs/reviews/__session__/rebuttal_record.md"]
+produces       = ["ART:rebuttal-record"]
+consumes       = ["ART:unit-classifications", "ART:process-confirmations"]
+
+# U08 — persist full reviewer text verbatim.
+# Implements: policy.persistence.
+[units.U08]
+name           = "persist-full-review-text"
+summary        = "Write each reviewer's full review text verbatim into docs/reviews/__session__/<reviewer>.md. Summaries and paraphrases are NOT the source of truth."
+layer          = 2
+tier           = 1
+status         = "pending"
+depends_on     = ["U04"]
+blocks         = ["U10"]
+estimated_loc  = 25
+files_modify   = ["docs/reviews/__session__/"]
+produces       = ["ART:persisted-review-record"]
+consumes       = ["ART:reviewer-raw-findings"]
+
+# U09 — iterate until terminal.
+# Implements: policy.approval (forbidden vs required bases, terminal states).
+[units.U09]
+name           = "iterate-until-terminal"
+summary        = "Loop U04..U07 until every reviewer issues either unconditional approval or a concrete blocker that cannot be resolved. Approval claims based on intent, plan-compliance, or `should be fixed` language are rejected."
+layer          = 4
+tier           = 1
+status         = "pending"
+depends_on     = ["U05", "U06", "U07"]
+blocks         = ["U10"]
+estimated_loc  = 35
+files_modify   = ["docs/reviews/__session__/terminal_decision.toml"]
+produces       = ["ART:terminal-decision"]
+consumes       = ["ART:unit-classifications", "ART:process-confirmations", "ART:rebuttal-record"]
+
+# U10 — final gate decision.
+# Implements: policy.completion.
+[units.U10]
+name           = "final-gate-decision"
+summary        = "Mark the review session terminal. The initiator MUST NOT mark any DAG unit complete unless either (a) reviewer evidence for that unit exists or (b) the unit is explicitly queued for review."
+layer          = 5
+tier           = 1
+status         = "pending"
+depends_on     = ["U08", "U09"]
+blocks         = []
+estimated_loc  = 30
+files_modify   = ["docs/reviews/__session__/gate_decision.toml"]
+produces       = ["OUT:multi-reviewer-approval"]
+consumes       = ["ART:terminal-decision", "ART:persisted-review-record"]
+
+# ============================================================================
+# [computed] — derived from [units]. Recomputed by validators.
+# ============================================================================
+
+[computed]
+entry_points      = ["U01", "U02", "U03"]
+leaf_nodes        = ["U10"]
+critical_path     = ["U01", "U04", "U05", "U07", "U09", "U10"]
+critical_path_loc = 250
+loc_totals        = { tier1 = 360, all = 360 }
+
+[computed.max_parallel]
+layer0 = 3
+layer1 = 1
+layer2 = 3
+layer3 = 1
+layer4 = 1
+layer5 = 1

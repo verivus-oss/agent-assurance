@@ -1,0 +1,56 @@
+# U09 — Document Review Prompt step 6.
+#   "Overall Quality Check"
+# Imperative: grammar, spelling, completeness, audience fit,
+# professionalism.
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "claim-analysis-finding-set"
+unit           = "U09"
+step           = "step6"
+title          = "Overall Quality Check"
+document       = "paper/main.tex@9664be061e4bc8493de2e5054d3c3d61737bd666e56077b9856c19585dbde306"
+
+[summary]
+total_findings   = 3
+severity_counts  = { high = 0, medium = 0, low = 3 }
+section_outcome  = "minor"
+
+# Positive overall quality observations:
+#  - Professional academic register sustained throughout.
+#  - Bibliography is complete (44 entries) and all \cite keys resolve.
+#  - Numeric content is heavily cross-referenced and consistent with
+#    the proof bundle in examples/proof-chardet-relicense/ (see
+#    factual_accuracy.toml for the few exceptions).
+#  - LaTeX construction is conventional (article 11pt, lmodern,
+#    hyperref + cleveref, microtype, booktabs); no unusual packages.
+#  - No obvious grammar / spelling errors detected in the prose.
+
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id                    = "Q6-F01"
+step_reference        = "step6"
+severity              = "low"
+quoted_document_part  = """note         = {Release used for the empirical comparison reported in Section 9.4. Token-string engine (RKR-GST);"""
+location              = "paper/references.bib jplag2026repo @misc note field"
+problem_explanation   = """The bib entry's note field references 'Section 9.4'. Section numbering in the paper (article class, auto-numbered) places JPlag in §10.3 'Comparison with existing similarity-detection tools' (the third subsection of §10 Related Work). 'Section 9.4' does not exist in the rendered document. This is metadata that does not appear in the printed bibliography body, so reader impact is zero, but it is stale annotation and will mislead any future editor who searches the bib for section references."""
+suggested_fix         = """Update the note field to reference '§sec:related-tools' or '§10.3' or simply drop the section-number reference and keep the rest of the note."""
+
+[[finding]]
+id                    = "Q6-F02"
+step_reference        = "step6"
+severity              = "low"
+quoted_document_part  = """The harness driver, \\texttt{detect.sh}, takes the upstream \\texttt{chardet} clone as a read-only input and materialises both disputed versions via \\texttt{git worktree add --detach}."""
+location              = "paper/main.tex:673-676 (section sec:worktree)"
+problem_explanation   = """The \\texttt{} markup of file and command names is mostly consistent, but occasional drift: e.g., line 678 uses '\\texttt{tempdir}' for the concept, while file paths elsewhere are explicit ('\\texttt{\\~{}/.cache/pip}' at line 734). 'tempdir' as a generic concept does not need monospacing; reserving \\texttt{} for literal commands and file paths would tighten the typographic convention. This is a stylistic micro-issue, not an error."""
+suggested_fix         = """Optional pass over the manuscript to apply: \\texttt{} only to literal shell tokens, paths, function names, and command arguments; use plain italic or roman for concepts ('a tempdir', 'a worktree mirror'). Probably not worth a re-spin alone."""
+
+[[finding]]
+id                    = "Q6-F03"
+step_reference        = "step6"
+severity              = "low"
+quoted_document_part  = """Note: This 8-value paper claim was discovered to conflict with the spec's actual two-value gate_decision_verdict (see F2-F03)."""
+location              = "n/a — meta-observation across the manuscript"
+problem_explanation   = """Cross-cutting completeness issue: the paper's body presents the proof-bundle conventions (8-value verdict enum at lines 300-303; 'spec ships three validators' at lines 1095-1103) as properties of the SPEC rather than as properties of THIS BUNDLE'S APPLICATION of the spec. The conflation is mostly innocent — proof-bundle conventions are derived from the spec's hard-invariants mechanism — but a reader looking up the spec independently will find a smaller verdict vocabulary than the paper describes. This is the same root issue as F2-F03 but it pervades multiple sentences across §sec:spec, §sec:verifier, and the acknowledgments."""
+suggested_fix         = """A short pass that distinguishes 'the spec provides' (mechanism) from 'this bundle declares' (instance). Mechanistic statement once at §sec:spec: 'The spec provides the mechanism (hard-invariants in TOML, kind descriptors, three core validators). Each bundle declares its own concrete contracts. The numbers below are this bundle's choices, not the spec's defaults.' Then audit every later 'the spec' phrase for accuracy."""

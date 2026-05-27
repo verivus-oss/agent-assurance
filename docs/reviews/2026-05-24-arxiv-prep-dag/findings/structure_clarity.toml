@@ -1,0 +1,20 @@
+[section]
+step_reference = "review_steps.step1"
+title = "Scan for Structure and Clarity"
+status = "findings"
+
+[[findings]]
+id = "SC-001"
+step_reference = "review_steps.step1"
+quoted_document_part = '''"trevorcampbell.flatten_and_4pass"     = { units = ["U02","U07"], evidence = "ART:filename-audit-report,ART:compile-log" }'''
+problem_explanation = "The checklist coverage points to ART:compile-log, but no unit produces that artifact; U08 produces ART:compile-and-pdf-evidence. This makes the evidence path unclear."
+suggested_fix = "Replace ART:compile-log with ART:compile-and-pdf-evidence in all checklist_coverage rows, or add a produced ART:compile-log artifact."
+severity = "major"
+
+[[findings]]
+id = "SC-002"
+step_reference = "review_steps.step1"
+quoted_document_part = '''summary        = "Run spellcheck on main.tex + abstract + author list (special care for names per Ian). Read every equation for trailing punctuation (\\\\,, or . inside math). Produce signed human-review-report.toml with verbatim quotes of any issues found and operator sign-off. Non-blocking but evidence required."'''
+problem_explanation = "The summary says the human review is non-blocking, but U06 blocks U08. The operational meaning is ambiguous."
+suggested_fix = "Either remove 'Non-blocking' or change the DAG so U06 evidence is required for final packaging but does not block compilation."
+severity = "minor"

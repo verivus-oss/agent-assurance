@@ -1,0 +1,74 @@
+# Deployment tier: group.
+# Self-contained `contract-declaration` instance. Strict superset of
+# tier team. See tiers/README.md for the ladder rationale.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "contract-declaration"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+framework_profile = "agent-assurance"
+title             = "Deployment tier: group"
+status            = "ready"
+created           = "2026-05-21"
+review_subject    = "deployment-tier-group"
+
+[[contracts]]
+id          = "C01"
+domain      = "override_authority"
+statement   = "Overrides on failed assertions MUST be signed by an authority_role in {team-lead, release-captain}. The signer's team MUST match the artifact's owning team."
+applies_to  = ["deployment-tier-group"]
+must_name   = ["authority_role", "signer_class"]
+verified_by = ["adapter-contract:authority-check@1"]
+
+[[contracts]]
+id          = "C02"
+domain      = "ai_agent_autonomy"
+statement   = "AI agents MAY self-sign overrides only at severity_tier=info or severity_tier=low, with human counter-sign required within 24 hours."
+applies_to  = ["deployment-tier-group"]
+must_name   = ["signer_class", "autonomy_tier", "severity_tier"]
+verified_by = ["adapter-contract:authority-check@1"]
+
+[[contracts]]
+id          = "C03"
+domain      = "adapter_runtime_kind"
+statement   = "Adapters used at this tier MUST declare runtime_kind in {wasi-component, oci-action}. os-sandbox is forbidden in production gates."
+applies_to  = ["deployment-tier-group"]
+must_name   = ["runtime_kind"]
+verified_by = ["adapter-contract:runtime-kind-check@1"]
+
+[[contracts]]
+id          = "C04"
+domain      = "merkle_log"
+statement   = "Assertion log records MUST be stored in an organization-internal log service accessible to all consuming teams."
+applies_to  = ["deployment-tier-group"]
+must_name   = ["record_signature_algorithm", "registry_scheme"]
+verified_by = ["adapter-contract:log-storage-check@1"]
+
+[[contracts]]
+id          = "C05"
+domain      = "decision_signing_threshold"
+statement   = "Gate decisions at severity_tier in {medium, high, critical} require an M-of-N (2-of-3) signing threshold. Lower severities require one signer."
+applies_to  = ["deployment-tier-group"]
+must_name   = ["override_decision_method", "severity_tier"]
+verified_by = ["adapter-contract:signer-threshold-check@1"]
+
+[[contracts]]
+id          = "C06"
+domain      = "replay_cadence"
+statement   = "Adapter conformance fixtures MUST be re-run at gate evaluation time and nightly."
+applies_to  = ["deployment-tier-group"]
+must_name   = ["adapter_id_derivation"]
+verified_by = ["adapter-contract:replay-cadence-check@1"]
+
+[[contracts]]
+id          = "C07"
+domain      = "registry_trust_anchors"
+statement   = "Every adapter-registry-binding MUST declare at least one trust_anchor_ref. Bindings without a declared anchor are forbidden."
+applies_to  = ["deployment-tier-group"]
+must_name   = ["registry_scheme"]
+verified_by = ["adapter-contract:registry-trust-check@1"]

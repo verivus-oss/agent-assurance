@@ -1,0 +1,45 @@
+# Profile descriptor for the disclosure profile.
+#
+# The disclosure profile sits next to agent-assurance, not inside it:
+# a repo may adopt either, both, or neither. Its three kinds describe
+# selective disclosure of evidence — what was redacted, why, and how a
+# recipient can verify that the visible bytes still belong to the
+# claimed source artifact without the redacted bytes leaking.
+#
+# Per spec.md §2.5 / §6.1 this is a spec-reserved profile published in
+# `profiles/<name>/` under the `spec.reserved` namespace. A
+# third-party redaction profile would live under a reverse-DNS name.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "profile-descriptor"
+ontology_version  = 1
+title             = "Disclosure Profile descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md#61-the-profile-descriptor-kind"
+confidentiality   = "public"
+license           = "Apache-2.0"
+
+[meta.ijb_field_primitives]
+template_kind     = { ijb_primitive = "scope",      ijb_class = "structural" }
+schema_version    = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+ontology_version  = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+confidentiality   = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+license           = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+
+[profile]
+name              = "disclosure"
+namespace         = "spec.reserved"
+owner             = "verivus-oss"
+license           = "Apache-2.0"
+extends           = []
+ontology          = "profiles/disclosure/ontology.toml"
+contained_kinds   = [
+  "disclosure-attestation",
+  "redaction-manifest",
+  "selective-disclosure-proof",
+]
+ijb_primitive     = "thing"
+ijb_class         = "structural"

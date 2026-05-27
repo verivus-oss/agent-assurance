@@ -1,0 +1,46 @@
+# U01 — review bundle for the Polsia OSINT, dossier, and claim analysis application
+# per tools/review-request-dag.toml
+
+[meta]
+schema_version = "1.0.0"
+template_kind = "review-bundle"
+created = "2026-05-23"
+review_session = "2026-05-23-polsia-osint-dossier-review"
+
+[bundle]
+document_under_review = "Polsia research dossiers and claim-analysis application in external/articles/"
+repo_root = "/srv/repos/external"
+documents = [
+  "/srv/repos/external/articles/polsia-ben-cera-dossier-and-claim-analysis.md",
+  "/srv/repos/external/articles/polsia-osint-forensic-corporate-analysis.md",
+  "/srv/repos/external/articles/claim-analysis-polsia-viral-claims/ (full dir with run_manifest, reference_corpus, findings/*.toml, report, event, json)"
+]
+description = "Comprehensive OSINT forensic analysis of Polsia company (registration, address, domains/WHOIS, DUNS/filings, legitimacy) + the claim-analysis-document-review-dag.toml applied to the viral X post claims (1.5M ARR, zero employees, etc.). Includes the two main analytical MD files and the full machine-readable claim analysis artifacts (findings per the 6 steps + agent responsibilities)."
+
+[bundle.workflow_dag]
+file = "/srv/repos/external/verivus-oss/agent-assurance/tools/review-request-dag.toml"
+description = "The exact DAG-TOML process governing this multi-reviewer independent review. Reviewers MUST obey all [policy.*] rules: fresh context, evidence from files only (sqry semantic first for code-like structures or read_file for docs), verbatim quotes, file:line citations, classification of units, etc."
+
+[roster]
+initiator = "grok-4.3 current session (excluded from primary reviewer set)"
+reviewer_models = ["codex", "claude"]
+
+[review_instructions]
+rules_source = "tools/review-request-dag.toml [policy]"
+key_rules = [
+  "Fresh / clean-context session only — no prior memory of these artefacts.",
+  "Verify every claim against the actual bytes in the listed documents using sqry (for structured toml/json) or read_file / grep (for md). Never accept the initiator summary or prior self-review as evidence.",
+  "For disagreements with any prior finding (e.g. the self-applied claim analysis), cite specific file + line from the documents.",
+  "Output full verbatim review text (no summarization in the primary artifact).",
+  "Classify relevant 'units' (sections of the OSINT report, the 6 claim-analysis steps application, the findings tomls) as complete / incomplete / unverifiable with file:line.",
+  "Confirm process items: no retconning, evidence-based, etc.",
+  "Terminal: unconditional approval or concrete unresolvable blocker only. No 'should be fixed' or intent-based approval."
+]
+output_artifacts = [
+  "raw_findings/codex.md (full verbatim Codex review)",
+  "raw_findings/claude.md (full verbatim Claude review)",
+  "unit_classifications.toml",
+  "process_confirmations.toml",
+  "rebuttal_record.md (if initiator rebuts)",
+  "terminal_decision.toml"
+]

@@ -1,0 +1,553 @@
+[meta]
+schema = "option-b-proposed-mappings.v1"
+created = "2026-05-23T00:00:00Z"
+target_dag_sha256 = "cafdc97e458a188a1b366957e58acb6560622db3428f557bc858b9f52ef5fa22"
+corpus_path = "docs/reviews/2026-05-24-arxiv-prep-dag/arxiv-checklists-reference.txt"
+total_items = 42
+gap_count   = 10
+
+[[items]]
+id                  = "arxiv-mistakes.absolute-filenames"
+source              = "arxiv-mistakes"
+also_appears_in     = []
+pitfall_quote       = '''absolute filenames'''
+proposed_units      = ["U02"]
+proposed_evidence   = ["ART:filename-audit-report"]
+unit_evidence_quote = '''Recursively scan for spaces in names, absolute paths in \\input/\\includegraphics/\\include, bad characters, and subdir policy violations.'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = "Directly named in U02 summary."
+
+[[items]]
+id                  = "arxiv-mistakes.bbbk-error"
+source              = "arxiv-mistakes"
+also_appears_in     = []
+pitfall_quote       = '''Bbbk error'''
+proposed_units      = []
+proposed_evidence   = []
+unit_evidence_quote = ""
+confidence          = "low"
+is_gap              = true
+gap_reason          = "Bbbk-symbol package conflict (amssymb vs txfonts/mathabx) is a known one-off TeX defect; U07 enumerates fixes but does not list Bbbk. Closing the gap would require adding a Bbbk-specific fix recipe to U07 or a new package-conflict policy invariant."
+notes               = ""
+
+[[items]]
+id                  = "arxiv-mistakes.boundingbox"
+source              = "arxiv-mistakes"
+also_appears_in     = []
+pitfall_quote       = '''boundingbox'''
+proposed_units      = ["U05"]
+proposed_evidence   = ["ART:figure-audit-report"]
+unit_evidence_quote = '''Check %%BoundingBox near top of any EPS.'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = ""
+
+[[items]]
+id                  = "arxiv-mistakes.breqn-hyperref-fix"
+source              = "arxiv-mistakes"
+also_appears_in     = []
+pitfall_quote       = '''breqn hyperref fix'''
+proposed_units      = []
+proposed_evidence   = []
+unit_evidence_quote = ""
+confidence          = "low"
+is_gap              = true
+gap_reason          = "Specific breqn+hyperref interaction patch is not enumerated in U07's fix list. Closing the gap would require either adding a named breqn-hyperref recipe to U07 or a package-interaction policy table."
+notes               = ""
+
+[[items]]
+id                  = "arxiv-mistakes.concatenated-files"
+source              = "arxiv-mistakes"
+also_appears_in     = []
+pitfall_quote       = '''concatenated files'''
+proposed_units      = []
+proposed_evidence   = []
+unit_evidence_quote = ""
+confidence          = "low"
+is_gap              = true
+gap_reason          = "No unit detects multiple TeX documents concatenated into one source (a known arXiv preflight failure mode). Would require a new structural check in U02 or a new sub-unit that parses for multiple \\documentclass or \\begin{document} markers."
+notes               = ""
+
+[[items]]
+id                  = "arxiv-mistakes.double-sub-sup"
+source              = "arxiv-mistakes"
+also_appears_in     = []
+pitfall_quote       = '''double sub/sup'''
+proposed_units      = ["U06","U08"]
+proposed_evidence   = ["ART:human-review-report","ART:compile-and-pdf-evidence"]
+unit_evidence_quote = '''Read every equation for trailing punctuation (\\,, or . inside math).'''
+confidence          = "medium"
+is_gap              = false
+gap_reason          = ""
+notes               = "U06 equation read-through is the human catch; U08 nonstopmode compile will surface the TeX error if missed."
+
+[[items]]
+id                  = "arxiv-mistakes.dvips-incompat"
+source              = "arxiv-mistakes"
+also_appears_in     = []
+pitfall_quote       = '''dvips incompat'''
+proposed_units      = ["U05","U07"]
+proposed_evidence   = ["ART:figure-audit-report","ART:source-fix-log"]
+unit_evidence_quote = '''For pdflatex: ensure only .pdf/.png/.jpg under figures/, no .ps/.eps left. For latex: only .ps/.eps.'''
+confidence          = "medium"
+is_gap              = false
+gap_reason          = ""
+notes               = "Processor-specific figure rules are enforced by U05; processor-specific source switches (ifpdf etc.) by U07."
+
+[[items]]
+id                  = "arxiv-mistakes.hyperref-bookmarks-false"
+source              = "arxiv-mistakes"
+also_appears_in     = []
+pitfall_quote       = '''hyperref bookmarks=false'''
+proposed_units      = ["U07"]
+proposed_evidence   = ["ART:source-fix-log"]
+unit_evidence_quote = '''Add [bookmarks=false] to hyperref if paper has complex sections.'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = ""
+
+[[items]]
+id                  = "arxiv-mistakes.ifpdf-not-ifx-pdfoutput"
+source              = "arxiv-mistakes"
+also_appears_in     = ["texlive_2025"]
+pitfall_quote       = '''ifpdf not \ifx pdfoutput'''
+proposed_units      = ["U07"]
+proposed_evidence   = ["ART:source-fix-log"]
+unit_evidence_quote = '''Switch any \\ifx\\pdfoutput to \\usepackage{ifpdf} + \\ifpdf.'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = "texlive_2025 reiterates as 'ifpdf' / 'no \\ifpdfoutput'."
+
+[[items]]
+id                  = "arxiv-mistakes.include-subdirs-write-perms"
+source              = "arxiv-mistakes"
+also_appears_in     = []
+pitfall_quote       = '''\include subdirs write perms'''
+proposed_units      = []
+proposed_evidence   = []
+unit_evidence_quote = ""
+confidence          = "low"
+is_gap              = true
+gap_reason          = "U02 audits subdir policy generically but no unit positively checks write-permission semantics for \\include-traversed subdirs. Closing the gap would require a write-permission probe in U02 or a U02 sub-step that mirrors arXiv's auto-subdir-creation semantics."
+notes               = "Reclassified from non-gap per audit-iter-1 Defect 4. The original unit_evidence_quote referenced U02's subdir-policy check but did not name write permissions specifically."
+
+[[items]]
+id                  = "arxiv-mistakes.last-minute-changes"
+source              = "arxiv-mistakes"
+also_appears_in     = []
+pitfall_quote       = '''last minute changes'''
+proposed_units      = ["U08"]
+proposed_evidence   = ["ART:compile-and-pdf-evidence"]
+unit_evidence_quote = '''Run chosen_processor on main.tex four (or more) times with -interaction=nonstopmode.'''
+confidence          = "medium"
+is_gap              = false
+gap_reason          = ""
+notes               = "The DAG forces a fresh compile in U08 after all edits in U07 land, structurally preventing the 'edited after compile' failure mode."
+
+[[items]]
+id                  = "arxiv-mistakes.minted-frozencache-non-hidden"
+source              = "arxiv-mistakes"
+also_appears_in     = ["texlive_2025"]
+pitfall_quote       = '''minted frozencache non-hidden'''
+proposed_units      = ["U07"]
+proposed_evidence   = ["ART:source-fix-log"]
+unit_evidence_quote = '''Fix minted to cachedir=minted-cache (non-hidden).'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = "texlive_2025 also says 'minted cache non-hidden'."
+
+[[items]]
+id                  = "arxiv-mistakes.missing-style-files"
+source              = "arxiv-mistakes"
+also_appears_in     = []
+pitfall_quote       = '''missing style files'''
+proposed_units      = []
+proposed_evidence   = []
+unit_evidence_quote = ""
+confidence          = "low"
+is_gap              = true
+gap_reason          = "No unit positively verifies that every \\usepackage'd .sty/.cls not shipped with TeX Live is actually bundled. U03 removes UNUSED .sty but does not check for USED-but-missing ones. Closing the gap requires either a new positive-presence check (parse \\usepackage list, diff against TL2025 inventory) or a 'custom .sty must be in figures-companion/' manifest rule."
+notes               = ""
+
+[[items]]
+id                  = "arxiv-mistakes.mixed-figures"
+source              = "arxiv-mistakes"
+also_appears_in     = []
+pitfall_quote       = '''mixed figures'''
+proposed_units      = ["U05"]
+proposed_evidence   = ["ART:figure-audit-report"]
+unit_evidence_quote = '''For pdflatex: ensure only .pdf/.png/.jpg under figures/, no .ps/.eps left. For latex: only .ps/.eps.'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = ""
+
+[[items]]
+id                  = "arxiv-mistakes.non-tex-files"
+source              = "arxiv-mistakes"
+also_appears_in     = []
+pitfall_quote       = '''non-tex'''
+proposed_units      = ["U03","U09"]
+proposed_evidence   = ["ART:junk-audit-report","ART:arxiv-prep-manifest"]
+unit_evidence_quote = '''Walk the clean source tree (not the full staging dir), build exact file list + SHA256 for the submission bundle only.'''
+confidence          = "medium"
+is_gap              = false
+gap_reason          = ""
+notes               = "U03 strips known junk; U09 enumerates every file shipped, so any stray non-TeX leak is recorded in the manifest before U10 packages."
+
+[[items]]
+id                  = "arxiv-mistakes.old-styles"
+source              = "arxiv-mistakes"
+also_appears_in     = []
+pitfall_quote       = '''old styles'''
+proposed_units      = []
+proposed_evidence   = []
+unit_evidence_quote = ""
+confidence          = "low"
+is_gap              = true
+gap_reason          = "Deprecated style file migration (e.g., latex209-era .sty, old revtex versions) is not addressed by any unit. Closing the gap would require either a deprecated-styles blocklist policy or a new sub-step in U07 that flags known-deprecated style usage."
+notes               = ""
+
+[[items]]
+id                  = "arxiv-mistakes.protect-cite-in-captions"
+source              = "arxiv-mistakes"
+also_appears_in     = []
+pitfall_quote       = '''\protect\cite in captions'''
+proposed_units      = ["U07"]
+proposed_evidence   = ["ART:source-fix-log"]
+unit_evidence_quote = '''\\protect all \\cite inside \\caption.'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = ""
+
+[[items]]
+id                  = "arxiv-mistakes.readme-for-ignore"
+source              = "arxiv-mistakes"
+also_appears_in     = ["submit_tex"]
+pitfall_quote       = '''00README for ignore'''
+proposed_units      = ["U09"]
+proposed_evidence   = ["ART:arxiv-prep-manifest"]
+unit_evidence_quote = '''Generate 00README.XXX and record all gate verdicts.'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = "submit_tex also enumerates '00README' as current guidance."
+
+[[items]]
+id                  = "arxiv-mistakes.spaces-in-names"
+source              = "arxiv-mistakes"
+also_appears_in     = ["trevorcampbell"]
+pitfall_quote       = '''spaces in names'''
+proposed_units      = ["U02"]
+proposed_evidence   = ["ART:filename-audit-report"]
+unit_evidence_quote = '''Recursively scan for spaces in names, absolute paths in \\input/\\includegraphics/\\include, bad characters, and subdir policy violations.'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = "Directly named in U02 summary."
+
+[[items]]
+id                  = "arxiv-mistakes.unusual-fonts"
+source              = "arxiv-mistakes"
+also_appears_in     = ["texlive_2025"]
+pitfall_quote       = '''unusual fonts'''
+proposed_units      = []
+proposed_evidence   = []
+unit_evidence_quote = ""
+confidence          = "low"
+is_gap              = true
+gap_reason          = "XeLaTeX/LuaLaTeX system-font lookup, missing .otf bundling, and Type1-vs-Type3 font issues are not addressed by any unit. Closing the gap would require a font-inventory sub-step (likely in U05 or a new U05b) that records every font referenced and confirms it is in TL2025 or bundled."
+notes               = ""
+
+[[items]]
+id                  = "arxiv-mistakes.user-intervention-inp"
+source              = "arxiv-mistakes"
+also_appears_in     = []
+pitfall_quote       = '''user intervention .inp'''
+proposed_units      = ["U08"]
+proposed_evidence   = ["ART:compile-and-pdf-evidence"]
+unit_evidence_quote = '''Run chosen_processor on main.tex four (or more) times with -interaction=nonstopmode.'''
+confidence          = "medium"
+is_gap              = false
+gap_reason          = ""
+notes               = "U08 runs -interaction=nonstopmode which surfaces \\read16 / \\typein prompts as compile faults. Positive pre-flight static scan would be a future enhancement, but the existing gate catches the failure mode. Reclassified from gap per audit-iter-1 Defect 2."
+
+[[items]]
+id                  = "ianhuston.check-bib-text-style"
+source              = "ianhuston"
+also_appears_in     = []
+pitfall_quote       = '''check bib text/style'''
+proposed_units      = ["U04"]
+proposed_evidence   = ["ART:bib-audit-report"]
+unit_evidence_quote = '''Remove any hand-typed bib errors. Emit report with exact bbl header and backend used.'''
+confidence          = "medium"
+is_gap              = false
+gap_reason          = ""
+notes               = ""
+
+[[items]]
+id                  = "ianhuston.move-bbl-or-include-bib"
+source              = "ianhuston"
+also_appears_in     = ["submit_tex"]
+pitfall_quote       = '''move bbl or include bib'''
+proposed_units      = ["U04"]
+proposed_evidence   = ["ART:bib-audit-report"]
+unit_evidence_quote = '''If .bib present, decide whether to let arXiv run bibtex/biber (recommended for TL2025) or pre-generate .bbl.'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = "Exactly the decision U04 makes; U10 honors it when assembling the tarball."
+
+[[items]]
+id                  = "ianhuston.punctuation-in-equations"
+source              = "ianhuston"
+also_appears_in     = []
+pitfall_quote       = '''punctuation in eqs'''
+proposed_units      = ["U06"]
+proposed_evidence   = ["ART:human-review-report"]
+unit_evidence_quote = '''Read every equation for trailing punctuation (\\,, or . inside math).'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = ""
+
+[[items]]
+id                  = "ianhuston.read-equations"
+source              = "ianhuston"
+also_appears_in     = []
+pitfall_quote       = '''read equations'''
+proposed_units      = ["U06"]
+proposed_evidence   = ["ART:human-review-report"]
+unit_evidence_quote = '''Read every equation for trailing punctuation (\\,, or . inside math). Produce signed human-review-report.toml with verbatim quotes of any issues found and operator sign-off.'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = ""
+
+[[items]]
+id                  = "ianhuston.remove-comments-and-unused-sections"
+source              = "ianhuston"
+also_appears_in     = []
+pitfall_quote       = '''unused sections/comments'''
+proposed_units      = []
+proposed_evidence   = []
+unit_evidence_quote = ""
+confidence          = "low"
+is_gap              = true
+gap_reason          = "No unit strips in-source TeX comments or unused \\section blocks. Closing the gap would require either a comment-stripping sub-step in U07 or treating it as a manual U06 check with verbatim sign-off."
+notes               = "Split from the original Ian-conflated item per audit-iter-1 Defect 1; the rev-control sub-issue is in ianhuston.remove-rev-control-strings."
+
+[[items]]
+id                  = "ianhuston.remove-rev-control-strings"
+source              = "ianhuston"
+also_appears_in     = []
+pitfall_quote       = '''extraneous/rev control'''
+proposed_units      = ["U03"]
+proposed_evidence   = ["ART:junk-audit-report"]
+unit_evidence_quote = '''any file beginning with ., and any $Id$ or CVS revision strings inside .tex.'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = "U03 strips revision-control strings ($Id$, CVS) and extraneous (hidden, unused) files. Split from the original Ian-conflated item per audit-iter-1 Defect 1; the comments/unused-sections sub-issue is in ianhuston.remove-comments-and-unused-sections."
+
+[[items]]
+id                  = "ianhuston.spellcheck-authors"
+source              = "ianhuston"
+also_appears_in     = []
+pitfall_quote       = '''spellcheck authors'''
+proposed_units      = ["U06"]
+proposed_evidence   = ["ART:human-review-report"]
+unit_evidence_quote = '''Run spellcheck on main.tex + abstract + author list (special care for names per Ian).'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = "U06 summary explicitly cites Ian's author-name caveat."
+
+[[items]]
+id                  = "ianhuston.update-journal-refs"
+source              = "ianhuston"
+also_appears_in     = []
+pitfall_quote       = '''update journal refs'''
+proposed_units      = []
+proposed_evidence   = []
+unit_evidence_quote = ""
+confidence          = "low"
+is_gap              = true
+gap_reason          = "No unit checks whether arXiv-eprint citations have been replaced by journal references where now-published. U04 adds missing YYMM.NNNNN ids but does not look up the reverse mapping. Closing the gap would require an external bibliography-currency lookup step (probably out of scope for a purely local pre-flight)."
+notes               = ""
+
+[[items]]
+id                  = "submit_tex.bbl-compat-3-3-tl2025"
+source              = "submit_tex"
+also_appears_in     = ["arxiv-mistakes","texlive_2025"]
+pitfall_quote       = '''.bbl compat 3.3 for 2025'''
+proposed_units      = ["U04","U08"]
+proposed_evidence   = ["ART:bib-audit-report","ART:compile-and-pdf-evidence"]
+unit_evidence_quote = '''Verify bbl version (3.3 for TL2025, 3.2/3.3 for TL2023).'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = "arxiv-mistakes lists this generically as 'bbl version'; submit_tex/texlive give the TL2025=3.3 specifics."
+
+[[items]]
+id                  = "submit_tex.bib-auto-with-version-rules"
+source              = "submit_tex"
+also_appears_in     = []
+pitfall_quote       = '''bib auto now supported with version rules'''
+proposed_units      = ["U04"]
+proposed_evidence   = ["ART:bib-audit-report"]
+unit_evidence_quote = '''If .bib present, decide whether to let arXiv run bibtex/biber (recommended for TL2025) or pre-generate .bbl.'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = ""
+
+[[items]]
+id                  = "submit_tex.figure-formats-per-processor"
+source              = "submit_tex"
+also_appears_in     = ["arxiv-mistakes"]
+pitfall_quote       = '''figure formats per processor'''
+proposed_units      = ["U05"]
+proposed_evidence   = ["ART:figure-audit-report"]
+unit_evidence_quote = '''For pdflatex: ensure only .pdf/.png/.jpg under figures/, no .ps/.eps left. For latex: only .ps/.eps.'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = ""
+
+[[items]]
+id                  = "submit_tex.hidden-files-deleted-on-announce"
+source              = "submit_tex"
+also_appears_in     = ["trevorcampbell"]
+pitfall_quote       = '''hidden files deleted on announce'''
+proposed_units      = ["U03","U09"]
+proposed_evidence   = ["ART:junk-audit-report","ART:arxiv-prep-manifest"]
+unit_evidence_quote = '''any file beginning with ., and any $Id$ or CVS revision strings inside .tex. Emit ls -a before/after report.'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = "U03 deletes pre-announce; U09 manifest verifies bundle contains none."
+
+[[items]]
+id                  = "submit_tex.no-js-in-pdf"
+source              = "submit_tex"
+also_appears_in     = []
+pitfall_quote       = '''no JS in PDF'''
+proposed_units      = ["U08"]
+proposed_evidence   = ["ART:compile-and-pdf-evidence"]
+unit_evidence_quote = '''visual spot-check notes (no JS, no rotation, figures present).'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = ""
+
+[[items]]
+id                  = "submit_tex.processor-choice"
+source              = "submit_tex"
+also_appears_in     = []
+pitfall_quote       = '''processor choice'''
+proposed_units      = ["U08","U09"]
+proposed_evidence   = ["ART:compile-and-pdf-evidence","ART:arxiv-prep-manifest"]
+unit_evidence_quote = '''Run chosen_processor on main.tex four (or more) times with -interaction=nonstopmode.'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = "U08 runs chosen_processor; U09's 00README records the processor hint for arXiv."
+
+[[items]]
+id                  = "submit_tex.tl2025-default"
+source              = "submit_tex"
+also_appears_in     = ["texlive_2025"]
+pitfall_quote       = '''TL2025 default'''
+proposed_units      = ["U04","U07"]
+proposed_evidence   = ["ART:bib-audit-report","ART:source-fix-log"]
+unit_evidence_quote = '''Apply any biblatex order or other TL2025 fixes.'''
+confidence          = "medium"
+is_gap              = false
+gap_reason          = ""
+notes               = "Informational, not a single check; U04 and U07 both reference TL2025 explicitly in their behaviour."
+
+[[items]]
+id                  = "texlive_2025.hyperref-before-hyperxmp"
+source              = "texlive_2025"
+also_appears_in     = []
+pitfall_quote       = '''hyperref before hyperxmp'''
+proposed_units      = []
+proposed_evidence   = []
+unit_evidence_quote = ""
+confidence          = "low"
+is_gap              = true
+gap_reason          = "U07 enumerates several known fixes but does not include the hyperref-must-precede-hyperxmp load-order rule. Closing the gap would require adding a package-load-order check (or recipe) to U07."
+notes               = ""
+
+[[items]]
+id                  = "texlive_2025.no-today-in-date"
+source              = "texlive_2025"
+also_appears_in     = []
+pitfall_quote       = '''no \today'''
+proposed_units      = ["U07"]
+proposed_evidence   = ["ART:source-fix-log"]
+unit_evidence_quote = '''Remove \\today from \\date.'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = ""
+
+[[items]]
+id                  = "trevorcampbell.compile-in-tmp-and-verify"
+source              = "trevorcampbell"
+also_appears_in     = []
+pitfall_quote       = '''compile in tmp and verify'''
+proposed_units      = ["U01","U08"]
+proposed_evidence   = ["ART:source-snapshot","ART:compile-and-pdf-evidence"]
+unit_evidence_quote = '''Copy paper_source_dir to staging_dir, compute SHA-256 of every file (including subdirs), write source-manifest.toml.'''
+confidence          = "medium"
+is_gap              = false
+gap_reason          = ""
+notes               = "Trevor's compile-in-tmp-and-verify decomposes into two parts: U01 copies source into staging_dir (the tmp-isolation step), U08 then compiles within staging_dir and verifies the build (chosen_processor + -interaction=nonstopmode + log capture). Re-quoted from U08's compile line to U01's staging-copy line per audit-iter-1 Defect 5 — the staging copy is what makes the compile 'in tmp' rather than in-place."
+
+[[items]]
+id                  = "trevorcampbell.delete-junk-hidden-vcs"
+source              = "trevorcampbell"
+also_appears_in     = ["arxiv-mistakes","submit_tex"]
+pitfall_quote       = '''delete junk including .git hidden unused tex/sty/pdf/aux'''
+proposed_units      = ["U03"]
+proposed_evidence   = ["ART:junk-audit-report"]
+unit_evidence_quote = '''Find and delete (from staging) all .aux .log .out .blg .pdf .git/ .DS_Store/ __pycache__/ unused .sty/.cls/.tex, any file beginning with ., and any $Id$ or CVS revision strings inside .tex.'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = ""
+
+[[items]]
+id                  = "trevorcampbell.flatten-subdirs"
+source              = "trevorcampbell"
+also_appears_in     = []
+pitfall_quote       = '''flatten subdirs'''
+proposed_units      = ["U02"]
+proposed_evidence   = ["ART:filename-audit-report"]
+unit_evidence_quote = '''If allow_subdirs=false, flatten figures/ and rewrite includes (Trevor rule).'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = "U02 names 'Trevor rule' explicitly; honoured when policy.instance.allow_subdirs=false."
+
+[[items]]
+id                  = "trevorcampbell.typeout-4-pass-line"
+source              = "trevorcampbell"
+also_appears_in     = []
+pitfall_quote       = '''add the typeout 4-pass line at end of main.tex'''
+proposed_units      = ["U07"]
+proposed_evidence   = ["ART:source-fix-log"]
+unit_evidence_quote = '''Inject \\typeout{get arXiv to do 4 passes...} after \\end{document} if required.'''
+confidence          = "high"
+is_gap              = false
+gap_reason          = ""
+notes               = ""

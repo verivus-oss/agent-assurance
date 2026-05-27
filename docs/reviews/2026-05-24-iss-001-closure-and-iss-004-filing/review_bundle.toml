@@ -1,0 +1,214 @@
+# Review bundle for the issue-ledger changes landed in ca50b2c:
+# - ISS-001 closed (status flipped + closing note added)
+# - ISS-004 filed (new issue, medium, blessed-kind closure_root
+#   commit-sequencing discipline)
+# - docs/issues/README.md index updated to reflect both.
+#
+# Single-commit, narrow scope. Same workflow as the two prior
+# sessions today (see [bundle.predecessors]).
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-24"
+review_session = "2026-05-24-iss-001-closure-and-iss-004-filing"
+
+[bundle]
+repo_root           = "/srv/repos/external/verivus-oss/agent-assurance"
+parent_commit       = "884f290"
+head_commit         = "ca50b2c"
+commit_range        = "884f290..ca50b2c"
+total_commits       = 1
+description         = "One commit (ca50b2c) modifying the docs/issues/ ledger: ISS-001 status flipped to closed with a substantial closing note; ISS-004 created; README.md index updated. The scope of this review is whether (a) ISS-001's closing note is factually accurate about what happened in the 2026-05-24 sessions and whether the closing itself is warranted, and (b) ISS-004 correctly frames the discipline gap surfaced by the same session, in particular whether it honours the user's earlier in-session correction that elaborate CI tooling is NOT a substitute for following the existing rule."
+
+[bundle.predecessors]
+session_1 = "docs/reviews/2026-05-24-tooling-sweep-and-closure-root-sentinels/"           # r1: codex blocker on invalid TOML
+session_2 = "docs/reviews/2026-05-24-tooling-sweep-and-closure-root-sentinels-r2/"        # r2: unanimous approval of the fix
+session_3 = "this session"
+
+[bundle.user_feedback_in_session]
+# Direct user quotes earlier in the 2026-05-24 session that the
+# closing text and ISS-004 must be faithful to. Reviewers should
+# verify the issue files do not contradict these.
+quote_1 = "if there is something that needs to be reviewed you need to get it reviewed, what's the issue?"
+quote_1_context = "User response to the initiator framing ISS-001 as requiring elaborate CI infrastructure. Established the principle that the existing rule (tools/review-request-dag.toml [policy.approval]) is the mechanism; CI tooling is over-engineering."
+
+quote_2 = "fix in place and re-dispatch review"
+quote_2_context = "User response to codex r1's concrete blocker on invalid TOML. Established that the discipline is to fix-and-re-review, not to skip review."
+
+[bundle.feedback_memory]
+path = "/home/werner/.claude/projects/-srv-repos-external-verivus-oss-agent-assurance/memory/feedback_no_self_approval.md"
+note = "Session-private auto-memory saved 2026-05-24 capturing the discipline. Reviewers can read but cannot edit. Cited by both ISS-001 closing and ISS-004."
+
+# ----------------------------------------------------------------------
+# Unit under review.
+# ----------------------------------------------------------------------
+
+[[bundle.units]]
+id           = "U05"
+commit_sha   = "ca50b2c"
+title        = "Close ISS-001 + file ISS-004 + update issues README"
+summary      = """
+Three files changed in one commit:
+
+  (a) docs/issues/2026-05-23-ISS-001-self-approval-discipline.md
+      - Header: status open → closed; added closed: 2026-05-24
+        and closed_by: 884f290 fields.
+      - Added a "Closing note (2026-05-24)" section (~50 lines)
+        that records (i) the original Safeguards A + B (CI tooling)
+        were NOT built and are NOT the mechanism, (ii) the user's
+        in-session correction reframing the issue, (iii) the
+        2026-05-24 tooling-sweep session as the worked counter-
+        example proving independent review catches what self-
+        approval misses, (iv) the live mechanism = the rule +
+        memory + audit trail (not infrastructure).
+
+  (b) docs/issues/2026-05-24-ISS-004-blessed-kind-files-must-land-with-closure-root.md
+      - New file (medium severity).
+      - Symptom: 47b6acd added 3 blessed-kind files in tools/
+        without closure_root; gate was red until d027178 added the
+        sentinels 2 commits later.
+      - Safeguards: A (convention — run validator pre-commit),
+        B (optional pre-commit hook), C (memory entry +
+        CONTRIBUTING.md mention). Explicitly does NOT propose a
+        new CI gate as a substitute for discipline, citing
+        feedback_no_self_approval and the user correction.
+
+  (c) docs/issues/README.md
+      - Index table: ISS-001 status → 'closed (884f290)';
+        ISS-004 row added.
+
+The initiator self-approved ca50b2c (this commit). That self-
+approval is the recursive boundary case this very review exists
+to test: should issue-ledger changes follow the dispatched-review
+discipline?
+"""
+changed_files = [
+  "docs/issues/2026-05-23-ISS-001-self-approval-discipline.md",
+  "docs/issues/README.md",
+  "docs/issues/2026-05-24-ISS-004-blessed-kind-files-must-land-with-closure-root.md",
+]
+verify = [
+  "git show ca50b2c",
+  "git show 884f290 --stat   # the SHA ISS-001 cites as closed_by",
+  "git log --oneline 7328dfd..HEAD   # full session range",
+  "read_file docs/issues/2026-05-23-ISS-001-self-approval-discipline.md   # the closing note in full",
+  "read_file docs/issues/2026-05-24-ISS-004-blessed-kind-files-must-land-with-closure-root.md",
+  "read_file docs/issues/README.md   # the index",
+  "read_file tools/review-request-dag.toml   # the rule ISS-001 is supposed to be enforced by",
+]
+
+# ----------------------------------------------------------------------
+# Verification questions reviewers MUST answer.
+# ----------------------------------------------------------------------
+
+[bundle.questions]
+
+[bundle.questions.q1_iss001_factual_accuracy]
+prompt = """
+Read the ISS-001 closing note in full. Is every factual claim it
+makes verifiable against the bytes in the repo at HEAD? Specifically:
+  - Does it correctly identify the worked counter-example as the
+    2026-05-24 tooling-sweep session?
+  - Does it correctly cite raw_findings/codex.md as the file
+    containing the r1 blocker evidence?
+  - Does it correctly describe the codex r1 finding (invalid TOML
+    in paper-arxiv-prep/compile-and-pdf-evidence.toml)?
+  - Does it correctly say Safeguards A and B from the original
+    ISS-001 were NOT built? Verify by absence: there should be
+    NO file at validators/check_review_session_terminal.py and
+    NO file at validators/check_commit_message.py.
+  - Does it correctly characterise the user's in-session
+    correction?
+"""
+
+[bundle.questions.q2_iss001_closing_warranted]
+prompt = """
+Is closing ISS-001 actually warranted, or is it premature? The
+original acceptance criteria (in the body of ISS-001 above the
+closing note) listed:
+  - validators/check_review_session_terminal.py exists and CI is
+    red on a commit missing an approved gate decision.
+  - memory/feedback_no_self_approval.md exists.
+  - An audit comment in this issue lists the prior self-approved
+    commits.
+  - A future PR that touches files in a review session's
+    [bundle].changed_files but lacks an approving terminal verdict
+    is blocked at CI.
+Only the second of these is satisfied as written. The closing
+note argues the others were the wrong framing. Is that argument
+sound, or is the issue being closed without meeting its own
+acceptance criteria? File a finding either way with evidence.
+"""
+
+[bundle.questions.q3_iss004_correctly_framed]
+prompt = """
+Read ISS-004 in full. Does it correctly:
+  - Identify the symptom (47b6acd + d027178 sequence)?
+  - Identify the affected files (the five in d027178)?
+  - State the rule ('blessed-kind files MUST land with closure_root
+    in the same commit') in a way that is enforceable by humans
+    without requiring new infrastructure?
+  - Avoid proposing new CI tooling as a substitute for discipline?
+    Verify by reading the Safeguard A / B / C section.
+  - Cite the existing CI gate (validate_closure_root.py in
+    .github/workflows/validate.yml) as the existing mechanism?
+"""
+
+[bundle.questions.q4_self_approval_recursion]
+prompt = """
+Commit ca50b2c was self-approved by the initiator (claude-opus-4-7).
+This is the recursive boundary case: the commit that closes ISS-001
+(an issue about not self-approving) is itself self-approved. The
+initiator surfaced this honestly in the response that prompted
+this review session. Two opposing positions are tenable:
+  (a) Issue-ledger changes are explicitly OUT of §12 conformance
+      scope (docs/issues/README.md:7-10) and are process artefacts
+      not spec surface, so the dispatched-review discipline does
+      not formally apply. Self-approval was acceptable; this
+      review is belt-and-braces.
+  (b) ISS-001 is the very issue about self-approval, and closing
+      it without independent review is exactly the pattern ISS-001
+      exists to flag. The closing should have been dispatched for
+      review BEFORE landing.
+Both positions cite the existing convention. State which position
+is correct (or partially correct) with evidence from
+docs/issues/README.md, tools/review-request-dag.toml, and
+memory/feedback_no_self_approval.md.
+"""
+
+[bundle.questions.q5_retcon_check]
+prompt = """
+Does the ISS-001 closing note retcon anything? Specifically:
+  - Does it claim Safeguard A 'was the wrong framing' in a way
+    that revises the historical record, or does it correctly
+    describe the actual sequence (the framing was proposed by
+    initiator, the user pushed back, initiator agreed)?
+  - Does ISS-004 retcon any of the 47b6acd / 320a901 / d027178
+    commit history?
+A retcon would violate the [policy.process_checks].confirm_no_
+historical_dated_spec_retconned_without_link_or_correction_note
+rule, even though these are not spec files.
+"""
+
+[roster]
+initiator       = "claude-opus-4-7 (session running on /srv/repos/external/verivus-oss/agent-assurance, 2026-05-24)"
+initiator_role  = "excluded from standard reviewer set per [policy.roles].initiator_excluded_as_standard_reviewer"
+reviewer_models = ["codex", "gemini", "grok"]
+
+[review_instructions]
+rules_source  = "tools/review-request-dag.toml [policy.*]"
+prompt_path   = "docs/reviews/2026-05-24-iss-001-closure-and-iss-004-filing/review_prompt.md"
+narrow_scope  = "Issue-ledger changes only. The five questions above are the substance of the review; classify U05 (ca50b2c) as complete / incomplete / unverifiable based on the answers."
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-24-iss-001-closure-and-iss-004-filing/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "terminal_decision.toml",
+]

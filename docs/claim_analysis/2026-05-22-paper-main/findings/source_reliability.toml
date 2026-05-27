@@ -1,0 +1,71 @@
+# U07 — Claim Analysis Agent process #3.
+#   "Evaluates the reliability of sources cited in the text."
+# Iterate over every \cite{} in the paper; classify by authority,
+# recency, primary vs secondary, conflict-of-interest.
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "claim-analysis-finding-set"
+unit           = "U07"
+step           = "agent.responsibilities.source_reliability"
+title          = "Evaluate Source Reliability"
+document       = "paper/main.tex@9664be061e4bc8493de2e5054d3c3d61737bd666e56077b9856c19585dbde306"
+
+[summary]
+total_citations          = 44
+all_cite_keys_resolved   = true
+orphan_bib_entries       = 0
+total_findings           = 5
+severity_counts          = { high = 0, medium = 2, low = 3 }
+section_outcome          = "issues_present"
+
+# Positive structural finding: every \cite key resolves to a bib
+# entry, and every bib entry is cited. Verified by set-difference of
+# /tmp/cited.txt vs /tmp/bibkeys.txt; both diff directions empty.
+
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id                    = "S2-F01"
+step_reference        = "agent.responsibilities.source_reliability"
+severity              = "medium"
+quoted_document_part  = """\\cite{verivus2025verifiable} ... \\cite{verivus2025patent1} ... \\cite{verivus2026dagtoml} ... \\cite{verivus2026sqry}"""
+location              = "paper/references.bib:344-380 and downstream \\cite usage at paper/main.tex:1205, 1218, 1222, 1224, 1620-1638"
+problem_explanation   = """Four citations are to documents authored by Verivus Pty Ltd or by the same author / organisation as the paper. The bib entries acknowledge this (verivus2025verifiable's howpublished is 'Internal company analysis, Verivus consolidated document collection'; verivus2025patent1 is 'Provisional patent application AU-Provisional-v2'). Self-citation is legitimate but the load this paper places on these citations is heavy: they support the entire 'Verivus thesis' framing in §sec:related-vai, and verivus2025patent1 is invoked as the source of the 'cryptographic provenance module' that motivates the contract / evidence-matrix separation. A reader cannot independently verify these references — verivus2025verifiable is not publicly retrievable as cited, and verivus2025patent1 is a provisional patent application that may or may not be public-accessible. The 'Lineage and prior work' paragraph in the Acknowledgments (lines 1616-1630) is honest about this lineage, but the citations themselves give the impression of independent sources."""
+suggested_fix         = """Either (i) make the self-citations visually marked in the bibliography ('@misc{verivus2025verifiable, ..., note={Internal company document; not publicly retrievable as of publication}}'), or (ii) downgrade in-text references from \\cite to a footnote ('see Verivus's internal analysis (cited as note, not bibliographic entry)') for items that are not externally verifiable, or (iii) replace with externally verifiable substitutes where they exist (e.g., the patent application's USPTO/IP Australia filing URL if assigned)."""
+
+[[finding]]
+id                    = "S2-F02"
+step_reference        = "agent.responsibilities.source_reliability"
+severity              = "medium"
+quoted_document_part  = """\\cite{copyleaks2026code} ... \\cite{codespy2026}"""
+location              = "paper/references.bib:382-409 and downstream \\cite usage at paper/main.tex:1402, 1413"
+problem_explanation   = """Both citations are vendor product pages, used to ground claims about each tool's behaviour and limitations. The paper's bib entries flag the vendor-page status ('Commercial SaaS product page' / 'Commercial product page'), and the discussion in §sec:related-tools is appropriately cautious ('vendor-published accuracy figures... best-case'). However, the surrounding text makes empirical-sounding claims about the tools' performance ('accuracy degrades on paraphrased or humanised content' for Copyleaks; '98--99% range' for CodeSpy) that the vendor pages themselves do not support — see U4-F01 and U4-F02 for the related unsubstantiation findings. The reliability issue here is: a vendor page is a marketing document, not a technical citation, and should not carry the weight the surrounding sentences place on it."""
+suggested_fix         = """Either pair each vendor citation with an independent technical source (a benchmark study, a third-party comparison), or restrict the vendor citation to facts the vendor itself publishes (product existence, advertised feature set), and remove claims about performance that require independent measurement."""
+
+[[finding]]
+id                    = "S2-F03"
+step_reference        = "agent.responsibilities.source_reliability"
+severity              = "low"
+quoted_document_part  = """\\cite{daringfireball2026chardet}"""
+location              = "paper/main.tex:197 (Table 1 / sec:dispute)"
+problem_explanation   = """Daring Fireball is a blog by John Gruber, a respected technology commentator but not a primary legal or technical source. The paper uses this citation at row 2026-03-08 of tab:dispute to characterise the dispute as having received 'General-audience framing of the clean-room question.' That description is accurate — Daring Fireball is general-audience tech commentary. The reliability issue is minor: this is a contemporaneous-record table, and including a popular commentator's framing is appropriate evidence of public-discourse spread, not of legal analysis. Reader confusion is unlikely given the table's structure."""
+suggested_fix         = """No change required. Optionally add a 'Source type' column to tab:dispute to make explicit which entries are primary (the chardet GitHub issues), which are legal analysis (Meeker, Shujisado), and which are general-audience commentary (Daring Fireball)."""
+
+[[finding]]
+id                    = "S2-F04"
+step_reference        = "agent.responsibilities.source_reliability"
+severity              = "low"
+quoted_document_part  = """\\cite{phoenixvsibm1984}, \\cite{bakervseldon1880}"""
+location              = "paper/references.bib (both @misc); paper/main.tex:96, 222, 226, 1015 references"
+problem_explanation   = """The two legal-precedent citations Phoenix v IBM (1984) and Baker v Selden (1880) are both encoded as @misc rather than as proper case citations (e.g., a @legal or @case entry, or @misc with full Reporter cite). For Phoenix v IBM, the conventional cite is to the licensing dispute itself, not a court opinion — Phoenix-IBM was a contractual licensing, not a published court case — so the @misc encoding is defensible if the bib entry text is accurate. For Baker v Selden, the case citation is 101 U.S. 99 (1879), and the year given in the bib key (bakervseldon1880) is one year off the conventional citation year. This is a small bibliographic looseness, not a misattribution."""
+suggested_fix         = """Either rename the key to bakervseldon1879 to match conventional citation year, or add the proper case reporter cite to the @misc note field ('Baker v. Selden, 101 U.S. 99 (1879)'). Verify the year encoded in the printed bibliography matches the conventional 1879 case cite."""
+
+[[finding]]
+id                    = "S2-F05"
+step_reference        = "agent.responsibilities.source_reliability"
+severity              = "low"
+quoted_document_part  = """\\cite{chardet325}, \\cite{chardet327}"""
+location              = "paper/references.bib (both); paper/main.tex:191, 117"
+problem_explanation   = """The chardet325 bib entry now correctly attributes the issue to GitHub user @gooba42 (this was fixed in commit c91df69 per CHANGELOG). The verification I can perform from the repo is structural only — the bib entry's howpublished field includes the GitHub REST API URL, but I cannot fetch the live URL from this run to confirm authorship is current. Confidence in this attribution is therefore dependent on the prior commit's correctness, not on independent verification in this review."""
+suggested_fix         = """No action required if the prior verification (commit c91df69) is trustworthy. For full audit, attach a sha256 of the GitHub REST API response at time of bib entry creation, so future readers can re-fetch and confirm."""

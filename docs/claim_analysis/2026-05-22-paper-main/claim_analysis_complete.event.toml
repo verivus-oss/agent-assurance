@@ -1,0 +1,39 @@
+# U11 — Emit the ClaimAnalysisComplete event declared by the
+# Claim Analysis Agent persona ([policy.agent.orchestration].produces_events).
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "claim-analysis-event"
+event          = "ClaimAnalysisComplete"
+created        = "2026-05-22"
+
+[event]
+name       = "ClaimAnalysisComplete"
+run_label  = "2026-05-22-paper-main"
+agent      = "Claim Analysis Agent"
+dag        = "tools/claim-analysis-document-review-dag.toml"
+status     = "complete"
+
+[event.document]
+path        = "paper/main.tex"
+sha256      = "9664be061e4bc8493de2e5054d3c3d61737bd666e56077b9856c19585dbde306"
+repo_commit = "638a90e8a0dc68c3e4aa8dfa29b51f6466d435fe"
+
+[event.totals]
+findings        = 29
+high_severity   = 1
+medium_severity = 12
+low_severity    = 16
+
+[event.assessment]
+verdict  = "Minor revisions needed"
+one_line = "Manuscript is empirically careful and well sourced; one numeric contradiction (JPlag file-count direction) and a recurring spec-vs-bundle conflation require corrections; the rest is tightening."
+
+[event.outputs]
+report_toml   = "docs/claim_analysis/2026-05-22-paper-main/claim_analysis_report.toml"
+report_json   = "docs/claim_analysis/2026-05-22-paper-main/claim_analysis.json"
+run_manifest  = "docs/claim_analysis/2026-05-22-paper-main/run_manifest.toml"
+
+[event.fresh_context_required_for_independent_review]
+required = true
+note     = "This run is a self-review by the initiator from the same session. The DAG's policy.roles excludes the initiator as a standard reviewer; for an independent multi-reviewer record, dispatch via tools/review-request-dag.toml."

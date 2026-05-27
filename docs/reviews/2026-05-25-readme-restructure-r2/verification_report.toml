@@ -1,0 +1,152 @@
+# Round-2 verification report (corrective-program spec) for the
+# README defect-fix commit at 953691b. This is the
+# initiator-driven follow-up to the r1 review at
+# docs/reviews/2026-05-25-readme-restructure/, where codex + grok
+# filed concrete_unresolvable_blocker with three bytes-verified
+# defects. The initiator could not rebut (bytes supported the
+# reviewers) and revised. This document enumerates the r1 defects
+# and the corrections shipped in 953691b for r2 reviewers to verify.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version  = "1.0.0"
+template_kind   = "verification-report"
+created         = "2026-05-25"
+review_session  = "2026-05-25-readme-restructure-r2"
+predecessor     = "2026-05-25-readme-restructure"
+initiator       = "claude-opus-4-7"
+predecessor_commit_under_review = "b759eaf"
+postcondition_commit            = "953691b"
+
+[program]
+intent = """
+Close the three concrete defects filed in r1 against b759eaf
+(see docs/reviews/2026-05-25-readme-restructure/raw_findings/
+codex.md and grok.md for the original findings). The fix is
+README-only — three localized edits to README.md, no other path
+modified.
+"""
+non_intent = """
+The fix does NOT reopen B1..C07 from r1 (all C-closures were
+classified `closed` by both codex and grok in r1; gemini also
+approved the full set). r2 reviewers MUST NOT re-litigate the
+r1 closures absent NEW regression evidence in 953691b. The diff
+953691b vs b759eaf is 5 insertions / 4 deletions on README.md
+only — narrow scope.
+"""
+
+# ----------------------------------------------------------------------
+# r1 defect closures: each item names a defect codex/grok filed
+# against b759eaf and the byte-level correction shipped in 953691b.
+# ----------------------------------------------------------------------
+
+[[closures]]
+id          = "D1"
+r1_filer    = "grok"
+r1_severity = "concrete (blocker)"
+defect      = "README.md:179 (at b759eaf) said: `python3 validators/validate_abstraction_class.py --discover .    # SPEC §13`. The script's argparse rejects --discover; running the cited command exits non-zero with `unrecognized arguments: --discover`."
+correction  = "Replaced with the same invocation pattern CI uses (mirrors `.github/workflows/validate.yml` around the §13 step): `python3 validators/validate_abstraction_class.py --repo-root . core/*-kind.toml profiles/*/*-kind.toml`."
+verify_by = """
+1. `grep -n 'validate_abstraction_class.*--discover' README.md` should
+   return zero hits at 953691b.
+2. `grep -A2 -n 'validate_abstraction_class' README.md` should show
+   the new --repo-root + glob invocation.
+3. Execute the new command from repo root:
+     `python3 validators/validate_abstraction_class.py --repo-root . core/*-kind.toml profiles/*/*-kind.toml`
+   Expected: exit 0; output starts with `ABSTRACTION-CLASS VALIDATION
+   PASSED`. (Verified locally pre-commit: 19 file(s) checked; 19
+   declared a §13 block.)
+"""
+
+[[closures]]
+id          = "D2"
+r1_filer    = "codex + grok (convergent)"
+r1_severity = "concrete (blocker)"
+defect      = "README.md:142 (at b759eaf) said the Rust primary is `Authoritative for profile-descriptor, disclosure, cost, §2.5–§2.7 meta surface, §11.1 provenance encryption`. False: the primary validators only have modes auto|profile|disclosure|provenance|meta. NO cost mode. Cost-record validation is currently Python-only via validators/validate_cost.py. Cited by codex against tools/dagtoml-validate-rs/src/main.rs:1045-1055 + tools/dagtoml-validate-go/main.go:822-829 (cost handler absent); cross-verified by grok."
+correction  = "Removed `, cost` from the primary-coverage list. New text reads: `Authoritative for profile-descriptor, the disclosure-profile kinds, §2.5–§2.7 meta surface, and §11.1 [provenance.encryption] sub-table`."
+verify_by = """
+1. `grep -n 'Authoritative for.*cost' README.md` should return zero
+   hits at 953691b.
+2. `grep -nE 'mode (auto|profile|disclosure|provenance|meta|cost)' tools/dagtoml-validate-rs/src/main.rs`
+   should show the five-mode set (no cost). Same for the Go side.
+3. `ls validators/validate_cost*.py` should show validate_cost.py
+   exists (so the README's revised Python-row claim that cost is
+   currently Python-only is true).
+"""
+
+[[closures]]
+id          = "D3"
+r1_filer    = "codex + grok (convergent)"
+r1_severity = "concrete (blocker)"
+defect      = "README.md:143 (at b759eaf) said `Same surface as Rust; CI requires bytewise agreement`. Overstated: .github/workflows/validate.yml runs both primaries sequentially against the same canonical set, both must exit 0, but there is NO byte-diff/compare step between the two outputs. Cited by codex against .github/workflows/validate.yml:184-187."
+correction  = "Replaced with the accurate framing: `Same surface as Rust; CI runs both against every canonical example + tier file + profile descriptor on each push, and both must exit 0`."
+verify_by = """
+1. `grep -n 'bytewise agreement' README.md` should return zero hits
+   at 953691b.
+2. `grep -A1 -n 'CI runs both' README.md` should show the new
+   framing.
+3. `grep -nE 'diff|cmp.*output|compare.*primary' .github/workflows/validate.yml`
+   should return zero hits in the primary-validator steps (confirming
+   there is no byte-comparison step to claim).
+"""
+
+# Bonus correction (initiator-flagged, not r1-filed): the Python
+# row's prior wording understated Python's role. Now describes it
+# as cross-check on the primaries' surface PLUS the Python-only
+# surfaces (cost-record, abstraction-class §13, closure-root §12,
+# rollback-plan trigger closure, IJB conformance).
+[[closures]]
+id          = "D4"
+r1_filer    = "initiator (proactive, not r1-filed)"
+r1_severity = "informational"
+defect      = "README.md:144 (at b759eaf) described the Python row as `Cross-check; flags drift between primary implementations and the kind-descriptor / ontology declarations`. Misleadingly understated Python's role — for cost-record, §12 closure-root, §13 abstraction-class, rollback-plan trigger closure, and IJB conformance, Python is the ONLY validator."
+correction  = "Revised to enumerate the Python-only surfaces explicitly."
+verify_by = """
+1. `grep -A1 -n 'Semantics — reference' README.md` should show the
+   enumeration including cost-record, abstraction-class, closure-root.
+2. Each surface named as Python-only should have a matching
+   validators/<name>.py: validate_cost.py, validate_abstraction_class.py,
+   validate_closure_root.py, validate_rollback_plan.py,
+   validate_ijb_conformance.py.
+"""
+
+# ----------------------------------------------------------------------
+# Regression check: r1's seven C-closures (C01-C07) MUST remain
+# closed in 953691b. The fix touched only 5+/-4 lines, but reviewers
+# should sanity-check that nothing in the fix accidentally undid
+# the corrections from b759eaf.
+# ----------------------------------------------------------------------
+
+[regression_check]
+r1_closures_to_re_verify = ["C01", "C02", "C03", "C04", "C05", "C06", "C07"]
+re_verify_recipe = """
+Run `git diff b759eaf..953691b -- README.md` — the diff should
+touch only the three regions corresponding to D1, D2, D3 (plus the
+related D4 Python-row clarification). No edits to the Status table,
+Repository Map, Start Here groupings, governance section, or any
+other surface r1 classified as `closed`.
+"""
+
+# ----------------------------------------------------------------------
+# Approval bases + iteration rule (unchanged from r1).
+# ----------------------------------------------------------------------
+
+[approval]
+forbidden_bases = ["stated_intent", "plan_compliance_claim", "should_be_fixed_language"]
+required_bases  = ["inspected_code", "executed_tests_with_output", "inspected_docs", "persisted_review_evidence"]
+terminal_states = ["unconditional_approval", "concrete_unresolvable_blocker"]
+
+[iteration]
+initiator_rebuttal_rule = """
+If the initiator disagrees with any r2 finding, the rebuttal MUST
+cite code or documentation evidence (file:line). Assertion alone
+fails: the finding stands.
+"""
+
+[reading_order]
+1 = "docs/reviews/2026-05-25-readme-restructure-r2/verification_report.toml (this file)"
+2 = "docs/reviews/2026-05-25-readme-restructure/raw_findings/{codex,grok}.md (the r1 blockers being closed)"
+3 = "README.md (the current state at 953691b)"
+4 = "git diff b759eaf..953691b -- README.md (the exact correction diff)"
+5 = "tools/review-request-dag.toml [policy.*] (binding policy)"

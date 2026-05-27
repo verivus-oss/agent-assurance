@@ -1,0 +1,90 @@
+# Deployment tier: organization.
+# Self-contained `contract-declaration` instance. Strict superset of
+# tier group. See tiers/README.md for the ladder rationale.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "contract-declaration"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+framework_profile = "agent-assurance"
+title             = "Deployment tier: organization"
+status            = "ready"
+created           = "2026-05-21"
+review_subject    = "deployment-tier-organization"
+
+[[contracts]]
+id          = "C01"
+domain      = "override_authority"
+statement   = "Overrides on failed assertions MUST be authorized via combined RBAC and ABAC: signer's authority_role from the org role catalog AND signer attributes (team, clearance) satisfying ABAC predicates encoded in canonical authority constraint rule= strings."
+applies_to  = ["deployment-tier-organization"]
+must_name   = ["authority_role", "signer_class", "severity_tier"]
+verified_by = ["adapter-contract:authority-check@1"]
+
+[[contracts]]
+id          = "C02"
+domain      = "ai_agent_autonomy"
+statement   = "AI agents MAY self-sign overrides only at severity_tier=info or severity_tier=low, only against adapters tagged safe-for-autonomous, with human counter-sign required within 4 hours."
+applies_to  = ["deployment-tier-organization"]
+must_name   = ["signer_class", "autonomy_tier", "severity_tier"]
+verified_by = ["adapter-contract:authority-check@1"]
+
+[[contracts]]
+id          = "C03"
+domain      = "adapter_runtime_kind"
+statement   = "Adapters used at this tier MUST prefer runtime_kind=wasi-component. runtime_kind=oci-action is permitted only when the adapter image digest is signed by a registry-trusted authority."
+applies_to  = ["deployment-tier-organization"]
+must_name   = ["runtime_kind"]
+verified_by = ["adapter-contract:runtime-kind-check@1"]
+
+[[contracts]]
+id          = "C04"
+domain      = "merkle_log"
+statement   = "Assertion log records MUST be stored in the organization log service AND checkpointed to at least one external witness (e.g. sigstore-style transparency witness)."
+applies_to  = ["deployment-tier-organization"]
+must_name   = ["record_signature_algorithm", "registry_scheme"]
+verified_by = ["adapter-contract:log-storage-check@1"]
+
+[[contracts]]
+id          = "C05"
+domain      = "decision_signing_threshold"
+statement   = "Gate decisions require a 2-of-5 signing threshold by default; severity_tier in {high, critical} requires 3-of-5."
+applies_to  = ["deployment-tier-organization"]
+must_name   = ["override_decision_method", "severity_tier"]
+verified_by = ["adapter-contract:signer-threshold-check@1"]
+
+[[contracts]]
+id          = "C06"
+domain      = "replay_cadence"
+statement   = "Adapter conformance fixtures MUST be re-run at gate evaluation time, nightly, and whenever a cited raw input hash changes."
+applies_to  = ["deployment-tier-organization"]
+must_name   = ["adapter_id_derivation"]
+verified_by = ["adapter-contract:replay-cadence-check@1"]
+
+[[contracts]]
+id          = "C07"
+domain      = "registry_trust_anchors"
+statement   = "Trust anchors backing adapter-registry-bindings MUST be signed by the organization root identity AND a key rotation policy MUST be declared and recorded."
+applies_to  = ["deployment-tier-organization"]
+must_name   = ["registry_scheme"]
+verified_by = ["adapter-contract:registry-trust-check@1"]
+
+[[contracts]]
+id          = "C08"
+domain      = "audit_retention"
+statement   = "Assertion bundles and gate decisions MUST be retained for at least 7 years with chain-of-custody attestations."
+applies_to  = ["deployment-tier-organization"]
+must_name   = ["record_canonical_form"]
+verified_by = ["adapter-contract:retention-check@1"]
+
+[[contracts]]
+id          = "C09"
+domain      = "tier_downgrade"
+statement   = "Downgrading a project from this tier MUST be authorized by a signed authority event AND a cooling-off period of at least 30 days MUST elapse before the downgrade takes effect."
+applies_to  = ["deployment-tier-organization"]
+must_name   = ["authority_role"]
+verified_by = ["adapter-contract:tier-downgrade-check@1"]

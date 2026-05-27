@@ -1,0 +1,59 @@
+# Deployment tier: solo.
+# Self-contained `contract-declaration` instance for the lowest-control
+# tier in the ladder solo < team < group < organization < enterprise.
+# See tiers/README.md for the ladder rationale.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "contract-declaration"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+framework_profile = "agent-assurance"
+title             = "Deployment tier: solo"
+status            = "ready"
+created           = "2026-05-21"
+review_subject    = "deployment-tier-solo"
+
+[[contracts]]
+id          = "C01"
+domain      = "override_authority"
+statement   = "Overrides on failed assertions MAY be signed by the author at any severity_tier. RUNTIME-SPEC records the signature as a single-signer event."
+applies_to  = ["deployment-tier-solo"]
+must_name   = ["override_decision_method", "signer_class"]
+verified_by = ["adapter-contract:authority-check@1"]
+
+[[contracts]]
+id          = "C02"
+domain      = "ai_agent_autonomy"
+statement   = "AI agents MAY self-sign overrides at any severity_tier at this tier, EXCEPT for gate-decisions where `decision.subject_class = \"self-modification\"`. Self-modification gate-decisions are governed by gate-decision INV06 (profiles/agent-assurance/gate-decision-kind.toml): a different-provider AND different-model-family decider is required regardless of tier; the solo tier's self-sign permission does NOT relax this. Counter-sign is otherwise not required at this tier."
+applies_to  = ["deployment-tier-solo"]
+must_name   = ["signer_class", "autonomy_tier"]
+verified_by = ["adapter-contract:authority-check@1", "gate-decision-invariant:INV06@1"]
+
+[[contracts]]
+id          = "C03"
+domain      = "adapter_runtime_kind"
+statement   = "Adapters used at this tier MAY declare runtime_kind in any of {wasi-component, oci-action, os-sandbox}."
+applies_to  = ["deployment-tier-solo"]
+must_name   = ["runtime_kind"]
+verified_by = ["adapter-contract:runtime-kind-check@1"]
+
+[[contracts]]
+id          = "C04"
+domain      = "merkle_log"
+statement   = "Assertion log records MAY be stored in a local file. No external witness or mirror is required."
+applies_to  = ["deployment-tier-solo"]
+must_name   = ["record_signature_algorithm"]
+verified_by = ["adapter-contract:log-storage-check@1"]
+
+[[contracts]]
+id          = "C05"
+domain      = "decision_signing_threshold"
+statement   = "Gate decisions require exactly one signer (the author or designated agent), EXCEPT for self-modification gate-decisions (where `decision.subject_class = \"self-modification\"`), which require a deciding signer whose `provider_id` AND `model_family_id` BOTH differ from the proposing signer's, per gate-decision INV06. The single-signer rule remains in force for all other gate categories at this tier."
+applies_to  = ["deployment-tier-solo"]
+must_name   = ["override_decision_method"]
+verified_by = ["adapter-contract:signer-threshold-check@1", "gate-decision-invariant:INV06@1"]

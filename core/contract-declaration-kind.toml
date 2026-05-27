@@ -1,0 +1,181 @@
+# Kind descriptor for `template_kind = "contract-declaration"`.
+# Collapses the contract-declaration portion of core/review-readiness.md.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "kind-descriptor"
+ontology_version  = 1
+title             = "Contract declaration kind descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+describes_kind    = "contract-declaration"
+authoritative_in  = "this file (collapsed from core/review-readiness.md, contract-declaration section)"
+
+[kind]
+name    = "contract-declaration"
+summary = "Declared contracts the work product is held to. Each contract is a testable, reviewable statement about one semantic domain."
+prose   = """
+A contract declaration enumerates the explicit contracts (ordering,
+compatibility, schema shape, precedence, authority, ...) the work
+product is held to. A contract is a single testable, reviewable
+statement that the reviewer should not have to infer.
+
+ROOT SHAPE
+
+    [meta]
+    schema_version = "0.1.0"
+    template_kind  = "contract-declaration"
+    title          = "Contract declaration for <component>"
+    status         = "draft"
+    created        = "YYYY-MM-DD"
+    review_subject = "<artifact-or-change-under-review>"
+
+CONTRACTS
+
+    [[contracts]]
+    id          = "C01"
+    domain      = "ordering_and_determinism"
+    statement   = "If behaviour depends on order or tie-breaking, the declaration MUST name the ordering rule, the tie-break rule, and the stability requirement."
+    applies_to  = ["planning_pack", "policy_standard"]
+    must_name   = ["sort key", "tie-break rule", "stability requirement"]
+    verified_by = ["TEST:ordering::stable_under_concurrent_writes"]
+
+REQUIRED STRUCTURE
+
+- `[[contracts]]` entries MUST have `id`, at least one of (`statement`,
+  `contract`, `summary`), and at least one of (`applies_to`,
+  `depends_on`, `supersedes`, `verified_by`).
+- `depends_on`, `supersedes`, and `related_to` (if present) MUST
+  reference existing `contracts[*].id` values.
+
+RELATION VOCABULARY
+
+The contract-scoped predicates `depends_on`, `supersedes`,
+`related_to`, `verified_by`, and `applies_to` are documented in
+core/ontology.toml [[relations]] (review-readiness section). The
+contract-scoped `verified_by` is free-form (string label set) and is
+distinct from the entity-typed traceability `verified_by` (REQ/REG ->
+TEST).
+"""
+references = [
+  "spec.md",
+  "core/ontology.toml",
+]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[kind.required_fields]]
+path        = "meta.template_kind"
+must_equal  = "contract-declaration"
+description = "Identifies this file as a contract declaration."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "contracts"
+description = "At least one contract with `id`, one of (statement/contract/summary), and one of (applies_to/depends_on/supersedes/verified_by)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV01"
+statement   = "`depends_on`, `supersedes`, and `related_to` (if present) reference existing `contracts[*].id` values."
+enforced_by = "validators/validate_review_readiness.py"
+see_also    = "core/ontology.toml [[relations]] (review-readiness section)"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV02"
+statement   = "`supersedes` chains are acyclic (shared with the ontology-level acyclicity invariant)."
+enforced_by = "validators/validate_review_readiness.py"
+see_also    = "core/ontology.md#5-hard-invariants-the-ontology-adds-beyond-per-kind-invariants"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name           = "minimal contract declaration"
+file           = "examples/minimal-review-readiness/contract_declaration.toml"
+inline_summary = "Two contracts (C01, C02) covering schema/serialization shape and precedence/waiver domains."
+ijb_primitive = "observed"
+
+[[kind.hard_invariants]]
+id          = "INV03"
+statement   = "Every entity prefix and relation predicate used in this kind's instance files resolves to an `ijb_primitive` declared in the ontology (core plus any active profile)."
+enforced_by = "validators/validate_ijb_conformance.py"
+see_also    = "foundations/ijb/primitives.md"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.relation_to_ontology]
+entities_introduced = ["contracts"]
+ontology_entries    = "core/ontology.toml [[entities]] with id pattern C\\d+"
+predicates_used     = ["depends_on (contracts)", "supersedes (contracts)", "related_to", "applies_to", "verified_by (contracts, free-form)"]
+note                = "Contract-scoped predicates are namespace-distinct from same-named DAG-unit / traceability predicates. See core/ontology.toml [[relations]] for the per-scope declarations."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# A contract-declaration is declarative-policy-of-contracts: it
+# enumerates the explicit testable contracts the work product is held to,
+# each anchored by id with at least one of (statement/contract/summary)
+# and at least one outbound relation. It MUST NOT, at the kind layer,
+# become a transport for arbitrary capability assertions. Naming the
+# class here binds future contract-declaration producers to the contract;
+# widening the envelope cascade-breaks downstream contract-declarations
+# (per §13.4). Three kinds share the `policy-declaration.v1` class id
+# (contract-declaration, readiness-gate, spec-contract); each carries
+# its own kind-specific description tying back to its own
+# [[kind.required_sections]] / [[kind.required_fields]].
+
+[kind.abstraction_class]
+id          = "policy-declaration.v1"
+description = "Declarative policy artefact: enumerates `[[contracts]]` rows — each a single testable statement carrying an `id`, one of (`statement` / `contract` / `summary`), and at least one outbound relation among `applies_to` / `depends_on` / `supersedes` / `verified_by`. Consumers MUST enforce that `depends_on` / `supersedes` / `related_to` references resolve in-document and that `supersedes` chains are acyclic. No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms      = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576  # 1 MB — a contract declaration is a small categorical document
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed      = false
+monotonic_clock_allowed = false
+precision_cap_ms        = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

@@ -1,0 +1,11 @@
+schema_version = "1.0"
+review_id = "2026-05-26-spec-security-privacy-considerations"
+grant = "Reviewers are instructed to inspect repository files, run read-only and validation commands, inspect the exact diff, and use configured MCP servers where available."
+requested_mcp_servers = [
+  "sqry",
+  "exa",
+  "ref_tools",
+]
+permission_mode = "bypassPermissions or closest provider equivalent"
+approval_strategy = "mcp_managed where supported"
+durability_check = "If the provider's grant is not durable, progress and permission status should be checked no more frequently than every 90 seconds."

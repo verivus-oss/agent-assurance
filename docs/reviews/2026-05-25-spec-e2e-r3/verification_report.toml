@@ -1,0 +1,115 @@
+# Round-3 verification report for the spec-e2e review arc.
+# r2 closed S08.2-S08.8 + regression unanimously. One r2 blocker open:
+# S08.1 (codex) — validate_gate_decision.py --help did not cite
+# INV01..INV06 as the r2 verify_by:3 recipe required.
+# r3 verifies the mechanical fix in 4fbc906 and probes for collateral
+# damage to the r2-closed surfaces.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "verification-report"
+created        = "2026-05-25"
+review_session = "2026-05-25-spec-e2e-r3"
+predecessor    = "2026-05-25-spec-e2e-r2"
+head_commit    = "4fbc906"
+
+[scope]
+unit               = "spec — SPEC §13 retrofit + INV06 enforcement triad + r2 mechanical S08.1 closure"
+authority          = "agent-aware-spec end-to-end review framework"
+review_layer       = "tier-3 (multi-LLM independent, bytes-verified)"
+panel              = ["codex", "gemini", "grok"]
+mistral_status     = "unavailable on host (vibe CLI not installed); proceeding with 3 reviewers per established session pattern"
+remediation_commit = "4fbc906"
+predecessor_terminal_decision = "docs/reviews/2026-05-25-spec-e2e-r2/terminal_decision.toml"
+
+[directive]
+mode = "verify_against_bytes"
+discipline = """
+Reviewers MUST:
+1. Verify EVERY claim by inspecting code, running commands, reading
+   docs in the repo. Do NOT accept Claude's summary as evidence.
+2. For each blocker disposition, cite the exact file:line or command
+   that establishes the verdict.
+3. If you disagree with my conclusion, respond with the inspected-code
+   evidence — not assertion or 'should be'.
+4. Iterate until your verdict is one of:
+   - unconditional_approval (closure_root holds; no new blockers)
+   - concrete_unresolvable_blocker (cite exact location + concrete
+     remediation; not 'consider X' or 'might want Y')
+5. Approval grounds: inspected code + tests + docs + persistent
+   review evidence. Plan-compliance and intent are not approval grounds.
+"""
+
+[principal_question]
+question = """
+Has the r2 blocker S08.1 been closed in commit 4fbc906 such that
+`validators/validate_gate_decision.py --help` cites all six invariants
+INV01..INV06 (per r2 verification_report.toml verify_by:3), AND have
+the r2-closed surfaces (S08.2-S08.8: INV06 enforcement triad across
+Python/Rust/Go validators, CI step, kind-descriptor (planned) markers
+stripped) survived the change?
+"""
+disposition_options = ["closed", "open_with_concrete_blocker"]
+default_assumption = "Reviewer must verify against bytes; no default."
+
+[[verify_by]]
+order = 1
+action = "Read paper/main.tex around 1556-1559: confirm the Conclusion no longer claims 'scipy / numpy implementation' as a global claim. (NOTE: this is the chardet-paper r3 surface; included here only as cross-check that the spec-arc commit didn't accidentally regress paper prose. If you observe regression, FILE IT.)"
+expected = "Conclusion now describes both validation paths explicitly: scipy/numpy for AUX1+C06a-d; stdlib digest re-derivation + subprocess for C06e."
+
+[[verify_by]]
+order = 2
+action = "Run: `python3 validators/validate_gate_decision.py --help`. Capture stdout."
+expected = "The output MUST contain literal substrings 'INV01', 'INV02', 'INV03', 'INV04', 'INV05', 'INV06' (one-line summaries per invariant are acceptable but not required). `--help | grep -oE 'INV0[1-6]' | sort -u` MUST return six lines, one per invariant ID."
+
+[[verify_by]]
+order = 3
+action = "Run: `python3 validators/validate_gate_decision.py --repo-root . examples/gate-decision-self-modification-positive.toml` (or whatever positive example you find in examples/)."
+expected = "Exit 0; output contains 'GATE-DECISION VALIDATION PASSED' and 'INV01..INV06 enforced'."
+
+[[verify_by]]
+order = 4
+action = "Run the negative variants from r1: same-provider/different-family and different-provider/same-family. The example file paths are documented in r2's verification report (docs/reviews/2026-05-25-spec-e2e-r2/verification_report.toml verify_by:5-6)."
+expected = "Both exit code 1 with output containing 'INV06 violated (conjunctive AND)'. Confirms the r2-closed INV06 enforcement is unaffected by the --help string fix."
+
+[[verify_by]]
+order = 5
+action = "Build + run the Rust validator: `cargo run --manifest-path tools/dagtoml-validate-rs/Cargo.toml -- examples/<positive>` and both negatives."
+expected = "Positive exits 0; both negatives exit non-zero with INV06 message. Confirms r2-closed Rust enforcement still works after the Python --help-only fix."
+
+[[verify_by]]
+order = 6
+action = "Build + run the Go validator: `cd tools/dagtoml-validate-go && go run . <paths>`."
+expected = "Same pattern as Rust: positive 0, negatives non-zero with INV06 message."
+
+[[verify_by]]
+order = 7
+action = "Inspect CI step in .github/workflows/validate.yml that runs validate_gate_decision.py. Confirm it has not regressed and still runs positive + both negatives × 3 implementations."
+expected = "Step named 'Validate gate-decision INV01-INV06' (or similar) present; invokes Python + Rust + Go each against the positive + both negative variants; total ≥9 validator invocations in the step."
+
+[[verify_by]]
+order = 8
+action = "Inspect profiles/agent-assurance/gate-decision-kind.toml: confirm INV01..INV06 are declared and reference validators/validate_gate_decision.py in their enforced_by fields. Confirm no '(planned)' markers remain on shipped invariants."
+expected = "Six INV0n hard_invariants present; each enforced_by includes the Python validator (and the Rust+Go counterparts where appropriate); no '(planned)' anywhere on shipped invariants."
+
+[[verify_by]]
+order = 9
+action = "Regression sweep: re-confirm any of the r1 S-class closures still hold by spot-checking S03 (closure_root brittleness), S05 (capability-envelope rendering), S06 (abstraction-class header) — read SPEC.md around §12-13."
+expected = "No regressions. SPEC §12-13 still reads coherently; closure_root brittleness propagation example present; capability-envelope tier-mapping table present."
+
+[blocker_disposition_format]
+template = """
+For each blocker FOUND, fill out:
+  id            = "<unique-id>"
+  severity      = "concrete | substantive | minor"
+  location      = "<path>:<line> or <path>:<symbol>"
+  defect        = "<exact bytes-citation of the problem>"
+  remediation   = "<concrete fix; not 'consider X'>"
+  verified_via  = "<command or file:line read>"
+"""
+
+[acceptance]
+unconditional_approval = "Every verify_by check passes against bytes; no new blockers; r2-closed surfaces all hold."
+concrete_unresolvable_blocker = "At least one verify_by fails; cite the failing check + bytes-evidence."

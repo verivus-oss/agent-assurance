@@ -1,0 +1,46 @@
+# Minimal spec contract, Agent Assurance Profile.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "spec-contract"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+framework_profile = "agent-assurance"
+title             = "Spec contract: tax line on checkout receipt"
+spec_doc          = "docs/planning/01_spec.md"
+created           = "2026-05-19"
+
+[contract]
+summary = "The checkout receipt MUST always display a tax line and MUST never charge the customer more than once for the same order."
+
+[[contract.guarantees]]
+id            = "GUAR:checkout-tax-correct"
+statement     = "Cart totals include the correct tax for the customer's billing jurisdiction."
+measurable_by = ["TEST:checkout::totals::with_tax"]
+
+[[contract.guarantees]]
+id            = "GUAR:receipt-shows-tax-line"
+statement     = "Every paid receipt displays a Tax line item in the customer's display currency."
+measurable_by = ["TEST:checkout::receipt::shows_tax_line"]
+
+[[contract.non_goals]]
+id        = "NG:tax-engine-replacement"
+statement = "This change does not replace the upstream tax engine."
+
+[[contract.non_goals]]
+id        = "NG:cross-border-tax-rules"
+statement = "Cross-border tax allocation between jurisdictions is out of scope and remains handled by the upstream provider."
+
+[[contract.invariants]]
+id          = "INV:no-double-charge"
+statement   = "A successful checkout MUST NOT charge the customer more than once for the same order."
+enforced_by = ["CODE:src/checkout/idempotency.rs"]
+
+[[contract.invariants]]
+id          = "INV:tax-line-currency-match"
+statement   = "Tax line currency MUST match the item line currency on the same receipt."
+enforced_by = ["CODE:src/checkout/receipt.rs::assert_single_currency"]

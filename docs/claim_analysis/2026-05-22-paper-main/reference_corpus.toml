@@ -1,0 +1,110 @@
+# U02 — reference corpus.
+#
+# Every external claim in paper/main.tex is checked against the
+# items here. The corpus is intentionally repo-local plus the
+# paper's own bibliography; nothing in this run reaches out to the
+# live web. Where a claim relies on something we cannot resolve from
+# this corpus, the finding is marked verdict=unverifiable rather
+# than silently dropped (per policy.evidence in the DAG).
+
+[meta]
+schema_version  = "0.1.0"
+template_kind   = "claim-analysis-reference-corpus"   # local kind
+created         = "2026-05-22"
+document_under_review = "paper/main.tex@9664be061e4bc8493de2e5054d3c3d61737bd666e56077b9856c19585dbde306"
+
+# Cross-validatable numeric claims and where they are persisted.
+[[numeric_truths]]
+claim_name = "extract_signals.py lines of code at commit 220cff4"
+value      = 589
+source     = "git show 220cff4:examples/proof-chardet-relicense/extract_signals.py | wc -l"
+
+[[numeric_truths]]
+claim_name = "fingerprint_behavior.py lines of code at commit 220cff4"
+value      = 228
+source     = "git show 220cff4:examples/proof-chardet-relicense/fingerprint_behavior.py | wc -l"
+
+[[numeric_truths]]
+claim_name = "fingerprint_behavior.py lines of code at HEAD (638a90e)"
+value      = 232
+source     = "wc -l examples/proof-chardet-relicense/fingerprint_behavior.py"
+
+[[numeric_truths]]
+claim_name = "extract_signals.py lines of code at HEAD"
+value      = 589
+source     = "wc -l examples/proof-chardet-relicense/extract_signals.py"
+
+[[numeric_truths]]
+claim_name = "AUX1 v6 file count"
+value      = 87
+source     = "paper/figures/scripts/validation_report.json:4 aux1_v6_files"
+
+[[numeric_truths]]
+claim_name = "AUX1 v7 file count"
+value      = 33
+source     = "paper/figures/scripts/validation_report.json:5 aux1_v7_files"
+
+[[numeric_truths]]
+claim_name = "C06a similarity"
+value      = 0.881
+source     = "examples/proof-chardet-relicense/evidence_matrix.toml:43 and README.md:126"
+
+[[numeric_truths]]
+claim_name = "C06b jaccard"
+value      = 0.333
+source     = "examples/proof-chardet-relicense/evidence_matrix.toml:43 and README.md:127"
+
+[[numeric_truths]]
+claim_name = "C06c cosine"
+value      = 0.984
+source     = "examples/proof-chardet-relicense/evidence_matrix.toml:43 and README.md:128"
+
+[[numeric_truths]]
+claim_name = "C06c v6 total"
+value      = 652
+source     = "paper/figures/scripts/validation_report.json:12 c06c_v6_total"
+
+[[numeric_truths]]
+claim_name = "C06c v7 total"
+value      = 848
+source     = "paper/figures/scripts/validation_report.json:14 c06c_v7_total"
+
+[[numeric_truths]]
+claim_name = "C06e corpus_digest"
+value      = "58e54831f84183c7"
+source     = "paper/figures/scripts/validate_numbers.py:352 c06e_corpus_digest"
+
+[[numeric_truths]]
+claim_name = "C06e seed"
+value      = 20260522
+source     = "examples/proof-chardet-relicense/contract_declaration.toml:80"
+
+[[numeric_truths]]
+claim_name = "Bibliography entry count"
+value      = 44
+source     = "grep -c '^@' paper/references.bib"
+
+[[numeric_truths]]
+claim_name = "All paper \\cite{} keys resolve to a bib entry"
+value      = true
+source     = "diff of cited keys vs bib keys — comm -23/comm -13 both empty"
+
+[[numeric_truths]]
+claim_name = "Proof bundle implementation_dag.toml unit count"
+value      = 6
+source     = "grep -cE '^\\[units\\.' examples/proof-chardet-relicense/implementation_dag.toml"
+
+[[numeric_truths]]
+claim_name = "Proof bundle layer distribution"
+value      = "3@L0, 2@L1, 1@L2"
+source     = "examples/proof-chardet-relicense/implementation_dag.toml grep layer"
+
+[[numeric_truths]]
+claim_name = "Spec verdict vocabulary 8-value enum"
+value      = "PASS / FAIL / MEASURED / OBSERVED / DELEGATED / SKIP / ABSENT / INCONCLUSIVE"
+source     = "examples/proof-chardet-relicense/traceability.toml:40 (proof-bundle invariant, NOT core ontology)"
+
+[[numeric_truths]]
+claim_name = "Core ontology gate_decision_verdict vocabulary"
+value      = "pass | fail"
+source     = "profiles/agent-assurance/ontology.toml:210-214 — closed two-value enum"

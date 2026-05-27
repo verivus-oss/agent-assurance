@@ -1,0 +1,269 @@
+# Kind descriptor for `template_kind = "traceability"`.
+# Collapses what was previously core/traceability.md.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "kind-descriptor"
+ontology_version  = 1
+title             = "Traceability kind descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+describes_kind    = "traceability"
+authoritative_in  = "this file (collapsed from core/traceability.md)"
+
+[kind]
+name    = "traceability"
+summary = "Graph mapping intent through to outputs, with verifiable lineage from every code and test entry back to a declared requirement."
+prose   = """
+A traceability graph maps intent -> requirements -> code -> tests ->
+outputs, giving every line of code and every test a verifiable lineage
+back to a declared requirement. The full entity inventory and the
+closed relation vocabulary live in core/ontology.toml; this descriptor
+covers how to author a traceability file and the kind-specific rules.
+
+ROOT SHAPE
+
+    [meta]
+    schema_version   = "0.1.0"
+    template_kind    = "traceability"
+    ontology_version = 1
+    title            = "<feature-or-project-title>"
+    owners           = ["<team-or-owner>"]
+    source_spec      = "docs/planning/spec.md"
+    created          = "YYYY-MM-DD"
+
+`ontology_version` pins the relation vocabulary (entities + predicates
++ attribute value sets). It is distinct from `schema_version`, which
+pins the file shape. Both bumps occur independently; see spec.md §2.2
+and core/ontology.toml for the rules.
+
+REQUIREMENTS
+
+    [[requirements]]
+    id               = "REQ:checkout-totals-include-tax"
+    title            = "Cart totals include tax"
+    requirement_kind = "functional"
+    priority         = "must"
+    statement        = "..."
+    source           = "docs/planning/spec.md#section-2"
+    constrains       = ["FEAT:checkout"]
+    verified_by      = ["TEST:checkout::totals::with_tax"]
+
+`requirement_kind` and `priority` value sets are governed by
+core/ontology.toml (extensible / closed respectively). Do not redeclare
+them here.
+
+TESTS
+
+    [[tests]]
+    id        = "TEST:checkout::totals::with_tax"
+    title     = "Cart total includes 19% VAT for DE"
+    path      = "tests/checkout/test_totals.py"
+    test_kind = "integration"
+    verifies  = ["REQ:checkout-totals-include-tax"]
+
+Every `[[tests]]` and `[[code]]` entry MUST have a `path` field
+pointing at the source file. Validators that resolve paths against a
+repo root will reject entries without one.
+
+CODE REFERENCES
+
+    [[code]]
+    id      = "CODE:src/checkout/totals.rs"
+    path    = "src/checkout/totals.rs"
+    symbols = ["compute_total", "apply_tax"]
+
+DECISIONS AND REGULATIONS
+
+    [[decisions]]
+    id          = "DEC:tax-engine-third-party"
+    title       = "Use Avalara for tax calculation"
+    status      = "accepted"
+    supersedes  = []
+    context     = "..."
+    consequence = "..."
+
+    [[regulations]]
+    id           = "REG:eu-vat-2021"
+    framework    = "EU VAT directive (2021)"
+    citation     = "Article 226"
+    statement    = "Invoices must show VAT amount and rate per jurisdiction."
+    constrains   = ["REQ:receipt-shows-tax-line"]
+    verified_by  = ["TEST:audit::vat::invoice_lines"]
+
+Regulation fields (`framework`, `citation`, `statement`) are
+mandatory in addition to the standard `constrains` / `verified_by`
+relations.
+
+LEGACY ALIASES
+
+Existing files may use `kind` instead of `requirement_kind` or
+`test_kind`. Conforming validators MUST accept `kind` as an alias
+through the Draft Specification phase and emit a deprecation warning;
+the alias will be removed before the first stable `schema_version = "1.0.0"`.
+"""
+references = [
+  "spec.md",
+  "core/ontology.toml",
+  "core/ontology.md",
+]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[kind.required_fields]]
+path        = "meta.template_kind"
+must_equal  = "traceability"
+description = "Identifies this file as a traceability graph."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "meta.ontology_version"
+type        = "integer"
+description = "Pins the relation vocabulary."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "requirements"
+description = "Normative, testable requirements."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "tests"
+description = "Verification artifacts; each MUST have a `path` and at least one `verifies` target."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "code"
+description = "Concrete code artifacts; each MUST have a `path`."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV01"
+statement   = "Every `REQ:` referenced from a unit, code entry, or test exists in `[[requirements]]`."
+enforced_by = "validators/validate_traceability.py"
+see_also    = "spec.md#5-hard-invariants"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV02"
+statement   = "Every `[[tests]]` entry references at least one `REQ:` via `verifies`."
+enforced_by = "validators/validate_traceability.py"
+see_also    = "spec.md#5-hard-invariants"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV03"
+statement   = "`requirement_kind` and `test_kind` values, if constrained by the profile in use, MUST be drawn from that profile's allowed set."
+enforced_by = "validators/validate_traceability.py"
+see_also    = "core/ontology.toml [[attribute_vocabularies]]"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV04"
+statement   = "`CODE:` and `TEST:` entries point to concrete repo paths (`path` field required)."
+enforced_by = "validators/validate_traceability.py"
+see_also    = "spec.md#5-hard-invariants"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV05"
+statement   = "`derived_from` and `supersedes` chains are acyclic."
+enforced_by = "validators/validate_traceability.py"
+see_also    = "core/ontology.md#5-hard-invariants-the-ontology-adds-beyond-per-kind-invariants"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name           = "minimal traceability"
+file           = "examples/minimal-traceability.toml"
+inline_summary = "One requirement, one implementation, one code reference, one integration test, one intent."
+ijb_primitive = "observed"
+
+[[kind.hard_invariants]]
+id          = "INV06"
+statement   = "Every entity prefix and relation predicate used in this kind's instance files resolves to an `ijb_primitive` declared in the ontology (core plus any active profile)."
+enforced_by = "validators/validate_ijb_conformance.py"
+see_also    = "foundations/ijb/primitives.md"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.relation_to_ontology]
+entities_introduced = ["intents", "features", "requirements", "regulations", "decisions", "implementations", "code", "tests", "outputs"]
+ontology_entries    = "core/ontology.toml [[entities]] section (all nine traceability entities)"
+predicates_used     = ["derived_from", "realized_by", "realizes", "constrained_by", "implemented_by", "produces", "constrains", "verified_by", "addresses", "shapes", "supersedes", "implements", "guided_by", "code", "tests", "downstream_outputs", "verifies"]
+attribute_vocabularies = ["requirement_kind", "test_kind", "priority"]
+note                = "Allowed values for attribute vocabularies live in core/ontology.toml [[attribute_vocabularies]]. Do not re-declare them here."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# A traceability file is a relation-ledger: it declares the typed-edge
+# graph that maps intent through to outputs. It MUST NOT, at the kind
+# layer, become a transport for arbitrary capability assertions. Naming
+# the class here binds future traceability producers to the contract;
+# widening the envelope cascade-breaks downstream traceability files
+# (per §13.4). Symbol-existence checks against external source trees
+# (validate_code_symbols.py + sqry) are scoped to a separate experimental
+# validator and are RUNTIME-SPEC-adjacent — they lie outside this
+# envelope; the descriptor parse itself reads only the TOML.
+
+[kind.abstraction_class]
+id          = "relation-ledger.v1"
+description = "Relation-ledger artefact: a graph of named relations across nine entity tables (`[[intents]]`, `[[features]]`, `[[requirements]]`, `[[regulations]]`, `[[decisions]]`, `[[implementations]]`, `[[code]]`, `[[tests]]`, `[[outputs]]`) connected via the closed core predicate vocabulary (`derived_from`, `realized_by`, `constrained_by`, `implemented_by`, `verified_by`, `verifies`, `constrains`, `supersedes`, `implements`, `guided_by`, ...). Pinned via `meta.ontology_version`. Hard invariants: every `REQ:` referenced from a unit/code/test resolves in-document, every `[[tests]]` has a `path` and at least one `verifies` target, every `[[code]]` has a `path`, `derived_from` / `supersedes` chains are acyclic. No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms      = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576  # 1 MB — a traceability ledger is a small categorical graph
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed      = false
+monotonic_clock_allowed = false
+precision_cap_ms        = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

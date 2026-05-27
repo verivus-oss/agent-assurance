@@ -1,0 +1,44 @@
+# golangci-lint v2 config for every Go module under tools/*-go.
+#
+# Consumed by the "Go meta-linter (golangci-lint...)" steps in
+# .github/workflows/validate.yml.
+
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    # Security
+    - gosec        # security checks (G101 hardcoded creds, G304 path
+                   # traversal, G404 weak RNG, G501-G505 weak crypto, etc.)
+    # Correctness
+    - errcheck     # unchecked errors
+    - govet        # vet rules
+    - ineffassign  # ineffectual assignments
+    - staticcheck  # static analysis (dead code, API misuse, bug patterns)
+    - unused       # unused vars/funcs/types
+
+  settings:
+    gosec:
+      # Default settings cover G101..G505. Exclude G104 (errors not
+      # checked) — errcheck already covers it and gosec G104 emits
+      # duplicates.
+      excludes:
+        - G104
+        # G115 (integer overflow conversion): too noisy on TOML int
+        # parsing where we know values fit. Re-enable if needed.
+        - G115
+
+    staticcheck:
+      # Default rule-set; tighten when reviewing first run output.
+      checks: ["all"]
+
+  exclusions:
+    presets:
+      - common-false-positives
+    paths:
+      - vendor

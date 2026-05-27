@@ -1,0 +1,204 @@
+# End-to-end formal review — DAG-TOML specification at HEAD 1e0e155.
+# Initiator-requested whole-spec audit, not scoped to a single commit.
+# Reviewers verify internal consistency, completeness, and conformance
+# against bytes across SPEC.md, core/, profiles/, validators/, tools/.
+# Mistral CLI not installed on host; effective panel is codex / gemini / grok.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "verification-report"
+created        = "2026-05-25"
+review_session = "2026-05-25-spec-e2e"
+predecessor    = "(none — first whole-spec e2e review under the framework)"
+initiator      = "claude-opus-4-7"
+target_head    = "1e0e155"
+
+[program]
+intent = """
+End-to-end formal audit of the DAG-TOML specification as it stands at
+HEAD 1e0e155. The spec has accreted substantial new surface across the
+last week: SPEC §13 retrofit (19/19 blessed kinds with abstraction-class
++ capability-envelope), the cost + disclosure profiles, the agent-
+assurance deployment-tier ladder, the cross-provider self-modification
+invariant INV06, the safe-Rust + safe-Go primary validators with the
+toml-test parser-conformance harness, the closure-root rule (§12), and
+a published README plus first calendar-UTC release tag v2026-05-25T03-
+30-02Z. Reviewers verify the whole surface is internally consistent and
+conformant — not just the most recent commit.
+"""
+non_intent = """
+This is NOT a commit-scoped review. Defects already filed and closed in
+prior single-commit reviews under docs/reviews/2026-05-25-*/ are out of
+scope unless r2 reviewers can produce NEW byte-level regression evidence
+at HEAD 1e0e155. Reviewers MUST NOT re-litigate the closed C-closures or
+D-closures from prior sessions.
+"""
+
+# ----------------------------------------------------------------------
+# Closures to verify against bytes at HEAD 1e0e155.
+# ----------------------------------------------------------------------
+
+[[closures]]
+id        = "S01"
+title     = "SPEC.md is internally consistent"
+verify_by = """
+1. Every section anchor referenced cross-document (§2.5, §2.6, §2.7, §6.1,
+   §8, §9.1, §10, §11, §11.1, §12, §12.1, §12.11, §13) exists as an actual
+   header in SPEC.md.
+2. Every kind named in SPEC.md (implementation-dag, traceability,
+   contract-declaration, readiness-gate, evidence-matrix, profile-descriptor,
+   threat-model, smoke-validation, spec-contract, rollback-plan,
+   adapter-contract, adapter-registry-binding, assertion-bundle,
+   assertion-log-record, gate-decision, cost-record, disclosure-attestation,
+   redaction-manifest, selective-disclosure-proof, kind-descriptor) has
+   an actual *-kind.toml descriptor in core/ or profiles/.
+3. CLAUDE.md's claim that `schema_version` and `ontology_version` stay
+   pinned pre-publication is honored by every TOML in the repo.
+"""
+
+[[closures]]
+id        = "S02"
+title     = "All 19 blessed kinds declare §13 abstraction-class + capability-envelope"
+verify_by = """
+1. Run `python3 validators/validate_abstraction_class.py --repo-root . core/*-kind.toml profiles/*/*-kind.toml`.
+2. Expected: `ABSTRACTION-CLASS VALIDATION PASSED (19 file(s) checked; 19 declared a §13 block)`.
+3. Cross-check: count `[kind.abstraction_class]` and `[kind.capability_envelope]` table headers across the same file set; both counts must equal 19.
+"""
+
+[[closures]]
+id        = "S03"
+title     = "Closure-root rule (§12) honored everywhere"
+verify_by = """
+1. Run `python3 validators/validate_closure_root.py --discover .`.
+2. Expected: `CLOSURE-ROOT VALIDATION PASSED (N file(s))` with N matching the count of TOML files carrying `closure_root`.
+3. Spot-check: at least one document carries the empty-closure sentinel `sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`; at least one descriptor carries a non-empty closure_root that cites real upstream evidence.
+"""
+
+[[closures]]
+id        = "S04"
+title     = "IJB conformance — ontologies + kind descriptors + canonical examples"
+verify_by = """
+1. Run `python3 validators/validate_ijb_conformance.py core/ontology.toml`.
+2. Run `python3 validators/validate_ijb_conformance.py profiles/agent-assurance/ontology.toml profiles/cost/ontology.toml profiles/disclosure/ontology.toml`.
+3. Loop the same validator over every `*-kind.toml` and every file under `examples/`. All must exit 0.
+4. Confirm SPEC §10's IJB primitive set (thing|scope|path|observed|constraint|time) is exhaustively used.
+"""
+
+[[closures]]
+id        = "S05"
+title     = "Primary validators (Rust + Go) cover the documented surface end-to-end"
+verify_by = """
+1. Build: `cd tools/dagtoml-validate-rs && cargo build --release --locked` then `cd tools/dagtoml-validate-go && go build -o /tmp/go ./...`.
+2. Run each binary against the canonical example set named in
+   .github/workflows/validate.yml's "Primary validators ... full canonical sweep" step.
+3. Both binaries must exit 0 on every target. Outputs may differ in formatting but the PASS/FAIL outcome must agree byte-for-byte at the per-file level.
+4. Cross-check: the README at HEAD 1e0e155 claims primaries cover profile-descriptor, disclosure-profile kinds, §2.5-§2.7 meta surface, §11.1 [provenance.encryption]. Verify each mode is reachable in tools/dagtoml-validate-rs/src/main.rs and tools/dagtoml-validate-go/main.go.
+"""
+
+[[closures]]
+id        = "S06"
+title     = "Parser conformance harnesses (Go-side and Rust-side) wired to the parsers the primaries import"
+verify_by = """
+1. `make toml-conformance-install && make toml-conformance` — Go side via BurntSushi/toml v1.4.0 + the 13-entry skiplist; expect 185/185 valid + 358/358 invalid pass.
+2. `make toml-conformance-rs` — Rust side via `toml` 0.8 crate; expect 185/185 valid + 371/371 invalid pass, zero skips.
+3. `tools/dagtoml-validate-go/go.mod` must require `github.com/BurntSushi/toml v1.4.0` (matching the Makefile pin).
+4. `tools/dagtoml-validate-rs/Cargo.toml` must depend on `toml = { version = "0.8", ... }` (matching the Rust shim).
+"""
+
+[[closures]]
+id        = "S07"
+title     = "Agent Assurance Profile deployment tiers internally consistent (solo ⊂ team ⊂ group ⊂ organization ⊂ enterprise)"
+verify_by = """
+1. Each of `profiles/agent-assurance/tiers/{solo,team,group,organization,enterprise}.toml` validates as a contract-declaration via `python3 validators/validate_review_readiness.py <path>`.
+2. Each tier's `[[contracts]]` list must be a SUPERSET of the previous tier's (solo ⊂ team ⊂ group ⊂ organization ⊂ enterprise).
+3. Read profiles/agent-assurance/tiers/README.md and confirm the documented ladder + cross-tier rule callout for INV06 match the tier files.
+"""
+
+[[closures]]
+id        = "S08"
+title     = "INV06 (cross-provider self-modification gate-decision) well-formed in the agent-assurance profile"
+verify_by = """
+1. `profiles/agent-assurance/gate-decision-kind.toml` contains a hard invariant named INV06 whose predicate requires BOTH provider_id AND model_family_id to differ between proposing and deciding agents when `decision.subject_class = "self-modification"`.
+2. Three attribute vocabularies (`subject_class`, `provider_id`, `model_family_id`) are present in `profiles/agent-assurance/ontology.toml` with IJB tags `constraint/structural`.
+3. The worked example at `examples/self-modification-gate-decision.toml` parses, passes `validate_review_readiness.py` (or its profile-specific validator), and demonstrates the AND predicate concretely (proposing anthropic/claude, deciding openai/gpt OR similar cross-provider+cross-family pair).
+4. The conjunctive AND must be load-bearing: same-provider/different-family and different-provider/same-family BOTH must fail INV06. Read the invariant's predicate text and confirm.
+"""
+
+[[closures]]
+id        = "S09"
+title     = "Profile descriptors (agent-assurance, cost, disclosure) match the kinds they enumerate"
+verify_by = """
+1. For each `profiles/<P>/PROFILE.toml`: the `[profile].kinds` list (or equivalent) must enumerate exactly the `*-kind.toml` files present under `profiles/<P>/`.
+2. The ontology files under each profile must declare every entity/relation/attribute the profile's kinds reference.
+3. Run `python3 validators/validate_profile_descriptor.py profiles/agent-assurance/PROFILE.toml profiles/cost/PROFILE.toml profiles/disclosure/PROFILE.toml`. All exit 0.
+"""
+
+[[closures]]
+id        = "S10"
+title     = "CI workflow .github/workflows/validate.yml runs the whole matrix"
+verify_by = """
+1. The workflow ships a single job `validate` with ~25 steps covering: taplo lint, TOML parser conformance (Go + Rust), manifest drift, both primary validator builds + canonical sweep, Python cross-check, IJB conformance, closure-root (§12), abstraction-class (§13), kind descriptors, deployment-tier files, rollback-plan trigger closure, provenance bindings, skill packages, language fixture, banned-marker scan.
+2. All third-party actions used (`actions/checkout`, `actions/setup-{python,go,node}`, `dtolnay/rust-toolchain`) are pinned by SHA per the org-wide `sha_pinning_required` policy. The README claims this; verify by reading the workflow file.
+3. The workflow's "Verify no banned markers" step at HEAD 1e0e155 must NOT trip on bytes anywhere in the repo (run `NEEDLE="/srv/$(printf %s repos/internal)"; grep -rn "$NEEDLE" . --exclude-dir=.git --exclude-dir=.github --exclude=CLAUDE.md --exclude=CHANGELOG.md | grep -vE "^\\.?/?docs/reviews/" || true` and expect empty output).
+"""
+
+[[closures]]
+id        = "S11"
+title     = "Multi-LLM review machinery at tools/review-request-dag.toml is itself well-formed"
+verify_by = """
+1. `tools/review-request-dag.toml` declares `template_kind = "implementation-dag"` and parses via `python3 validators/validate_implementation_dag.py tools/review-request-dag.toml`.
+2. The 10 units (U01..U10) form a connected DAG with the documented dependency edges.
+3. The `[policy.*]` tables enumerate the forbidden/required approval bases, terminal states, and iteration rules that every recent review session has cited.
+4. CHANGELOG history shows the policy was followed: every commit touching SPEC.md / core/ / profiles/ / validators/ since 2026-05-21 has a corresponding `docs/reviews/...` session with `terminal_decision.toml`.
+"""
+
+[[closures]]
+id        = "S12"
+title     = "README accurately describes the current spec state"
+verify_by = """
+1. The README's "Repository Map" section lists every top-level directory and `tools/<X>/` subdirectory that actually exists.
+2. The README's "Validation tooling" section's triad table accurately describes the Rust + Go + Python coverage as actually shipped at HEAD.
+3. The README's "Start Here" reader-role groupings point to files that exist and have the claimed content.
+4. The post-§13 / multi-profile language matches reality: SPEC §13 exists, profiles/cost/ + profiles/disclosure/ exist, INV06 exists in gate-decision-kind.toml, the release tag v2026-05-25T03-30-02Z exists.
+"""
+
+# ----------------------------------------------------------------------
+# Approval bases + iteration rule (binding policy).
+# ----------------------------------------------------------------------
+
+[approval]
+forbidden_bases = ["stated_intent", "plan_compliance_claim", "should_be_fixed_language"]
+required_bases  = ["inspected_code", "executed_tests_with_output", "inspected_docs", "persisted_review_evidence"]
+terminal_states = ["unconditional_approval", "concrete_unresolvable_blocker"]
+
+[iteration]
+initiator_rebuttal_rule = """
+If initiator disagrees with any S-closure finding, rebuttal MUST cite
+code or documentation evidence (file:line). Assertion alone fails: the
+finding stands. Iterate dispatch → review → rebuttal → re-review until
+every reviewer either issues unconditional_approval OR files a concrete
+blocker that cannot be resolved.
+"""
+polling_cadence_seconds = 90
+
+[reading_order]
+1 = "docs/reviews/2026-05-25-spec-e2e/verification_report.toml (this file)"
+2 = "SPEC.md (whole document)"
+3 = "CLAUDE.md (project conventions)"
+4 = "core/ + profiles/{agent-assurance,cost,disclosure}/ (kind descriptors + ontologies)"
+5 = "validators/ + tools/dagtoml-validate-{rs,go}/ + tools/toml-test-decode-rs/"
+6 = ".github/workflows/validate.yml + Makefile"
+7 = "README.md"
+8 = "tools/review-request-dag.toml [policy.*]"
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-25-spec-e2e/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "terminal_decision.toml",
+]
+mistral_status = "unavailable on host (vibe CLI not installed at session start). Panel reduced to 3 of 4 reviewers; matches prior sessions' established pattern."

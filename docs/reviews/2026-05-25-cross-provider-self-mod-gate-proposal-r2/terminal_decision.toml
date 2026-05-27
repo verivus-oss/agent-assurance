@@ -1,0 +1,159 @@
+# Terminal decision — round 2 (implementation review).
+#
+# Initiator: claude-opus-4-7 (excluded from standard reviewer set).
+# Effective reviewer panel: codex, gemini, grok (mistral CLI still
+# unavailable on host; not retried in r2).
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-cross-provider-self-mod-gate-proposal-r2"
+predecessor    = "2026-05-25-cross-provider-self-mod-gate-proposal"
+head_commit    = "b7e2472"
+
+[verdicts]
+codex   = "concrete_unresolvable_blocker"
+gemini  = "unconditional_approval"
+grok    = "unconditional_approval"
+mistral = "unavailable_cli_not_installed"
+
+[disposition_closures]
+# All three reviewers concur that B1, B2, B3, R1, R2, R3 are
+# substantively closed by commit b7e2472. The structural change is
+# accepted on its merits.
+B1 = "closed (codex + gemini + grok converge with file:line evidence)"
+B2 = "closed (codex + gemini + grok; grep verifies zero 'and/or' matches)"
+B3 = "closed (codex + gemini + grok; solo.toml C02/C05 carve-outs verified; validate_review_readiness passes)"
+R1 = "closed (codex + gemini + grok; required_fields block unchanged; minimal-gate-decision.toml unchanged + still passes IJB conformance)"
+R2 = "closed (codex + gemini + grok; overview 'Scope and posture' + tiers/README cross-tier callout verified)"
+R3 = "closed (codex + gemini + grok; grep verifies zero 'federator' matches outside docs/reviews/)"
+
+[synthesis]
+terminal_state = "concrete_unresolvable_blocker"
+rationale = """
+All six core dispositions (B1-B3, R1-R3) are unanimously closed by
+the three effective reviewers. However, codex independently
+identified two true defects in the commit metadata that fail strict
+prompt requirements:
+
+  N1 (codex, blocker per r2 prompt wording): `CHANGELOG.md:19-44`
+  "Files changed" sub-bullet list enumerates only the 6 profile +
+  example files; omits `CHANGELOG.md` (self-reference), 5
+  reference/database/* (MANIFEST.toml + 3 seed.sql + rdf/schema.ttl),
+  and 2 tools/dagtoml-* count-mirror updates. The r2 prompt's
+  "Cross-cutting" section explicitly required "CHANGELOG.md
+  [Unreleased] Added entry MUST list every changed file"; the
+  current entry does not.
+
+  Grok flagged the SAME defect at low severity ("does not rise to
+  a concrete unresolvable blocker"), but the prompt MUST creates
+  the policy hook codex applied. Initiator concurs codex's reading
+  is correct under the prompt as written.
+
+  N2 (codex, scope correction not raised as blocker): r2 bundle's
+  `total_new_commits = 1` and `commit_range_r2 = "8a63abb..b7e2472"`
+  claim are inaccurate. Commit `c4286fb` (Add Dependabot config to
+  bump GitHub Actions weekly) landed between 8a63abb and b7e2472,
+  so the range contains 2 commits and b7e2472's actual parent is
+  c4286fb. Initiator verified via `git log --oneline 8a63abb..HEAD`
+  and `git rev-parse b7e2472^` — codex's reading is bytes-true. The
+  Dependabot commit is unrelated to this review; codex correctly
+  scoped its checks to `git show b7e2472` only.
+
+Per [policy.evidence].disagreement_requires_code_or_doc_evidence,
+initiator has no rebuttal: both defects are bytes-true, and the
+strict-prompt reading of N1 is sound. The structural change is
+accepted; the metadata defects require a fix-up commit before the
+session can terminate at unconditional_approval.
+"""
+
+# ----------------------------------------------------------------------
+# Bytes-verified residual defects.
+# ----------------------------------------------------------------------
+
+[[residual_defects]]
+id        = "N1"
+severity  = "blocker (per r2 prompt MUST)"
+source    = "codex (also flagged low-severity by grok)"
+summary   = "CHANGELOG.md Files-changed bullet list incomplete — omits 8 of 14 files."
+evidence  = [
+  "CHANGELOG.md:19-44 — current sub-bullet list under 'Files changed:'",
+  "git show --stat b7e2472 — 14 files changed total",
+  "Missing from CHANGELOG: CHANGELOG.md (self), reference/database/MANIFEST.toml, reference/database/duckdb/seed.sql, reference/database/postgres/seed.sql, reference/database/rdf/schema.ttl, reference/database/sqlite/seed.sql, tools/dagtoml-duckdb-go/main.go, tools/dagtoml-duckdb/src/main.rs",
+]
+required_fix = """
+Extend the CHANGELOG.md [Unreleased] Added entry's 'Files changed'
+sub-bullet list to enumerate all 14 changed files (or restructure
+the entry so file enumeration matches reality). The prose paragraphs
+DO describe the DB seed updates at summary level; the structured list
+just needs to match.
+"""
+
+[[residual_defects]]
+id        = "N2"
+severity  = "advisory (scope correction)"
+source    = "codex (not raised as blocker)"
+summary   = "r2 bundle's total_new_commits and commit_range claims are off by one Dependabot commit."
+evidence  = [
+  "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal-r2/review_bundle.toml — [bundle].parent_commit_pre_r2 / commit_range_r2 / total_new_commits",
+  "git log --oneline 8a63abb..HEAD — shows c4286fb (Dependabot) + b7e2472",
+  "git rev-parse b7e2472^ — c4286fbfc44189af58650d8cc75367e08086bbd7",
+]
+required_fix = """
+Update review_bundle.toml [bundle] block to reflect the actual chain:
+parent_commit_pre_r2 = "c4286fb" (or keep the wider 8a63abb context
+window and set total_new_commits = 2 with a note that c4286fb is the
+unrelated Dependabot commit). Either way, the bundle should not
+under-report the commit range.
+"""
+
+# ----------------------------------------------------------------------
+# Items the implementation got right (recorded for round-3 continuity).
+# ----------------------------------------------------------------------
+
+[confirmed_correct]
+chain_verifiable_predicate     = "All three reviewers agree subject_class = 'self-modification' on the artifact closes B1."
+tight_and_conjunction          = "All three reviewers agree INV06 'AND' wording with explicit 'BOTH fail' enumeration closes B2."
+solo_tier_carveout             = "All three reviewers agree C02/C05 wording + INV06@1 verified_by closes B3."
+additive_optional_invariant    = "All three reviewers agree the four attribution fields are NOT in required_fields and the pre-INV06 example is unchanged + still passes (R1 closed)."
+migration_and_posture          = "All three reviewers agree overview.md 'Scope and posture' + tiers/README cross-tier callout close R2."
+topology_neutral_prose         = "All three reviewers agree 'federator' is absent from normative prose and the runtime contract description is implementation-open (R3 closed)."
+reference_db_plumbing          = "All three reviewers ran check_attribute_values + check_manifest_drift + dagtoml-rdf verify and confirmed: COUNT-MIRROR OK, manifest OK, 1400 triples, 3 vocab + 22 value rows per engine with correct array syntax (ARRAY[], [], json_array())."
+no_new_defects_in_structure    = "git show --stat exactly 14 files; no SPEC.md / core/ / validators/ touched; closure-root over 75 files; no JSON Schema dependency; no VAP runtime names."
+
+# ----------------------------------------------------------------------
+# Next action (per policy.completion).
+# ----------------------------------------------------------------------
+
+[next_action]
+action = "fix_metadata_and_dispatch_round_3_or_amend_with_user_direction"
+rationale = """
+The structural change is accepted by all three reviewers. The two
+residual defects (N1 CHANGELOG file list, N2 bundle commit-range)
+are metadata, not normative content. Fixes are routine:
+
+  - N1: edit CHANGELOG.md to extend the 'Files changed' bullet list.
+  - N2: edit r2 review_bundle.toml to correct commit_range_r2 +
+    total_new_commits + add a note about c4286fb.
+
+Per [policy.evidence] the initiator MUST NOT mark the implementation
+as approved while N1 stands (codex's evidence is bytes-true and the
+prompt's MUST is unambiguous). The cleanest path is:
+
+  1. Apply both fixes in a follow-up commit (not amend, per
+     CLAUDE.md preference for new commits).
+  2. Dispatch a tightly-scoped round-3 review of ONLY the fix-up
+     commit, asking reviewers to verify N1 + N2 closure without
+     re-litigating B1-B3 / R1-R3 (already unanimously closed).
+
+User direction required before fix-up commit lands (the user
+specified scope at r2 dispatch as 'the 13+1 files'; adding more
+files is out of that explicit scope).
+"""
+predecessor_session    = "2026-05-25-cross-provider-self-mod-gate-proposal"
+this_session           = "2026-05-25-cross-provider-self-mod-gate-proposal-r2"
+candidate_next_session = "2026-05-25-cross-provider-self-mod-gate-proposal-r3 (pending user authorization for fix-up commit)"

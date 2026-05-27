@@ -1,0 +1,24 @@
+# Minimal redaction-manifest example.
+# One redaction over a single PII field path on the bundle subject
+# referenced from the matching disclosure-attestation example.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "redaction-manifest"
+framework_profile = "disclosure"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/profiles/disclosure/PROFILE.toml"
+title             = "Redactions applied to assertion-bundle 12345"
+created           = "2026-05-22"
+confidentiality   = "public"
+license           = "Apache-2.0"
+
+[[redactions]]
+id               = "RED:bundle-12345-pii"
+subject          = "bundle/12345"
+locator          = "$.records[*].email"
+redaction_method = "field-path-mask"
+redaction_reason = "pii"
+notes            = "Customer email addresses masked with sha256 truncation; salt held by the bundle issuer."

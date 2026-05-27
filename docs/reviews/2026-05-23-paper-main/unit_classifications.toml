@@ -1,0 +1,316 @@
+# U05 — per-finding classification, aggregated across three reviewers.
+#
+# Each prior-art self-review finding gets one row showing how each
+# reviewer classified it (confirmed / refuted_with_evidence /
+# unverifiable). Independent reviewer findings are recorded
+# separately below.
+#
+# Source-of-truth references:
+#   - docs/reviews/2026-05-23-paper-main/raw_findings/codex.md
+#   - docs/reviews/2026-05-23-paper-main/raw_findings/gemini.md
+#   - docs/reviews/2026-05-23-paper-main/raw_findings/grok.md
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-unit-classifications"
+created        = "2026-05-23"
+review_session = "2026-05-23-paper-main"
+document       = "paper/main.tex@9664be061e4bc8493de2e5054d3c3d61737bd666e56077b9856c19585dbde306"
+reviewers      = ["codex", "gemini", "grok"]
+prior_art      = "docs/claim_analysis/2026-05-22-paper-main/claim_analysis_report.toml"
+prior_art_finding_count = 29
+
+# ============================================================================
+# Prior-art findings (29) — reviewer-by-reviewer classification.
+# Convention:
+#   c = confirmed
+#   r = refuted_with_evidence
+#   u = unverifiable
+#   majority is whichever class >=2 of 3 reviewers agree on.
+# ============================================================================
+
+[[classification]]
+id        = "S1-F01"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "S1-F02"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "S1-F03"
+codex     = "refuted_with_evidence"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+disagreement = "codex says the five-item list IS present (paper/main.tex:288-319 contains a five-item enumerate); the self-review's complaint was about the absence of explicit 'Aspect N:' labels, not the count. See rebuttal_record.md."
+
+[[classification]]
+id        = "S1-F04"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "F2-F01"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+elevated_to_blocker_by = ["codex", "gemini", "grok"]
+
+[[classification]]
+id        = "F2-F02"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "F2-F03"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+elevated_to_blocker_by = ["codex", "gemini", "grok"]
+
+[[classification]]
+id        = "F2-F04"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "F2-F05"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+elevated_to_blocker_by = ["gemini"]
+
+[[classification]]
+id        = "F2-F06"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+elevated_to_blocker_by = ["gemini"]
+
+[[classification]]
+id        = "L3-F01"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "L3-F02"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "L3-F03"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "U4-F01"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "U4-F02"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "U4-F03"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "U4-F04"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "S2-F01"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "S2-F02"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "S2-F03"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "S2-F04"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+note      = "Codex independently confirmed the year drift via Justia (Baker v. Selden, 101 U.S. 99 (1879))."
+
+[[classification]]
+id        = "S2-F05"
+codex     = "unverifiable"
+gemini    = "unverifiable"
+grok      = "confirmed"
+majority  = "unverifiable"
+note      = "All three reviewers noted shell-environment / live GitHub API restrictions; Grok marked confirmed via prior-commit dependence, others marked unverifiable. Net: unverifiable from sandbox."
+
+[[classification]]
+id        = "C5-F01"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "C5-F02"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "C5-F03"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "C5-F04"
+codex     = "unverifiable"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+note      = "Codex correctly observed it cannot establish venue-policy compliance from inside the sandbox; Gemini and Grok confirmed the structural gap (title-block has no LLM attribution; disclosure is only in Acknowledgments). Net: confirmed structurally, venue-policy compliance unverifiable from artefacts alone."
+
+[[classification]]
+id        = "Q6-F01"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "Q6-F02"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+
+[[classification]]
+id        = "Q6-F03"
+codex     = "confirmed"
+gemini    = "confirmed"
+grok      = "confirmed"
+majority  = "confirmed"
+elevated_to_blocker_by = ["codex", "gemini", "grok"]
+
+# ============================================================================
+# Reviewer summary
+# ============================================================================
+
+[reviewer_totals.codex]
+confirmed             = 27
+refuted_with_evidence = 1   # S1-F03
+unverifiable          = 2   # S2-F05, C5-F04
+independent_findings  = 3   # IF-CX-01, IF-CX-02, IF-CX-03
+terminal_verdict      = "CONCRETE UNRESOLVABLE BLOCKERS (3)"
+
+[reviewer_totals.gemini]
+confirmed             = 28
+refuted_with_evidence = 0
+unverifiable          = 1   # S2-F05
+independent_findings  = 0
+terminal_verdict      = "CONCRETE UNRESOLVABLE BLOCKERS (4)"
+
+[reviewer_totals.grok]
+confirmed             = 29
+refuted_with_evidence = 0
+unverifiable          = 0
+independent_findings  = 3   # I-F01, I-F02, I-F03
+terminal_verdict      = "CONCRETE UNRESOLVABLE BLOCKERS (2)"
+
+# ============================================================================
+# Independent findings raised by reviewers (NOT in the 29 prior-art).
+# These were missed by the self-review.
+# ============================================================================
+
+[[independent_finding]]
+id        = "IF-CX-01"
+raised_by = "codex"
+severity  = "high"
+location  = "paper/main.tex:992-998"
+problem   = "Paper claims validate_numbers.py reproduces the C06e corpus_digest and 0/1000 rate. validate_numbers.py:304-307 explicitly says 'we do not actually invoke chardet here'; validation_report.json:143-145 ('independent.c06e_corpus_check') records digest 8fbc70630c023315, while validation_report.json:22 ('harness_headline') records the headline digest 58e54831f84183c7. The two 16-char digests differ; the paper's reproducibility claim is therefore unsupported by the cited script."
+verified_by_initiator_at_aggregation = true
+verification_evidence = "Direct read of paper/figures/scripts/validate_numbers.py lines 300-315 and python3 inspection of paper/figures/scripts/validation_report.json keys harness_headline.c06e_corpus_digest=58e54831f84183c7 and independent.c06e_corpus_check.corpus_digest_truncated_16=8fbc70630c023315."
+
+[[independent_finding]]
+id        = "IF-CX-02"
+raised_by = "codex"
+severity  = "medium"
+location  = "paper/main.tex:1083-1088"
+problem   = "Paper says 'the gate definition treats AUX1 PASS plus C06a..C06e MEASURED as the success state'. REVIEW_READINESS.toml:5-6 explicitly says 'MEASURED / OBSERVED / DELEGATED / SKIP verdicts do NOT block the gate' and REVIEW_READINESS.toml:45-49 defines pass as exit 0 + every contract row + no FAIL. Codex's live run exited 0 with C06e=SKIP — consistent with the gate, inconsistent with the paper's success-state wording."
+
+[[independent_finding]]
+id        = "IF-CX-03"
+raised_by = "codex"
+severity  = "low"
+location  = "paper/figures/scripts/run_jplag.sh:2-3"
+problem   = "Comment refers to 'Section 9 (Related Work, Tool Comparison subsection)' but JPlag is now in §sec:related-tools / §10.3. Same kind of stale section-number reference as Q6-F01."
+
+[[independent_finding]]
+id        = "I-F01"
+raised_by = "grok"
+severity  = "medium"
+location  = "paper/main.tex:1305-1313 + 1353-1357"
+problem   = "Adjacent-paragraph self-refutation on the JPlag file-count issue: the first paragraph's causal clause ('JPlag includes more files than the extractor') is directly contradicted by the immediately following paragraph (which correctly names the PEP 515 parse error as the cause of JPlag seeing FEWER files). The self-review captured the numeric contradiction but missed the adjacent-paragraph internal inconsistency."
+
+[[independent_finding]]
+id        = "I-F02"
+raised_by = "grok"
+severity  = "low"
+location  = "paper/main.tex:1305-1313"
+problem   = "'neither affects the headline' parenthetical dismisses a material experimental detail: JPlag's grammar rejecting PEP 515 literals means its effective corpus is a strict subset of the extractor's, which IS material to the comparison the paper is making."
+
+[[independent_finding]]
+id        = "I-F03"
+raised_by = "grok"
+severity  = "low"
+location  = "paper/main.tex:300-303 + examples/proof-chardet-relicense/TRACEABILITY.toml:40"
+problem   = "Paper never quotes the exact TRACEABILITY hard-invariant statement when introducing the 8-value verdict enum. Same root issue as F2-F03 but the cite-the-source remedy is concrete."

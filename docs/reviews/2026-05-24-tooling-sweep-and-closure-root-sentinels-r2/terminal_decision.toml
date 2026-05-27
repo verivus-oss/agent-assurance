@@ -1,0 +1,113 @@
+# Round-2 terminal decision for
+# 2026-05-24-tooling-sweep-and-closure-root-sentinels-r2.
+# Captures the three reviewer verdicts and the consolidated outcome.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"   # unblessed process-artefact kind
+created        = "2026-05-24"
+review_session = "2026-05-24-tooling-sweep-and-closure-root-sentinels-r2"
+predecessor    = "2026-05-24-tooling-sweep-and-closure-root-sentinels"
+
+[scope]
+commit_under_review = "32936b1"
+parent_commit       = "d027178"
+unit                = "U04"
+narrow_scope        = "Does 32936b1 resolve codex r1's U02-F1 blocker without introducing new defects."
+
+# ----------------------------------------------------------------------
+# Verdicts — all three reviewers, fresh sessions, initiator excluded.
+# ----------------------------------------------------------------------
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "unconditional_approval"
+classification = "complete"
+blocker_count  = 0
+raw_findings   = "raw_findings/codex.md"
+evidence_class = "live-executable (taplo + tomllib + closure_root + sweep all re-run, exit 0)"
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "unconditional_approval"
+classification = "complete"
+blocker_count  = 0
+raw_findings   = "raw_findings/gemini.md"
+evidence_class = "live-executable (taplo + tomllib + closure_root + sweep re-run, exit 0); semantic-preservation diff inspected"
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "unconditional_approval"
+classification = "complete"
+blocker_count  = 0
+raw_findings   = "raw_findings/grok.md"
+evidence_class = "live-executable (taplo + tomllib + closure_root + sweep re-run, exit 0); full-repo corroboration (134 tomllib files, 135 taplo files, 0 failures); byte-for-byte git show diff inspection"
+
+# ----------------------------------------------------------------------
+# R1 blocker disposition.
+# ----------------------------------------------------------------------
+
+[r1_blocker_disposition]
+r1_blocker_id          = "codex r1 U02-F1"
+r1_blocker_description = "paper-arxiv-prep/compile-and-pdf-evidence.toml invalid TOML (bare-key starting with `(`, table-header-as-scalar, Unicode `→` in array)"
+fix_commit             = "32936b1"
+status                 = "closed"
+binding_evidence       = "All three r2 reviewers re-ran taplo + tomllib + the four-dir parse sweep against HEAD and confirmed exit 0. Codex (the reviewer that filed the original blocker in r1) re-classifies U04 as complete with unconditional_approval."
+
+# ----------------------------------------------------------------------
+# R1 acknowledged-but-not-blocking findings — disposition.
+# ----------------------------------------------------------------------
+
+[r1_acknowledged_findings]
+
+[[r1_acknowledged_findings.items]]
+finding   = "grok r1 — U01 commit-message wording 'relocated from repo root' is factually wrong; file was new, not a move"
+severity  = "low (wording in durable artefact; substantive state correct)"
+status    = "noted, not retconned"
+rationale = "The 47b6acd commit message is immutable git history; the working-tree mv-then-stage is what git correctly recorded as a new file. The r2 bundle [bundle.r1_acknowledged_but_not_blocking.grok_finding_1] documents the wording inaccuracy for posterity."
+
+[[r1_acknowledged_findings.items]]
+finding   = "grok r1 — no CHANGELOG update on any of the 3 r1 commits or the r2 fix commit"
+severity  = "medium (process convention)"
+status    = "deferred"
+rationale = "None of these commits change SPEC.md, core/, profiles/, or validators/. The CHANGELOG convention in CONTRIBUTING.md applies to spec-surface changes, not author-side tooling instances or paper artefacts."
+
+[[r1_acknowledged_findings.items]]
+finding   = "codex r1 + grok r1 — U01 (47b6acd) was a §12 violation at commit time; the validator was red at that commit"
+severity  = "high (direct §12.1 nonconformance at commit time)"
+status    = "closed by U03 (d027178)"
+rationale = "The §12 gap was real at 47b6acd and was closed three commits later by d027178. The sequence violated the discipline that conforming files should land with closure_root in the same commit, but the end state at HEAD is conformant. This is exactly the kind of defect that initiator self-approval misses and independent review catches — see feedback memory [[feedback-no-self-approval]]."
+
+# ----------------------------------------------------------------------
+# Process checks aggregation across the three reviewers.
+# ----------------------------------------------------------------------
+
+[process_checks]
+active_user_migration_or_behavior_change_guidance = "confirmed (3/3 reviewers; codex notes 'not applicable' because U04 is pure syntax repair, which is consistent with the others)"
+no_historical_dated_spec_retconned                = "confirmed (3/3 reviewers; r2 commit touches only paper-arxiv-prep/compile-and-pdf-evidence.toml)"
+claimed_tests_were_actually_run                   = "confirmed (3/3 reviewers; all re-executed taplo + tomllib + closure_root + sweep with literal exit-0 output matching initiator's claim)"
+initiator_excluded_from_reviewer_set              = "confirmed (claude-opus-4-7 named as initiator in [roster] of both r1 and r2 bundles; not among reviewer_models)"
+required_approval_bases_met                       = "confirmed for all three (inspected_code + executed_tests_with_output + inspected_docs + persisted_review_evidence)"
+
+# ----------------------------------------------------------------------
+# Consolidated decision.
+# ----------------------------------------------------------------------
+
+[decision]
+outcome              = "unconditional_approval"
+unanimous            = true
+binding_reviewer     = "codex (originally filed r1 U02-F1; re-classifies U04 as complete)"
+verdict_distribution = { unconditional_approval = 3, concrete_unresolvable_blocker = 0 }
+session_terminal     = true
+next_action          = "none required for r2 scope; original 3 commits + the r2 fix commit (47b6acd, 320a901, d027178, 32936b1) form the approved range at HEAD = 32936b1"
+
+[session_close]
+closed_at = "2026-05-24"
+closed_by = "consolidated reviewer verdicts persisted at raw_findings/{codex,gemini,grok}.md"
+followup_issues = [
+  "The 47b6acd → d027178 sequence (blessed-kind file added then closure_root added 2 commits later) is a discipline gap worth filing as a new docs/issues/ entry: 'blessed-kind files MUST land with closure_root in the same commit'. Defer to user judgement on whether to file.",
+  "ISS-001 (initiator self-approval) is closed-in-practice by this review (3 commits + 1 fix were reviewed by 3 independent reviewers in 2 rounds), but the issue file remains open. User decides whether to add a closed_by note pointing at this review session.",
+]

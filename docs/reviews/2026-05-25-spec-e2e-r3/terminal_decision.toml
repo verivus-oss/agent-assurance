@@ -1,0 +1,81 @@
+# Round-3 terminal decision for 2026-05-25-spec-e2e-r3.
+# UNANIMOUS unconditional_approval (3/3). r2 codex blocker S08.1
+# (--help string) closed by mechanical argparse expansion in 4fbc906.
+# All three reviewers verified the fix and confirmed no regression to
+# the r2-closed INV06 enforcement triad (Python+Rust+Go+CI) or to the
+# r1-closed S03/S05/S06 surfaces in SPEC.md.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-spec-e2e-r3"
+predecessor    = "2026-05-25-spec-e2e-r2"
+head_commit    = "4fbc906"
+
+[scope]
+unit                = "S08.1 closure + regression sweep on r2-closed S08.2-S08.8 surfaces and r1-closed S03/S05/S06"
+verification_report = "docs/reviews/2026-05-25-spec-e2e-r3/verification_report.toml"
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "unconditional_approval"
+classification = "S08.1 closed + all 9 verify_by pass + no regression"
+blocker_count  = 0
+raw_findings   = "raw_findings/codex.md"
+note           = "Original r2 S08.1 filer; r3 re-confirms own finding closed against bytes (validators/validate_gate_decision.py:259-272 + live --help output enumerating INV01..INV06)."
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "unconditional_approval"
+classification = "S08.1 closed + all 9 verify_by pass + no regression"
+blocker_count  = 0
+raw_findings   = "raw_findings/gemini.md"
+note           = "r3 framework adjustment worked: gemini ran every verify_by command literally this round (including building/running Rust + Go validators against both positives + negatives), not just reading recipes. Same pattern as r2 hello-world unanimous."
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "unconditional_approval"
+classification = "S08.1 closed + all 9 verify_by pass + no regression"
+blocker_count  = 0
+raw_findings   = "raw_findings/grok.md"
+
+[d_closures]
+
+[[d_closures.items]]
+id       = "S08.1"
+status   = "closed"
+binding  = "codex (original filer), bytes-verified by all 3 reviewers"
+evidence = "validators/validate_gate_decision.py:259-272 argparse description enumerates INV01..INV06; `--help | grep -oE 'INV0[1-6]' | sort -u` returns all six; live --help output literally cites each invariant with one-line summary."
+
+[[d_closures.items]]
+id       = "S08.2-S08.8"
+status   = "still-closed (regression-verified)"
+binding  = "all 3 reviewers"
+evidence = "INV06 enforcement triad (Python+Rust+Go) all reject both r2 negative variants (same-provider/different-family AND different-provider/same-family) with exit 1 + 'INV06 violated (conjunctive AND)' message. CI step at .github/workflows/validate.yml:346-450 runs 12 invocations (Python 4 + Rust 4 + Go 4). gate-decision-kind.toml declares INV01..INV06 with enforced_by → validate_gate_decision.py (except INV05 = scope declaration). Zero (planned) markers on shipped invariants."
+
+[[d_closures.items]]
+id       = "S03/S05/S06 regression"
+status   = "still-closed"
+binding  = "codex + grok independently inspected SPEC.md bytes"
+evidence = "SPEC.md §12 closure-root brittleness propagation at :851-1071, §13 abstraction-class + capability-envelope at :1195-1448 all coherent; no edits to SPEC.md in 4fbc906."
+
+[decision]
+outcome              = "unconditional_approval"
+unanimous            = true
+binding_reviewer     = "all 3 (unanimous bytes-verified)"
+verdict_distribution = { unconditional_approval = 3, concrete_unresolvable_blocker = 0 }
+session_terminal     = true
+arc_terminal         = true
+next_action          = "Spec end-to-end review arc (r1 + r2 + r3) closes. INV06 cross-provider enforcement is the headline new content for the spec; the agent-assurance profile is review-validated at tier-3 (multi-LLM bytes-verified independent)."
+
+[session_close]
+closed_at = "2026-05-25"
+closed_by = "consolidated reviewer verdicts at raw_findings/{codex,gemini,grok}.md"
+followup_notes = [
+  "Arc terminal: r1 (15 blockers) → r2 (1 codex blocker, S08.1) → r3 (0 blockers). Three rounds of bytes-verified multi-LLM review on the spec-arc.",
+  "Three rounds were necessary and sufficient. r1 surfaced substantive defects (orphan figures, INV06 unenforced, kind-descriptor (planned) markers, banned-marker scope, closure_root brittleness prose); r2 closed substrate but left one recipe-literal --help string defect; r3 closed the recipe-literal. The framework's signal-to-noise is high: every blocker either landed a bytes-verifiable code change or a surgical prose correction.",
+  "Lesson for the spec-arc as a whole: the multi-LLM panel acts as a redundant-detector lattice. Codex was the most consistent depth-prober (caught INV06 enforcement gap r1, --help string r2, all r3 r2-closure verifications). Gemini's r1 was shallow but r2/r3 caught up with recipe-literal execution. Grok was reliable throughout. The redundancy is load-bearing — no single reviewer could have caught r1's full surface.",
+]

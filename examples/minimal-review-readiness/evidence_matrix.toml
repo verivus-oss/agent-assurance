@@ -1,0 +1,74 @@
+# Minimal evidence matrix, validator-compatible shape.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "evidence-matrix"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+title          = "Evidence matrix: tax line on checkout receipt"
+status         = "draft"
+created        = "2026-05-19"
+review_subject = "checkout-tax-line"
+
+[[claims]]
+id    = "E01"
+claim = "ready_for_implementation"
+scope_covered    = [
+  "planning-pack gate passed",
+  "core contracts declared",
+]
+known_exclusions = [
+  "does not prove production readiness",
+]
+status = "draft"
+
+[[claims]]
+id    = "E02"
+claim = "no_behavior_changes"
+scope_covered    = [
+  "regression tests cover the tax-line rendering",
+]
+known_exclusions = [
+  "does not cover behaviour outside the tested scope",
+]
+status = "draft"
+
+[[evidence]]
+id            = "EV01"
+artifact_path = "docs/planning/review_readiness.toml"
+summary       = "Proof that the planning-pack readiness gate passed."
+
+[[evidence]]
+id            = "EV02"
+artifact_path = "docs/planning/contract_declaration.toml"
+summary       = "Recorded contract declaration covering required semantics."
+
+[[evidence]]
+id            = "EV03"
+artifact_path = "tests/checkout/test_receipt.py"
+summary       = "Regression tests for tax-line rendering."
+
+[[matrix]]
+id              = "M01"
+claim_id        = "E01"
+evidence_id     = "EV01"
+scope_covered   = "planning-pack gate passed"
+known_exclusions = ["does not prove production readiness"]
+
+[[matrix]]
+id              = "M02"
+claim_id        = "E01"
+evidence_id     = "EV02"
+scope_covered   = "core contracts declared"
+known_exclusions = ["does not prove downstream feature completeness"]
+
+[[matrix]]
+id              = "M03"
+claim_id        = "E02"
+evidence_id     = "EV03"
+scope_covered   = "regression tests cover the tax-line rendering"
+known_exclusions = ["does not cover behaviour outside the tested scope"]

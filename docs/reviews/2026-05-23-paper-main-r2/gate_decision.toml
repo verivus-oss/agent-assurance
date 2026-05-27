@@ -1,0 +1,65 @@
+# U10 — R2 gate decision.
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-gate-decision"
+created        = "2026-05-23"
+review_session = "2026-05-23-paper-main-r2"
+document       = "paper/main.tex@6ba15597a36096462cadd55aade3b7bac13c8e7abd86a26b3b53374001437025"
+
+[decision]
+verdict = "fail"
+reason  = "Two of three reviewers issued UNCONDITIONAL APPROVAL; one (Codex) issued CONCRETE UNRESOLVABLE BLOCKERS based on live JPlag execution and direct reads of paper/figures/scripts/run_jplag.sh. The dissent rests on the strongest evidence class admissible under [policy.approval]; the initiator independently verified Codex's evidence at aggregation. The rejection holds."
+failed_constraint_refs = [
+  "blocker:1:b1-causal-clause-empirically-false",
+]
+approval_count = 2   # Gemini, Grok
+block_count    = 1   # Codex
+note_on_count  = "Gate verdict follows evidence, not reviewer count. See terminal_decision.toml:disagreement and approval_basis_audit for the principle."
+
+[basis]
+inspected_code              = true
+executed_tests_with_output  = true   # Codex ran JPlag locally
+inspected_docs              = true
+persisted_review_evidence   = true
+forbidden_basis_used        = false
+note = "Codex executed JPlag on /tmp/jplag_chardet/ and read the resulting report's per-file token counts; the initiator re-derived run_jplag.sh lines 30-50 directly."
+
+[cited_bundle]
+file = "docs/reviews/2026-05-23-paper-main-r2/review_bundle.toml"
+
+[cited_reviews]
+codex  = "docs/reviews/2026-05-23-paper-main-r2/raw_findings/codex.md"
+gemini = "docs/reviews/2026-05-23-paper-main-r2/raw_findings/gemini.md"
+grok   = "docs/reviews/2026-05-23-paper-main-r2/raw_findings/grok.md"
+
+[cited_aggregation]
+classifications    = "docs/reviews/2026-05-23-paper-main-r2/unit_classifications.toml"
+terminal_decision  = "docs/reviews/2026-05-23-paper-main-r2/terminal_decision.toml"
+
+# ============================================================================
+# R1 blocker disposition summary
+# ============================================================================
+
+[r1_blocker_status]
+b1_jplag_file_count_direction = "arithmetic fixed; causal clause empirically false → NEW R2 blocker"
+b2_spec_vs_bundle_verdicts    = "fixed (unanimous across R2 reviewers)"
+b3_c06e_validation_overclaim  = "fixed (unanimous across R2 reviewers)"
+b4_unpersisted_sandbox_claim  = "fixed (unanimous across R2 reviewers)"
+overall = "3 of 4 R1 blockers fully resolved; 1 (B1) partially resolved and replaced by IF-R2-CX-01."
+
+# ============================================================================
+# Next steps
+# ============================================================================
+
+[[next_step]]
+priority = "must-do-before-resubmission"
+action   = "Rewrite paper/main.tex:1336-1348 per the suggested fix in terminal_decision.toml:blocker.unblock_by — separate submission-scope file counts from parser-error caveats; keep parse errors as a secondary data-table caveat only, citing run_jplag.sh:42-46 which says JPlag completes the comparison and token-counts affected files."
+
+[[next_step]]
+priority = "queued-for-r3-review-session"
+action   = "After fix is applied: sha-bind, instantiate tools/review-request-dag.toml again, dispatch R3 at docs/reviews/<new-date>-paper-main-r3/. R3 scope is narrow — verify only the B1 rewrite against run_jplag.sh and the JPlag report. The other R1 blockers do not need re-verification."
+
+[[next_step]]
+priority = "still-queued"
+action   = "Still-open R1 non-blocker findings remain queued (F2-F02, L3-F01, Q6-F01, U4-F01, U4-F02, S1-F01, S1-F02, S1-F04, F2-F04, etc.). These are non-blocking; address in a subsequent revision pass."

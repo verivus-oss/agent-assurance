@@ -1,0 +1,312 @@
+# VERIFICATION REPORT — DAG-TOML draft layering bundle
+#
+# Format: a single `contract-declaration` (template_kind=contract-declaration)
+# carrying one contract per item in the corrective-program spec the
+# user supplied. Each `[[contracts]]` entry is the testable statement
+# the multi-LLM review must verify against code and docs (NOT against
+# this report's prose). The `verified_by` array points at the
+# concrete artifacts the reviewer should inspect.
+#
+# This file is intentionally itself a DAG-TOML document so it parses
+# under the same Taplo + tomllib + IJB CI pipeline as the rest of the
+# spec.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "contract-declaration"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+title             = "Verification report for the draft layering bundle"
+status            = "in_review"
+created           = "2026-05-22"
+review_subject    = "DAG-TOML Draft Specification layering bundle (this branch)"
+confidentiality   = "public"
+license           = "Apache-2.0"
+
+[review]
+verifier_must = """
+For every contract below, verify the statement against the named
+artifacts in `verified_by` by INSPECTING the artifacts directly
+(reading the cited TOML / Rust / Go / Python source). Do NOT accept
+this report's prose, the CHANGELOG entry, or the spec.md commit
+message as evidence. If the cited artifact does not match the
+contract statement, the contract MUST be flagged as a concrete
+blocker, with the literal file path and line range that contradicts
+the statement.
+
+If Claude (the implementer) disagrees with a finding, Claude MUST
+respond with the same shape: a file path and line range, not an
+assertion. Approval MUST be based on inspected code, tests, and
+docs — NOT on intent, plan compliance claims, or "should be fixed"
+language.
+"""
+
+# ============================================================================
+# Layering primitives (the four hard-to-retrofit additions)
+# ============================================================================
+
+[[contracts]]
+id          = "C01"
+domain      = "profile-descriptor-kind"
+statement   = "A new template_kind `profile-descriptor` exists, is listed in SPEC §2.3, is documented normatively in SPEC §6.1, and is described by a kind-descriptor at `core/profile-descriptor-kind.toml` whose `[meta].describes_kind = \"profile-descriptor\"`. The kind-descriptor declares required fields name/namespace/owner/license/extends/ontology/contained_kinds and hard invariants INV01..INV05 each with `enforced_by` pointing at `validators/validate_profile_descriptor.py`."
+applies_to  = ["spec.md", "core/profile-descriptor-kind.toml"]
+verified_by = [
+  "spec.md (§2.3 table row, §6.1 prose + table)",
+  "core/profile-descriptor-kind.toml ([meta], [kind], [[kind.required_fields]], [[kind.hard_invariants]])",
+]
+
+[[contracts]]
+id          = "C02"
+domain      = "namespace-partition"
+statement   = "SPEC §2.5 partitions `framework_profile` values into (a) unprefixed kebab-case reserved for spec-reserved profiles in this repo, (b) reverse-DNS for everything else, (c) other shapes reserved. The partition is enforced by the primary validators: a profile-descriptor with name=`com.example.internal` and namespace=`spec.reserved` MUST be rejected; a profile-descriptor with an unprefixed name and namespace != `spec.reserved` MUST be rejected."
+applies_to  = ["spec.md", "tools/dagtoml-validate-rs", "tools/dagtoml-validate-go", "validators/validate_profile_descriptor.py"]
+verified_by = [
+  "spec.md §2.5 (numbered partition list)",
+  "tools/dagtoml-validate-rs/src/main.rs (mod profile::check_namespace_partition)",
+  "tools/dagtoml-validate-go/main.go (checkNamespacePartition)",
+  "validators/validate_profile_descriptor.py (check_namespace_partition)",
+]
+
+[[contracts]]
+id          = "C03"
+domain      = "extends-acyclic-and-resolvable"
+statement   = "`[profile].extends` is declarative inheritance. The primary validators MUST reject (a) any extends entry not corresponding to a loaded profile-descriptor, (b) any cycle in the extends graph. Both checks share the same descriptor-discovery routine that walks `profiles/*/PROFILE.toml`."
+applies_to  = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go", "validators/validate_profile_descriptor.py"]
+verified_by = [
+  "tools/dagtoml-validate-rs/src/main.rs (mod profile::check_extends_acyclic, ::discover)",
+  "tools/dagtoml-validate-go/main.go (checkExtendsAcyclic, discoverDescriptors)",
+  "validators/validate_profile_descriptor.py (check_extends_acyclic, discover_descriptors)",
+]
+
+[[contracts]]
+id          = "C04"
+domain      = "contained-kinds-resolve-to-descriptors"
+statement   = "Every entry of `[profile].contained_kinds` MUST resolve to a *-kind.toml under repo root whose `[meta].describes_kind` matches the entry verbatim. The validators search the conventional locations (profiles slash NAME slash, core slash, every other profiles entry) and reject unmatched entries."
+applies_to  = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go", "validators/validate_profile_descriptor.py"]
+verified_by = [
+  "tools/dagtoml-validate-rs/src/main.rs (profile::validate_one INV05 block, profile::kind_descriptor_candidates)",
+  "tools/dagtoml-validate-go/main.go (kindDescriptorCandidates + the contained_kinds loop in validateProfileDescriptor)",
+  "validators/validate_profile_descriptor.py (_kind_descriptor_candidates, INV05 block)",
+]
+
+[[contracts]]
+id          = "C05"
+domain      = "agent-assurance-profile-descriptor"
+statement   = "`profiles/agent-assurance/PROFILE.toml` exists, declares `template_kind = \"profile-descriptor\"`, `name = \"agent-assurance\"`, `namespace = \"spec.reserved\"`, `extends = []`, and lists all nine agent-assurance template kinds in contained_kinds: spec-contract, threat-model, smoke-validation, rollback-plan, adapter-contract, adapter-registry-binding, assertion-bundle, assertion-log-record, gate-decision."
+applies_to  = ["profiles/agent-assurance/PROFILE.toml"]
+verified_by = ["profiles/agent-assurance/PROFILE.toml"]
+
+[[contracts]]
+id          = "C06"
+domain      = "disclosure-profile-shipped"
+statement   = "`profiles/disclosure/` ships as a sibling of agent-assurance (NOT inside it) and contains: PROFILE.toml (template_kind=profile-descriptor, namespace=spec.reserved, extends=[]), ontology.toml (template_kind=ontology with [extension_rules]), and three *-kind.toml files (disclosure-attestation, redaction-manifest, selective-disclosure-proof). Three minimal examples ship under `examples/`."
+applies_to  = ["profiles/disclosure/", "examples/minimal-disclosure-attestation.toml", "examples/minimal-redaction-manifest.toml", "examples/minimal-selective-disclosure-proof.toml"]
+verified_by = [
+  "profiles/disclosure/PROFILE.toml",
+  "profiles/disclosure/ontology.toml",
+  "profiles/disclosure/disclosure-attestation-kind.toml",
+  "profiles/disclosure/redaction-manifest-kind.toml",
+  "profiles/disclosure/selective-disclosure-proof-kind.toml",
+  "examples/minimal-disclosure-attestation.toml",
+  "examples/minimal-redaction-manifest.toml",
+  "examples/minimal-selective-disclosure-proof.toml",
+]
+
+[[contracts]]
+id          = "C07"
+domain      = "disclosure-vocab-closure"
+statement   = "The disclosure validators enforce closed-vocabulary membership for `disclosure_posture`, and (extensible) shape for `redaction_method`, `redaction_reason`, `proof_scheme` (extensible vocabularies still require a string value). The Rust + Go primary validators load the vocabularies from `profiles/disclosure/ontology.toml` at runtime so future additions are picked up automatically."
+applies_to  = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go", "validators/validate_disclosure.py"]
+verified_by = [
+  "tools/dagtoml-validate-rs/src/main.rs (mod disclosure::load_vocabs, ::check_vocab)",
+  "tools/dagtoml-validate-go/main.go (loadDisclosureVocabs, checkVocab)",
+  "validators/validate_disclosure.py (load_vocabularies, _check_vocab)",
+]
+
+[[contracts]]
+id          = "C08"
+domain      = "disclosure-cross-field-rules"
+statement   = "All three primary validators enforce (a) `disclosure_posture = \"partial\"` REQUIRES at least one covered_by entry with a `RED:` prefix; (b) `disclosure_posture = \"embargoed\"` REQUIRES `[meta].embargo_until`; (c) `redaction_reason = \"other\"` REQUIRES a non-empty `notes` field; (d) selective-disclosure-proof `bound_source` MUST match `^sha256:[0-9a-f]{64}$`."
+applies_to  = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go", "validators/validate_disclosure.py"]
+verified_by = [
+  "tools/dagtoml-validate-rs/src/main.rs (mod disclosure::validate_attestation, ::validate_redaction, ::validate_proof, ::is_sha256_hex)",
+  "tools/dagtoml-validate-go/main.go (validateAttestation, validateRedaction, validateProof, sha256RE)",
+  "validators/validate_disclosure.py (validate_attestation, validate_redaction_manifest, validate_proof, SHA256_RE)",
+]
+
+# ============================================================================
+# Disclosure-posture meta fields (SPEC §2.7)
+# ============================================================================
+
+[[contracts]]
+id          = "C09"
+domain      = "confidentiality-closed-set"
+statement   = "SPEC §2.7 defines `confidentiality` as a closed set `public | restricted | confidential | trade-secret | embargoed`, declared in `core/ontology.toml` as an `[[attribute_vocabularies]]` entry with ijb_primitive=constraint, ijb_constraint_type=policy. The primary validators reject values outside that set."
+applies_to  = ["spec.md", "core/ontology.toml", "tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+verified_by = [
+  "spec.md §2.7 (the bulleted vocabulary list)",
+  "core/ontology.toml ([[attribute_vocabularies]] with attribute = \"confidentiality\")",
+  "tools/dagtoml-validate-rs/src/main.rs (CONFIDENTIALITY constant + validate_meta_fields)",
+  "tools/dagtoml-validate-go/main.go (confidentialityClosed + validateMeta)",
+]
+
+[[contracts]]
+id          = "C10"
+domain      = "embargo-cross-field"
+statement   = "`confidentiality = \"embargoed\"` REQUIRES `[meta].embargo_until` (RFC 3339 string). All three primary validators enforce this cross-field rule; SPEC §2.7 declares it normatively."
+applies_to  = ["spec.md", "tools/dagtoml-validate-rs", "tools/dagtoml-validate-go", "validators/validate_ijb_conformance.py"]
+verified_by = [
+  "spec.md §2.7 (embargo_until paragraph)",
+  "tools/dagtoml-validate-rs/src/main.rs (validate_meta_fields embargoed branch)",
+  "tools/dagtoml-validate-go/main.go (validateMeta embargoed branch)",
+]
+
+[[contracts]]
+id          = "C11"
+domain      = "license-free-form"
+statement   = "`[meta].license` is free-form (SHOULD be SPDX or `LicenseRef-…`). Validators MUST NOT resolve license values against an external registry. The constraint declared on `license` in the ontology is `ijb_constraint_type = \"policy\"` (declared posture, not a structural vocabulary)."
+applies_to  = ["spec.md", "core/ontology.toml"]
+verified_by = [
+  "spec.md §2.7 (license paragraph)",
+  "core/ontology.toml ([[attribute_vocabularies]] with attribute = \"license\")",
+]
+
+[[contracts]]
+id          = "C12"
+domain      = "docs-url-shape"
+statement   = "SPEC §2.6 requires `[meta].docs`, when set, to start with `https://` and not contain a query string. The primary validators enforce both rules."
+applies_to  = ["spec.md", "tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+verified_by = [
+  "spec.md §2.6 (https:// and query-string paragraph)",
+  "tools/dagtoml-validate-rs/src/main.rs (validate_meta_fields docs check)",
+  "tools/dagtoml-validate-go/main.go (validateMeta docs check)",
+]
+
+[[contracts]]
+id          = "C13"
+domain      = "examples-carry-posture"
+statement   = "Every canonical example under `examples/minimal-*.toml`, every file in `examples/minimal-review-readiness/`, and every deployment-tier file under `profiles/agent-assurance/tiers/` carries `confidentiality = \"public\"` and `license = \"Apache-2.0\"` in its `[meta]` table."
+applies_to  = ["examples/", "profiles/agent-assurance/tiers/"]
+verified_by = [
+  "examples/minimal-implementation-dag.toml",
+  "examples/minimal-traceability.toml",
+  "examples/minimal-spec-contract.toml",
+  "examples/minimal-threat-model.toml",
+  "examples/minimal-smoke-validation.toml",
+  "examples/minimal-rollback-plan.toml",
+  "examples/minimal-adapter-contract.toml",
+  "examples/minimal-adapter-registry-binding.toml",
+  "examples/minimal-assertion-bundle.toml",
+  "examples/minimal-assertion-log-record.toml",
+  "examples/minimal-gate-decision.toml",
+  "examples/minimal-review-readiness/review_readiness.toml",
+  "examples/minimal-review-readiness/contract_declaration.toml",
+  "examples/minimal-review-readiness/evidence_matrix.toml",
+  "profiles/agent-assurance/tiers/solo.toml",
+  "profiles/agent-assurance/tiers/team.toml",
+  "profiles/agent-assurance/tiers/group.toml",
+  "profiles/agent-assurance/tiers/organization.toml",
+  "profiles/agent-assurance/tiers/enterprise.toml",
+]
+
+# ============================================================================
+# Provenance encryption sub-table (SPEC §11.1)
+# ============================================================================
+
+[[contracts]]
+id          = "C14"
+domain      = "provenance-encryption-shape"
+statement   = "SPEC §11.1 defines an optional `[provenance.encryption]` sub-table with REQUIRED fields `sealed = true` (boolean) and `hash_is_over` drawn from the closed set `plaintext | ciphertext`, plus an OPTIONAL free-form `scheme_hint`. The primary validators enforce the sub-table shape; both also reject the sub-table when `sealed = false`."
+applies_to  = ["spec.md", "tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+verified_by = [
+  "spec.md §11.1 (closed sets + field semantics)",
+  "tools/dagtoml-validate-rs/src/main.rs (validate_provenance_encryption + HASH_IS_OVER)",
+  "tools/dagtoml-validate-go/main.go (validateProvenanceEncryption + hashIsOverClosed)",
+  "core/ontology.toml ([[attribute_vocabularies]] with attribute = \"provenance.encryption.hash_is_over\")",
+]
+
+# ============================================================================
+# Safe-only native tooling
+# ============================================================================
+
+[[contracts]]
+id          = "C15"
+domain      = "safe-rust-only"
+statement   = "Every Rust crate under `tools/` declares `#![forbid(unsafe_code)]` at the crate root (src/main.rs or src/lib.rs). Enforced by `validators/check_safe_tools.sh` as a CI gate."
+applies_to  = ["tools/", "validators/check_safe_tools.sh", ".github/workflows/validate.yml"]
+verified_by = [
+  "tools/dagtoml-validate-rs/src/main.rs (line 1: #![forbid(unsafe_code)])",
+  "tools/dagtoml-duckdb/src/main.rs (forbid declaration)",
+  "tools/dagtoml-rdf/src/main.rs (forbid declaration)",
+  "validators/check_safe_tools.sh (Rust block)",
+  ".github/workflows/validate.yml (Safe-tools policy step)",
+]
+
+[[contracts]]
+id          = "C16"
+domain      = "safe-go-only"
+statement   = "No Go source file under `tools/` imports the standard-library `unsafe` package. Enforced by `validators/check_safe_tools.sh`."
+applies_to  = ["tools/", "validators/check_safe_tools.sh"]
+verified_by = [
+  "validators/check_safe_tools.sh (Go block)",
+  "tools/dagtoml-validate-go/main.go (imports section)",
+  "tools/dagtoml-duckdb-go/main.go (imports section)",
+  "tools/dagtoml-rdf-go/main.go (imports section)",
+]
+
+[[contracts]]
+id          = "C17"
+domain      = "primary-vs-cross-check"
+statement   = "CI builds the Rust + Go primary validators BEFORE running the Python validators. The Rust + Go validators run first against the new artifacts (profile descriptors + disclosure profile); the Python validators run as cross-checks afterwards. The CHANGELOG and SPEC describe Python as a `cross-check reference`, not the authority."
+applies_to  = [".github/workflows/validate.yml", "CHANGELOG.md"]
+verified_by = [
+  ".github/workflows/validate.yml (Primary validators step + Cross-check step ordering)",
+  "CHANGELOG.md ([Unreleased] block)",
+]
+
+# ============================================================================
+# IJB substrate integrity (preservation)
+# ============================================================================
+
+[[contracts]]
+id          = "C18"
+domain      = "ijb-attribute-vocab-types"
+statement   = "SPEC §10.2 permits `ijb_constraint_type` to be `structural | policy | observed` on `[[attribute_vocabularies]]` blocks (declared posture vocabularies use `policy`). `validators/validate_ijb_conformance.py` enforces this relaxed rule and still rejects any value outside the closed set."
+applies_to  = ["spec.md", "validators/validate_ijb_conformance.py"]
+verified_by = [
+  "spec.md §10.2 (the table row + the note that follows)",
+  "validators/validate_ijb_conformance.py (attribute_vocabularies branch in validate_ontology)",
+]
+
+[[contracts]]
+id          = "C19"
+domain      = "meta-field-classification"
+statement   = "`validators/validate_ijb_conformance.py` `_META_FIELD_MAP` includes confidentiality (constraint/policy), license (constraint/policy), embargo_until (time, no class field). `[meta.ijb_field_primitives]` MUST declare the annotation when the underlying field is present; the validator rejects unknown annotation keys."
+applies_to  = ["validators/validate_ijb_conformance.py", "core/ontology.toml"]
+verified_by = [
+  "validators/validate_ijb_conformance.py (_META_FIELD_MAP and validate_ontology)",
+  "core/ontology.toml ([meta.ijb_field_primitives] block)",
+]
+
+[[contracts]]
+id          = "C20"
+domain      = "no-regression-on-existing-validators"
+statement   = "Every previously-passing validator pass MUST still pass: validate_implementation_dag.py, validate_traceability.py, validate_review_readiness.py on the canonical examples; validate_ijb_conformance.py on every kind descriptor and minimal example; validate_kind_descriptor.py on every *-kind.toml under core/ and profiles/."
+applies_to  = ["examples/", "core/", "profiles/", "validators/"]
+verified_by = [
+  ".github/workflows/validate.yml (the full CI workflow, executed)",
+  "(local sweep: `for f in core/*-kind.toml profiles/*/*-kind.toml; do python3 validators/validate_kind_descriptor.py $f --repo-root . --check-references-exist; done`)",
+]
+
+# ============================================================================
+# Adoption guide
+# ============================================================================
+
+[[contracts]]
+id          = "C21"
+domain      = "adoption-guide"
+statement   = "`docs/adoption.md` exists, is marked non-normative, walks the public-spec/private-profile pattern with a worked `com.example.internal` example, and references the four layering primitives (profile-descriptor, namespacing partition, confidentiality/license/embargo, provenance.encryption) plus the disclosure profile."
+applies_to  = ["docs/adoption.md"]
+verified_by = ["docs/adoption.md"]

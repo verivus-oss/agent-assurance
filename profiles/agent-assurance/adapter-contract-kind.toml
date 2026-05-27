@@ -1,0 +1,274 @@
+# Kind descriptor for `template_kind = "adapter-contract"`.
+# Agent Assurance Profile artifact.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "kind-descriptor"
+ontology_version  = 1
+title             = "Adapter contract kind descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+describes_kind    = "adapter-contract"
+framework_profile = "agent-assurance"
+authoritative_in  = "this file"
+
+[kind]
+name    = "adapter-contract"
+summary = "Declares a pure-function adapter that converts raw tool output into canonical IJB assertions, with declared runtime policies and conformance fixtures."
+prose   = """
+An adapter-contract file declares a single adapter: a pure function
+that converts raw tool output (LLM job result, test run, scan output,
+build log) into canonical IJB assertions per
+foundations/ijb/canonical-assertion-grammar.md.
+
+The contract carries the adapter's identity, declared invariants,
+runtime policy declarations, and conformance fixture references. It
+does NOT carry the adapter binary itself, nor does it specify how the
+adapter is executed. Execution, hermeticity enforcement, and digest
+verification are RUNTIME-SPEC concerns and are explicitly out of
+scope for SPEC-layer validation.
+
+ROOT SHAPE
+
+    [meta]
+    schema_version    = "0.1.0"
+    template_kind     = "adapter-contract"
+    framework_profile = "agent-assurance"
+    title             = "Adapter contract for <tool>"
+    created           = "YYYY-MM-DD"
+
+    [adapter]
+    input_source         = "example-vendor:red_team_review@1"
+    input_hash_method    = "sha256-bytes"
+    id_derivation        = "content-hash"
+    runtime_kind         = "wasi-component"
+    runtime_network_policy = "denied"
+    runtime_clock_policy = "injected"
+    runtime_env_allowlist = []
+
+    [adapter.runtime_artifact]
+    component_digest = "0123...64hex"
+
+    [[adapter.emits]]
+    ijb_primitive = "observed"
+
+    [[adapter.declared_invariants]]
+    id          = "INV01"
+    description = "Every emitted observation references a Thing declared elsewhere in the bundle."
+    enforced_by = "RUNTIME-SPEC adapter-conformance test suite"
+
+    [[adapter.conformance_fixtures]]
+    raw_input_ref      = "fixtures/red-team-review-001.json"
+    expected_bundle_ref = "fixtures/red-team-review-001.expected.toml"
+
+VOCABULARIES (value sets governed by profile ontology)
+
+- `[adapter].input_hash_method`        -> `input_hash_method`
+- `[adapter].id_derivation`            -> `adapter_id_derivation`
+- `[adapter].runtime_kind`             -> `runtime_kind`
+- `[adapter].runtime_network_policy`   -> `runtime_network_policy`
+- `[adapter].runtime_clock_policy`     -> `runtime_clock_policy`
+- `[[adapter.emits]].ijb_primitive`    -> IJB six-primitive closed set
+
+VALIDATOR MUST NOT execute the adapter, verify hermeticity, run
+fixtures, verify any digest against an artifact, or resolve fixture
+references to files. Those are RUNTIME-SPEC concerns.
+"""
+references = [
+  "spec.md",
+  "profiles/agent-assurance/ontology.toml",
+  "foundations/ijb/canonical-assertion-grammar.md",
+]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[kind.required_fields]]
+path        = "meta.template_kind"
+must_equal  = "adapter-contract"
+description = "Identifies this file as an adapter contract."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "meta.framework_profile"
+must_equal  = "agent-assurance"
+description = "Adapter contract is an Agent Assurance Profile artifact."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "adapter.input_source"
+description = "Non-empty string identifying the tool and version pin this adapter consumes."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "adapter.runtime_kind"
+description = "Runtime kind; value drawn from `runtime_kind` vocabulary."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "adapter.runtime_network_policy"
+description = "Network policy; value drawn from `runtime_network_policy` vocabulary."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "adapter.runtime_clock_policy"
+description = "Clock policy; value drawn from `runtime_clock_policy` vocabulary."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "adapter.emits"
+description = "At least one emitted-primitive entry."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "adapter.conformance_fixtures"
+description = "At least one conformance fixture pair."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV01"
+statement   = "`adapter.runtime_kind` MUST be drawn from the `runtime_kind` vocabulary declared in the profile ontology."
+enforced_by = "validators/validate_adapter_contract.py (planned)"
+see_also    = "profiles/agent-assurance/ontology.toml [[attribute_vocabularies]] runtime_kind"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV02"
+statement   = "`adapter.runtime_artifact` MUST carry the digest field matching `adapter.runtime_kind` (`component_digest` for wasi-component, `oci_image_digest` for oci-action, `profile_args_digest` for os-sandbox). Each digest MUST match `^[0-9a-f]{64}$`."
+enforced_by = "validators/validate_adapter_contract.py (planned)"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV03"
+statement   = "Every `[[adapter.emits]].ijb_primitive` value MUST be one of the six IJB primitives: thing, scope, path, observed, constraint, time."
+enforced_by = "validators/validate_adapter_contract.py (planned)"
+see_also    = "foundations/ijb/primitives.md"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV04"
+statement   = "SPEC-layer validation MUST NOT execute the adapter, verify hermeticity, dereference fixtures, or verify any digest against an artifact. Those checks are RUNTIME-SPEC."
+enforced_by = "scope declaration; no validator action"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name           = "minimal adapter contract"
+file           = "examples/minimal-adapter-contract.toml"
+inline_summary = "Adapter that consumes red-team review JSON and emits canonical observations; wasi-component runtime with denied network and injected clock."
+ijb_primitive = "observed"
+
+[kind.relation_to_ontology]
+entities_introduced = []
+ontology_entries    = "profiles/agent-assurance/ontology.toml [[attribute_vocabularies]]"
+attribute_vocabularies = [
+  "runtime_kind",
+  "runtime_network_policy",
+  "runtime_clock_policy",
+  "input_hash_method",
+  "adapter_id_derivation",
+]
+note                = "No new entity or relation declarations. Adapter-contract documents are flat artifacts with opaque citation strings; they expose no instance entity IDs and no predicate-bearing fields at the SPEC layer."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# An adapter-contract is an interface-contract: it declares a pure-
+# function adapter's identity, declared invariants, runtime policy
+# declarations, and conformance fixture references. The adapter binary
+# itself is NOT in the descriptor; execution, hermeticity enforcement,
+# fixture dereferencing, and digest verification are RUNTIME-SPEC per
+# the kind's own INV04.
+#
+# R1 vs R2 (plan §5 + §8 Phase 3): adapter-contract is the kind the
+# plan explicitly flagged for R1/R2 ambiguity. There are two readings:
+#
+#   R1 (narrow, this descriptor adopts): the envelope bounds the
+#       processing of THIS descriptor (text parse + closed-vocabulary
+#       checks + ABNF-of-emits + digest-shape checks). The runtime
+#       capabilities a deployed adapter is permitted at execution time
+#       are declared INSIDE the instance file's [adapter] table
+#       (runtime_kind, runtime_network_policy, runtime_clock_policy,
+#       runtime_env_allowlist). Those instance-level fields are the
+#       adapter's effective runtime policy; the kind descriptor's
+#       envelope does not enumerate or constrain them beyond requiring
+#       they exist and draw from closed vocabularies.
+#
+#   R2 (wide, NOT adopted): the envelope would have to cover whatever
+#       any conforming adapter might require at runtime — which is
+#       unbounded (LLM adapters need network, sandbox adapters need
+#       process_spawn, signing adapters need crypto_keys). An R2
+#       envelope is therefore either maximal (defeats §13's
+#       failure-mode-bounding intent) or it duplicates the
+#       instance-level runtime_* declarations (creating drift).
+#
+# Plan §5 explicitly chose R1 across the board; plan §7 row 7 noted
+# reviewers MAY challenge for adapter-contract specifically; plan §8
+# Phase 3 said ship R1 baseline and revisit only on concrete-evidence
+# blocker. Naming the class here binds future adapter-contract
+# producers to the R1 contract; widening this envelope cascade-breaks
+# downstream adapter-contracts (per §13.4). Runtime enforcement of
+# the per-adapter runtime_* fields is RUNTIME-SPEC and lies outside
+# this envelope.
+
+[kind.abstraction_class]
+id          = "interface-contract.v1"
+description = "Interface-contract artefact: declares an `[adapter]` (input_source + closed-vocabulary `input_hash_method` / `id_derivation` / `runtime_kind` / `runtime_network_policy` / `runtime_clock_policy` + `runtime_env_allowlist`), a `[adapter.runtime_artifact]` digest sub-table whose required field depends on `runtime_kind` (per INV02), at least one `[[adapter.emits]]` row whose `ijb_primitive` is one of the six IJB primitives (per INV03), optional `[[adapter.declared_invariants]]`, and at least one `[[adapter.conformance_fixtures]]` raw/expected pair. Bounds the descriptor parse only (Reading R1 per plan §5); adapter execution, hermeticity enforcement, fixture dereferencing, and digest verification are RUNTIME-SPEC and lie outside this envelope (per INV04). The runtime capabilities a deployed adapter is permitted at execution time are declared INSIDE the instance file's `[adapter].runtime_*` fields — NOT in this kind descriptor's envelope. No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms      = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576  # 1 MB — descriptor parse + closed-vocab + digest-shape check is a small categorical workload
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed      = false
+monotonic_clock_allowed = false
+precision_cap_ms        = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

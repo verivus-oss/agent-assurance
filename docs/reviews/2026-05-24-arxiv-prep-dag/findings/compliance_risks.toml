@@ -1,0 +1,20 @@
+[section]
+step_reference = "review_steps.step5"
+title = "Assess Compliance and Risks"
+status = "findings"
+
+[[findings]]
+id = "CR-001"
+step_reference = "review_steps.step5"
+quoted_document_part = '''llm_disclosure_location_verified_against_current_arxiv_policy = true   # see claim-analysis findings for paper/'''
+problem_explanation = "A current-policy compliance gate depends on a source not present in the trusted reference corpus, creating risk of stale or unverifiable disclosure handling."
+suggested_fix = "Bind this check to an official arXiv policy source with retrieval date and evidence artifact."
+severity = "major"
+
+[[findings]]
+id = "CR-002"
+step_reference = "review_steps.step5"
+quoted_document_part = '''"paper-arxiv-prep/main.pdf",   # the verified one (copied or symlinked for manifest)'''
+problem_explanation = "The DAG is for a source bundle, but it creates a generated PDF inside staging. Without explicit packaging exclusion/classification, the PDF may be included unintentionally."
+suggested_fix = "Keep verified PDFs in the evidence pack or declare whether main.pdf is intentionally included in the submission bundle."
+severity = "minor"

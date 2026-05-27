@@ -1,0 +1,25 @@
+[package]
+name = "dagtoml-duckdb"
+version = "0.1.0"
+edition = "2024"
+# MSRV floor — CI tracks current stable, which MUST be >= this value.
+rust-version = "1.85"
+publish = false
+description = "Build a .duckdb artifact from reference/database/duckdb/{schema,seed}.sql by orchestrating the duckdb CLI. Non-normative reference tooling."
+license = "Apache-2.0"
+
+# No third-party dependencies. The tool wraps the duckdb CLI via
+# std::process::Command and reads/writes plain files. We deliberately
+# avoid pulling in libduckdb-sys (~80MB bundled) since the artifact this
+# tool produces (.duckdb) is what users ultimately consume; the build
+# cost should not also include a Rust-linked DuckDB engine.
+[dependencies]
+
+[[bin]]
+name = "dagtoml-duckdb"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = "z"
+lto       = true
+strip     = true

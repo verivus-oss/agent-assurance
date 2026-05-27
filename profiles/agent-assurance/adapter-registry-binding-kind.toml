@@ -1,0 +1,215 @@
+# Kind descriptor for `template_kind = "adapter-registry-binding"`.
+# Agent Assurance Profile artifact.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "kind-descriptor"
+ontology_version  = 1
+title             = "Adapter registry binding kind descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+describes_kind    = "adapter-registry-binding"
+framework_profile = "agent-assurance"
+authoritative_in  = "this file"
+
+[kind]
+name    = "adapter-registry-binding"
+summary = "Declares how an adapter reference is resolved by an operator. Pluggable scheme (file, https, oci, ipfs) gated by attestation citations."
+prose   = """
+An adapter-registry-binding file declares how a named or
+content-addressed adapter reference is resolved by an operator. It
+carries the reference string, a scheme (file, https, oci, ipfs,
+extensible), trust anchor citations, and policy constraint citations.
+
+The registry is NOT a trust boundary by itself: a SPEC-conformant
+consumer trusts an adapter because the binding satisfies the cited
+policy constraints, not because of registry membership. SPEC-layer
+validation checks structural conformance only; it does NOT contact
+the registry, verify trust anchors, dereference policy constraints,
+or evaluate them. Those are RUNTIME-SPEC concerns.
+
+ROOT SHAPE
+
+    [meta]
+    schema_version    = "0.1.0"
+    template_kind     = "adapter-registry-binding"
+    framework_profile = "agent-assurance"
+    title             = "Binding for <adapter>"
+    created           = "YYYY-MM-DD"
+
+    [binding]
+    adapter_ref          = "agent-assurance:adapters:red-team-review:1.2.0"
+    adapter_ref_syntax   = "name-version-pin"
+    registry_url_scheme  = "https"
+    registry_url         = "https://registry.example.com/adapters"
+
+    [[binding.trust_anchor_refs]]
+    anchor_id = "did:agent-assurance:authority:adapter-review-board"
+
+    [[binding.policy_constraint_refs]]
+    constraint_id = "A-authz-002"
+
+VOCABULARIES
+
+- `[binding].registry_url_scheme` -> `registry_scheme`
+- `[binding].adapter_ref_syntax`  -> `adapter_ref_syntax`
+
+VALIDATOR MUST NOT contact the registry, verify trust anchors,
+dereference or evaluate policy constraint citations. Custom registry
+schemes MUST be added by extending the `registry_scheme` vocabulary
+in the profile ontology under the standard
+[[attribute_vocabularies]] extension pattern.
+"""
+references = [
+  "spec.md",
+  "profiles/agent-assurance/ontology.toml",
+]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[kind.required_fields]]
+path        = "meta.template_kind"
+must_equal  = "adapter-registry-binding"
+description = "Identifies this file as an adapter registry binding."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "meta.framework_profile"
+must_equal  = "agent-assurance"
+description = "Adapter registry binding is an Agent Assurance Profile artifact."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "binding.adapter_ref"
+description = "Non-empty adapter reference string."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "binding.adapter_ref_syntax"
+description = "Syntactic shape of `adapter_ref`; value drawn from `adapter_ref_syntax` vocabulary."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "binding.registry_url_scheme"
+description = "URL scheme; value drawn from `registry_scheme` vocabulary."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "binding.registry_url"
+description = "Non-empty registry URL beginning with the declared scheme followed by `://`."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV01"
+statement   = "`binding.registry_url_scheme` MUST be drawn from the `registry_scheme` vocabulary declared in the profile ontology."
+enforced_by = "validators/validate_adapter_registry_binding.py (planned)"
+see_also    = "profiles/agent-assurance/ontology.toml [[attribute_vocabularies]] registry_scheme"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV02"
+statement   = "`binding.registry_url` MUST start with the value of `binding.registry_url_scheme` followed by `://`."
+enforced_by = "validators/validate_adapter_registry_binding.py (planned)"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV03"
+statement   = "Every `[[binding.policy_constraint_refs]].constraint_id` MUST match the IJB assertion-id syntax `^A-[A-Za-z0-9][A-Za-z0-9_-]*$`."
+enforced_by = "validators/validate_adapter_registry_binding.py (planned)"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV04"
+statement   = "SPEC-layer validation MUST NOT contact the registry, verify trust anchors, or dereference / evaluate policy constraints. Those checks are RUNTIME-SPEC."
+enforced_by = "scope declaration; no validator action"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name           = "minimal adapter registry binding"
+file           = "examples/minimal-adapter-registry-binding.toml"
+inline_summary = "Binding for a name-version-pinned adapter resolved over https, with one trust anchor and one policy constraint citation."
+ijb_primitive = "observed"
+
+[kind.relation_to_ontology]
+entities_introduced = []
+ontology_entries    = "profiles/agent-assurance/ontology.toml [[attribute_vocabularies]]"
+attribute_vocabularies = [
+  "registry_scheme",
+  "adapter_ref_syntax",
+]
+note                = "No new entity or relation declarations. Bindings are flat artifacts citing adapters and trust anchors by opaque ref strings."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# An adapter-registry-binding is a binding-declaration: it declares how
+# an adapter reference is resolved by an operator, citing trust anchors
+# and policy constraints by opaque ref. It MUST NOT, at the kind layer,
+# become a transport for arbitrary capability assertions. Naming the
+# class here binds future binding producers to the contract; widening
+# the envelope cascade-breaks downstream bindings (per §13.4).
+# Cryptographic verification of trust anchors, dereferencing the
+# registry, and evaluating policy constraints are explicitly RUNTIME-SPEC
+# (per INV04 at lines 132-138 of this file) and lie outside this envelope.
+
+[kind.abstraction_class]
+id          = "binding-declaration.v1"
+description = "Binding-declaration artefact: a singleton `[binding]` table resolving an adapter reference (`adapter_ref` + closed-vocabulary `adapter_ref_syntax`) to a registry location (closed-vocabulary `registry_url_scheme` + `registry_url` whose prefix MUST equal `<scheme>://`), plus opaque-ref `[[binding.trust_anchor_refs]]` and `[[binding.policy_constraint_refs]]` (each `constraint_id` MUST match the IJB assertion-id syntax `^A-[A-Za-z0-9][A-Za-z0-9_-]*$`). Trust-anchor verification, registry dereference, and policy-constraint evaluation are RUNTIME-SPEC and lie outside this envelope. No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms      = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576  # 1 MB — a registry binding is a small flat document
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed      = false
+monotonic_clock_allowed = false
+precision_cap_ms        = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

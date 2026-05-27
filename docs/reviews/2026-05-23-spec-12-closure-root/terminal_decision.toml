@@ -1,0 +1,116 @@
+# U09 — terminal decision.
+#
+# Per tools/review-request-dag.toml [policy.approval]:
+#   terminal_states = ["unconditional_approval", "concrete_unresolvable_blocker"]
+#
+# Three review rounds were dispatched. Each round addressed concrete,
+# file:line-evidenced blockers from the prior round. Round 3 produced
+# a methodology split between the two reviewers; the user adjudicated
+# (recorded below) that codex's clean-archive verdict is binding for
+# the committed tree.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-terminal-decision"
+created        = "2026-05-23"
+review_session = "2026-05-23-spec-12-closure-root"
+commit_under_review = "20c620797d243da8ef929d9e829f3c4b4fc03244"
+
+# ----------------------------------------------------------------------
+# Round history
+# ----------------------------------------------------------------------
+[[rounds]]
+round  = 1
+commit = "bc2a7c5ae0bb411f2d38698afb71abd0a1887739"
+reviewer = "grok"
+verdict  = "concrete_unresolvable_blockers"
+blocker_count = 2
+raw_finding   = "raw_findings/grok.md"
+
+[[rounds]]
+round  = 1
+commit = "dc3a7b04b6f9a8c0a5c2c2d5a48e0c80fc44e95c"  # codex reviewed dc3a7b0
+reviewer = "codex"
+verdict  = "concrete_unresolvable_blockers"
+blocker_count = 2
+raw_finding   = "raw_findings/codex.md"
+note = "Codex's round-1 review actually targeted dc3a7b0 (the first follow-up to grok's round-1 findings) rather than the initial bc2a7c5. Both are counted as round 1."
+
+[[rounds]]
+round  = 2
+commit = "5c145c8af372fc73bae972d3b731b8b79a25c059"
+reviewer = "grok"
+verdict  = "concrete_unresolvable_blockers"
+blocker_count = 2
+raw_finding   = "raw_findings/grok-r2.md"
+
+[[rounds]]
+round  = 2
+commit = "5c145c8af372fc73bae972d3b731b8b79a25c059"
+reviewer = "codex"
+verdict  = "concrete_unresolvable_blockers"
+blocker_count = 2
+raw_finding   = "raw_findings/codex-r2.md"
+
+[[rounds]]
+round  = 3
+commit = "20c620797d243da8ef929d9e829f3c4b4fc03244"
+reviewer = "codex"
+verdict  = "unconditional_approval"
+blocker_count = 0
+raw_finding   = "raw_findings/codex-r3.md"
+methodology = "clean_archive_of_head"
+verbatim_verdict = "UNCONDITIONAL APPROVAL — every prior blocker is resolved, and the clean committed tree at 20c620797d243da8ef929d9e829f3c4b4fc03244 passes python3 validators/validate_closure_root.py --discover . with CLOSURE-ROOT VALIDATION PASSED (65 file(s))."
+
+[[rounds]]
+round  = 3
+commit = "20c620797d243da8ef929d9e829f3c4b4fc03244"
+reviewer = "grok"
+verdict  = "concrete_unresolvable_blockers"
+blocker_count = 1
+raw_finding   = "raw_findings/grok-r3.md"
+methodology = "working_tree_at_head"
+note = "Grok's blocker is over 5 UNTRACKED working-tree files (arxiv-prep-agent-dag.toml, claim-analysis-agent-gated-dag.toml, tools/claim-analysis-document-review-dag.toml, tools/review-request-dag.toml, tools/werner-style-policy.toml). These files do not exist on a clean checkout from main; CI sees codex's view, not grok's."
+
+# ----------------------------------------------------------------------
+# Methodology-split adjudication
+# ----------------------------------------------------------------------
+[methodology_split]
+divergence = "Codex ran `--discover .` against a clean archive of HEAD (65 conforming files, exit 0). Grok ran the same command against the working tree (70 candidates including 5 untracked files, exit 1)."
+adjudication_by = "user (initiator), 2026-05-23"
+binding_methodology = "clean_archive_of_head"
+rationale = "CI on the public branch operates on a clean checkout. The CI gate added by this commit (`.github/workflows/validate.yml`, step 'Validate closure_root (SPEC §12)…') runs against the tracked tree, not against developers' working trees. Codex's clean-archive verdict matches what CI will see. Grok's working-tree failure identifies real user-side cleanup but is outside the commit's scope (user explicitly instructed the initiator to leave the 5 untracked files alone in this work)."
+
+# ----------------------------------------------------------------------
+# Binding terminal state
+# ----------------------------------------------------------------------
+[terminal]
+state = "unconditional_approval"
+binding_reviewer = "codex"
+binding_methodology = "clean_archive_of_head"
+binding_evidence_path = "raw_findings/codex-r3.md"
+binding_verbatim = "UNCONDITIONAL APPROVAL — every prior blocker is resolved, and the clean committed tree at 20c620797d243da8ef929d9e829f3c4b4fc03244 passes python3 validators/validate_closure_root.py --discover . with CLOSURE-ROOT VALIDATION PASSED (65 file(s))."
+
+# ----------------------------------------------------------------------
+# Open issues / follow-ups (non-blocking)
+# ----------------------------------------------------------------------
+[[open_issues]]
+id = "FU01"
+severity = "low"
+title = "Make validator --discover git-aware to eliminate local-vs-CI divergence"
+description = "Grok's round-3 blocker came from running --discover . against the working tree, which included untracked files. CI sees only tracked files. A future enhancement: add a --tracked-only mode (default) to validate_closure_root.py that walks `git ls-files` instead of pathlib.rglob('*.toml'). Local runs would then match CI behaviour."
+evidence = "raw_findings/grok-r3.md Finding R3-1"
+suggested_by = "grok (round 3)"
+status = "deferred_to_follow_up_pr"
+
+[[open_issues]]
+id = "FU02"
+severity = "advisory"
+title = "User's 5 untracked working-tree files use blessed kinds and would need closure_root if committed"
+description = "Files: arxiv-prep-agent-dag.toml, claim-analysis-agent-gated-dag.toml, tools/claim-analysis-document-review-dag.toml, tools/review-request-dag.toml, tools/werner-style-policy.toml. These declare implementation-dag or contract-declaration template_kinds. Per the new value-keyed §12.1, committing them as-is would fail CI. User should add the canonical empty-closure sentinel before committing (procedure in §12.11)."
+evidence = "raw_findings/grok-r3.md §2 + Finding R3-1"
+suggested_by = "grok (round 3)"
+status = "user_responsibility_outside_session_scope"

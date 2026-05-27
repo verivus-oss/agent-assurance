@@ -1,0 +1,13 @@
+# U02 — reviewer roster per review-request-dag.toml
+
+[meta]
+session = "2026-05-23-polsia-osint-dossier-review"
+created = "2026-05-23"
+
+[initiator]
+model = "grok-4.3 (current session)"
+note = "Initiator is excluded from standard reviewer set per policy.roles. May participate only in fresh clean-context session."
+
+[reviewers]
+models = ["codex", "claude"]
+note = "Independent parallel reviews dispatched per U04. Each must follow policy.evidence: verify against actual file contents using sqry/read tools first, never accept summaries as evidence. Produce verbatim full text in raw_findings/<model>.md"

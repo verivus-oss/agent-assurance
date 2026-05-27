@@ -1,0 +1,183 @@
+# Terminal decision for 2026-05-24-iss-001-closure-and-iss-004-filing.
+# Split verdict: codex concrete_unresolvable_blocker (high-evidence),
+# gemini + grok unconditional_approval. Per the established
+# strongest-evidence rule (see r1 of the tooling-sweep session),
+# codex's blocker stands and is bound.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-24"
+review_session = "2026-05-24-iss-001-closure-and-iss-004-filing"
+
+[scope]
+commit_under_review = "ca50b2c"
+parent_commit       = "884f290"
+unit                = "U05"
+
+# ----------------------------------------------------------------------
+# Reviewer verdicts.
+# ----------------------------------------------------------------------
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "concrete_unresolvable_blocker"
+classification = "incomplete"
+blocker_count  = 2
+raw_findings   = "raw_findings/codex.md"
+evidence_class = "live-executable (file-existence checks ls/cat return False for the cited repo paths) + bytes (issue file line 169-179 vs 221-226)"
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "unconditional_approval"
+classification = "complete"
+blocker_count  = 0
+raw_findings   = "raw_findings/gemini.md"
+evidence_class = "claimed verification of factual accuracy; missed the file-existence inconsistency that codex caught"
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "unconditional_approval"
+classification = "complete (with two low-severity findings)"
+blocker_count  = 0
+raw_findings   = "raw_findings/grok.md"
+evidence_class = "live-executable file-existence checks; flagged the same MEMORY.md inaccuracy as U05-F1 / U05-F2 but classified as low and did not elevate to blocker"
+
+# ----------------------------------------------------------------------
+# Strongest-evidence rule.
+# ----------------------------------------------------------------------
+
+[binding_verdict]
+reviewer            = "codex"
+verdict             = "concrete_unresolvable_blocker"
+rationale = """
+Same pattern as r1 of the tooling-sweep session (2026-05-24): when
+reviewer verdicts split, the strongest-evidence verdict binds under
+`[policy.approval].required_approval_bases`. Codex's blocker rests
+on live-executable file-existence checks (`ls MEMORY.md
+memory/feedback_no_self_approval.md` returns "No such file or
+directory") and direct line-by-line inspection of the issue file's
+acceptance criteria. Gemini missed the inconsistency entirely.
+Grok found it but classified low and did not elevate. The bytes
+codex cites are reproducible:
+
+  $ ls MEMORY.md memory/feedback_no_self_approval.md
+  ls: cannot access 'MEMORY.md': No such file or directory
+  ls: cannot access 'memory/feedback_no_self_approval.md': No such file or directory
+
+  $ grep -n 'MEMORY.md\\|memory/feedback' docs/issues/2026-05-23-ISS-001-self-approval-discipline.md
+  128:  (`memory/feedback_no_self_approval.md` say) so any future
+  148:   `memory/feedback_no_self_approval.md` as feedback type:
+  174:- `memory/feedback_no_self_approval.md` exists.
+  221:2. **`memory/feedback_no_self_approval.md`** (per Safeguard C):
+  225:   following the existing rule. Listed in `MEMORY.md`. Future
+  235:  `memory/feedback_no_self_approval.md`.
+
+  $ grep -n 'memory/feedback' docs/issues/2026-05-24-ISS-004-blessed-kind-files-must-land-with-closure-root.md
+  91:  `memory/feedback_blessed_kind_closure_root_in_same_commit.md`
+  96:`[[memory/feedback_no_self_approval.md]]`: do NOT propose a CI
+  104:   `memory/feedback_blessed_kind_closure_root_in_same_commit.md`
+  119:- `memory/feedback_blessed_kind_closure_root_in_same_commit.md`
+
+Both issue files reference repo-relative paths under `memory/` that
+do not exist in the repo. The actual files live in Claude Code's
+per-session auto-memory at
+`~/.claude/projects/-srv-repos-external-verivus-oss-agent-assurance/memory/`,
+which is host-/user-specific, not committed, and invisible to
+other contributors and other agent CLIs (codex, gemini, grok).
+"""
+
+# ----------------------------------------------------------------------
+# Blocker decomposition.
+# ----------------------------------------------------------------------
+
+[[blockers]]
+id          = "U05-F1"
+severity    = "high"
+raised_by   = "codex (high), grok (low — same finding, different severity)"
+title       = "ISS-001 closing note contains false repo-path claim"
+location    = "docs/issues/2026-05-23-ISS-001-self-approval-discipline.md:221-226 + :128 + :148 + :174 + :235"
+description = """
+The closing note cites `memory/feedback_no_self_approval.md` (and
+says it is "Listed in `MEMORY.md`") as the load-bearing safeguard
+artefact. Neither file exists in the repo. The memory file is
+Claude Code's per-session auto-memory at
+`~/.claude/projects/.../memory/feedback_no_self_approval.md`, which
+is host-specific and not contributor-visible. The original ISS-001
+body (lines 128, 148, 174) also pre-cited the same path before the
+closing note, so the inaccuracy predates ca50b2c but was not
+corrected by ca50b2c either. ISS-004 (lines 91, 96, 104, 119)
+repeats the same pattern.
+"""
+
+[[blockers]]
+id          = "U05-F2"
+severity    = "high"
+raised_by   = "codex (high), grok (info — same finding U05-F3)"
+title       = "ISS-001 closed without satisfying or formally superseding original acceptance criteria"
+location    = "docs/issues/2026-05-23-ISS-001-self-approval-discipline.md:4-9 (header) vs :169-179 (criteria)"
+description = """
+The issue header now says `status: closed` and `closed_by: 884f290`,
+but the original `## Acceptance criteria` section (lines 169-179)
+still verbatim lists requirements that are not met: the validator
+file `validators/check_review_session_terminal.py` does not exist,
+the repo memory file does not exist, and there is no CI rule that
+blocks future PRs lacking a terminal verdict. The closing note
+argues these criteria were the wrong framing — but doesn't EDIT
+the criteria section to reflect that. A reader who jumps to the
+Acceptance criteria section will see unmet requirements with no
+notice that they were superseded.
+"""
+
+# ----------------------------------------------------------------------
+# Non-blocking acknowledgments.
+# ----------------------------------------------------------------------
+
+[acknowledged_findings]
+codex_F3_iss004_correctly_framed  = "ISS-004 itself is well framed; codex and gemini and grok all agree."
+gemini_overall_approval           = "Gemini missed U05-F1 entirely. Lower evidentiary weight."
+grok_U05-F4_no_reviewed_by_trailer = "ca50b2c carries no Reviewed-by trailer; consistent with the workflow's current convention of using docs/reviews/<session>/ as the persisted-evidence vehicle rather than the commit message trailer. Not a defect."
+
+# ----------------------------------------------------------------------
+# Decision.
+# ----------------------------------------------------------------------
+
+[decision]
+outcome              = "concrete_unresolvable_blocker"
+verdict_distribution = { unconditional_approval = 2, concrete_unresolvable_blocker = 1 }
+binding_verdict      = "concrete_unresolvable_blocker (codex)"
+session_terminal     = false
+next_action          = "fix-in-place or accept-and-reopen — user decides per the worked pattern from r1/r2 of the tooling-sweep session"
+
+[proposed_fix]
+description = """
+If user chooses fix-in-place:
+  1. ISS-001 closing note (and earlier body references at lines
+     128, 148, 174, 235): replace `memory/feedback_no_self_approval.md`
+     with an explicit description: "Claude Code's per-session
+     auto-memory (host-specific, not contributor-visible) at
+     `~/.claude/projects/<project-slug>/memory/feedback_no_self_approval.md`,
+     plus a paragraph in CONTRIBUTING.md that any contributor can
+     read." Remove the "Listed in `MEMORY.md`" line entirely or
+     describe it the same way.
+  2. ISS-001 acceptance criteria (lines 169-179): add a leading
+     paragraph "**Superseded by closing note 2026-05-24.** The
+     items below were the original framing, retained for the audit
+     trail. Per the closing note, the actual mechanism is the
+     dispatched-review discipline plus the worked counter-example,
+     not these CI artefacts."
+  3. ISS-004 references (lines 91, 96, 104, 119): same treatment
+     — clarify that `feedback_blessed_kind_*.md` and
+     `feedback_no_self_approval.md` refer to Claude Code's
+     per-session auto-memory, not committed repo files. Either
+     remove the references or describe them as host-specific.
+  4. Optional follow-up (not required by this blocker): create a
+     CONTRIBUTING.md paragraph that captures both disciplines in
+     a contributor-visible repo file. The two issues can then
+     point at CONTRIBUTING.md sections, which DO exist in the
+     repo, instead of the host-specific auto-memory.
+  5. Commit and re-dispatch round 2 of this review session.
+"""

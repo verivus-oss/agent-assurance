@@ -1,0 +1,157 @@
+# Traceability for the convert-md-to-dag skill.
+
+# SHA-256 over the SPEC §12.8 source-hash closure stream.
+closure_root = "sha256:f9fb8ccb9b178fc6bf53ae33f259bf9d451b896f01490c5f79b519de84b52a93"
+
+[meta]
+schema_version   = "0.1.0"
+template_kind    = "traceability"
+docs             = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+ontology_version = 1
+title            = "Traceability: convert Markdown to governed DAG-TOML"
+source_spec      = "skills/convert-md-to-dag/SKILL.md"
+source_hash      = "sha256:588c0afa76c35363ca01a9574f72aa66f3e968926eeb8781b00a8b9736d124b8"
+owners           = ["spec-maintainers"]
+created          = "2026-05-21"
+
+[provenance]
+source_path        = "skills/convert-md-to-dag/SKILL.md"
+source_sha256      = "sha256:588c0afa76c35363ca01a9574f72aa66f3e968926eeb8781b00a8b9736d124b8"
+source_bytes       = 3077
+captured_at        = "2026-05-21T11:20:00Z"
+extraction_method  = "manual-analysis"
+source_description = "Skill instructions for converting Markdown files into governed DAG-TOML packages."
+
+[[intents]]
+id           = "INT:governed-markdown-conversion"
+name         = "Governed Markdown conversion"
+statement    = "Agents can convert existing Markdown process guidance into reviewable DAG-TOML artifacts without losing the source intent."
+realized_by  = [
+  "REQ:preserve-source-intent",
+  "REQ:emit-canonical-dag-toml",
+  "REQ:capture-source-provenance",
+  "REQ:require-multi-llm-review",
+]
+
+[[requirements]]
+id               = "REQ:preserve-source-intent"
+statement        = "The conversion MUST extract and preserve the source Markdown purpose, success criteria, constraints, edge cases, and assumptions."
+requirement_kind = "functional"
+priority         = "must"
+source           = "skills/convert-md-to-dag/SKILL.md#process"
+constrains       = ["IMP:analyze-source-markdown"]
+verified_by      = ["TEST:convert-md-to-dag::traceability::source_hash_binds"]
+
+[[requirements]]
+id               = "REQ:emit-canonical-dag-toml"
+statement        = "The conversion MUST emit canonical DAG-TOML instance files rather than the older [dag] / [[tasks]] draft shape."
+requirement_kind = "correctness"
+priority         = "must"
+source           = "skills/convert-md-to-dag/SKILL.md#canonical-outputs"
+constrains       = ["IMP:generate-canonical-package"]
+verified_by      = ["TEST:convert-md-to-dag::validators::canonical_shapes_pass"]
+
+[[requirements]]
+id               = "REQ:capture-source-provenance"
+statement        = "Every generated TOML artifact MUST record the original Markdown source path, SHA-256 hash, byte count, capture time, extraction method, and source description in a [provenance] table."
+requirement_kind = "audit"
+priority         = "must"
+source           = "skills/convert-md-to-dag/SKILL.md#required-provenance"
+constrains       = ["IMP:generate-canonical-package"]
+verified_by      = ["TEST:convert-md-to-dag::provenance::all_toml_files_bind_source"]
+
+[[requirements]]
+id               = "REQ:require-multi-llm-review"
+statement        = "The final package MUST include evidence from at least three distinct LLM reviewers, or keep the readiness gate blocked with a concrete unavailable-tool reason."
+requirement_kind = "process"
+priority         = "must"
+source           = "skills/convert-md-to-dag/SKILL.md#multi-llm-review-command"
+constrains       = ["IMP:perform-review-gate"]
+verified_by      = ["TEST:convert-md-to-dag::review::multi_llm_evidence_recorded"]
+
+[[implementations]]
+id            = "IMP:analyze-source-markdown"
+name          = "Analyze source Markdown"
+summary       = "Read the complete Markdown input and extract purpose, constraints, assumptions, edge cases, and success criteria."
+implements    = ["REQ:preserve-source-intent"]
+code          = ["CODE:skills/convert-md-to-dag/SKILL.md"]
+tests         = ["TEST:convert-md-to-dag::traceability::source_hash_binds"]
+
+[[implementations]]
+id            = "IMP:generate-canonical-package"
+name          = "Generate canonical DAG-TOML package"
+summary       = "Produce implementation DAG, contracts, readiness, traceability, rollback, and threat-model files using current template_kind shapes."
+implements    = ["REQ:emit-canonical-dag-toml", "REQ:capture-source-provenance"]
+code          = [
+  "CODE:skills/convert-md-to-dag/implementation_dag.toml",
+  "CODE:skills/convert-md-to-dag/contract_declaration.toml",
+  "CODE:skills/convert-md-to-dag/review_readiness.toml",
+]
+tests         = ["TEST:convert-md-to-dag::validators::canonical_shapes_pass"]
+
+[[implementations]]
+id            = "IMP:perform-review-gate"
+name          = "Perform multi-LLM review gate"
+summary       = "Run llm-cli-gateway with three models when available and disposition all major findings before finalization."
+implements    = ["REQ:require-multi-llm-review"]
+code          = ["CODE:skills/convert-md-to-dag/review_readiness.toml"]
+tests         = ["TEST:convert-md-to-dag::review::multi_llm_evidence_recorded"]
+
+[[code]]
+id       = "CODE:skills/convert-md-to-dag/SKILL.md"
+path     = "skills/convert-md-to-dag/SKILL.md"
+symbol   = "convert-md-to-dag-process"
+realizes = ["IMP:analyze-source-markdown"]
+
+[[code]]
+id       = "CODE:skills/convert-md-to-dag/implementation_dag.toml"
+path     = "skills/convert-md-to-dag/implementation_dag.toml"
+symbol   = "implementation-dag-instance"
+realizes = ["IMP:generate-canonical-package"]
+
+[[code]]
+id       = "CODE:skills/convert-md-to-dag/contract_declaration.toml"
+path     = "skills/convert-md-to-dag/contract_declaration.toml"
+symbol   = "contract-declaration-instance"
+realizes = ["IMP:generate-canonical-package"]
+
+[[code]]
+id       = "CODE:skills/convert-md-to-dag/review_readiness.toml"
+path     = "skills/convert-md-to-dag/review_readiness.toml"
+symbol   = "readiness-gate-instance"
+realizes = ["IMP:generate-canonical-package", "IMP:perform-review-gate"]
+
+[[tests]]
+id        = "TEST:convert-md-to-dag::traceability::source_hash_binds"
+path      = "skills/convert-md-to-dag/traceability.toml"
+test_kind = "audit"
+verifies  = ["REQ:preserve-source-intent"]
+command   = "python3 validators/validate_provenance.py skills/convert-md-to-dag/traceability.toml --repo-root ."
+
+[[tests]]
+id        = "TEST:convert-md-to-dag::validators::canonical_shapes_pass"
+path      = "skills/convert-md-to-dag/implementation_dag.toml"
+test_kind = "audit"
+verifies  = ["REQ:emit-canonical-dag-toml"]
+command   = "python3 validators/validate_implementation_dag.py skills/convert-md-to-dag/implementation_dag.toml && python3 validators/validate_review_readiness.py skills/convert-md-to-dag/contract_declaration.toml && python3 validators/validate_review_readiness.py skills/convert-md-to-dag/review_readiness.toml && python3 validators/validate_traceability.py skills/convert-md-to-dag/traceability.toml"
+
+[[tests]]
+id        = "TEST:convert-md-to-dag::provenance::all_toml_files_bind_source"
+path      = "skills/convert-md-to-dag/traceability.toml"
+test_kind = "audit"
+verifies  = ["REQ:capture-source-provenance"]
+command   = "python3 validators/validate_provenance.py skills/convert-md-to-dag/*.toml --repo-root ."
+
+[[tests]]
+id        = "TEST:convert-md-to-dag::review::multi_llm_evidence_recorded"
+path      = "skills/convert-md-to-dag/review_readiness.toml"
+test_kind = "audit"
+verifies  = ["REQ:require-multi-llm-review"]
+command   = "grep -q 'at least three different LLMs' skills/convert-md-to-dag/review_readiness.toml"
+
+[computed]
+root_intents            = ["INT:governed-markdown-conversion"]
+terminal_outputs        = []
+unverified_requirements = []
+unmapped_code           = []
+coverage_gaps           = []

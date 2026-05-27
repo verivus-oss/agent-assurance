@@ -1,0 +1,26 @@
+# Minimal assertion-log-record instance.
+# Validator-compatible shape per profiles/agent-assurance/assertion-log-record-kind.toml.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "assertion-log-record"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+framework_profile = "agent-assurance"
+title             = "Log record 0"
+created           = "2026-05-21"
+
+[record]
+index               = 0
+prev_hash           = "genesis"
+bundle_hash         = "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"
+signer_id           = "did:agent-assurance:signer:bootstrap"
+signature           = "MEUCIQDxV8u/AaJ8FZTzU2k5sB9wXWaqJsh4q3aR9Wn1k5o0WgIgZ0BzCfJ3aFv4lqkz4Fp7zKQYyk2X4tFmYUkRkVxJhJM="
+signature_algorithm = "ed25519"
+hash_algorithm      = "sha256"
+canonical_form      = "rfc8785-jcs"
+timestamp           = "2026-05-21T03:14:45Z"

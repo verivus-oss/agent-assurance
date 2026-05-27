@@ -1,0 +1,56 @@
+schema_version = "1.0"
+review_id = "2026-05-26-spec-security-privacy-considerations"
+base_commit = "12b9473"
+terminal_state = "unconditional_approval"
+decision = "approved_for_publication"
+
+[scope]
+diff_command = "git diff HEAD --find-renames -- SPEC.md spec.md CHANGELOG.md docs/reviews/2026-05-26-spec-security-privacy-considerations/verification_report.toml docs/reviews/2026-05-26-spec-security-privacy-considerations/review_bundle.toml docs/reviews/2026-05-26-spec-security-privacy-considerations/reviewer_roster.toml docs/reviews/2026-05-26-spec-security-privacy-considerations/permission_grant.toml docs/reviews/2026-05-26-spec-security-privacy-considerations/review_prompt.md docs/reviews/2026-05-26-spec-security-privacy-considerations/local_validation.md"
+reviewed_current_spec_path = "spec.md"
+reviewed_rename = "SPEC.md -> spec.md"
+dynamic_evidence_excluded_from_pre_dispatch_scope = [
+  "docs/reviews/2026-05-26-spec-security-privacy-considerations/job_ids.toml",
+  "docs/reviews/2026-05-26-spec-security-privacy-considerations/raw_findings/*.md",
+  "docs/reviews/2026-05-26-spec-security-privacy-considerations/terminal_decision.toml",
+]
+
+[[approval]]
+reviewer = "claude"
+iteration = 4
+job_id = "78aa9585-534e-4fb1-9ec3-a9bd31d67b5b"
+raw_finding = "docs/reviews/2026-05-26-spec-security-privacy-considerations/raw_findings/claude-r4.md"
+terminal_state = "unconditional_approval"
+
+[[approval]]
+reviewer = "gemini"
+iteration = 4
+job_id = "ab71e8f0-6f17-43ef-a4f1-60400252352f"
+raw_finding = "docs/reviews/2026-05-26-spec-security-privacy-considerations/raw_findings/gemini-r4.md"
+terminal_state = "unconditional_approval"
+
+[[approval]]
+reviewer = "grok"
+iteration = 4
+job_id = "3fa59a99-2d97-48f9-a233-627dac0cdfce"
+raw_finding = "docs/reviews/2026-05-26-spec-security-privacy-considerations/raw_findings/grok-r4.md"
+terminal_state = "unconditional_approval"
+
+[[validation]]
+command = "taplo lint"
+exit_code = 0
+summary = "196 files scanned after adding terminal_decision.toml; no lint errors."
+
+[[validation]]
+command = "python3 validators/validate_closure_root.py --discover ."
+exit_code = 0
+summary = "CLOSURE-ROOT VALIDATION PASSED (75 file(s))."
+
+[[validation]]
+command = "bash validators/check_manifest_drift.sh"
+exit_code = 0
+summary = "COUNT-MIRROR OK; manifest matches ontology and count-mirror surfaces."
+
+[[validation]]
+command = "python3 validators/validate_profile_descriptor.py --repo-root . profiles/agent-assurance/PROFILE.toml profiles/disclosure/PROFILE.toml profiles/cost/PROFILE.toml"
+exit_code = 0
+summary = "PROFILE DESCRIPTOR VALIDATION PASSED; 3 files and 3 profiles validated."

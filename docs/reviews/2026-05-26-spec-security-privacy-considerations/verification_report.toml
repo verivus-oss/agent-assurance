@@ -1,0 +1,68 @@
+schema_version = "1.0"
+review_id = "2026-05-26-spec-security-privacy-considerations"
+repo = "verivus-oss/agent-assurance"
+base_commit = "12b9473"
+created_utc = "2026-05-26T00:00:00Z"
+
+[corrective_program]
+problem = "The public spec file does not have explicit Security Considerations and Privacy Considerations sections."
+expected_outcome = "The current public spec file, `spec.md`, contains dedicated, publication-ready security and privacy sections that consolidate security/privacy posture already distributed across SECURITY.md, disclosure profile, provenance, confidentiality, and threat-model docs."
+non_goals = [
+  "No schema change.",
+  "No validator behavior change.",
+  "No new runtime enforcement claim.",
+]
+
+[[acceptance_criteria]]
+id = "C01"
+statement = "`spec.md` contains a dedicated top-level Security Considerations section."
+
+[[acceptance_criteria]]
+id = "C02"
+statement = "`spec.md` contains a dedicated top-level Privacy Considerations section."
+
+[[acceptance_criteria]]
+id = "C03"
+statement = "The security section explicitly states DAG-TOML validity and validator success are not proof of safety, authorization, completeness, review, execution, or enforcement."
+
+[[acceptance_criteria]]
+id = "C04"
+statement = "The security section distinguishes declarative fields such as closure_root, provenance, signatures, registries, adapters, gates, and capability envelopes from runtime enforcement, authorization, sandboxing, access control, and trust decisions."
+
+[[acceptance_criteria]]
+id = "C05"
+statement = "The privacy section identifies metadata and provenance fields that can expose sensitive information or act as correlators even without secret payload bytes."
+
+[[acceptance_criteria]]
+id = "C06"
+statement = "The privacy section gives pre-publication minimization and disclosure-review guidance, including redaction-manifest leakage and the advisory nature of confidentiality/disclosure/embargo metadata absent external enforcement."
+
+[[validation_command]]
+id = "V01"
+command = "taplo lint"
+required = true
+
+[[validation_command]]
+id = "V02"
+command = "python3 validators/validate_closure_root.py --discover ."
+required = true
+
+[[validation_command]]
+id = "V03"
+command = "bash validators/check_manifest_drift.sh"
+required = true
+
+[[validation_command]]
+id = "V04"
+command = "python3 validators/validate_profile_descriptor.py --repo-root . profiles/agent-assurance/PROFILE.toml profiles/disclosure/PROFILE.toml profiles/cost/PROFILE.toml"
+required = true
+
+[reviewer_requirements]
+terminal_states = [
+  "unconditional_approval",
+  "concrete_unresolvable_blocker",
+]
+must_verify_against_repo = true
+must_not_accept_codex_summary_as_evidence = true
+must_review_exact_diff = true
+must_cite_files_or_commands = true

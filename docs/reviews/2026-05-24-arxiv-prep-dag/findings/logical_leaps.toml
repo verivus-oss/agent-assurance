@@ -1,0 +1,30 @@
+[section]
+step_reference = "review_steps.step3"
+title = "Examine Logical Leaps"
+status = "findings"
+
+[[findings]]
+id = "LL-001"
+step_reference = "review_steps.step3"
+quoted_document_part = '''Every common rejection cause and every checklist item from the
+# authoritative sources is turned into an explicit unit, gate, or
+# evidence artefact.'''
+problem_explanation = "The coverage table is selective and does not enumerate every item named in the supplied reference summary, such as user intervention .inp, concatenated files, old styles, unusual fonts, double sub/sup, Bbbk, breqn, and journal-reference updates."
+suggested_fix = "Add one checklist_coverage row per referenced checklist item, or narrow the claim to 'major/common checklist items'."
+severity = "major"
+
+[[findings]]
+id = "LL-002"
+step_reference = "review_steps.step3"
+quoted_document_part = '''allow_subdirs          = true              # figures/ is kept; scripts/ under figures/ is stripped'''
+problem_explanation = "The document maps Trevor Campbell flattening coverage to U02, but the default instance keeps subdirectories and only flattens conditionally. The coverage claim and default behavior do not fully align."
+suggested_fix = "Either default to flattening for Trevor-style mode, or document that official arXiv-compatible subdirectories are intentionally allowed and split that from Trevor checklist coverage."
+severity = "major"
+
+[[findings]]
+id = "LL-003"
+step_reference = "review_steps.step3"
+quoted_document_part = '''Walk staging_dir, build exact file list + SHA256 (must match U01 snapshot minus deleted junk).'''
+problem_explanation = "U08 later adds a generated main.pdf to staging, so the final manifest cannot simply match the U01 snapshot minus deleted junk unless generated artifacts are explicitly excluded or separately classified."
+suggested_fix = "Define manifest classes for original source files, generated evidence files, and excluded local PDFs; make packaging rules explicit."
+severity = "minor"

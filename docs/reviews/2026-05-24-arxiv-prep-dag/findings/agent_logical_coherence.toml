@@ -1,0 +1,7 @@
+[section]
+step_reference = "agent.responsibilities.logical"
+title = "Logical Coherence Analysis"
+status = "findings"
+
+covered_by_findings = ["LL-001", "LL-002", "LL-003"]
+note = "Findings are recorded in findings/logical_leaps.toml to avoid duplicating identical evidence."

@@ -1,0 +1,41 @@
+# Minimal readiness gate, validator-compatible shape.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "readiness-gate"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+title          = "Review readiness: tax line on checkout receipt"
+status         = "ready"
+created        = "2026-05-19"
+review_subject = "checkout-tax-line"
+
+[[artifact_classes]]
+id          = "A01"
+name        = "planning_pack"
+description = "Planning documents for the checkout-tax-line change."
+
+[[gates]]
+id                 = "G01"
+artifact_class     = "A01"
+name               = "Planning pack gate"
+purpose            = "Block review until the planning pack is complete and cross-linked."
+required_documents = ["spec", "design", "plan", "test plan"]
+required_links     = [
+  "spec to design",
+  "design to plan",
+  "plan to test plan",
+]
+pass_conditions    = [
+  "all required documents exist",
+  "documents are cross-linked",
+]
+block_conditions   = [
+  "missing prerequisite document",
+  "broken cross-link",
+]
+next_step = "complete the planning pack before opening review"

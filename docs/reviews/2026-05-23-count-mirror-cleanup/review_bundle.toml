@@ -1,0 +1,54 @@
+# U01 — review bundle for the count-mirror cleanup commit chain.
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-23"
+review_session = "2026-05-23-count-mirror-cleanup"
+
+[bundle]
+change_under_review   = "Full count-mirror cleanup (split attribute_values + gate every surface)"
+repo_commit_head      = "5b1eca1f99e38e46c832b9e4f58095019e763127"
+target_commit         = "9996826"   # the count-mirror cleanup itself
+issues_commit         = "5b1eca1"   # the issue-ledger commit on top
+parent_commit         = "fccc1dcf8ebc796eaeee395d73126256fd94d869"
+repo_root             = "/srv/repos/external/verivus-oss/agent-assurance"
+session_origin        = "docs/reviews/2026-05-23-attribute-values-methodology/"
+prior_session_inputs  = [
+  "raw_findings/grok.md          (round 1)",
+  "raw_findings/codex.md         (round 1)",
+  "raw_findings/opus.md          (broadened investigation)",
+  "raw_findings/grok-critique.md (critique round)",
+  "raw_findings/codex-critique.md(critique round)",
+]
+new_validator         = "validators/check_attribute_values.py"
+mirror_surfaces_gated = 28
+issues_filed_alongside = [
+  "docs/issues/2026-05-23-ISS-001-self-approval-discipline.md",
+  "docs/issues/2026-05-23-ISS-002-graph-cypher-seed-incomplete.md",
+  "docs/issues/2026-05-23-ISS-003-duckdb-hardcoded-counts-duplication.md",
+]
+
+[bundle.workflow_dag]
+file        = "tools/review-request-dag.toml"
+description = "The DAG-TOML workflow this review is operating under."
+
+[roster]
+initiator_model           = "claude-opus-4-7"
+initiator_excluded_as_standard_reviewer = true
+reviewer_models           = ["codex", "grok"]
+note = "Final review on the count-mirror cleanup commit (9996826) and the issue ledger (5b1eca1) per the user's request. The methodology disagreement that triggered this entire session has been resolved by the prior cycle (split + gate + drop the SPEC paragraph); this round verifies the implementation matches the converged recommendation and there are no new regressions."
+
+[permissions]
+codex_sandbox       = "workspace-write"
+codex_bypass        = true
+codex_mcp           = ["sqry", "ref_tools"]
+grok_permission     = "bypassPermissions"
+grok_always_approve = true
+grok_mcp            = ["sqry", "ref_tools"]
+poll_progress_interval_seconds_if_grant_not_durable = 90
+
+[outputs]
+raw_findings_dir         = "docs/reviews/2026-05-23-count-mirror-cleanup/raw_findings/"
+expected_per_reviewer    = "raw_findings/<reviewer>.md (full review verbatim)"
+gate_decision            = "docs/reviews/2026-05-23-count-mirror-cleanup/gate_decision.toml"

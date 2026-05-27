@@ -1,0 +1,55 @@
+# Minimal cost-record — one smoke-validation run decided by a
+# three-model LLM consensus. Demonstrates the closed-vocab fields
+# (`citing_kind`, `decider_class`, dimension `category`), the
+# producer-attested unit labels, and the at-least-one-dimensions-row
+# requirement.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "cost-record"
+framework_profile = "cost"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/profiles/cost/PROFILE.toml"
+confidentiality   = "public"
+license           = "Apache-2.0"
+title             = "Cost record: smoke-validation run 2026-05-22-001 (three-model consensus)"
+created           = "2026-05-22"
+
+[record]
+action_id      = "EVMTX:smoke-run-2026-05-22-001"
+incurred_at    = "2026-05-22T14:32:11Z"
+citing_kind    = "smoke-validation"
+citing_ref     = "sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef#section.checks[3]"
+decider_class  = "llm_consensus"
+producer_id    = "did:example:runtime-ci-worker-12"
+hash_algorithm = "sha256"
+canonical_form = "rfc8785-jcs"
+
+# Token consumption across the three-model consensus run. The
+# producer-attested unit label distinguishes this from a single-model
+# token count; comparability across producers requires an explicit
+# conversion artefact and is intentionally not normalised at the SPEC
+# layer.
+[[record.dimensions]]
+category   = "token_equivalent"
+quantity   = 12450
+unit_label = "tokens.consensus-3way"
+note       = "sum across three independent model invocations"
+
+# Wall-clock seconds for the consensus run. Note the unit_label is
+# explicit even though `compute_time_seconds` is in its name —
+# producers MAY choose `wall-clock-milliseconds`, `cpu-seconds`, or
+# any other finer-grained label as the actual unit they incurred.
+[[record.dimensions]]
+category   = "compute_time_seconds"
+quantity   = 47
+unit_label = "wall-clock-seconds"
+
+# Number of discrete evidence runs paid. For an llm_consensus decider
+# this is typically the number of independent invocations that voted.
+[[record.dimensions]]
+category   = "evidence_run_count"
+quantity   = 3
+unit_label = "consensus-rounds"

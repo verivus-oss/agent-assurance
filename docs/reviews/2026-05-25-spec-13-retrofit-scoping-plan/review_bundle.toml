@@ -1,0 +1,218 @@
+# Review bundle for the SPEC §13 retrofit scoping plan.
+# The plan is the "verification report used as the corrective-program
+# spec" per the initiator's instruction. Reviewers verify that the
+# plan correctly enumerates the kinds, the taxonomy is structurally
+# sound, the envelope interpretation matches the spec author's
+# intent, and the phasing is appropriate.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-25"
+review_session = "2026-05-25-spec-13-retrofit-scoping-plan"
+
+[bundle]
+repo_root           = "/srv/repos/external/verivus-oss/agent-assurance"
+parent_commit       = "6b2d451"
+head_commit         = "c88f7ea"
+commit_range        = "6b2d451..c88f7ea"
+total_commits       = 1
+description         = "Single new file at docs/planning/2026-05-25-spec-13-retrofit-scoping.md. Plan to retrofit [kind.abstraction_class] + [kind.capability_envelope] to the 18 blessed *-kind.toml descriptors that do not yet declare them. Plan is reviewable text only; no kind descriptor or SPEC text is modified by c88f7ea. The plan adopts the 'narrow' R1 reading of §13.4 (envelope bounds descriptor parse, not described actions) and proposes a 13-class taxonomy with shared ids across kinds with matching structural rules. Reviewers MUST verify against actual repo bytes and against SPEC §13 prose; do not accept initiator's framing as evidence."
+
+[bundle.workflow_dag]
+file        = "/srv/repos/external/verivus-oss/agent-assurance/tools/review-request-dag.toml"
+description = "Exact DAG-TOML process governing this review. Reviewers MUST obey [policy.*] in that file. The five questions in plan §12 are the substance of this review."
+
+[bundle.verification_report]
+path = "/srv/repos/external/verivus-oss/agent-assurance/docs/planning/2026-05-25-spec-13-retrofit-scoping.md"
+role = "corrective-program spec — describes the retrofit work the planning sequence will implement, and is itself the subject of this review"
+
+[bundle.exact_change]
+diff_command   = "git show c88f7ea"
+single_file    = "docs/planning/2026-05-25-spec-13-retrofit-scoping.md"
+insertions     = 313
+deletions      = 0
+kind_descriptors_touched = []
+spec_md_touched          = false
+validators_touched       = false
+
+# ----------------------------------------------------------------------
+# Unit under review.
+# ----------------------------------------------------------------------
+
+[[bundle.units]]
+id           = "U07"
+commit_sha   = "c88f7ea"
+title        = "SPEC §13 retrofit scoping plan"
+summary      = """
+Adds docs/planning/2026-05-25-spec-13-retrofit-scoping.md (313
+lines). Asserts:
+  (a) Inventory: 19 blessed *-kind.toml descriptors at HEAD; 1
+      (cost-record) declares §13; 18 do not.
+  (b) Reference shape: cost-record's §13 block at
+      profiles/cost/cost-record-kind.toml:282-327 is the canonical
+      Family A envelope (all 9 domains denied/zeroed, 100ms CPU,
+      1MB memory).
+  (c) §13.4 envelope semantics: plan adopts R1 (narrow) reading;
+      envelope bounds descriptor PARSE not described actions.
+      Rationale: cost-record precedent + §13.4 cascade-break
+      property still bites under R1.
+  (d) Taxonomy: 13 producer-attested class ids covering 19 kinds,
+      with 5 kinds sharing observation-record.v1 and 3 sharing
+      policy-declaration.v1.
+  (e) Per-kind proposal table (18 rows × {kind, class id,
+      envelope family, variance}). 17 kinds Family A; 1
+      (selective-disclosure-proof) Family C with documented
+      narrow exceptions.
+  (f) Phasing: 3 phases by risk (5 / 8+1 / 5 kinds). Each phase
+      one PR; each PR dispatches its own multi-LLM review.
+  (g) Per-kind verification: 4 validator commands (abstraction
+      class, IJB conformance, kind descriptor, closure-root).
+  (h) Reversibility: each phase reversible via `git revert`;
+      retrofit is additive per SPEC.md:1478-1486.
+  (i) §12 expectation: closure_root sentinel does NOT change
+      because kind descriptors cite no upstream evidence;
+      empty-closure sentinel persists post-retrofit. Reviewers
+      verify empirically.
+  (j) Five open questions for reviewers in plan §12.
+
+Initiator claim: the plan is structurally consistent with SPEC
+§13 as it stands at HEAD, the taxonomy is sound, the R1 reading
+matches the cost-record precedent, and the phasing is right. This
+claim is plan-compliance language and MUST be independently
+verified by the reviewers against repo bytes.
+"""
+changed_files = [
+  "docs/planning/2026-05-25-spec-13-retrofit-scoping.md",
+]
+verify = [
+  "git show c88f7ea",
+  "cat docs/planning/2026-05-25-spec-13-retrofit-scoping.md",
+  "sed -n '1190,1486p' SPEC.md   # §13 prose in full",
+  "cat profiles/cost/cost-record-kind.toml | sed -n '280,330p'   # the reference §13 block",
+  "python3 validators/validate_abstraction_class.py --repo-root . core/*-kind.toml profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml profiles/cost/*-kind.toml",
+  "find core/ profiles/ -name '*-kind.toml' | sort   # confirm 19-kind inventory",
+  "grep -l 'kind.abstraction_class' core/*-kind.toml profiles/*/*-kind.toml   # confirm only cost-record",
+  "python3 validators/validate_closure_root.py --discover .",
+]
+
+# ----------------------------------------------------------------------
+# Substantive questions reviewers MUST answer with evidence.
+# Plan §12 contains these; the bundle re-states them for emphasis.
+# ----------------------------------------------------------------------
+
+[bundle.questions]
+
+[bundle.questions.q1_r1_vs_r2_envelope_semantics]
+prompt = """
+Plan §5 picks R1 (envelope bounds descriptor parse) over R2
+(envelope bounds described actions). Does SPEC.md §13.4 (lines
+~1308-1326) support R1, R2, or is the text ambiguous? Quote the
+exact spec bytes that drive your answer. If you can show R2 is
+the canonical reading, the plan's entire per-kind table is wrong
+and you should issue a concrete_unresolvable_blocker.
+"""
+
+[bundle.questions.q2_taxonomy_soundness]
+prompt = """
+Plan §6 proposes 13 producer-attested class ids for 19 kinds,
+with shared ids across kinds that share structural rules. For
+each of the 5 shared assignments (observation-record.v1 for
+cost-record + evidence-matrix + gate-decision + assertion-log-record
++ redaction-manifest; policy-declaration.v1 for readiness-gate +
+contract-declaration + spec-contract), inspect the kind
+descriptors' [[kind.required_fields]] and [[kind.hard_invariants]]
+sections and confirm the structural rules actually match (or
+identify a mismatch that should split the class id). Cite the
+file:line for each.
+"""
+
+[bundle.questions.q3_inventory_completeness]
+prompt = """
+Plan §3 asserts 19 blessed *-kind.toml descriptors at HEAD with
+exactly 1 (cost-record) declaring a §13 block. Verify by running:
+  find core/ profiles/ -name '*-kind.toml' -not -path './.git/*' | sort
+  python3 validators/validate_abstraction_class.py ...
+Confirm the count and the cost-record-only assertion. Identify
+any kind descriptor the plan missed (e.g. if a new profile was
+added between 6b2d451 and c88f7ea).
+"""
+
+[bundle.questions.q4_selective_disclosure_envelope]
+prompt = """
+Plan §7 row 18 proposes Family C for selective-disclosure-proof
+with `random.entropy_source = "system"` and `crypto_keys.verify
+= true, sign = false`. Read
+profiles/disclosure/selective-disclosure-proof-kind.toml's
+[[kind.required_fields]] and [[kind.hard_invariants]]. Does the
+descriptor actually require those capabilities at parse time, or
+is this R2 leakage (envelope covering the proof's *generation* or
+*verification* outside the descriptor itself)? Cite file:line.
+"""
+
+[bundle.questions.q5_phasing_appropriateness]
+prompt = """
+Plan §8 splits the 18 retrofits into 3 phases. Is the
+classification correct? In particular:
+  - Is rollback-plan really Family A under R1? (Its instances
+    describe procedures executed on a trigger.)
+  - Is implementation-dag Family A? (Its instances describe DAG
+    units to be executed.)
+  - Are there any kinds in Phase 1 (observation-record.v1) that
+    actually belong in Phase 2/3?
+Cite the kind descriptor sections that drive your answer.
+"""
+
+[bundle.questions.q6_closure_root_expectation]
+prompt = """
+Plan §9 asserts: "The sentinel value
+(sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855)
+does NOT change because kind descriptors that cite no upstream
+evidence stay at the empty-closure sentinel; the cost-record
+example at HEAD uses the empty sentinel even after declaring §13."
+
+Verify this against bytes:
+  grep -n closure_root profiles/cost/cost-record-kind.toml
+  grep -n closure_root core/*-kind.toml profiles/*/*-kind.toml
+Is the assertion correct? If a kind descriptor's closure_root
+SHOULD flip when §13 is added but the sentinel persists, that's
+either (a) the spec's intended behaviour (the descriptor cites no
+upstream evidence so the sentinel is correct regardless) or (b) a
+§12 conformance gap. Which is it, with evidence from SPEC §12.1
+and §12.11?
+"""
+
+[bundle.questions.q7_missing_or_redundant_content]
+prompt = """
+Read the plan in full. Is anything materially missing for it to
+serve as a corrective-program spec (i.e. enough specificity that
+a future contributor could implement Phase 1 from the plan alone
+without asking the initiator)? Conversely, is anything redundant
+or over-engineered (e.g. the user has previously rejected
+elaborate CI tooling as substitute-for-discipline; the plan must
+not slip new infrastructure in)?
+"""
+
+[roster]
+initiator       = "claude-opus-4-7 (session running on /srv/repos/external/verivus-oss/agent-assurance, 2026-05-25)"
+initiator_role  = "excluded from standard reviewer set per [policy.roles].initiator_excluded_as_standard_reviewer"
+reviewer_models = ["codex", "gemini", "grok"]
+
+[review_instructions]
+rules_source  = "tools/review-request-dag.toml [policy.*]"
+prompt_path   = "docs/reviews/2026-05-25-spec-13-retrofit-scoping-plan/review_prompt.md"
+narrow_scope  = "Review the plan (one file, 313 lines) at c88f7ea. Verify the 7 substantive questions in [bundle.questions]. The plan must not be approved on intent / plan-compliance / 'should be fixed' grounds; only inspected code, executed validator output, inspected docs, and persisted review evidence."
+iteration_rule = "Iterate until unconditional_approval OR concrete_unresolvable_blocker. If initiator disagrees with a finding, response MUST cite code or doc evidence (file + line), not assertion."
+polling_cadence_seconds = 90
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-25-spec-13-retrofit-scoping-plan/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "terminal_decision.toml",
+]

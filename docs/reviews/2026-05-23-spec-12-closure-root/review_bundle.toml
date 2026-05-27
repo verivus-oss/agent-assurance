@@ -1,0 +1,56 @@
+# U01 — review bundle for SPEC §12 closure-root commit.
+#
+# This is the persistent record of what each reviewer was given.
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-23"
+review_session = "2026-05-23-spec-12-closure-root"
+
+[bundle]
+change_under_review   = "SPEC §12 — closure-root rule (brittleness propagation)"
+repo_commit           = "bc2a7c5ae0bb411f2d38698afb71abd0a1887739"
+parent_commit         = "638a90e8a0dc68c3e4aa8dfa29b51f6466d435fe"
+repo_root             = "/srv/repos/external/verivus-oss/agent-assurance"
+proposal_source       = "docs/research/2026-05-22-spec-foundations-research/follow-up-2/14-closure-root-spec-section-proposal.md"
+spec_section          = "SPEC.md §12 (§12.1–§12.10)"
+new_validator         = "validators/validate_closure_root.py"
+ci_step               = ".github/workflows/validate.yml — step 'Validate closure_root (SPEC §12) on every canonical example + tier'"
+ontology_additions    = [
+  "core/ontology.toml `cites_upstream` relation predicate",
+  "core/ontology.toml `closure_root.digest_algorithm` attribute vocabulary",
+]
+changed_files_count   = 63
+total_insertions      = 784
+total_deletions       = 23
+
+[bundle.workflow_dag]
+file        = "tools/review-request-dag.toml"
+description = "The DAG-TOML workflow this review is operating under. See [policy.*] tables for the binding rules."
+
+[roster]
+initiator_model           = "claude-opus-4-7"
+initiator_excluded_as_standard_reviewer = true
+reviewer_models           = ["codex", "grok", "mistral"]
+note = "Per policy.roles in tools/review-request-dag.toml, the initiator is excluded as a standard reviewer. Each reviewer operates in a fresh clean-context session and verifies claims against repo bytes at commit bc2a7c5, not against the initiator's summary."
+
+[permissions]
+codex_sandbox       = "workspace-write"
+codex_ask_approval  = "never"
+codex_mcp           = ["sqry", "ref_tools"]
+grok_permission     = "bypassPermissions"
+grok_always_approve = true
+grok_mcp            = ["sqry", "ref_tools"]
+mistral_permission_mode = "auto-approve"
+mistral_mcp             = ["sqry", "ref_tools"]
+poll_progress_interval_seconds_if_grant_not_durable = 90
+
+[outputs]
+raw_findings_dir         = "docs/reviews/2026-05-23-spec-12-closure-root/raw_findings/"
+expected_per_reviewer    = "raw_findings/<reviewer>.md (full review verbatim)"
+unit_classifications     = "docs/reviews/2026-05-23-spec-12-closure-root/unit_classifications.toml"
+process_confirmations    = "docs/reviews/2026-05-23-spec-12-closure-root/process_confirmations.toml"
+rebuttal_record          = "docs/reviews/2026-05-23-spec-12-closure-root/rebuttal_record.md"
+terminal_decision        = "docs/reviews/2026-05-23-spec-12-closure-root/terminal_decision.toml"
+gate_decision            = "docs/reviews/2026-05-23-spec-12-closure-root/gate_decision.toml"

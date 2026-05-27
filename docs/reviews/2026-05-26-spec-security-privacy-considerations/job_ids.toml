@@ -1,0 +1,118 @@
+schema_version = "1.0"
+review_id = "2026-05-26-spec-security-privacy-considerations"
+
+[[job]]
+reviewer = "claude"
+iteration = 1
+gateway_job_id = "4e94bacc-80a2-496b-b7fa-3d798a4ccd50"
+correlation_id = "agent-assurance-security-privacy-claude-r1"
+status = "cancelled"
+note = "Cancelled because dynamic evidence files were added after dispatch, making the prompt's reviewed-file list stale."
+requested_mcp_servers = ["sqry", "exa", "ref_tools"]
+enabled_mcp_servers = ["sqry"]
+missing_mcp_servers = ["exa", "ref_tools"]
+
+[[job]]
+reviewer = "gemini"
+iteration = 1
+gateway_job_id = "9bdb8afd-d4cc-4a1a-814b-dc1595fe1527"
+correlation_id = "agent-assurance-security-privacy-gemini-r1"
+status = "superseded"
+note = "Completed after the stale round-1 dispatch; not used as terminal approval."
+requested_mcp_servers = ["sqry", "exa", "ref_tools"]
+
+[[job]]
+reviewer = "grok"
+iteration = 1
+gateway_job_id = "ebad6c82-84c8-4d63-a91d-35c9ee4a2ca8"
+correlation_id = "agent-assurance-security-privacy-grok-r1"
+status = "cancelled"
+note = "Cancelled because dynamic evidence files were added after dispatch, making the prompt's reviewed-file list stale."
+requested_mcp_servers = ["sqry", "exa", "ref_tools"]
+
+[[job]]
+reviewer = "claude"
+iteration = 2
+gateway_job_id = "0f43c83e-681d-4417-9c8d-66872017fa65"
+correlation_id = "agent-assurance-security-privacy-claude-r2"
+status = "superseded"
+note = "Completed, but superseded because the review package base commit was corrected from 664d194 to 12b9473 before terminal approval."
+requested_mcp_servers = ["sqry", "exa", "ref_tools"]
+enabled_mcp_servers = ["sqry"]
+missing_mcp_servers = ["exa", "ref_tools"]
+
+[[job]]
+reviewer = "gemini"
+iteration = 2
+gateway_job_id = "081aa641-e12e-4b1c-b51c-5b8908a72eb7"
+correlation_id = "agent-assurance-security-privacy-gemini-r2"
+status = "superseded"
+note = "Completed, but superseded because the review package base commit was corrected from 664d194 to 12b9473 before terminal approval."
+requested_mcp_servers = ["sqry", "exa", "ref_tools"]
+
+[[job]]
+reviewer = "grok"
+iteration = 2
+gateway_job_id = "680ec1c8-1a45-491b-a4a9-523b4f2a661e"
+correlation_id = "agent-assurance-security-privacy-grok-r2"
+status = "superseded"
+note = "Completed, but superseded because the review package base commit was corrected from 664d194 to 12b9473 before terminal approval."
+requested_mcp_servers = ["sqry", "exa", "ref_tools"]
+
+[[job]]
+reviewer = "claude"
+iteration = 3
+gateway_job_id = "680e2249-eee5-4b57-a0c0-2cc866c93759"
+correlation_id = "agent-assurance-security-privacy-claude-r3"
+status = "cancelled"
+note = "Cancelled because working-tree spec path changed from SPEC.md to spec.md; round 4 reviews the corrected current path."
+requested_mcp_servers = ["sqry", "exa", "ref_tools"]
+enabled_mcp_servers = ["sqry"]
+missing_mcp_servers = ["exa", "ref_tools"]
+
+[[job]]
+reviewer = "gemini"
+iteration = 3
+gateway_job_id = "d2b49aa4-98b7-4a9f-8bc8-9d28efaa1886"
+correlation_id = "agent-assurance-security-privacy-gemini-r3"
+status = "superseded"
+note = "Completed, but superseded because the review bundle was corrected to include current path spec.md and rename-aware diff."
+requested_mcp_servers = ["sqry", "exa", "ref_tools"]
+
+[[job]]
+reviewer = "grok"
+iteration = 3
+gateway_job_id = "cad4530c-08d6-4284-b12f-ec85033f2f2a"
+correlation_id = "agent-assurance-security-privacy-grok-r3"
+status = "superseded"
+note = "Completed, but superseded because the review bundle was corrected to include current path spec.md and rename-aware diff."
+requested_mcp_servers = ["sqry", "exa", "ref_tools"]
+
+[[job]]
+reviewer = "claude"
+iteration = 4
+gateway_job_id = "78aa9585-534e-4fb1-9ec3-a9bd31d67b5b"
+correlation_id = "agent-assurance-security-privacy-claude-r4"
+status = "completed"
+terminal_state = "unconditional_approval"
+requested_mcp_servers = ["sqry", "exa", "ref_tools"]
+enabled_mcp_servers = ["sqry"]
+missing_mcp_servers = ["exa", "ref_tools"]
+
+[[job]]
+reviewer = "gemini"
+iteration = 4
+gateway_job_id = "ab71e8f0-6f17-43ef-a4f1-60400252352f"
+correlation_id = "agent-assurance-security-privacy-gemini-r4"
+status = "completed"
+terminal_state = "unconditional_approval"
+requested_mcp_servers = ["sqry", "exa", "ref_tools"]
+
+[[job]]
+reviewer = "grok"
+iteration = 4
+gateway_job_id = "3fa59a99-2d97-48f9-a233-627dac0cdfce"
+correlation_id = "agent-assurance-security-privacy-grok-r4"
+status = "completed"
+terminal_state = "unconditional_approval"
+requested_mcp_servers = ["sqry", "exa", "ref_tools"]

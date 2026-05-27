@@ -1,0 +1,55 @@
+# U06 — Document Review Prompt step 4.
+#   "Spot Unsubstantiated Claims"
+# Imperative: flag statements lacking evidence, sources, or backing;
+# assess corporate-standards compliance.
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "claim-analysis-finding-set"
+unit           = "U06"
+step           = "step4"
+title          = "Spot Unsubstantiated Claims"
+document       = "paper/main.tex@9664be061e4bc8493de2e5054d3c3d61737bd666e56077b9856c19585dbde306"
+
+[summary]
+total_findings   = 4
+severity_counts  = { high = 0, medium = 3, low = 1 }
+section_outcome  = "issues_present"
+
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id                    = "U4-F01"
+step_reference        = "step4"
+severity              = "medium"
+quoted_document_part  = """Independent review reports are consistent that accuracy degrades on paraphrased or ``humanised'' content, an industry-wide limit rather than a vendor-specific one."""
+location              = "paper/main.tex:1403-1406 (section sec:related-tools, Copyleaks paragraph)"
+problem_explanation   = """The claim 'independent review reports are consistent' is asserted without a single citation. The Copyleaks bib entry (paper/references.bib, copyleaks2026code) is a vendor product page, not an independent review. The paragraph cites no neutral review or comparative study. The next paragraph repeats the pattern for CodeSpy AI ('On the cross-vendor evidence, AI-vs-human classifiers are accurate on raw LLM output and degrade sharply on human-edited or humanised LLM output' — paper/main.tex:1421-1423) with no citation."""
+suggested_fix         = """Either (i) cite specific independent reviews ('see [author2025aitext] for a comparative study of AI-text detectors under paraphrase'), or (ii) reframe as a vendor-acknowledged limit if the vendors publish it ('Copyleaks's own documentation acknowledges accuracy degradation on humanised content [copyleaks2026code, FAQ-section]'), or (iii) hedge clearly: 'Industry consensus reported on vendor blog posts and informal third-party comparisons (we cite no peer-reviewed source) is that accuracy degrades on paraphrased content.'"""
+
+[[finding]]
+id                    = "U4-F02"
+step_reference        = "step4"
+severity              = "medium"
+quoted_document_part  = """We treat vendor-published accuracy figures (often in the 98--99\\% range on lab corpora) as best-case numbers and assume real-world false-positive and evasion rates are meaningfully higher."""
+location              = "paper/main.tex:1422-1426 (section sec:related-tools, CodeSpy AI paragraph)"
+problem_explanation   = """'98-99% range' is stated as if measured. No citation backs the figure. No basis is given for the 'meaningfully higher real-world rate' adjustment. This is a reasonable epistemic posture but is presented as factual."""
+suggested_fix         = """Either cite the lab-corpus numbers ('CodeSpy AI's product page reports 98.7% accuracy on its internal benchmark [codespy2026]') or remove the unsourced range and replace with: 'vendor-published accuracy figures, which we treat as best-case.'"""
+
+[[finding]]
+id                    = "U4-F03"
+step_reference        = "step4"
+severity              = "medium"
+quoted_document_part  = """the model's training set very likely included v6~\\cite{carlini2023quantifying,theregister2026chardet};"""
+location              = "paper/main.tex:1029-1030 (section sec:legal, Reading B)"
+problem_explanation   = """The citation chain does not support the specific claim. Carlini et al. 2023 establishes that memorisation in language models is a function of scale, repetition, and prompt length — it does NOT establish anything specific about the chardet v6 corpus being in any particular model's training set. The Register reference is a journalist quoting the FSF director's general argument, not a primary source on training-set composition. The probabilistic word 'likely' makes the claim defensible, but the cited support is not load-bearing on the specific corpus."""
+suggested_fix         = """Tighten to: 'the model's training set plausibly included v6, given that chardet v6 was an LGPL-licensed package on PyPI throughout the period covered by major training-data corpora — the FSF director's argument quoted in §sec:dispute~\\cite{theregister2026chardet}'. The Carlini et al. citation belongs separately as background for why memorisation cannot be ruled out, not as direct evidence that v6 was ingested by any specific model."""
+
+[[finding]]
+id                    = "U4-F04"
+step_reference        = "step4"
+severity              = "low"
+quoted_document_part  = """the harness's resistance criterion is graph-structural rather than tree-structural"""
+location              = "paper/main.tex:515-517 (section sec:c06a-rationale)"
+problem_explanation   = """This is a design-decision claim. No evidence is offered for why graph-structural is the right criterion for THIS harness. The §sec:layers table situates GumTree (tree-edit) as 'medium-high renaming resistance' and PDG isomorphism as 'high', implying tree-structural is acceptable. The choice to prefer graph over tree is the paper's, and it is defensible, but no falsifiable criterion is given. A skeptical reviewer can ask: 'How would you know if tree-structural were the better choice for this problem?'"""
+suggested_fix         = """Add one sentence: 'We chose graph-structural over tree-structural because the v6/v7 dispute centres on call-graph topology being preserved across module reorganisation; tree-edit distance is sensitive to tree-shape changes that are orthogonal to whether the call topology is preserved. A future revision that adds tree-edit distance (per GumTree) would test this choice empirically.'"""

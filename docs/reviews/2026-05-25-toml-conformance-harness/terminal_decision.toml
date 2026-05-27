@@ -1,0 +1,171 @@
+# Round-1 terminal decision for 2026-05-25-toml-conformance-harness.
+# Unanimous unconditional_approval; all 3 reviewers ran the suite
+# under the committed skiplist and produced verbatim output
+# matching the local baseline (185/185 valid + 358/358 invalid).
+# Codex additionally produced `go version -m` byte-level evidence
+# that the installed toml-test-decoder binary is built from
+# BurntSushi/toml v1.4.0 — exactly the version pinned in
+# tools/dagtoml-validate-go/go.mod. That is the load-bearing
+# claim of the entire change.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-toml-conformance-harness"
+predecessor    = "2026-05-25-spec-13-phase-3-procedure-and-special"
+
+[scope]
+commit_under_review = "afe354c"
+parent_commit       = "8cc1110"
+unit                = "U01-U05 (version-pin binding, skiplist honesty, CI hard-fail, no scope creep, CHANGELOG honest follow-up)"
+
+# ----------------------------------------------------------------------
+# Verdicts.
+# ----------------------------------------------------------------------
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "unconditional_approval"
+classification = "U01-U05 all complete; zero findings"
+blocker_count  = 0
+raw_findings   = "raw_findings/codex.md"
+evidence_class = "live-executable + binary-provenance (git diff, git show --stat, go version -m on /home/werner/go/bin/toml-test-decoder showing `mod github.com/BurntSushi/toml v1.4.0`, byte-level reads of Makefile + workflow + CHANGELOG + tools/dagtoml-validate-go/go.mod, unskipped suite reproduced to confirm skiplist matches actual fail set)"
+note           = "Codex's `go version -m` evidence (raw_findings/codex.md:82-97) directly confirms the installed decoder binary was built from BurntSushi/toml v1.4.0, the same module tools/dagtoml-validate-go/go.mod requires. That is a stronger U01 signal than what the bundle's verification recipe asked for. The local `go install` step failed for codex due to sandbox network policy; codex inspected the already-installed binaries instead and documented the substitution."
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "unconditional_approval"
+classification = "U01-U05 all complete; zero findings"
+blocker_count  = 0
+raw_findings   = "raw_findings/gemini.md"
+evidence_class = "live-executable (make toml-conformance-install + make toml-conformance) + byte-level reads (Makefile:20, go.mod:5, Makefile:30-36, Makefile:38-51, validate.yml:79-82, CHANGELOG.md:12-32) + git diff verification"
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "unconditional_approval"
+classification = "U01-U05 all complete; zero findings"
+blocker_count  = 0
+raw_findings   = "raw_findings/grok.md"
+evidence_class = "live-executable (committed skip-list run + unskipped raw-suite run for U02 honesty check, EXIT_CODE captured for U03 hard-fail check) + git rev-parse + git diff + git show against both parent and head + cross-repo grep for 'toml-conformance'"
+
+# ----------------------------------------------------------------------
+# Per-unit synthesis.
+# ----------------------------------------------------------------------
+
+[unit_synthesis]
+
+[[unit_synthesis.units]]
+id     = "U01"
+name   = "version-pinning-binds-conformance-to-validator-parser"
+status = "complete"
+evidence = """
+All three reviewers confirmed Makefile:20 `TOML_TEST_DECODER_VERSION := v1.4.0`
+matches tools/dagtoml-validate-go/go.mod:5 `github.com/BurntSushi/toml v1.4.0`
+exactly. Codex additionally executed `go version -m
+/home/werner/go/bin/toml-test-decoder` and observed
+`mod github.com/BurntSushi/toml v1.4.0
+h1:kuoIxZQy2WRRk1pttg9asf+WVv6tWQuBNVmK8+nqPr0=` — proving the
+binary actually exercised in the CI step is built from the same
+module the validator imports. The load-bearing claim of the entire
+change is independently substantiated.
+"""
+
+[[unit_synthesis.units]]
+id     = "U02"
+name   = "skiplist-baseline-is-honest"
+status = "complete"
+evidence = """
+All three reviewers ran the unskipped suite
+(`toml-test toml-test-decoder` without -skip flags) and observed
+exactly 13 failures whose names match TOML_CONFORMANCE_SKIPS at
+Makefile:38-51 — no extras, no missing entries. Codex captured the
+13 verbatim FAIL blocks at raw_findings/codex.md:113-404, giving
+byte-level evidence of WHY each one fails (dotted-key /
+inline-table redefinition cases the parser pre-dates relative to
+TOML 1.1 tightening). The rationale comment at Makefile:30-36
+correctly frames the list as a 'currently-known-tolerated-
+permissiveness baseline, NOT a green light' and mandates revisit
+on TOML_TEST_DECODER_VERSION bumps.
+"""
+
+[[unit_synthesis.units]]
+id     = "U03"
+name   = "ci-step-is-mandatory-not-soft"
+status = "complete"
+evidence = """
+.github/workflows/validate.yml:79-94 (the new step) opens with
+`set -e` and ends with `make toml-conformance`. No
+`continue-on-error: true`. Grok independently captured the
+`EXIT_CODE=1` from the unskipped suite invocation
+(raw_findings/grok.md:47-51), proving the runner does exit
+non-zero on failure and would therefore trip `set -e` to fail
+the CI step.
+"""
+
+[[unit_synthesis.units]]
+id     = "U04"
+name   = "no-spec-or-validator-byte-changed"
+status = "complete"
+evidence = """
+`git diff --name-only 8cc1110..afe354c` returns exactly the three
+files claimed in the commit message: .github/workflows/validate.yml,
+CHANGELOG.md, Makefile. No SPEC, profile, validator, ontology, or
+example instance bytes are touched. Verified by all three
+reviewers; codex additionally captured `git show --stat` at
+raw_findings/codex.md:35-41 showing 15 + 20 + 63 = 98 insertions
+and zero deletions.
+"""
+
+[[unit_synthesis.units]]
+id     = "U05"
+name   = "changelog-and-followup-honest"
+status = "complete"
+evidence = """
+CHANGELOG.md:12-32 entry lives under [Unreleased], names the
+load-bearing claim explicitly ('the decoder shim is shipped by the
+same BurntSushi/toml v1.4.0 module that tools/dagtoml-validate-go
+depends on, so a green run is evidence about the parser the Go
+validator actually uses at runtime'), enumerates the skiplist
+baseline (185/185 + 358/358 + 13 skips), and honestly flags the
+Rust-side gap as a deferred follow-up rather than as 'done'. No
+overclaim.
+"""
+
+# ----------------------------------------------------------------------
+# Decision.
+# ----------------------------------------------------------------------
+
+[decision]
+outcome              = "unconditional_approval"
+unanimous            = true
+binding_reviewer     = "codex (provided the strongest U01 evidence via `go version -m` binary-provenance inspection — confirming the installed decoder shim was built from the exact BurntSushi/toml module version the Go validator imports)"
+verdict_distribution = { unconditional_approval = 3, concrete_unresolvable_blocker = 0 }
+session_terminal     = true
+next_action          = """
+The toml-test parser-conformance harness is approved. The Go
+validator's TOML parser (BurntSushi/toml v1.4.0) is now subject
+to a third-party spec-conformance check in CI for the lifetime
+of this version pin.
+
+Deferred follow-up (already flagged in CHANGELOG and the
+commit message, NOT this session's scope): a Rust decoder shim
+against the `toml` 0.8 crate used by tools/dagtoml-validate-rs
+would extend the same evidence path to the Rust validator's
+parser. That requires writing a small (~30 line) shim binary
+under tools/, not just `go install` — out of scope for the
+'one go install + a make target' promise this session honoured.
+"""
+
+[session_close]
+closed_at = "2026-05-25"
+closed_by = "consolidated reviewer verdicts at raw_findings/{codex,gemini,grok}.md"
+followup_notes = [
+  "Dispatch teething: both codex and grok jobs failed on first attempt with CLI flag/model issues (codex: --ask-for-approval not supported by this codex CLI; grok: model 'grok-4' rejected — only 'grok-build' is valid for the installed grok-build CLI). Re-dispatched both with corrections; final runs all completed clean. No reviewer evidence is harmed because the initial failures were pre-execution (the LLM never saw the prompt). Process note for future review dispatches: prefer omitting model overrides and approval-mode flags unless required, and let the gateway pick defaults.",
+  "Codex's `go version -m` binary-provenance check (raw_findings/codex.md:82-97) is a technique worth absorbing into future review prompts that touch pinned third-party tool versions. The bundle's U01 verification recipe asked only for textual version-string agreement; codex went a level deeper and confirmed the on-disk binary is actually built from that module version, which is the claim CI actually depends on. Consider promoting this from a happy accident to a documented expectation in future bundles of this shape.",
+  "This session validates that the existing tools/review-request-dag.toml machinery scales DOWN cleanly to a 3-file CI/tooling change, not just to SPEC/profile retrofits. The 5-unit single-cycle structure (no per-kind decomposition, no R1/R2 challenges, no phase terminus) took ~6 minutes wall-clock from dispatch to terminal decision and produced higher-resolution evidence than the change technically required. Use this as the template for future build-tooling reviews.",
+  "Rust shim follow-up (NOT this session's scope; recorded here for tracking): the natural shape is tools/toml-test-decode-rs/ — a ~30-line binary that reads TOML from stdin, parses via `toml::from_str::<toml::Value>`, walks the Value and emits toml-test's tagged-JSON format on stdout, exits 1 on parse error. It would consume the same `toml` 0.8 crate version dagtoml-validate-rs already depends on (Cargo.lock pins it). Then a second Makefile target `toml-conformance-rs` and a second CI step would close the parity gap. Estimated work: ~1 hour including a separate Cargo.toml, the shim source, and the CI/Makefile plumbing. Worth doing; not promised.",
+]

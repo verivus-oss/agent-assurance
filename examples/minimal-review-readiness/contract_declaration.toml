@@ -1,0 +1,34 @@
+# Minimal contract declaration, validator-compatible shape.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "contract-declaration"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+title          = "Contracts: tax line on checkout receipt"
+status         = "draft"
+created        = "2026-05-19"
+review_subject = "checkout-tax-line"
+
+[[contracts]]
+id          = "C01"
+domain      = "canonical_schema_and_serialization_shape"
+statement   = "If a paid receipt is rendered, a 'Tax' line MUST appear, even when tax is zero. The line MUST use the same currency as item amounts."
+applies_to  = ["checkout-tax-line"]
+must_name   = [
+  "currency normalisation rule",
+  "behaviour when tax amount is zero",
+]
+verified_by = ["TEST:checkout::receipt::shows_tax_line"]
+
+[[contracts]]
+id          = "C02"
+domain      = "precedence_override_and_waiver"
+statement   = "Manual receipt adjustments MUST NOT remove the tax line; they MAY adjust its amount only via a recorded waiver."
+applies_to  = ["checkout-tax-line"]
+must_name   = ["who can issue a waiver", "waiver record format"]
+verified_by = ["TEST:checkout::receipt::manual_adjustment_keeps_tax_line"]

@@ -1,0 +1,229 @@
+# Kind descriptor for `template_kind = "assertion-bundle"`.
+# Agent Assurance Profile artifact.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "kind-descriptor"
+ontology_version  = 1
+title             = "Assertion bundle kind descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+describes_kind    = "assertion-bundle"
+framework_profile = "agent-assurance"
+authoritative_in  = "this file"
+
+[kind]
+name    = "assertion-bundle"
+summary = "Sealed output of one adapter run: an ordered list of canonical IJB assertion lines with provenance."
+prose   = """
+An assertion-bundle file is the sealed output of one adapter run.
+It carries an ordered list of canonical IJB assertions (per
+foundations/ijb/canonical-assertion-grammar.md), the hash of the
+raw input it was derived from, the adapter contract pin, and the
+bundle's own content hash.
+
+The bundle is the unit of evidence cited by gate-decision and
+assertion-log-record files. It does not contain the raw input itself;
+it contains a hash reference. SPEC-layer validation parses each
+assertion line against the IJB grammar; it does NOT verify the
+bundle_hash matches the bundle contents, nor does it verify the
+bundle was actually produced by the cited adapter. Those are
+RUNTIME-SPEC verifications.
+
+ROOT SHAPE
+
+    [meta]
+    schema_version    = "0.1.0"
+    template_kind     = "assertion-bundle"
+    framework_profile = "agent-assurance"
+    title             = "Bundle for <adapter-run-id>"
+    created           = "YYYY-MM-DD"
+
+    [bundle]
+    adapter_contract_ref  = "adapters/red-team-review.toml"
+    adapter_version_pin   = "1.2.0"
+    raw_input_hash        = "0123456789abcdef...64hex"
+    bundle_hash           = "fedcba9876543210...64hex"
+    created_at            = "2026-05-21T03:14:15Z"
+
+    [[bundle.assertions]]
+    line = 'A-thing-finding-001 = thing(id=Finding-001,class=instance,instance_of=Finding,type=ssrf,identity=finding_id)'
+
+    [[bundle.assertions]]
+    line = 'A-observed-finding-001 = observed(id=obs-001,asserts=A-thing-finding-001,by=A-thing-tool-red-team,time=A-time-001,within=A-scope-bundle-001)'
+
+SYNTAX-ONLY VALIDATION
+
+The validator parses each `[[bundle.assertions]].line` against the
+ABNF at foundations/ijb/canonical-assertion-grammar.md lines 46-83
+and checks within-bundle ID uniqueness. Cross-document references
+(to other bundles, to the adapter, to log records) are NOT resolved
+at SPEC layer.
+"""
+references = [
+  "spec.md",
+  "profiles/agent-assurance/ontology.toml",
+  "foundations/ijb/canonical-assertion-grammar.md",
+]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[kind.required_fields]]
+path        = "meta.template_kind"
+must_equal  = "assertion-bundle"
+description = "Identifies this file as an assertion bundle."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "meta.framework_profile"
+must_equal  = "agent-assurance"
+description = "Assertion bundle is an Agent Assurance Profile artifact."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "bundle.adapter_contract_ref"
+description = "Non-empty citation string pointing at the producing adapter contract."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "bundle.adapter_version_pin"
+description = "Semver pin of the adapter that produced this bundle."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "bundle.raw_input_hash"
+description = "SHA-256 hex string of the raw input the adapter consumed."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "bundle.bundle_hash"
+description = "SHA-256 hex string identifying this bundle's content."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "bundle.created_at"
+description = "RFC3339 UTC timestamp."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "bundle.assertions"
+description = "At least one canonical-grammar assertion line."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV01"
+statement   = "Every `[[bundle.assertions]].line` MUST parse against the ABNF in foundations/ijb/canonical-assertion-grammar.md lines 46-83."
+enforced_by = "validators/validate_assertion_bundle.py (planned)"
+see_also    = "foundations/ijb/canonical-assertion-grammar.md"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV02"
+statement   = "Every assertion ID extracted from `[[bundle.assertions]].line` MUST be unique within the bundle."
+enforced_by = "validators/validate_assertion_bundle.py (planned)"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV03"
+statement   = "`bundle.raw_input_hash` and `bundle.bundle_hash` MUST match `^[0-9a-f]{64}$`."
+enforced_by = "validators/validate_assertion_bundle.py (planned)"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV04"
+statement   = "SPEC-layer validation MUST NOT verify `bundle.bundle_hash` against bundle contents; MUST NOT verify the bundle was produced by the cited adapter; MUST NOT dereference `bundle.adapter_contract_ref`. Those checks are RUNTIME-SPEC."
+enforced_by = "scope declaration; no validator action"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name           = "minimal assertion bundle"
+file           = "examples/minimal-assertion-bundle.toml"
+inline_summary = "Two canonical-grammar assertions: a Thing and an Observed referencing it."
+ijb_primitive = "observed"
+
+[kind.relation_to_ontology]
+entities_introduced = []
+ontology_entries    = "profiles/agent-assurance/ontology.toml"
+attribute_vocabularies = []
+note                = "No new entity, relation, or attribute-vocabulary declarations. Bundle assertion content is governed entirely by the IJB canonical assertion grammar in foundations/ijb/."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# An assertion-bundle is an assertion-set: it carries a sealed ordered
+# list of canonical IJB assertion lines plus the provenance hashes that
+# tie the bundle back to its raw input and the producing adapter. It
+# MUST NOT, at the kind layer, become a transport for arbitrary
+# capability assertions. Naming the class here binds future
+# assertion-bundle producers to the contract; widening the envelope
+# cascade-breaks downstream assertion-bundles (per §13.4). Per Reading
+# R1 (docs/planning/2026-05-25-spec-13-retrofit-scoping.md §5), this
+# envelope bounds the processing of the descriptor (text parse + ABNF
+# parse of each assertion line + within-bundle ID-uniqueness check),
+# NOT verification of `bundle.bundle_hash` against the bundle content
+# nor verification that the bundle was produced by the cited adapter
+# — those are RUNTIME-SPEC per the kind's own INV04.
+
+[kind.abstraction_class]
+id          = "assertion-set.v1"
+description = "Assertion-set artefact: a sealed ordered list of canonical-grammar IJB `[[bundle.assertions]]` lines with provenance — `[bundle]` carries `adapter_contract_ref`, semver `adapter_version_pin`, `raw_input_hash` and `bundle_hash` (both `^[0-9a-f]{64}$`), `created_at` RFC3339. SPEC-layer validation parses each `[[bundle.assertions]].line` against the ABNF in foundations/ijb/canonical-assertion-grammar.md (lines 46-83) and checks within-bundle ID uniqueness; cross-document resolution and hash/digest verification are RUNTIME-SPEC (per INV04). No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms      = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576  # 1 MB — bundle parse + ABNF check is a small categorical workload
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed      = false
+monotonic_clock_allowed = false
+precision_cap_ms        = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

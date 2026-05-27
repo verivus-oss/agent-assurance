@@ -1,0 +1,60 @@
+# Rollback plan for the convert-md-to-dag skill.
+
+# SHA-256 over the SPEC §12.8 source-hash closure stream.
+closure_root = "sha256:f9fb8ccb9b178fc6bf53ae33f259bf9d451b896f01490c5f79b519de84b52a93"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "rollback-plan"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+framework_profile = "agent-assurance"
+title             = "Rollback plan: convert Markdown to DAG-TOML"
+created           = "2026-05-21"
+
+[provenance]
+source_path        = "skills/convert-md-to-dag/SKILL.md"
+source_sha256      = "sha256:588c0afa76c35363ca01a9574f72aa66f3e968926eeb8781b00a8b9736d124b8"
+source_bytes       = 3077
+captured_at        = "2026-05-21T11:20:00Z"
+extraction_method  = "manual-analysis"
+source_description = "Skill instructions for converting Markdown files into governed DAG-TOML packages."
+
+[plan]
+summary          = "Revert to manual Markdown-to-DAG conversion guidance if the skill emits non-compliant artifacts or loses source provenance."
+owner            = "spec-maintainers"
+estimated_ttr    = "PT20M"
+previous_release = "pre-convert-md-to-dag-skill"
+
+[[triggers]]
+id           = "TRIG:validator-failure"
+trigger_kind = "validator_failure"
+metric       = "convert_md_to_dag.validator_failures"
+threshold    = 1
+window       = "PT5M"
+action       = "block adoption and fix generated templates"
+
+[[triggers]]
+id           = "TRIG:provenance-missing"
+trigger_kind = "missing_evidence"
+metric       = "convert_md_to_dag.generated_files_without_provenance"
+threshold    = 1
+window       = "PT5M"
+action       = "reject generated package and require source hash capture"
+
+[[triggers]]
+id           = "TRIG:review-gate-bypass"
+trigger_kind = "manual_override"
+metric       = "convert_md_to_dag.finalized_without_multi_llm_disposition"
+threshold    = 1
+window       = "PT5M"
+action       = "mark review blocked and restore manual review requirement"
+
+[procedure]
+steps = [
+  "Stop using the generated package for review decisions.",
+  "Keep the original Markdown source and generated TOML package attached to the issue.",
+  "Run local validators against the generated TOML files and record failures.",
+  "If provenance is missing, recompute SHA-256 and byte count from the original Markdown source.",
+  "Patch the skill instructions or generated artifacts, then rerun conversion.",
+  "Do not mark the package ready until review_readiness.toml gates pass.",
+]

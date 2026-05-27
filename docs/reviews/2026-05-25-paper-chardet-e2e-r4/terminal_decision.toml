@@ -1,0 +1,80 @@
+# Round-4 terminal decision for 2026-05-25-paper-chardet-e2e-r4.
+# UNANIMOUS unconditional_approval (3/3). r3 gemini blocker
+# (B3-section10.3-overclaim) closed by mechanical prose rewrite in
+# commit 6d64887 (§10.3 intro now explicitly scopes scipy/numpy
+# validation to AUX1+C06a-d and explains why C06e takes a different
+# path). All three reviewers ran the broad scipy|numpy alternation
+# and confirmed zero class-C unscoped global claims; triple-agreement
+# on C06e's stdlib+subprocess+SKIP validation path; no collateral
+# damage to r3-approved Conclusion or C06e paragraph.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-paper-chardet-e2e-r4"
+predecessor    = "2026-05-25-paper-chardet-e2e-r3"
+head_commit    = "4c57fdd"
+
+[scope]
+unit                = "§10.3 intro prose closure (B3-section10.3-overclaim) + regression on r3-approved C06e paragraph + Conclusion"
+verification_report = "docs/reviews/2026-05-25-paper-chardet-e2e-r4/verification_report.toml"
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "unconditional_approval"
+classification = "B3-section10.3-overclaim closed; zero class-C grep hits; no collateral damage"
+blocker_count  = 0
+raw_findings   = "raw_findings/codex.md"
+note           = "Caught the head_commit pointer mismatch (verification_report says 6d64887, working-tree HEAD is 4c57fdd from the pointer fixup); correctly treated working-tree HEAD bytes as authoritative. Audit-trail diligence."
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "unconditional_approval"
+classification = "Own r3 blocker closed; broad grep classification confirmed zero C-class; triple-agreement on C06e holds"
+blocker_count  = 0
+raw_findings   = "raw_findings/gemini.md"
+note           = "Original r3 B3-section10.3-overclaim filer; r4 re-confirms own finding closed against bytes. Three rounds of escalating grep breadth: r2 caught slash-form, r3 caught and-form, r4 verifies broad alternation."
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "unconditional_approval"
+classification = "Adopted spec-ethos standard (framing must stand on its own) per r4 directive; classified all 9 hits A/B/D with zero C"
+blocker_count  = 0
+raw_findings   = "raw_findings/grok.md"
+note           = "r3 grok's context-redeems-framing interpretation was the wrong standard for audit-grade prose. r4 directive made the spec-ethos position explicit and grok applied it correctly — an example of process-correction landing in the next round."
+
+[d_closures]
+
+[[d_closures.items]]
+id       = "B3-section10.3-overclaim"
+status   = "closed"
+binding  = "gemini (original r3 filer), bytes-verified by all 3 reviewers"
+evidence = "paper/main.tex:1022-1031 rewritten in commit 6d64887: 'we cross-validated AUX1 and the C06a--d results against an independent re-implementation in scipy and numpy; C06e is handled separately below via stdlib digest re-derivation plus a subprocess... because there is no scipy or numpy primitive that re-derives a chardet behavioural fingerprint.' Broad grep `scipy|numpy` returns 9 hits all classified A/B/D; zero class-C."
+
+[[d_closures.items]]
+id       = "r3 substrate (B1+B2+B3 closures + C06e paragraph + Conclusion sentence + validate_numbers.py)"
+status   = "still-closed (regression-verified)"
+binding  = "all 3 reviewers"
+evidence = "C06e paragraph at :1045-1060 byte-identical to 4fbc906 state; Conclusion at :1562-1570 byte-identical; validate_numbers.py runs clean (exit 0, c06e.corpus_digest matched 58e54831f84183c7, rates matched or SKIP, 'all agree: True'); script design unchanged."
+
+[decision]
+outcome              = "unconditional_approval"
+unanimous            = true
+binding_reviewer     = "all 3 (unanimous bytes-verified with broadened grep recipe)"
+verdict_distribution = { unconditional_approval = 3, concrete_unresolvable_blocker = 0 }
+session_terminal     = true
+arc_terminal         = true
+next_action          = "Paper-chardet end-to-end review arc (r1 + r2 + r3 + r4) closes. The chardet relicense paper is review-validated at tier-3 (multi-LLM bytes-verified independent)."
+
+[session_close]
+closed_at = "2026-05-25"
+closed_by = "consolidated reviewer verdicts at raw_findings/{codex,gemini,grok}.md"
+followup_notes = [
+  "Arc terminal at r4: 4 rounds total. r1 (10 blockers) → r2 (1 codex blocker, B3 conclusion) → r3 (1 gemini blocker, B3 §10.3 intro — same defect class, different location) → r4 (0 blockers). Each round closed against bytes by a unanimous panel except where one reviewer caught what others missed.",
+  "Key meta-lesson: the same defect class (global scipy/numpy overclaim) recurred at THREE locations across the document arc. r1 caught one, r2 caught the Conclusion, r3 caught §10.3 intro. Each time the fix was surgical and each time a different reviewer found it. The verification_report's grep recipe was the key control point — too narrow (slash-only) at r3 let codex/grok approve without noticing the and-form. The r4 recipe enumerated the full alternation. Conclusion: for prose-class defects, verification recipes must enumerate the full pattern set after the FIRST instance, not narrow to the form that triggered the predecessor blocker.",
+  "Reviewer divergence at r3 was instructive: codex's recipe-literal style (\"I ran what was asked\") + grok's context-redeems-framing interpretation BOTH approved; only gemini's pattern-broader execution + standalone-framing interpretation caught the defect. This is exactly the lattice the multi-LLM panel exists to provide. Two reviewers would have missed it; three with diverse approaches caught it.",
+  "Substrate is now solid: paper has 0 em-dashes, balanced braces, 0 missing refs/cites, the validate_numbers.py runs clean producing the bytewise-correct corpus digest, and every scipy/numpy mention in the paper is now bytes-verified accurately scoped or negative-clause-explanatory.",
+]

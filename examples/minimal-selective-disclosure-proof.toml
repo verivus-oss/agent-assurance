@@ -1,0 +1,28 @@
+# Minimal selective-disclosure-proof example.
+# One Merkle-leaf-omission commitment bound to the source bundle by
+# SHA-256, covering the redaction declared in the matching
+# minimal-redaction-manifest example. The proof artifact byte shape
+# is RUNTIME-SPEC; the SPEC layer enforces the scheme name, the
+# bound source digest, and the covered-redaction id list.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "selective-disclosure-proof"
+framework_profile = "disclosure"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/profiles/disclosure/PROFILE.toml"
+title             = "Selective disclosure proof for assertion-bundle 12345"
+created           = "2026-05-22"
+confidentiality   = "public"
+license           = "Apache-2.0"
+
+[[proofs]]
+id             = "SDP:bundle-12345-merkle"
+subject        = "bundle/12345"
+bound_source   = "sha256:c0ffee0000000000000000000000000000000000000000000000000000c0ffee"
+proof_scheme   = "merkle-leaf-omission"
+covers         = ["RED:bundle-12345-pii"]
+proof_artifact = "examples/disclosure/bundle-12345.proof.bin"
+notes          = "Merkle path over leaf-sorted canonical record stream; redacted leaves replaced by H(salt||plaintext) commitments. Verifier reads proof_artifact, recomputes the root, and compares against bound_source."

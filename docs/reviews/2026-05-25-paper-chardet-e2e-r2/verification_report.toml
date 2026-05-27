@@ -1,0 +1,118 @@
+# Round-2 verification report for the chardet paper remediations at
+# commits 97b0971 (B1+B2 mechanical fixes) + 0e5dd58 (B3 substantive
+# fix). R1 (2026-05-25-paper-chardet-e2e/) closed at unanimous
+# concrete_unresolvable_blocker (3/3) with three convergent defects:
+#   B1: \ref{sec:six-signals} mismatched \label{sec:signals}
+#   B2: fig:dag + fig:topology defined but never \ref'd in prose
+#   B3: paper claimed all six headline numbers cross-validated by
+#       validate_numbers.py; bytes-verified that the script omitted
+#       C06e and used a different corpus-digest construction than
+#       the harness
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "verification-report"
+created        = "2026-05-25"
+review_session = "2026-05-25-paper-chardet-e2e-r2"
+predecessor    = "2026-05-25-paper-chardet-e2e"
+initiator      = "claude-opus-4-7"
+target_head    = "7782ade"
+remediation_commits = ["97b0971", "0e5dd58"]
+
+[program]
+intent = """
+Close B1 (mechanical \\ref typo), B2 (orphan figures), B3
+(substantive C06e validation gap + corpus-digest construction
+mismatch). All three were unanimous bytes-verified blockers in r1;
+all three remediations are now committed.
+"""
+
+[[closures]]
+id        = "B1"
+title     = "\\ref{sec:six-signals} now resolves"
+verify_by = """
+1. grep -n '\\\\ref{sec:six-signals}' paper/main.tex MUST return ZERO matches.
+2. grep -n '\\\\ref{sec:signals}\\|\\\\cref{sec:signals}\\|\\\\label{sec:signals}' paper/main.tex MUST show at least one \\ref/\\cref AND the matching \\label at :467.
+3. python3 brace/label/ref cross-check on paper/main.tex: unresolved-ref set MUST be empty.
+"""
+
+[[closures]]
+id        = "B2"
+title     = "fig:dag and fig:topology now \\ref'd in prose"
+verify_by = """
+1. grep -nE '\\\\(ref|cref)\\{fig:dag\\}' paper/main.tex MUST return at least one prose hit (not the \\label line at :889).
+2. grep -nE '\\\\(ref|cref)\\{fig:topology\\}' paper/main.tex MUST return at least one prose hit (not the \\label line at :899).
+3. The added references MUST be in semantically appropriate places (fig:dag in §5 Methodology context where the harness DAG is described; fig:topology in §6 C06a context where the topology features are described).
+"""
+
+[[closures]]
+id        = "B3"
+title     = "validate_numbers.py corpus-digest reconciled + C06e cross-check added"
+verify_by = """
+1. Inspect paper/figures/scripts/validate_numbers.py recompute_c06e_corpus_digest: the body MUST use hashlib.sha256(b\"\\n\".join(corpus)).hexdigest()[:16], NOT the per-payload h.update(payload) byte-by-byte construction.
+2. Run a standalone python repro:
+   python3 -c '
+   import hashlib, random
+   rng = random.Random(20260522)
+   corpus = []
+   for _ in range(1000):
+       n = rng.randint(0, 4096)
+       corpus.append(bytes(rng.randint(0, 255) for _ in range(n)))
+   print(hashlib.sha256(b\"\\n\".join(corpus)).hexdigest()[:16])
+   '
+   Expected output: 58e54831f84183c7
+3. HARNESS_HEADLINE['c06e_corpus_digest'] MUST equal 58e54831f84183c7 (already does at HEAD).
+4. A new function recompute_c06e_rates MUST exist in validate_numbers.py. Inspect: it MUST subprocess fingerprint_behavior.py and parse the TSV row to recover exact_match_rate, bucket_match_rate, n_inputs, corpus_digest. It MUST return status='skip' (not status='fail' and not silent omission) when fingerprint_behavior.py emits SKIP (e.g., no network for chardet install).
+5. main() comparison loop MUST add at minimum: c06e.corpus_digest (always run, deterministic). When c06e_rates is measured, MUST also add c06e.exact_rate, c06e.bucket_rate, c06e.n_inputs, c06e.digest_agreement. When skipped, MUST add a single SKIP row with the explicit reason (not silently omit).
+6. The paper prose at paper/main.tex around §10.3 must:
+   - NOT contain the now-stale 'All 21 agreement checks PASS' literal
+   - explicitly describe the digest-construction reconciliation (citing the r1 review)
+   - explicitly describe the subprocess-to-fingerprint_behavior.py mechanism
+   - acknowledge the SKIP-on-toolchain-missing behaviour
+"""
+
+# ----------------------------------------------------------------------
+# Regression check on r1 closed surfaces (P01, P04-P07, P09).
+# ----------------------------------------------------------------------
+
+[regression_check]
+must_still_pass = ["P01", "P04", "P05", "P06", "P07", "P09", "P10"]
+recipe = """
+Sanity-check that the remediation commits did not regress any
+r1-closed surface:
+  - P01 every \\cite resolves to references.bib: extract and verify.
+  - P07 Werner-style sanity: 0 U+2014 in paper/main.tex, 0 banned C78 vocab, sentence-length CV >= 0.4.
+  - P08 LaTeX structural integrity: braces balanced, \\begin/\\end matched, no unresolved refs (this regression check overlaps with B1+B2).
+
+A regression in any of these would be a concrete blocker for r2.
+"""
+
+[approval]
+forbidden_bases = ["stated_intent", "plan_compliance_claim", "should_be_fixed_language"]
+required_bases  = ["inspected_code", "executed_tests_with_output", "inspected_docs", "persisted_review_evidence"]
+terminal_states = ["unconditional_approval", "concrete_unresolvable_blocker"]
+
+[iteration]
+initiator_rebuttal_rule = "Disagreement requires file:line evidence; assertion alone fails."
+polling_cadence_seconds = 90
+
+[reading_order]
+1 = "docs/reviews/2026-05-25-paper-chardet-e2e-r2/verification_report.toml (this file)"
+2 = "docs/reviews/2026-05-25-paper-chardet-e2e/raw_findings/{codex,gemini,grok}.md (r1 blockers being closed)"
+3 = "paper/main.tex (whole document)"
+4 = "paper/figures/scripts/validate_numbers.py"
+5 = "examples/proof-chardet-relicense/fingerprint_behavior.py (the script validate_numbers now subprocesses)"
+6 = "git diff b759eaf..97b0971 -- paper/main.tex (B1+B2 mechanical fixes)"
+7 = "git diff 97b0971..0e5dd58 (B3 substantive fix)"
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-25-paper-chardet-e2e-r2/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "terminal_decision.toml",
+]
+mistral_status = "unavailable on host"

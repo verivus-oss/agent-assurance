@@ -1,0 +1,51 @@
+# U06 — process confirmations across reviewers.
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-process-confirmations"
+created        = "2026-05-23"
+review_session = "2026-05-23-paper-main"
+
+[checks.active_user_migration_or_behavior_change_guidance]
+codex   = "confirmed"
+gemini  = "confirmed"
+grok    = "confirmed"
+majority = "confirmed"
+codex_evidence  = "paper/main.tex:725-735 (sandbox PyPI degrades to SKIP); paper/main.tex:1105-1113 (future-release rerun guidance); REVIEW_READINESS.toml:56 (toolchain-gap doc requirement)"
+gemini_evidence = "core/traceability-kind.toml:102 (alias removal in schema_version 2.0.0)"
+grok_evidence   = "SPEC.md:478 (major-bump migration-note policy); SPEC.md:299-303 (legacy `kind` alias deprecation policy)"
+
+[checks.no_historical_dated_spec_retconned_without_link_or_correction_note]
+codex   = "confirmed_with_caveats"
+gemini  = "confirmed"
+grok    = "confirmed"
+majority = "confirmed"
+codex_caveat = "Q6-F01 stale section-number metadata in paper/references.bib:626-627 (jplag2026repo note); same family at IF-CX-03 in run_jplag.sh:2-3."
+gemini_evidence = "schema_version=1.0.0 consistent across core/ontology.toml:15, core/contract-declaration-kind.toml:5, etc."
+grok_evidence   = "Numeric claims either pinned to explicit commits (e.g. 220cff4 for LoC), backed by live persisted outputs (validation_report.json, jplag_*.json), or attributed to dated primary sources."
+
+[checks.claimed_tests_actually_ran_with_command_output_and_status]
+codex   = "refuted"
+gemini  = "confirmed"
+grok    = "confirmed"
+majority = "split — Codex's refutation is the decisive one because it ran the harness live"
+codex_refutation = """
+Codex actually executed the harness in this review session and reports:
+  1. python3 paper/figures/scripts/validate_numbers.py — exit 0, all agree: True ✓
+  2. bash examples/proof-chardet-relicense/detect.sh — exit 0, BUT C06e emitted SKIP not MEASURED, with literal reason 'behavioural fingerprint skipped: v6 install from worktree failed: ERROR: Failed to build ... when installing build dependencies'
+  3. Critically: paper/main.tex:992-998 claims validate_numbers.py reproduces the C06e corpus_digest and 0/1000 rate. The script's own docstring at validate_numbers.py:304-307 says 'we do not actually invoke chardet here'. validation_report.json:143-145 records an INDEPENDENT digest 8fbc70630c023315, different from the harness headline 58e54831f84183c7 at validation_report.json:22. The paper's reproducibility claim therefore overstates what validate_numbers.py actually checks. See IF-CX-01.
+"""
+gemini_evidence = "Data matches validation_report.json and jplag_chardet_results.json — but Gemini did NOT execute the harness; this confirmation is from persisted artefacts only."
+grok_evidence   = "validation_report.json + jplag_chardet_results.json + EVIDENCE_MATRIX.toml + detect.sh declarations all cross-checked — but Grok also did not run the harness in this review."
+
+[checks.summary]
+note = """
+The decisive datapoint is Codex's live execution: the C06e cross-check
+that the paper asserts in §sec:numeric-validation is NOT actually
+performed by validate_numbers.py. This is a real factual error that
+Gemini and Grok missed because they verified the persisted artefacts
+without re-running them. The detect.sh live result (C06e=SKIP rather
+than MEASURED) is consistent with §sec:venv's documented toolchain-gap
+behaviour, so that is not itself a blocker — but the §sec:numeric-validation
+overclaim is.
+"""

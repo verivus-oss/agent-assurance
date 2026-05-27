@@ -1,0 +1,46 @@
+# Minimal adapter-contract instance.
+# Validator-compatible shape per profiles/agent-assurance/adapter-contract-kind.toml.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "adapter-contract"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+framework_profile = "agent-assurance"
+title             = "Adapter contract: red-team-review consumer"
+created           = "2026-05-21"
+
+[adapter]
+input_source            = "example-vendor:red_team_review@1"
+input_hash_method       = "sha256-bytes"
+id_derivation           = "content-hash"
+runtime_kind            = "wasi-component"
+runtime_network_policy  = "denied"
+runtime_clock_policy    = "injected"
+runtime_env_allowlist   = []
+
+[adapter.runtime_artifact]
+component_digest = "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8"
+
+[[adapter.emits]]
+ijb_primitive = "thing"
+
+[[adapter.emits]]
+ijb_primitive = "observed"
+
+[[adapter.declared_invariants]]
+id          = "INV01"
+description = "Every emitted `observed(...)` line MUST reference a `thing(...)` line declared earlier in the same bundle."
+enforced_by = "RUNTIME-SPEC adapter conformance suite for red-team-review"
+
+[[adapter.conformance_fixtures]]
+raw_input_ref       = "fixtures/red-team-review/case-001.json"
+expected_bundle_ref = "fixtures/red-team-review/case-001.expected.toml"
+
+[[adapter.conformance_fixtures]]
+raw_input_ref       = "fixtures/red-team-review/case-002.json"
+expected_bundle_ref = "fixtures/red-team-review/case-002.expected.toml"

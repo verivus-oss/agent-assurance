@@ -1,0 +1,15 @@
+# llm-cli-gateway async job IDs for this review session (r2).
+# Initiator: claude-opus-4-7
+# Dispatched: 2026-05-25T02:53:24Z .. 2026-05-25T02:54:20Z (UTC)
+# Reviewing commit: b7e2472
+
+[jobs]
+codex   = "16e7c199-bab8-4414-9b3c-a4b8cf9990cb"
+gemini  = "d0b90739-c2da-4b0e-8e01-4f48dbd031b9"
+grok    = "96e68d72-6e47-4945-811c-6b75e009cb5a"
+mistral = "skipped_cli_not_installed"
+
+[correlation_ids]
+codex   = "xprov-selfmod-2026-05-25-r2-codex"
+gemini  = "xprov-selfmod-2026-05-25-r2-gemini"
+grok    = "xprov-selfmod-2026-05-25-r2-grok"

@@ -1,0 +1,101 @@
+# U10 — final gate decision for the 2026-05-23 paper review session.
+#
+# Form follows the spirit of profiles/agent-assurance/gate-decision-kind.toml
+# (verdict ∈ {pass, fail}) — this file documents the *gate* outcome of
+# the review-request-dag, not the per-finding outcomes (those are in
+# unit_classifications.toml).
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-gate-decision"
+created        = "2026-05-23"
+review_session = "2026-05-23-paper-main"
+document       = "paper/main.tex@9664be061e4bc8493de2e5054d3c3d61737bd666e56077b9856c19585dbde306"
+
+[decision]
+verdict     = "fail"
+reason      = "Three independent reviewers issued CONCRETE UNRESOLVABLE BLOCKERS terminal verdicts; no reviewer issued UNCONDITIONAL APPROVAL. Four distinct blockers identified across the three reviews, two of which are unanimous."
+failed_constraint_refs = [
+  "blocker:1:jplag-file-count-contradiction",
+  "blocker:2:spec-vs-bundle-conflation",
+  "blocker:3:c06e-validation-overclaim",
+  "blocker:4:unpersisted-sandbox-claim",
+]
+
+[basis]
+inspected_code              = true
+executed_tests_with_output  = true   # Codex ran validate_numbers.py and detect.sh live
+inspected_docs              = true
+persisted_review_evidence   = true
+forbidden_basis_used        = false  # No reviewer cited intent, plan-compliance, or "should be fixed" language
+
+[cited_bundle]
+file = "docs/reviews/2026-05-23-paper-main/review_bundle.toml"
+
+[cited_reviews]
+codex  = "docs/reviews/2026-05-23-paper-main/raw_findings/codex.md"
+gemini = "docs/reviews/2026-05-23-paper-main/raw_findings/gemini.md"
+grok   = "docs/reviews/2026-05-23-paper-main/raw_findings/grok.md"
+
+[cited_aggregation]
+classifications    = "docs/reviews/2026-05-23-paper-main/unit_classifications.toml"
+process_checks     = "docs/reviews/2026-05-23-paper-main/process_confirmations.toml"
+rebuttal_record    = "docs/reviews/2026-05-23-paper-main/rebuttal_record.md"
+terminal_decision  = "docs/reviews/2026-05-23-paper-main/terminal_decision.toml"
+
+# ============================================================================
+# Per-finding completion status — enforces [policy.completion]:
+# 'Claude must not mark a DAG unit complete unless reviewer evidence
+# has been produced for that unit OR the unit is explicitly queued
+# for review.'
+#
+# All 29 prior-art findings and 6 independent findings have reviewer
+# evidence (see unit_classifications.toml). 0 findings are marked
+# 'already handled' without file:line evidence. 0 findings are marked
+# 'not applicable' without file:line evidence.
+# ============================================================================
+
+[completion_audit]
+prior_art_findings_with_reviewer_evidence = 29
+prior_art_findings_marked_already_handled_without_evidence = 0
+prior_art_findings_marked_not_applicable_without_evidence  = 0
+independent_findings_with_evidence = 6   # IF-CX-01, IF-CX-02, IF-CX-03, I-F01, I-F02, I-F03
+disagreements_resolved_with_evidence = 1   # S1-F03 (see rebuttal_record.md)
+
+# ============================================================================
+# Process artefact links
+# ============================================================================
+
+[outputs]
+review_bundle           = "docs/reviews/2026-05-23-paper-main/review_bundle.toml"
+review_prompt           = "docs/reviews/2026-05-23-paper-main/review_prompt.md"
+raw_findings_dir        = "docs/reviews/2026-05-23-paper-main/raw_findings/"
+
+# ============================================================================
+# Next-step queue (NOT a deliverable of this session; provided so the
+# user has the queue items to act on)
+# ============================================================================
+
+[[next_step]]
+priority = "must-do-before-resubmission"
+action   = "Apply blocker #1 fix at paper/main.tex:1305-1313 (correct 'higher' direction and JPlag causal explanation)."
+
+[[next_step]]
+priority = "must-do-before-resubmission"
+action   = "Apply blocker #2 fix at paper/main.tex:300-303 (and §sec:verifier lines 1092-1103) to distinguish spec mechanism from bundle vocabulary."
+
+[[next_step]]
+priority = "must-do-before-resubmission"
+action   = "Apply blocker #3 fix at paper/main.tex:992-998 (either implement the C06e validation in validate_numbers.py or narrow the prose to match what the script actually does)."
+
+[[next_step]]
+priority = "must-do-before-resubmission"
+action   = "Apply blocker #4 fix at paper/main.tex:743-746 (persist a side-by-side comparison or downgrade the claim to a theoretical expectation)."
+
+[[next_step]]
+priority = "should-do-before-resubmission"
+action   = "Apply self-review recommendations 3-10 from docs/claim_analysis/2026-05-22-paper-main/claim_analysis.json:prioritized_recommendations (reviewer-approval framing, legal precision, vendor-citation tightening, etc.)."
+
+[[next_step]]
+priority = "queued-for-next-review-session"
+action   = "After fixes are applied: sha-bind the new paper/main.tex, instantiate tools/review-request-dag.toml again, and dispatch a fresh review session at docs/reviews/<new-date>-paper-main/. Per [policy.completion], no unit of this session may be marked complete in the new session without reviewer evidence in the new session — prior reviewer evidence does NOT carry over."

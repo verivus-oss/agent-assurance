@@ -1,0 +1,117 @@
+# Terminal decision — round 3 (residual-defect closure review).
+#
+# Initiator: claude-opus-4-7 (excluded from standard reviewer set).
+# Effective reviewer panel: codex, gemini, grok (mistral unavailable).
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-cross-provider-self-mod-gate-proposal-r3"
+predecessor    = "2026-05-25-cross-provider-self-mod-gate-proposal-r2"
+head_commits   = ["9b54702", "f7b608a"]
+
+[verdicts]
+codex   = "unconditional_approval"
+gemini  = "unconditional_approval"
+grok    = "unconditional_approval"
+mistral = "unavailable_cli_not_installed"
+
+[disposition_closures]
+N1 = "closed (codex + gemini + grok converge; CHANGELOG enumerates all 14 files with r2-summary paragraph; no r3 over-claim)"
+N2 = "closed (codex + gemini + grok converge; r2 bundle parent_commit_pre_r2='c4286fb', commit_range_r2='c4286fb..b7e2472', historical_range_note present; git rev-parse b7e2472^ verifies)"
+
+[synthesis]
+terminal_state = "unconditional_approval"
+rationale = """
+Unanimous approval across all three effective reviewers (codex,
+gemini, grok). Both residual defects from r2 are closed by direct
+byte inspection at HEAD with corroborating executed-validator output:
+
+  - N1: CHANGELOG.md:19-67 enumerates all 14 files; CHANGELOG.md:79-88
+    documents the r2 verdicts + r3 dispatch without over-claiming
+    approval.
+  - N2: r2 review_bundle.toml:18-32 carries corrected
+    parent_commit_pre_r2 + commit_range_r2 + historical_range_note;
+    git rev-parse b7e2472^ returns c4286fbfc44189af58650d8cc75367e08086bbd7.
+
+Scope is clean:
+  - 9b54702 touches exactly 2 files (CHANGELOG.md, r2/review_bundle.toml).
+    No normative paths.
+  - f7b608a touches exactly 14 files, all under
+    docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal{,-r2}/.
+    Pure audit-trail persistence; no normative content.
+
+Regression-check on B1-B3 / R1-R3 unanimously confirmed clean:
+zero bytes under profiles/, examples/, reference/database/, core/,
+validators/, SPEC.md, or tools/ in b7e2472..HEAD. The closures
+recorded in r2 [confirmed_correct] remain byte-for-byte identical.
+
+Validator re-runs (closure-root over 75 files, count-mirror,
+manifest-drift, taplo lint, tomllib parse) all exit clean per all
+three reviewers' independent execution.
+
+Per [policy.approval].terminal_states, the session terminates at
+`unconditional_approval`. The full INV06 cross-provider
+self-modification work — structural change (b7e2472) + metadata
+fix (9b54702) + audit persistence (f7b608a) — is approved for
+release as part of the next CHANGELOG.md `[Unreleased] -> [next-tag]`
+roll.
+"""
+
+# ----------------------------------------------------------------------
+# Cumulative state across the three-round review.
+# ----------------------------------------------------------------------
+
+[full_review_arc]
+r1_session = "2026-05-25-cross-provider-self-mod-gate-proposal"
+r1_verdict = "concrete_unresolvable_blocker (codex + grok; gemini unconditional_approval)"
+r1_outcome = "3 blockers (B1, B2, B3) + 3 required revisions (R1, R2, R3) filed against proposal text"
+
+r2_session = "2026-05-25-cross-provider-self-mod-gate-proposal-r2"
+r2_verdict = "concrete_unresolvable_blocker (codex; gemini + grok unconditional_approval)"
+r2_outcome = "B1-B3 + R1-R3 unanimously closed; 2 residual defects (N1 CHANGELOG list, N2 bundle scope)"
+
+r3_session = "2026-05-25-cross-provider-self-mod-gate-proposal-r3"
+r3_verdict = "unconditional_approval (codex + gemini + grok unanimous)"
+r3_outcome = "N1 + N2 closed; no new defects; no regression; full work approved"
+
+mistral_status_across_rounds = "unavailable_cli_not_installed (vibe binary absent from host PATH; verified via which/find/ls in r1 and r2; not retested in r3)"
+
+# ----------------------------------------------------------------------
+# Substantive contribution to the spec, now approved.
+# ----------------------------------------------------------------------
+
+[approved_substance]
+profile = "agent-assurance"
+invariant = "INV06"
+mechanism = "gate-decision hard invariant — when decision.subject_class = 'self-modification', proposing/deciding provider_id AND model_family_id MUST both differ"
+scope_posture = "multi-provider deployments only (per [project-multi-provider-only-posture] memory)"
+files_landed = 14
+commits = ["b7e2472", "9b54702", "f7b608a"]
+predecessor_research = "MOSS arxiv:2605.22794 (source-level self-evolution in autonomous agent systems)"
+
+# ----------------------------------------------------------------------
+# Next action.
+# ----------------------------------------------------------------------
+
+[next_action]
+action = "session_terminates_at_approval"
+rationale = """
+Per [policy.completion].no_unit_complete_without_reviewer_evidence_or_queued_status,
+the implementation is now approvable: every changed unit has reviewer
+evidence (B1-B3 + R1-R3 from r2 [confirmed_correct]; N1 + N2 from r3
+unanimous). No further multi-LLM review is required for this work.
+
+The user may now:
+  - Push the three commits (b7e2472, 9b54702, f7b608a) to the remote
+    when ready.
+  - Open a PR or merge to main per the project's normal workflow.
+  - Roll [Unreleased] -> next semver tag at the next release.
+
+No follow-up review session is required.
+"""
+push_required_authorization = "User must explicitly authorize git push per CLAUDE.md git safety protocol."

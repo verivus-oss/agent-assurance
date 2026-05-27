@@ -1,0 +1,118 @@
+# U05 — per-unit classification.
+#
+# Per tools/review-request-dag.toml [policy.unit_classification], every
+# DAG unit under review must be classified complete / incomplete /
+# unverifiable by every reviewer, with file+line evidence.
+#
+# For this session the "DAG units under review" are not the units of
+# tools/review-request-dag.toml itself (which IS the review workflow)
+# but the substantive deliverables of the SPEC §12 change being
+# reviewed. The 10 substantive questions in review_prompt.md serve as
+# the unit-equivalent here; round-3 verdicts are aggregated below.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-unit-classifications"
+created        = "2026-05-23"
+review_session = "2026-05-23-spec-12-closure-root"
+review_round   = 3
+commit_under_review = "20c620797d243da8ef929d9e829f3c4b4fc03244"
+
+# ----------------------------------------------------------------------
+# Q1. Universal-requirement consistency (closure_root is REQUIRED on
+# every conforming document, validator enforces this).
+# ----------------------------------------------------------------------
+[questions.Q1]
+codex_verdict = "confirmed"
+grok_verdict  = "refuted_with_evidence"
+codex_evidence = "Clean archive of 20c6207 passes `python3 validators/validate_closure_root.py --discover .` with 65 conforming files, exit 0."
+grok_evidence  = "Working-tree --discover . fails on 5 untracked files using blessed template_kind values."
+resolution     = "Methodology split. Codex's clean-checkout view matches CI semantics; grok's working-tree view includes untracked files outside commit scope. CI on main sees 65 conforming files, all pass. Verdict accepted: confirmed (codex's view binding)."
+
+# ----------------------------------------------------------------------
+# Q2. TOML root-binding correctness.
+# ----------------------------------------------------------------------
+[questions.Q2]
+codex_verdict = "confirmed"
+grok_verdict  = "confirmed"
+evidence      = "Three patched files inspected via tomllib parse: closure_root is the first top-level key (`['closure_root', 'meta', ...]`). Matches SPEC.md §12.1 placement rule."
+
+# ----------------------------------------------------------------------
+# Q3. Empty-closure sentinel correctness.
+# ----------------------------------------------------------------------
+[questions.Q3]
+codex_verdict = "confirmed"
+grok_verdict  = "confirmed"
+evidence      = "`printf '' | sha256sum` produces e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855, matching the sentinel in SPEC.md §12.1, EMPTY_CLOSURE_SENTINELS in validate_closure_root.py, and every patched file."
+
+# ----------------------------------------------------------------------
+# Q4. Forbidden-algorithm enforcement.
+# ----------------------------------------------------------------------
+[questions.Q4]
+codex_verdict = "confirmed"
+grok_verdict  = "confirmed"
+evidence      = "Constructed `closure_root = \"md5:abc\"` rejected by validator with exact message 'uses forbidden weak digest algorithm `md5`. SPEC §12.1 forbids MD5 and SHA-1'. Validator FORBIDDEN_ALGOS = ('md5', 'sha1')."
+
+# ----------------------------------------------------------------------
+# Q5. Ontology additions are well-typed.
+# ----------------------------------------------------------------------
+[questions.Q5]
+codex_verdict = "confirmed"
+grok_verdict  = "confirmed"
+evidence      = "core/ontology.toml: cites_upstream [[relations]] carries ijb_primitive='path', ijb_class='structural'. closure_root.digest_algorithm [[attribute_vocabularies]] carries ijb_primitive='constraint', ijb_constraint_type='structural'. `python3 validators/validate_ijb_conformance.py core/ontology.toml` exits 0 with PASSED."
+
+# ----------------------------------------------------------------------
+# Q6. Cross-section back-reference accuracy.
+# ----------------------------------------------------------------------
+[questions.Q6]
+codex_verdict = "confirmed"
+grok_verdict  = "confirmed"
+evidence      = "§12.9 bullets correctly target §2.7 (posture not in closure), §5 (cycle prohibition extension), §11 (source_sha256 as one input), §12.1 (self-ref). Reverse references in §2.7, §5, §11 all resolve."
+
+# ----------------------------------------------------------------------
+# Q7. Forbidden mechanisms list is closed and complete.
+# ----------------------------------------------------------------------
+[questions.Q7]
+codex_verdict = "confirmed"
+grok_verdict  = "confirmed"
+evidence      = "§12.7 enumerates exactly four forbidden mechanisms (stale re-sign, unsigned envelope attrs, soft revocations, last-known-good caching). Matches the brittleness ethos; no obvious exploitable gap."
+
+# ----------------------------------------------------------------------
+# Q8. Deferred canonical concatenation (§12.8).
+# ----------------------------------------------------------------------
+[questions.Q8]
+codex_verdict = "confirmed"
+grok_verdict  = "confirmed"
+evidence      = "§12.8 defers byte-level algorithm to a future schema_version while keeping the property (cascade-break on any input change) normative at 1.0.0. Out-of-band pinning + profile-descriptor declaration required for interop. Bounded and explicit."
+
+# ----------------------------------------------------------------------
+# Q9. Disclosure-profile interaction (§12.9 last bullet).
+# ----------------------------------------------------------------------
+[questions.Q9]
+codex_verdict = "confirmed"
+grok_verdict  = "confirmed"
+evidence      = "§12.9 states redaction does NOT flip upstream's closure_root. profiles/disclosure/disclosure-attestation-kind.toml treats redacted and source as separate artifacts and never claims mutation of the unredacted's closure."
+
+# ----------------------------------------------------------------------
+# Q10. Manifest-drift integrity.
+# ----------------------------------------------------------------------
+[questions.Q10]
+codex_verdict = "confirmed"
+grok_verdict  = "confirmed"
+evidence      = "`bash validators/check_manifest_drift.sh` exits 0 with 'OK — manifest matches ontology'. Counts: 19 template_kinds, 26 entity_kinds, 31 relation_predicates, 38 attribute_vocabularies."
+
+# ----------------------------------------------------------------------
+# Aggregate: 9 of 10 confirmed by both; 1 (Q1) confirmed by codex with
+# clean-archive methodology; grok's refutation was a methodology
+# disagreement (working tree vs clean archive), not a substantive
+# refutation of the rule's correctness.
+# ----------------------------------------------------------------------
+[aggregate]
+total_questions = 10
+codex_confirmed = 10
+grok_confirmed  = 9
+grok_refuted_methodologically = 1   # Q1; reason documented above
+substantive_disagreement_count = 0

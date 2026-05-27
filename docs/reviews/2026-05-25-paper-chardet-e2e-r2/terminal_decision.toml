@@ -1,0 +1,82 @@
+# Round-2 terminal decision for 2026-05-25-paper-chardet-e2e-r2.
+# Codex blocker on a B3 follow-on: conclusion sentence at
+# paper/main.tex:1556-1559 still says "scipy / numpy implementation"
+# but C06e is now validated via stdlib + subprocess. Same class of
+# overclaim B3 was meant to close — the §10.3 paragraph was corrected
+# but the conclusion's global claim survived. Fix is a prose edit.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-paper-chardet-e2e-r2"
+predecessor    = "2026-05-25-paper-chardet-e2e"
+head_commit    = "7782ade"
+
+[scope]
+unit                = "B1/B2/B3 closures + regression on r1-closed P-surfaces"
+verification_report = "docs/reviews/2026-05-25-paper-chardet-e2e-r2/verification_report.toml"
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "concrete_unresolvable_blocker"
+classification = "B1+B2+B3 substrate closed; B3 conclusion sentence survives as overclaim"
+blocker_count  = 1
+raw_findings   = "raw_findings/codex.md"
+evidence_class = "live-executable (ran standalone digest repro returning 58e54831f84183c7; ran validate_numbers.py and observed C06e rows + SKIP semantics; grep'd conclusion for scipy/numpy phrasing)"
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "unconditional_approval"
+classification = "B1+B2+B3 closed"
+blocker_count  = 0
+raw_findings   = "raw_findings/gemini.md"
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "unconditional_approval"
+classification = "B1+B2+B3 closed"
+blocker_count  = 0
+raw_findings   = "raw_findings/grok.md"
+
+[blockers]
+
+[[blockers.items]]
+id        = "B3-conclusion-overclaim"
+filer     = "codex"
+severity  = "concrete (prose)"
+location  = "paper/main.tex:1556-1559 (Conclusion section)"
+defect    = """
+The §10.3 paragraph was updated in B3 remediation (0e5dd58) to
+accurately describe the C06e validation mechanism (stdlib digest
+re-derivation + subprocess to fingerprint_behavior.py for the
+rates, with explicit SKIP). But the Conclusion at :1556-1559 still
+says: 'every one of which has been independently cross-validated
+against a scipy / numpy implementation in
+paper/figures/scripts/validate_numbers.py'.
+
+That is true for AUX1 + C06a-d (scipy/numpy second-source) but
+false for C06e (stdlib + subprocess). The conclusion sentence is
+the same class of scope-overclaim that B3 was meant to close —
+the substrate was fixed, but a stale global claim survived in
+the conclusion.
+"""
+remediation = "Prose edit: change the conclusion sentence to accurately describe both validation paths (scipy/numpy for AUX1+C06a-d; stdlib digest + subprocess for C06e). The §10.3 paragraph is the model — match its honesty in the conclusion."
+
+[decision]
+outcome              = "concrete_unresolvable_blocker"
+unanimous            = false
+verdict_distribution = { unconditional_approval = 2, concrete_unresolvable_blocker = 1 }
+binding              = "concrete_unresolvable_blocker (codex's deeper grep + bytes-comparison caught the conclusion-conflict; gemini and grok approved without cross-checking the conclusion against the corrected §10.3)"
+session_terminal     = false
+next_action          = "Apply prose edit; dispatch r3."
+
+[session_close]
+closed_at = "2026-05-25"
+closed_by = "consolidated reviewer verdicts at raw_findings/{codex,gemini,grok}.md"
+followup_notes = [
+  "Useful pattern: when a remediation updates ONE paragraph but related claims live elsewhere in the document, reviewers must check those other locations too. The verification_report's B3 verify_by:6 named §10.3 explicitly — codex went one step further and grep'd the conclusion. The recipe could be tightened to require: 'verify NO other location in the document repeats the inaccurate scope claim'.",
+  "B3 substrate (validate_numbers.py + corpus-digest + paper §10.3) all verified closed.",
+]

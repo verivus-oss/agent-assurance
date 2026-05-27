@@ -1,0 +1,160 @@
+# End-to-end formal review — paper/main.tex (chardet relicensing
+# manuscript) at HEAD 1e0e155. Werner-voice canonical (post-
+# consolidation 6febaf8 + content sync 1e0e155).
+# Mistral CLI not installed; effective panel codex / gemini / grok.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "verification-report"
+created        = "2026-05-25"
+review_session = "2026-05-25-paper-chardet-e2e"
+initiator      = "claude-opus-4-7"
+target_head    = "1e0e155"
+target_file    = "paper/main.tex"
+
+[program]
+intent = """
+Whole-manuscript review of the chardet relicensing paper. Werner-voice
+canonical (the default-voice variant was deleted in 6febaf8). Paper
+makes one substantive claim: that a 6-signal contract bundle (C06a-e
+plus AUX1) can detect paraphrase-resistant AI-driven code rewrites
+where file-hash and name-set similarity miss them. Reviewers verify
+the paper's claims, citations, methodology, and reproducibility
+against the actual harness in the repository.
+"""
+non_intent = """
+Not a review of the DAG-TOML spec itself (that is the parallel session
+docs/reviews/2026-05-25-spec-e2e/). Not a Werner-Style-Spec linting
+exercise per se — the style spec is at .local/werner-style-spec.md
+(gitignored); reviewers may probe basic conformance (zero U+2014, no
+banned vocab) but the spec-style verdict is initiator's territory.
+"""
+
+[[closures]]
+id        = "P01"
+title     = "Every \\cite{KEY} resolves to a real bib entry"
+verify_by = """
+1. Extract every `\\cite\\w*\\{KEY\\}` from paper/main.tex.
+2. Confirm each KEY appears in `paper/references.bib`'s `@TYPE{KEY,` lines.
+3. Missing keys are a concrete defect.
+"""
+
+[[closures]]
+id        = "P02"
+title     = "Every claim with a specific number has a verifiable source"
+verify_by = """
+1. Find each numeric claim in the paper that is not a contract ID, line
+   number, or LaTeX command (sentence CV X, run-on count Y, etc.).
+2. For each, verify the source: paper/figures/scripts/validate_numbers.py,
+   paper/figures/scripts/validation_report.json, paper/figures/scripts/jplag_chardet_results.json, or
+   an external citation in the prose.
+3. Headline numbers (JPlag 0.04% AVG and 1.30% MAX, 18-token longest match,
+   ~247,000 v7 token-stream length) must trace to the JPlag run results
+   under paper/figures/scripts/.
+"""
+
+[[closures]]
+id        = "P03"
+title     = "Every figure exists, is referenced from the text, and reproducible"
+verify_by = """
+1. `ls paper/figures/*.pdf` and confirm fig1_implementation_dag.pdf, fig2_topology_features.pdf, fig3_control_flow_hist.pdf all exist.
+2. Each is referenced from paper/main.tex via `\\ref{...}` / `\\cref{...}`.
+3. `paper/figures/scripts/gen_figures.sh` invokes the gen_figures.py that produces them; reproducibility chain unbroken.
+"""
+
+[[closures]]
+id        = "P04"
+title     = "Six signals C06a-e + AUX1 each have an enumeration section AND a measurement source"
+verify_by = """
+1. paper/main.tex §6 ("The Six Signals") has a subsection for each of
+   AUX1, C06a, C06b, C06c, C06d, C06e (6 in total).
+2. Each subsection states the signal's measurement procedure in
+   reproducible terms (which fixtures, which command, expected outcome).
+3. The Results section reports a numeric outcome for each signal on the
+   chardet v6/v7 pair.
+"""
+
+[[closures]]
+id        = "P05"
+title     = "Methodology section is reproducible from the bytes"
+verify_by = """
+1. paper/main.tex's "Methodology" section (around §5) cites concrete
+   commands. Each command must be runnable from the repo root.
+2. Worktree materialisation, test-file exclusion, determinism, behavioural
+   isolation, sandbox compatibility subsections must each name a real
+   mechanism (a script, a flag, a pinned version).
+"""
+
+[[closures]]
+id        = "P06"
+title     = "DAG-TOML spec section (§2.4) at HEAD 1e0e155 accurately describes the current spec state"
+verify_by = """
+1. Bullet 4 names the Rust + Go + Python triad (not just 'Python validators') and the toml-test conformance harness.
+2. The post-bullets wrap-up paragraph names SPEC §12, §13, the three profiles (agent-assurance, cost, disclosure), the deployment-tier ladder, and INV06 with the conjunctive AND predicate.
+3. Cross-check each name against the actual on-disk artefact (e.g. INV06 actually exists in profiles/agent-assurance/gate-decision-kind.toml; the §13 abstraction-class blocks actually exist in 19/19 kinds).
+"""
+
+[[closures]]
+id        = "P07"
+title     = "Werner Style Spec sanity floor (initiator-side claim — reviewers verify against bytes)"
+verify_by = """
+1. `grep -c $'\\u2014' paper/main.tex` returns 0 (no U+2014 em-dashes in source).
+2. `grep -ciE '\\b(leverage|leverages|leveraging|leveraged|synergy|holistic|robust|streamline|cultivat(e|es|ing|ed)|foster(s|ing|ed)?)\\b' paper/main.tex` returns 0 (C78 banned vocabulary).
+3. Sentence-length CV computed on the paper >= 0.4 (Werner burstiness floor; initiator computed 0.764 pre-review).
+4. NOTE: 36 LaTeX `---` instances exist as pre-existing author style; the style spec's literal pattern is U+2014, so `---` is not a violation. Reviewers flag this only if they find a NEW LaTeX em-dash that the initiator's own added content (paper/main.tex §2.4 wrap-up paragraph from 1e0e155) introduced.
+"""
+
+[[closures]]
+id        = "P08"
+title     = "LaTeX structural integrity (initiator can't run pdflatex; reviewers verify against bytes)"
+verify_by = """
+1. Brace balance: every `{` paired with `}`. Run `python3 -c 'import pathlib; t = pathlib.Path("paper/main.tex").read_text(); print(t.count("{") - t.count("}"))'` and expect 0.
+2. Every `\\begin{ENV}` paired with `\\end{ENV}`. Diff their Counters and expect empty.
+3. Every `\\ref{LABEL}` / `\\cref{LABEL}` has a matching `\\label{LABEL}` somewhere in the document. Unresolved refs would render as `??` in the PDF.
+4. Total line count matches the actual file (sanity).
+"""
+
+[[closures]]
+id        = "P09"
+title     = "Multi-LLM review process section honestly describes what was done"
+verify_by = """
+1. paper/main.tex §"Multi-LLM Review Process" (around line 1169) describes the dispatch + iteration + terminal-decision pattern that tools/review-request-dag.toml encodes.
+2. Cross-check: the actual review sessions persisted under docs/reviews/2026-05-25-* follow the pattern described.
+"""
+
+[[closures]]
+id        = "P10"
+title     = "Threats to Validity and Limitations sections are intellectually honest"
+verify_by = """
+1. The paper lists explicit non-claims (no general semantic equivalence, no obfuscation resistance, etc.).
+2. Threats to Validity covers construct/internal/external/conclusion validity per common SE reporting practice.
+3. The Conclusion (Werner-rewritten in 1e0e155) does not over-claim beyond the narrow contract: 'inside one repository, on one runner, on one day' framing is preserved.
+"""
+
+[approval]
+forbidden_bases = ["stated_intent", "plan_compliance_claim", "should_be_fixed_language"]
+required_bases  = ["inspected_code", "executed_tests_with_output", "inspected_docs", "persisted_review_evidence"]
+terminal_states = ["unconditional_approval", "concrete_unresolvable_blocker"]
+
+[iteration]
+initiator_rebuttal_rule = "Disagreement requires file:line evidence; assertion alone fails."
+polling_cadence_seconds = 90
+
+[reading_order]
+1 = "docs/reviews/2026-05-25-paper-chardet-e2e/verification_report.toml (this file)"
+2 = "paper/main.tex (whole document)"
+3 = "paper/references.bib"
+4 = "paper/figures/scripts/validate_numbers.py + validation_report.json + jplag_*.json"
+5 = "paper/Makefile"
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-25-paper-chardet-e2e/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "terminal_decision.toml",
+]
+mistral_status = "unavailable on host"

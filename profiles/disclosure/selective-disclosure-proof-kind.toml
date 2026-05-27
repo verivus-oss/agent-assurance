@@ -1,0 +1,212 @@
+# Kind descriptor for `template_kind = "selective-disclosure-proof"`
+# (disclosure profile).
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "kind-descriptor"
+ontology_version  = 1
+title             = "Selective disclosure proof kind descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/profiles/disclosure/PROFILE.toml"
+describes_kind    = "selective-disclosure-proof"
+authoritative_in  = "this file"
+confidentiality   = "public"
+license           = "Apache-2.0"
+
+[kind]
+name    = "selective-disclosure-proof"
+summary = "Commitment a recipient can verify to confirm the published bytes are a faithful redaction of the bound source artifact."
+prose   = """
+A selective disclosure proof is the cryptographic commitment that
+ties a redaction manifest to its source artifact. The SPEC layer
+names the proof scheme and records the bound source hash; the wire
+shape of the proof (Merkle path bytes, BBS+ signature, etc.) is
+RUNTIME-SPEC. A recipient combining the proof, the redaction
+manifest, and the published bytes can confirm that the published
+bytes match the source modulo the listed redactions, without ever
+seeing the redacted bytes themselves.
+
+ROOT SHAPE
+
+    [meta]
+    schema_version    = "0.1.0"
+    template_kind     = "selective-disclosure-proof"
+    framework_profile = "disclosure"
+    title             = "Selective disclosure proof for <bundle>"
+    created           = "YYYY-MM-DD"
+    confidentiality   = "public"
+    license           = "Apache-2.0"
+
+    [[proofs]]
+    id              = "SDP:bundle-12345-merkle"
+    subject         = "bundle/12345"
+    bound_source    = "sha256:c0ffee..."
+    proof_scheme    = "merkle-leaf-omission"
+    covers          = ["RED:bundle-12345-pii"]
+    proof_artifact  = "proofs/bundle-12345.proof.bin"
+    notes           = "Merkle path over leaf-sorted canonical record stream; redacted leaves replaced by H(salt||plaintext) commitments."
+
+REQUIRED STRUCTURE
+
+- At least one `[[proofs]]` entry.
+- Each entry MUST carry `id` (matching the `SDP:` prefix), `subject`,
+  `bound_source` (a `sha256:<hex>` digest of the source artifact the
+  proof commits to), `proof_scheme` (drawn from the (extensible)
+  `proof_scheme` vocabulary), and at least one of `covers` (list of
+  `RED:` ids covered by the proof) or `proof_artifact` (a
+  repo-relative path to the binary proof blob).
+
+The SPEC layer enforces shape only. Verifying the proof against
+the published bytes is RUNTIME-SPEC.
+"""
+references = [
+  "spec.md",
+  "core/ontology.toml",
+  "profiles/disclosure/ontology.toml",
+]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[kind.required_fields]]
+path        = "meta.template_kind"
+must_equal  = "selective-disclosure-proof"
+description = "Identifies this file as a selective disclosure proof."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "meta.framework_profile"
+must_equal  = "disclosure"
+description = "Selects the disclosure profile."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "proofs"
+description = "At least one `[[proofs]]` entry with `id` (SDP:-prefixed), `subject`, `bound_source` (sha256:-prefixed), `proof_scheme`, and one of `covers` / `proof_artifact`."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV01"
+statement   = "Every `[[proofs]].bound_source` value starts with the literal prefix `sha256:` followed by 64 lowercase hex characters."
+enforced_by = "validators/validate_disclosure.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also    = "spec.md §11"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV02"
+statement   = "Every `[[proofs]].proof_scheme` value is drawn from the (extensible) `proof_scheme` vocabulary in `profiles/disclosure/ontology.toml`."
+enforced_by = "validators/validate_disclosure.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also    = "profiles/disclosure/ontology.toml"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV03"
+statement   = "Every `[[proofs]].covers` entry references an `id` that follows the `RED:` prefix; cross-file resolution (the actual redaction-manifest entry existing on disk) is delegated to higher-level audit pipelines and is NOT enforced at the SPEC layer."
+enforced_by = "validators/validate_disclosure.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also    = "profiles/disclosure/redaction-manifest-kind.toml"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV04"
+statement   = "Every entity prefix and relation predicate used in this kind's instance files resolves to an `ijb_primitive` declared in the loaded ontology set."
+enforced_by = "validators/validate_ijb_conformance.py"
+see_also    = "foundations/ijb/primitives.md"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name           = "minimal selective disclosure proof"
+file           = "examples/minimal-selective-disclosure-proof.toml"
+inline_summary = "Single Merkle-leaf-omission proof bound to one source SHA-256, covering one redaction."
+ijb_primitive = "observed"
+
+[kind.relation_to_ontology]
+entities_introduced = ["SDP"]
+ontology_entries    = "profiles/disclosure/ontology.toml [[entities]] with id_prefix SDP"
+predicates_used     = ["covers (free-form list pointing at RED: ids)"]
+note                = "`covers` is a free-form ID list. The SPEC layer enforces shape only; cryptographic verification of the proof against the bound source is RUNTIME-SPEC."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# A selective-disclosure-proof is a cryptographic-proof (SPEC-layer
+# shape only): it names the proof scheme and records the bound source
+# hash that ties a redaction manifest to its source artifact. Per the
+# kind's own prose at lines 61-62: "The SPEC layer enforces shape
+# only. Verifying the proof against the published bytes is
+# RUNTIME-SPEC." It MUST NOT, at the kind layer, become a transport
+# for arbitrary capability assertions. Naming the class here binds
+# future selective-disclosure-proof producers to the contract;
+# widening this envelope cascade-breaks downstream
+# selective-disclosure-proofs (per §13.4).
+#
+# Family A is correct here per plan §5 (Family-B/C-exceptions
+# paragraph) — codex r1 on the plan caught two defects in an earlier
+# draft that proposed a Family C envelope for this kind: (a) the
+# descriptor's parse needs no crypto capabilities, only shape checks;
+# (b) field names like `entropy_source = "system"` and
+# `crypto_keys.sign/verify` are not in the validator's accepted
+# vocabularies (validate_abstraction_class.py:182 accepts only
+# os|deterministic_seed|none; :214 accepts only
+# read_keys|use_keys|generate_allowed). Cryptographic work is
+# RUNTIME-SPEC and lies outside this envelope.
+
+[kind.abstraction_class]
+id          = "cryptographic-proof.v1"
+description = "Cryptographic-proof artefact (SPEC-layer shape only): declares `[[proofs]]` rows — each carrying `id` (`SDP:` prefix), `subject`, `bound_source` (literal `sha256:` prefix + 64 lowercase hex chars per INV01), closed-vocabulary `proof_scheme` (per INV02), and at least one of `covers` (list of `RED:` ids per INV03) or `proof_artifact` (repo-relative path to the binary proof blob). Cryptographic verification of the proof against the published bytes is RUNTIME-SPEC and lies outside this envelope (per the kind's prose lines 61-62). The SPEC layer enforces ID/shape rules only; cross-file resolution of `covers` to actual `RED:` entries is delegated to higher-level audit pipelines (per INV03). No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms      = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576  # 1 MB — descriptor parse + ID-prefix + sha256-shape checks is a small categorical workload
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed      = false
+monotonic_clock_allowed = false
+precision_cap_ms        = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

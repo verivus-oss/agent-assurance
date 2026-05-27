@@ -1,0 +1,130 @@
+# Disclosure Profile — ontology extension.
+#
+# Declares the entities, attribute vocabularies, and (currently no)
+# namespaced relation predicates the disclosure profile adds on top
+# of the core DAG-TOML ontology (../../core/ontology.toml). Carries
+# its own `ontology_version` that tracks ONLY this profile's
+# vocabulary; the core ontology's `ontology_version` is unaffected
+# by changes here.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "ontology"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+ontology_version  = 1
+framework_profile = "disclosure"
+title             = "Disclosure Profile ontology extension"
+extends           = "../../core/ontology.toml"
+authoritative_in  = "./PROFILE.toml"
+confidentiality   = "public"
+license           = "Apache-2.0"
+
+[meta.ijb_field_primitives]
+framework_profile = { ijb_primitive = "scope",      ijb_class = "structural" }
+template_kind     = { ijb_primitive = "scope",      ijb_class = "structural" }
+schema_version    = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+ontology_version  = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+confidentiality   = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+license           = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+
+# ============================================================================
+# PROFILE-DEFINED ENTITIES
+# ============================================================================
+
+[[entities]]
+id_prefix    = "DISC"
+section      = "attestations"
+schema       = "disclosure-attestation"
+profile      = "disclosure"
+description  = "A disclosure attestation entry: one signed statement that a named subject was disclosed under a stated posture."
+extensible   = false
+attributes   = ["disclosure_posture"]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_prefix    = "RED"
+section      = "redactions"
+schema       = "redaction-manifest"
+profile      = "disclosure"
+description  = "A redaction entry: one byte-range or field-path inside the source artifact that was removed before publication, with justification."
+extensible   = false
+attributes   = ["redaction_method", "redaction_reason"]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_prefix    = "SDP"
+section      = "proofs"
+schema       = "selective-disclosure-proof"
+profile      = "disclosure"
+description  = "A selective disclosure proof: a commitment a recipient can verify to confirm the published bytes are a faithful redaction of the bound source."
+extensible   = false
+attributes   = ["proof_scheme"]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+# ============================================================================
+# PROFILE-DEFINED ATTRIBUTE VOCABULARIES
+# ============================================================================
+
+[[attribute_vocabularies]]
+attribute   = "disclosure_posture"
+applies_to  = "DISC"
+values      = ["full", "partial", "withheld", "embargoed"]
+extensible  = false
+notes       = "Closed set declaring how the subject was disclosed. `partial` and `embargoed` SHOULD link to a redaction-manifest and/or `[meta].embargo_until`; `withheld` declares that nothing about the subject is published in this artifact set."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "policy"
+
+[[attribute_vocabularies]]
+attribute   = "redaction_method"
+applies_to  = "RED"
+values      = ["byte-range-delete", "field-path-delete", "field-path-mask", "blob-replace"]
+extensible  = true
+notes       = "How the redaction was applied. Extensible because adopters with novel canonical forms (e.g. JSON-Patch dialects) may need to name their scheme. After first publication, additions bump THIS profile's ontology_version."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "redaction_reason"
+applies_to  = "RED"
+values      = ["pii", "secret", "trade-secret", "license-restricted", "third-party", "regulatory", "other"]
+extensible  = true
+notes       = "Closed posture vocabulary mirroring the kinds of justification a reviewer expects on a redaction. `other` MUST carry a free-form `notes` field on the redaction entry."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "policy"
+
+[[attribute_vocabularies]]
+attribute   = "proof_scheme"
+applies_to  = "SDP"
+values      = ["merkle-leaf-omission", "field-commitment-omission", "blob-commitment-substitution"]
+extensible  = true
+notes       = "Family of selective-disclosure proof scheme. The SPEC layer names the family only; the wire shape of the proof is RUNTIME-SPEC. Algorithm agility per ontology rules — additions bump THIS profile's ontology_version."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# PROFILE-DEFINED RELATIONS
+# ============================================================================
+#
+# Profile predicates MUST be namespaced per core/ontology.md §3.3
+# (`disclosure:<predicate>`). The profile currently introduces no
+# namespaced relation predicates: disclosure entities cite redactions
+# and proofs by `id` using free-form lists (`covered_by`, `proven_by`)
+# whose target IDs are declared above. Adding a namespaced predicate
+# in a future version bumps this profile's ontology_version.
+
+# ============================================================================
+# EXTENSION RULES (profile-scoped)
+# ============================================================================
+
+[extension_rules]
+entity_kinds       = "closed_within_profile"
+relation_predicates = "must_be_namespaced_as_disclosure:<predicate>"
+version_bump_rule  = "After the first public release, adding a profile entity or attribute value bumps this file's ontology_version. The core ontology's ontology_version is unaffected. Pre-publication, ontology_version stays at 1 while drafts are revised in place."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"

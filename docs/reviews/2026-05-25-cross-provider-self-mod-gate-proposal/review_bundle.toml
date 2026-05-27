@@ -1,0 +1,156 @@
+# Proposal review — cross-provider gate-decision for self-modification.
+#
+# This is a PROPOSAL-stage review (no commit, no diff). The unit
+# under review is the text of the proposal itself (§ "Proposal text"
+# in review_prompt.md). Reviewers MUST verify claims about the
+# current spec/profile state against repo bytes at HEAD = 8a63abb.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-25"
+review_session = "2026-05-25-cross-provider-self-mod-gate-proposal"
+predecessor    = ""
+
+[bundle]
+repo_root             = "/srv/repos/external/verivus-oss/agent-assurance"
+head_commit           = "8a63abb"
+commit_range          = ""        # proposal stage — no diff yet
+total_new_commits     = 0
+description           = """
+Proposal-stage review of a profile-level rule for the agent-assurance
+profile: when an agent modifies its own harness/source (the producer
+IS the subject of the change), the gate-decision MUST be issued by a
+DIFFERENT provider / model family than the proposing agent, and the
+gate-decision artifact MUST carry verifiable provider attribution
+(mechanically checkable, not self-claimed).
+
+Context: triggered by reading MOSS (arxiv 2605.22794), which extends
+self-evolving agents from text-mutable artifacts to the harness
+itself. That sharpens the existing "agent cannot validate own work"
+rule into a stronger constraint: same-model-family review inherits
+training-data blind spots that produced the failure, so cross-family
+review is materially stronger.
+
+Product scope clarification from the initiator: the agent-assurance
+profile is targeted ONLY at multi-provider setups; single-provider
+users are out of scope and cannot achieve full assurance under this
+profile. This converts the rule from SHOULD/tier-ratchet to MUST at
+all tiers.
+"""
+
+[bundle.scope]
+in_scope = [
+  "agent-assurance profile prose change (profiles/agent-assurance/)",
+  "tier files (profiles/agent-assurance/tiers/*.toml) — cross_provider_review = required",
+  "gate-decision kind descriptor — required provider-attribution metadata field",
+  "naming: 'different provider' / 'different model family' (NOT 'frontier lab')",
+  "concept: 'agent-federator' as RUNTIME role (NOT a new spec kind) — broker that attests provider attribution",
+]
+out_of_scope = [
+  "core/ changes (this is a profile change only)",
+  "new template_kind addition (use existing gate-decision + adapter-contract)",
+  "JSON Schema sidecars (off the table per project policy)",
+  "VAP-specific runtime names (rvwr, weave, etc.) leaking into spec",
+  "Validator implementations (separate repos)",
+]
+
+# ----------------------------------------------------------------------
+# Unit under review — the proposal text.
+# ----------------------------------------------------------------------
+
+[[bundle.units]]
+id           = "P01"
+commit_sha   = ""           # proposal-stage
+title        = "Cross-provider gate-decision MUST for self-modification (agent-assurance profile)"
+summary      = """
+Three sub-claims, reviewable independently:
+
+P01-C1 (the rule).
+  In the agent-assurance profile: a gate-decision whose subject of
+  change is the producer agent's own harness/source MUST be issued
+  by a model from a different provider / model family than the
+  proposing agent. The gate-decision artifact MUST carry a
+  verifiable provider-attribution metadata field. Strength: MUST
+  (not SHOULD), applied at ALL tiers (no ratchet).
+
+P01-C2 (the scope justification).
+  Single-provider deployments cannot satisfy this profile. Rationale:
+  same-model-family review inherits the training-data and reasoning
+  biases that produced the failure under review; cross-family review
+  is the only mechanism that demonstrably breaks that loop. This is
+  posture, not commercial steering — and it should be stated in the
+  profile rationale so it doesn't read as vendor lock-out by stealth.
+
+P01-C3 (the role concept, agent-federator).
+  Introduce 'agent-federator' as a documented RUNTIME ROLE (not a
+  new template_kind, not a new validator) in the profile prose. The
+  federator is the runtime component that (a) knows which provider
+  produced the proposal, (b) routes the gate-decision request to a
+  different provider, (c) attests the provider attribution into the
+  gate-decision artifact. The spec describes the contract (what the
+  attribution must contain and how it is verified); the federator is
+  one valid implementation shape. The spec MUST NOT name a specific
+  federator product or component (cf. memory: VAP names stay private).
+
+Initiator naming check:
+  $ grep -rni 'agent-federator\\|agent_federator\\|federator' /srv/repos/external/verivus-oss/agent-assurance/
+  (no matches — 'agent-federator' is NEW terminology proposed by this
+  bundle. Reviewers MUST evaluate whether the name is appropriate or
+  collides with existing prose elsewhere.)
+
+This is plan-compliance language and MUST be independently verified
+by reviewers against repo bytes.
+"""
+changed_files = []   # proposal stage
+verify = [
+  "git rev-parse HEAD   # MUST be 8a63abb",
+  "ls profiles/agent-assurance/",
+  "cat profiles/agent-assurance/gate-decision-kind.toml | head -200",
+  "ls profiles/agent-assurance/tiers/",
+  "cat profiles/agent-assurance/tiers/solo.toml",
+  "cat profiles/agent-assurance/tiers/enterprise.toml",
+  "grep -rn 'self-modif\\|self_modif\\|self-evolution\\|self_evolution' SPEC.md core/ profiles/",
+  "grep -rn 'cannot validate own work\\|self-approval\\|self approval' SPEC.md core/ profiles/",
+  "grep -rni 'provider\\|model family\\|cross-provider' SPEC.md core/ profiles/agent-assurance/",
+  "grep -rni 'frontier lab\\|frontier-lab' .   # MUST be empty in any proposed wording",
+]
+
+[roster]
+initiator       = "claude-opus-4-7 (session running on /srv/repos/external/verivus-oss/agent-assurance, 2026-05-25)"
+initiator_role  = "excluded from standard reviewer set per [policy.roles].initiator_excluded_as_standard_reviewer"
+reviewer_models = ["codex", "gemini", "grok", "mistral"]
+roster_note     = """
+Four reviewers (one more than the project's recent convention of
+three). The proposal under review is itself about cross-provider
+review; widening the panel to four distinct providers exercises the
+mechanism the proposal advocates. If mistral output is unavailable
+(session_logging not enabled or similar), the panel falls back to
+three and that is recorded in terminal_decision.toml.
+"""
+
+[review_instructions]
+rules_source  = "tools/review-request-dag.toml [policy.*]"
+prompt_path   = "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal/review_prompt.md"
+narrow_scope  = """
+Three sub-claims (P01-C1, P01-C2, P01-C3). For each, classify as
+complete / incomplete / unverifiable with file:line evidence drawn
+from current repo state at HEAD 8a63abb. Approval bases:
+inspected_code, executed_tests_with_output (where applicable),
+inspected_docs, persisted_review_evidence.
+"""
+iteration_rule = "If initiator disagrees with a finding, response MUST cite code/doc evidence (file + line), not assertion."
+polling_cadence_seconds = 90
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "raw_findings/mistral.md",
+  "terminal_decision.toml",
+]

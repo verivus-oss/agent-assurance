@@ -1,0 +1,141 @@
+# Round-2 review of the SPEC §13 retrofit scoping plan.
+# Codex r1 issued concrete_unresolvable_blocker on three findings;
+# this r2 session reviews the follow-up fix commit 073d5c5 against
+# those blockers.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-25"
+review_session = "2026-05-25-spec-13-retrofit-scoping-plan-r2"
+predecessor    = "2026-05-25-spec-13-retrofit-scoping-plan"
+
+[bundle]
+repo_root             = "/srv/repos/external/verivus-oss/agent-assurance"
+parent_commit_pre_r2  = "c88f7ea"
+head_commit_post_r2   = "073d5c5"
+commit_range_r2       = "c88f7ea..073d5c5"
+total_new_commits     = 1
+description           = "Single follow-up commit (073d5c5) modifying ONLY docs/planning/2026-05-25-spec-13-retrofit-scoping.md (+124 / -54). Closes codex r1 blockers U07-F1 (SDP Family C → A; remove validator-invalid field names), U07-F2 (observation-record.v1 description was cost-record-specific), and U07-F3 (§9 closure_root MUST-flip vs sentinel-persists contradiction). Scope: narrow — does the fix close the three blockers without introducing new defects, and is the plan now ready to dispatch its first-phase retrofit PR."
+
+[bundle.r1_summary]
+verdicts = { codex = "concrete_unresolvable_blocker", grok = "unconditional_approval", gemini = "unconditional_approval" }
+binding_evidence_class = "live-executable (read validate_abstraction_class.py:182 and :214 to find validator-invalid vocabularies)"
+binding_evidence_path  = "docs/reviews/2026-05-25-spec-13-retrofit-scoping-plan/raw_findings/codex.md"
+r1_blockers_summary = """
+U07-F1 (high): SDP Family C envelope at plan row 18 used
+`entropy_source = "system"` (validator at
+validators/validate_abstraction_class.py:182 accepts only os |
+deterministic_seed | none) and `crypto_keys.{sign, verify}`
+(validator at :214 accepts only read_keys | use_keys |
+generate_allowed). Also R2 leakage per
+profiles/disclosure/selective-disclosure-proof-kind.toml:61
+("Verifying the proof against the published bytes is
+RUNTIME-SPEC").
+
+U07-F2 (medium): observation-record.v1 description ("closed-vocab
+dimensions + integer quantities") in plan §6 row 1 matched
+cost-record:196 but not evidence-matrix:90, gate-decision:95,
+assertion-log-record:95, redaction-manifest:83. Shared class id
+is fine; shared description is not.
+
+U07-F3 (medium): plan §9 contradicted itself — bash comment
+said "MUST flip" (line 258) while prose said sentinel does NOT
+change (lines 264-267).
+"""
+
+# ----------------------------------------------------------------------
+# Unit under review for r2.
+# ----------------------------------------------------------------------
+
+[[bundle.units]]
+id           = "U08"
+commit_sha   = "073d5c5"
+title        = "Close codex r1 blockers on the §13 retrofit plan"
+summary      = """
+Three classes of fix in one file:
+
+  (a) U07-F1 closure — selective-disclosure-proof reclassified
+      Family A in plan row 18; §5 Family-C-exceptions paragraph
+      rewritten to preserve the historical proposal as audit
+      trail ("Earlier draft proposed... but round-1 review
+      caught two defects") and explicitly cite the validator
+      vocabularies and the descriptor's RUNTIME-SPEC prose;
+      cryptographic-proof.v1 class id retained (artefact-level
+      role label, not a parse-capability declaration). §8 Phase
+      3 wording updated: "All Family A under R1" (no Family C).
+
+  (b) U07-F2 closure — §6 taxonomy reframed. Class id now
+      explicitly described as a "producer-attested label for
+      the artefact's role", NOT a "byte-level structural-shape
+      contract". Table column renamed from "Description
+      (1-line)" to "Role at the artefact level (NOT a
+      byte-level shape)". observation-record.v1 row description
+      generalised. New per-kind-description rule added below the
+      table: when sharing a class id, each kind MUST declare a
+      kind-specific [kind.abstraction_class].description.
+
+  (c) U07-F3 closure — §9 "MUST flip" bash comment deleted; only
+      "§12 closure-root gate" remains. Prose rewritten as a
+      single coherent block explaining (i) sentinel persists per
+      §12.1/§12.11, (ii) cost-record at HEAD confirms this, (iii)
+      descriptor file's SHA-256 changes but its declared
+      closure_root value doesn't, (iv) SPEC §13.4's reference
+      to descriptor closure_root flipping is filed as out-of-scope
+      ISS-005 candidate in §11.
+
+  Plus: §11 gains an out-of-scope bullet for the SPEC §13.4 vs
+  §12.1 tension; §12 (open questions) drops Q4 (SDP envelope —
+  now answered) and rewords Q2 to match the reframed taxonomy;
+  new §13 (Revision history) records this round transparently.
+
+Initiator claim:
+  $ grep -n 'MUST flip' docs/planning/2026-05-25-spec-13-retrofit-scoping.md
+  (no matches)
+
+  $ grep -nE 'Family C|entropy_source.*system|crypto_keys.*verify|crypto_keys.*sign' docs/planning/2026-05-25-spec-13-retrofit-scoping.md
+  Only 2 matches, both inside the §5 explanatory paragraph
+  describing what round-1 caught; not live proposals.
+
+  $ python3 validators/validate_closure_root.py --discover .
+  CLOSURE-ROOT VALIDATION PASSED (74 file(s)).
+
+This is plan-compliance language and MUST be independently
+verified by reviewers against repo bytes.
+"""
+changed_files = [
+  "docs/planning/2026-05-25-spec-13-retrofit-scoping.md",
+]
+verify = [
+  "git show --stat 073d5c5",
+  "git show 073d5c5",
+  "cat docs/planning/2026-05-25-spec-13-retrofit-scoping.md",
+  "grep -n 'MUST flip' docs/planning/2026-05-25-spec-13-retrofit-scoping.md   # MUST be empty",
+  "grep -nE 'Family C|entropy_source.*system|crypto_keys.*verify|crypto_keys.*sign' docs/planning/2026-05-25-spec-13-retrofit-scoping.md   # all surviving matches MUST be inside the §5 historical-explanation paragraph, not live proposals",
+  "sed -n '180,210p' validators/validate_abstraction_class.py   # the vocabularies codex cited",
+  "python3 validators/validate_closure_root.py --discover .",
+]
+
+[roster]
+initiator       = "claude-opus-4-7 (session running on /srv/repos/external/verivus-oss/agent-assurance, 2026-05-25)"
+initiator_role  = "excluded from standard reviewer set per [policy.roles].initiator_excluded_as_standard_reviewer"
+reviewer_models = ["codex", "gemini", "grok"]
+
+[review_instructions]
+rules_source  = "tools/review-request-dag.toml [policy.*]"
+prompt_path   = "docs/reviews/2026-05-25-spec-13-retrofit-scoping-plan-r2/review_prompt.md"
+narrow_scope  = "Three blocker dispositions only. Each MUST be classified closed / partial / open with file:line evidence. Approval bases: inspected_code, executed_tests_with_output, inspected_docs, persisted_review_evidence."
+iteration_rule = "If initiator disagrees with a finding, response MUST cite code/doc evidence (file + line), not assertion."
+polling_cadence_seconds = 90
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-25-spec-13-retrofit-scoping-plan-r2/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "terminal_decision.toml",
+]

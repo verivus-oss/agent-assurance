@@ -1,0 +1,213 @@
+# Kind descriptor for `template_kind = "smoke-validation"`.
+# Agent Assurance Profile artifact. Collapses smoke-validation.md.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "kind-descriptor"
+ontology_version  = 1
+title             = "Smoke validation kind descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+describes_kind    = "smoke-validation"
+framework_profile = "agent-assurance"
+authoritative_in  = "this file (collapsed from profiles/agent-assurance/smoke-validation.md)"
+
+[kind]
+name    = "smoke-validation"
+summary = "Recorded smoke run with an explicit decision drawn from the smoke.decision vocabulary."
+prose   = """
+A smoke-validation file records a smoke run with an explicit
+decision (value drawn from the profile-ontology vocabulary
+`smoke.decision`). The review-readiness gate consults this artifact
+to decide whether the change has been exercised end-to-end.
+
+ROOT SHAPE
+
+    [meta]
+    schema_version    = "0.1.0"
+    template_kind     = "smoke-validation"
+    framework_profile = "agent-assurance"
+    title             = "Smoke validation for <feature>"
+    created           = "YYYY-MM-DD"
+    ci_run            = "ci/run/12345"
+    environment       = "staging"
+
+    [result]
+    decision   = "pass"          # value drawn from `smoke.decision`
+    duration_s = 184
+    artefact   = "ci/run/12345/smoke.log"
+
+    [[checks]]
+    id        = "SMOKE:checkout-happy-path"
+    title     = "Customer can complete a single-item checkout"
+    status    = "pass"
+    evidence  = "ci/run/12345/smoke.log#checkout-happy-path"
+
+DECISION VS PER-CHECK STATUS
+
+- `[result].decision` is the top-level outcome; its value set is
+  declared by the profile-ontology vocabulary `smoke.decision`. The
+  semantics of the inconclusive value (smoke environment unhealthy,
+  result is not usable evidence, run must be retried) is documented
+  in the vocabulary's notes field.
+- Each `[[checks]]` entry carries a `status` field whose value set is
+  declared by the profile-ontology vocabulary `status`
+  (applies_to = "SMOKE"). It shares the same allowed values as
+  `smoke.decision` by design.
+
+REQUIRED-CHECK POLICY
+
+A smoke validation MAY include both required and non-required checks.
+Only required checks gate the `decision`. Reviewers SHOULD be able to
+tell, from the file alone, which checks are required.
+
+VALUE SETS
+
+Both `[result].decision` and `[[checks]].status` draw from the closed
+vocabularies `smoke.decision` and `status` (applies_to = "SMOKE")
+declared in profiles/agent-assurance/ontology.toml
+[[attribute_vocabularies]]. That ontology is the single source of
+truth; do not copy the value lists here.
+"""
+references = [
+  "spec.md",
+  "profiles/agent-assurance/ontology.toml",
+]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[kind.required_fields]]
+path        = "meta.template_kind"
+must_equal  = "smoke-validation"
+description = "Identifies this file as a smoke validation."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "meta.framework_profile"
+must_equal  = "agent-assurance"
+description = "Smoke validation is an Agent Assurance Profile artifact."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "result.decision"
+description = "Top-level smoke decision. Value set is governed by profile ontology vocabulary `smoke.decision`."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "checks"
+description = "At least one check entry with id, title, status, evidence."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV01"
+statement   = "`[result].decision` MUST be drawn from the `smoke.decision` vocabulary declared in the profile ontology."
+enforced_by = "validators/validate_smoke_validation.py (planned)"
+see_also    = "profiles/agent-assurance/ontology.toml [[attribute_vocabularies]] smoke.decision"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV02"
+statement   = "Every `[[checks]].status` value MUST be drawn from the `status` vocabulary (applies_to SMOKE) declared in the profile ontology."
+enforced_by = "validators/validate_smoke_validation.py (planned)"
+see_also    = "profiles/agent-assurance/ontology.toml [[attribute_vocabularies]] status"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV03"
+statement   = "Decision MUST be `inconclusive` if any required check is `inconclusive`; MUST be `fail` if any required check is `fail`; MAY be `pass` only if every required check is `pass`."
+enforced_by = "validators/validate_smoke_validation.py (planned)"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name           = "minimal smoke validation"
+file           = "examples/minimal-smoke-validation.toml"
+inline_summary = "Four checks (three required, one optional) all passing; decision = pass."
+ijb_primitive = "observed"
+
+[[kind.hard_invariants]]
+id          = "INV04"
+statement   = "Every entity prefix and relation predicate used in this kind's instance files resolves to an `ijb_primitive` declared in the ontology (core plus any active profile)."
+enforced_by = "validators/validate_ijb_conformance.py"
+see_also    = "foundations/ijb/primitives.md"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.relation_to_ontology]
+entities_introduced = ["SMOKE"]
+ontology_entries    = "profiles/agent-assurance/ontology.toml [[entities]] (SMOKE block)"
+attribute_vocabularies = ["smoke.decision", "status"]
+note                = "Allowed value sets for both `[result].decision` (vocabulary `smoke.decision`) and `[[checks]].status` (vocabulary `status` applies_to SMOKE) are governed by profiles/agent-assurance/ontology.toml [[attribute_vocabularies]]. `smoke.decision` applies_to the schema (singleton table); `status` applies_to the SMOKE id-prefixed entity. Do not re-declare these value sets in this descriptor."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# A smoke-validation is a validation-record: it records the outcome of
+# a smoke run that already executed. The smoke run itself is performed
+# by a separate CI / runtime process; this descriptor only structures
+# the recorded result. It MUST NOT, at the kind layer, become a
+# transport for arbitrary capability assertions. Naming the class here
+# binds future smoke-validation producers to the contract; widening
+# the envelope cascade-breaks downstream smoke-validations (per §13.4).
+# Per Reading R1 (docs/planning/2026-05-25-spec-13-retrofit-scoping.md
+# §5), this envelope bounds the processing of the recorded descriptor
+# (text parse + cross-field decision/status invariant check), NOT the
+# capabilities the smoke run that produced the record required.
+
+[kind.abstraction_class]
+id          = "validation-record.v1"
+description = "Validation-record artefact: records the outcome of a smoke run that already executed — `[result]` with closed-vocabulary `decision` (`smoke.decision` vocab), `duration_s`, `artefact` pointer, and at least one `[[checks]]` row (each carrying `id` (`SMOKE:` prefix), `title`, closed-vocabulary `status` (`status` applies_to SMOKE), `evidence` pointer). Cross-field rule (INV03): `decision` MUST be `inconclusive` if any required check is inconclusive, `fail` if any required check is fail, `pass` only if every required check is pass. No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms      = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576  # 1 MB — a recorded smoke validation is a small categorical document
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed      = false
+monotonic_clock_allowed = false
+precision_cap_ms        = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

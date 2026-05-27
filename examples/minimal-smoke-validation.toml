@@ -1,0 +1,49 @@
+# Minimal smoke validation, Agent Assurance Profile.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "smoke-validation"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+framework_profile = "agent-assurance"
+title             = "Smoke validation: tax line on checkout receipt"
+created           = "2026-05-19"
+ci_run            = "ci/run/12345"
+environment       = "staging"
+
+[result]
+decision   = "pass"
+duration_s = 184
+artefact   = "ci/run/12345/smoke.log"
+
+[[checks]]
+id        = "SMOKE:checkout-happy-path"
+title     = "Customer can complete a single-item checkout"
+required  = true
+status    = "pass"
+evidence  = "ci/run/12345/smoke.log#checkout-happy-path"
+
+[[checks]]
+id        = "SMOKE:checkout-with-tax"
+title     = "Tax is computed and shown on the receipt"
+required  = true
+status    = "pass"
+evidence  = "ci/run/12345/smoke.log#checkout-with-tax"
+
+[[checks]]
+id        = "SMOKE:checkout-idempotency"
+title     = "Resubmitting the same order is not double-charged"
+required  = true
+status    = "pass"
+evidence  = "ci/run/12345/smoke.log#checkout-idempotency"
+
+[[checks]]
+id        = "SMOKE:receipt-pdf-renders"
+title     = "PDF receipt renders for a sample order"
+required  = false
+status    = "pass"
+evidence  = "ci/run/12345/smoke.log#receipt-pdf-renders"

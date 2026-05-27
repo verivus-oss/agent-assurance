@@ -1,0 +1,41 @@
+# Self-modification gate-decision instance.
+# Demonstrates the cross-provider attribution shape required by
+# gate-decision INV06 in profiles/agent-assurance/gate-decision-kind.toml.
+#
+# The fictional scenario: an agent running on `claude` (provider
+# `anthropic`) proposed a change to its OWN harness/source code; per
+# INV06 the gate-decision MUST be issued by a model whose
+# provider_id AND model_family_id BOTH differ. Here the deciding
+# model is `gpt` from `openai`, satisfying both inequalities.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "gate-decision"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+framework_profile = "agent-assurance"
+title             = "Gate decision: agent harness rewrite case-001 (self-modification)"
+created           = "2026-05-25"
+
+[decision]
+verdict                    = "pass"
+evidence_root              = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+evidence_root_algorithm    = "sha256-merkle-sorted-leaves"
+decided_at                 = "2026-05-25T03:14:30Z"
+
+# INV06: subject_class = "self-modification" triggers required
+# cross-provider attribution; the four *_provider_id / *_model_family_id
+# fields below MUST be present AND deciding_* MUST differ from
+# proposing_* on BOTH provider and family axes.
+subject_class              = "self-modification"
+proposing_provider_id      = "anthropic"
+proposing_model_family_id  = "claude"
+deciding_provider_id       = "openai"
+deciding_model_family_id   = "gpt"
+
+[[decision.cited_bundles]]
+bundle_ref = "examples/minimal-assertion-bundle.toml"

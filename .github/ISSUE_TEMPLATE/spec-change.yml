@@ -1,0 +1,58 @@
+name: Spec change proposal
+description: Propose a new field, kind, relation, invariant, or allowed value.
+title: "Proposal: "
+labels: ["proposal", "triage"]
+body:
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: I can describe the concrete interoperability, validation, or user-facing problem.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What cannot be represented or validated correctly today?
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      multiple: true
+      options:
+        - Core kind descriptor
+        - Core ontology
+        - Agent Assurance Profile
+        - IJB substrate mapping
+        - Reference validator
+        - Examples
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-change
+    attributes:
+      label: Proposed change
+      description: Keep this as small as possible. Include field names or allowed values if known.
+    validations:
+      required: true
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility and migration
+      description: State whether this is additive or breaking, and how existing files should move.
+    validations:
+      required: true
+  - type: textarea
+    id: examples
+    attributes:
+      label: Example
+      description: Optional TOML snippet or existing file that shows the proposed shape.
+      render: toml
+    validations:
+      required: false

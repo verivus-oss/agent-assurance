@@ -1,0 +1,209 @@
+# Kind descriptor for `template_kind = "disclosure-attestation"`
+# (disclosure profile).
+#
+# A disclosure attestation enumerates signed statements about how
+# each named subject (a file, a field, a bundle) was disclosed in
+# the artifact set the attestation accompanies. It is the
+# entry-point document a recipient reads to learn what posture the
+# publisher took on each subject before reaching for the
+# `redaction-manifest` (what was removed) or the
+# `selective-disclosure-proof` (how to verify).
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "kind-descriptor"
+ontology_version  = 1
+title             = "Disclosure attestation kind descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/profiles/disclosure/PROFILE.toml"
+describes_kind    = "disclosure-attestation"
+authoritative_in  = "this file"
+confidentiality   = "public"
+license           = "Apache-2.0"
+
+[kind]
+name    = "disclosure-attestation"
+summary = "Signed posture statements declaring how each named subject was disclosed in the accompanying artifact set."
+prose   = """
+A disclosure attestation is the entry-point document for the
+disclosure profile. It enumerates, per subject (a file path, a
+field path, an assertion-bundle ID, …), the posture the publisher
+took on that subject — `full`, `partial`, `withheld`, or
+`embargoed` — and points the reviewer at the redaction-manifest and
+selective-disclosure-proof artifacts (if any) that back the posture.
+
+ROOT SHAPE
+
+    [meta]
+    schema_version    = "0.1.0"
+    template_kind     = "disclosure-attestation"
+    framework_profile = "disclosure"
+    title             = "Disclosure attestation for <bundle>"
+    created           = "YYYY-MM-DD"
+    confidentiality   = "public"
+    license           = "Apache-2.0"
+
+    [[attestations]]
+    id                 = "DISC:bundle-12345"
+    subject            = "bundle/12345"
+    disclosure_posture = "partial"
+    covered_by         = ["RED:bundle-12345-pii"]
+    proven_by          = ["SDP:bundle-12345-merkle"]
+    rationale          = "PII columns redacted per regulatory request; remaining bytes are byte-faithful to the source."
+    signed_by          = "release-captain@example.com"
+
+REQUIRED STRUCTURE
+
+- At least one `[[attestations]]` entry.
+- Each entry MUST carry `id` (matching the `DISC:` prefix), `subject`
+  (free-form short string), `disclosure_posture` (drawn from the
+  closed `disclosure_posture` vocabulary), and at least one of
+  `rationale`, `covered_by`, or `proven_by`.
+- When `disclosure_posture = "partial"`, the entry MUST link to at
+  least one `RED:` redaction-manifest entry via `covered_by`.
+- When `disclosure_posture = "embargoed"`, the file's
+  `[meta].embargo_until` MUST be set per SPEC §2.7.
+
+The SPEC layer treats `signed_by` as a free-form string; signature
+verification, key resolution, and recipient lists are RUNTIME-SPEC.
+"""
+references = [
+  "spec.md",
+  "core/ontology.toml",
+  "profiles/disclosure/ontology.toml",
+]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[kind.required_fields]]
+path        = "meta.template_kind"
+must_equal  = "disclosure-attestation"
+description = "Identifies this file as a disclosure attestation."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "meta.framework_profile"
+must_equal  = "disclosure"
+description = "Selects the disclosure profile."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "attestations"
+description = "At least one `[[attestations]]` entry with `id` (DISC:-prefixed), `subject`, `disclosure_posture`, and at least one of rationale/covered_by/proven_by."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV01"
+statement   = "Every `[[attestations]].disclosure_posture` value is drawn from the closed `disclosure_posture` vocabulary in `profiles/disclosure/ontology.toml`."
+enforced_by = "validators/validate_disclosure.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also    = "profiles/disclosure/ontology.toml"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV02"
+statement   = "When `disclosure_posture = \"partial\"`, the entry has at least one `covered_by` reference to a `RED:` redaction-manifest entry."
+enforced_by = "validators/validate_disclosure.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also    = "profiles/disclosure/redaction-manifest-kind.toml"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV03"
+statement   = "When `disclosure_posture = \"embargoed\"`, `[meta].embargo_until` is set (SPEC §2.7 cross-field rule)."
+enforced_by = "validators/validate_disclosure.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also    = "spec.md §2.7"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV04"
+statement   = "Every entity prefix and relation predicate used in this kind's instance files resolves to an `ijb_primitive` declared in the loaded ontology set (core + disclosure profile)."
+enforced_by = "validators/validate_ijb_conformance.py"
+see_also    = "foundations/ijb/primitives.md"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name           = "minimal disclosure attestation"
+file           = "examples/minimal-disclosure-attestation.toml"
+inline_summary = "Single attestation declaring a partial-disclosure posture on one assertion-bundle subject, citing a redaction manifest entry."
+ijb_primitive = "observed"
+
+[kind.relation_to_ontology]
+entities_introduced = ["DISC"]
+ontology_entries    = "profiles/disclosure/ontology.toml [[entities]] with id_prefix DISC"
+predicates_used     = ["covered_by (free-form list pointing at RED: ids)", "proven_by (free-form list pointing at SDP: ids)"]
+note                = "`covered_by` and `proven_by` are free-form ID-list fields that target entities declared in the disclosure profile ontology. They are not namespaced relation predicates and are scoped to disclosure-profile instance files."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# A disclosure-attestation is an attestation-record: a signed posture
+# statement about how each named subject was disclosed in the
+# accompanying artifact set. It MUST NOT, at the kind layer, become a
+# transport for arbitrary capability assertions. Naming the class here
+# binds future disclosure-attestation producers to the contract;
+# widening the envelope cascade-breaks downstream attestations (per
+# §13.4). Signature verification, key resolution, and recipient lists
+# are explicitly RUNTIME-SPEC (per the kind's existing prose at lines
+# 69-70) and lie outside this envelope; the SPEC-layer rule treats
+# `signed_by` as a free-form string.
+
+[kind.abstraction_class]
+id          = "attestation-record.v1"
+description = "Attestation-record artefact: enumerates `[[attestations]]` entries — each carrying `id` (`DISC:` prefix), free-form `subject`, closed-vocabulary `disclosure_posture` (`full` | `partial` | `withheld` | `embargoed`), free-form `signed_by`, and at least one of `rationale` / `covered_by` (free-form list of `RED:` ids) / `proven_by` (free-form list of `SDP:` ids). Cross-field rules: `partial` requires at least one `covered_by` `RED:` reference; `embargoed` requires `[meta].embargo_until` per SPEC §2.7. Signature verification is RUNTIME-SPEC and lies outside this envelope. No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms      = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576  # 1 MB — a disclosure attestation is a small categorical document
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed      = false
+monotonic_clock_allowed = false
+precision_cap_ms        = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

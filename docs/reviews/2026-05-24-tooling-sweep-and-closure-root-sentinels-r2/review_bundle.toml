@@ -1,0 +1,113 @@
+# Round-2 review bundle for the tooling sweep + §12 closure_root
+# sentinels. R1 dispatched on 2026-05-24, results persisted at
+# `docs/reviews/2026-05-24-tooling-sweep-and-closure-root-sentinels/`.
+# Codex (r1) issued `concrete_unresolvable_blocker` on the basis of
+# one invalid TOML artefact in U02. This r2 session reviews the
+# follow-up fix commit `32936b1` against that blocker.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-24"
+review_session = "2026-05-24-tooling-sweep-and-closure-root-sentinels-r2"
+predecessor    = "2026-05-24-tooling-sweep-and-closure-root-sentinels"
+
+[bundle]
+repo_root             = "/srv/repos/external/verivus-oss/agent-assurance"
+parent_commit_pre_r2  = "d027178"
+head_commit_post_r2   = "32936b1"
+commit_range_r2       = "d027178..32936b1"
+total_new_commits     = 1
+description           = "Single follow-up commit (32936b1) that closes the codex r1 blocker by repairing paper-arxiv-prep/compile-and-pdf-evidence.toml. The original three commits (47b6acd, 320a901, d027178) are unchanged; the r2 question is narrow — does 32936b1 resolve the r1 blocker and does it introduce any new defect."
+
+[bundle.r1_summary]
+verdicts = { codex = "concrete_unresolvable_blocker", grok = "unconditional_approval", gemini = "unconditional_approval" }
+binding_evidence_class = "live-executable (taplo lint + tomllib parse both reject the file)"
+binding_evidence_path  = "docs/reviews/2026-05-24-tooling-sweep-and-closure-root-sentinels/raw_findings/codex.md"
+r1_blocker_summary = """
+Codex round-1 finding U02-F1 — high — newly tracked TOML is invalid.
+`paper-arxiv-prep/compile-and-pdf-evidence.toml` is not parseable
+TOML. The first hard syntax break is at line 27 where the key
+starts with `(a)_...`; additional invalid constructs include
+table-like scalar assignments at lines 44-45 and a bare Unicode
+arrow inside an array entry at line 52. taplo lint exits 1 with
+`error: invalid TOML ... unexpected token`. tomllib parse over
+the U02 changed TOML set reports `Parsed 36 TOML file(s);
+failures=1` and names this file. Refutes the 320a901 commit
+message claim "All TOMLs parse clean".
+"""
+
+[bundle.r1_acknowledged_but_not_blocking]
+grok_finding_1 = """
+U01 commit message + r1 bundle [bundle.units.0.summary] claim
+'tools/claim-analysis-agent-gated-dag.toml (relocated from repo
+root)'. `git ls-tree -r 7328dfd` shows the file was absent before
+47b6acd — so it was a new addition, not a move. The working-tree
+move (`mv claim-analysis-agent-gated-dag.toml tools/`) preceded
+the staging, so git correctly sees a new file in tools/. The
+commit message wording is sloppy but the durable artefact (the
+file in tools/ at HEAD) is correct. Not blocking; documented here
+for posterity. r2 does NOT propose to retcon the 47b6acd commit
+message.
+"""
+
+# ----------------------------------------------------------------------
+# Unit under review for r2.
+# ----------------------------------------------------------------------
+
+[[bundle.units]]
+id           = "U04"
+commit_sha   = "32936b1"
+title        = "Fix invalid TOML in paper-arxiv-prep/compile-and-pdf-evidence.toml (closes codex r1 blocker)"
+summary      = """
+Three classes of defect identified by codex r1 are repaired in
+one file:
+  1. Lines 27-37 — keys beginning with `(a)_..(e)_` (invalid TOML
+     bare-key shape, parens not permitted) renamed to
+     `acceptance_a_*..acceptance_e_*`. The (a)..(e) mapping to the
+     DAG U08 spec language ("Verify (a) exit 0, (b) ...") is
+     preserved in the suffix and explained in a header comment.
+  2. Lines 44-45 — `[compile_log_size_bytes] = N` and
+     `[bibtex_log_excerpt] = "..."` (invalid: table-header syntax
+     used for scalar assignment) moved into the existing
+     [warnings_and_errors_summary] table as bare keys, where they
+     semantically belong.
+  3. Line 52 — Unicode `→` used as an infix operator inside an
+     array literal (invalid) replaced with `=>` inside the string,
+     plus a structured [[checklist_coverage_satisfied.pairs]]
+     sub-table making the source→target relation machine-readable.
+"""
+changed_files = [
+  "paper-arxiv-prep/compile-and-pdf-evidence.toml",
+]
+verify = [
+  "git show --stat 32936b1",
+  "git show 32936b1",
+  "taplo lint paper-arxiv-prep/compile-and-pdf-evidence.toml",
+  "python3 -c 'import tomllib; tomllib.loads(open(\"paper-arxiv-prep/compile-and-pdf-evidence.toml\").read())'",
+  "python3 -c 'import pathlib, tomllib; fails=[]; total=0;\\nfor r in [\"paper-arxiv-prep\",\"paper-hello-world\",\"docs/reviews\",\"docs/claim_analysis\"]:\\n  for p in pathlib.Path(r).rglob(\"*.toml\"):\\n    total+=1\\n    try: tomllib.loads(p.read_text())\\n    except Exception as e: fails.append((str(p), str(e)))\\nprint(f\"U02 areas: {total} files, {len(fails)} failures\")'",
+  "python3 validators/validate_closure_root.py --discover .   # MUST still pass 74/74",
+]
+initiator_claim = "All defects from codex r1 are repaired in this single file; the sweep over U02 areas (paper-arxiv-prep/, paper-hello-world/, docs/reviews/, docs/claim_analysis/) reports 0 parse failures across 54 files (was 1); the §12 closure-root gate still passes 74/74. This claim is plan-compliance language and MUST be independently verified."
+
+[roster]
+initiator       = "claude-opus-4-7 (session running on /srv/repos/external/verivus-oss/agent-assurance, 2026-05-24)"
+initiator_role  = "excluded from standard reviewer set per [policy.roles].initiator_excluded_as_standard_reviewer"
+reviewer_models = ["codex", "gemini", "grok"]
+
+[review_instructions]
+rules_source  = "tools/review-request-dag.toml [policy.*]"
+prompt_path   = "docs/reviews/2026-05-24-tooling-sweep-and-closure-root-sentinels-r2/review_prompt.md"
+narrow_scope  = "Verify that 32936b1 resolves the codex r1 blocker without introducing new defects. The original three commits (47b6acd, 320a901, d027178) are not re-litigated."
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-24-tooling-sweep-and-closure-root-sentinels-r2/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "terminal_decision.toml",
+]

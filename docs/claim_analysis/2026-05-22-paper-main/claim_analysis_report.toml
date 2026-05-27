@@ -1,0 +1,244 @@
+# U10 — Aggregate report.
+#
+# Merges the seven per-step findings TOMLs into one structured
+# document per [policy.report_shape] of the workflow DAG:
+#   - per_finding_required_fields:
+#       step_reference, quoted_document_part,
+#       problem_explanation, suggested_fix, severity
+#   - overall_report_required_fields:
+#       per_step_sections, overall_assessment,
+#       prioritized_recommendations
+#
+# All per-step sections appear here even if empty (per
+# policy.evidence.empty_per_step_section_must_be_explicit).
+
+[meta]
+schema_version  = "0.1.0"
+template_kind   = "claim-analysis-report"
+created         = "2026-05-22"
+dag             = "tools/claim-analysis-document-review-dag.toml"
+run_label       = "2026-05-22-paper-main"
+document        = "paper/main.tex@9664be061e4bc8493de2e5054d3c3d61737bd666e56077b9856c19585dbde306"
+document_line_count = 1659
+
+# ============================================================================
+# Per-step sections — one per review step + agent process #3.
+# Each section quotes its source TOML so the report is self-contained.
+# ============================================================================
+
+[per_step_sections.step1_structure_and_clarity]
+source_file      = "findings/structure_clarity.toml"
+total_findings   = 4
+severity_counts  = { high = 0, medium = 1, low = 3 }
+section_outcome  = "minor"
+finding_ids      = ["S1-F01", "S1-F02", "S1-F03", "S1-F04"]
+
+[per_step_sections.step2_factual_accuracy]
+source_file      = "findings/factual_accuracy.toml"
+total_findings   = 6
+severity_counts  = { high = 1, medium = 2, low = 3 }
+section_outcome  = "issues_present"
+finding_ids      = ["F2-F01", "F2-F02", "F2-F03", "F2-F04", "F2-F05", "F2-F06"]
+
+[per_step_sections.step3_logical_leaps]
+source_file      = "findings/logical_leaps.toml"
+total_findings   = 3
+severity_counts  = { high = 0, medium = 2, low = 1 }
+section_outcome  = "issues_present"
+finding_ids      = ["L3-F01", "L3-F02", "L3-F03"]
+
+[per_step_sections.step4_unsubstantiated_claims]
+source_file      = "findings/unsubstantiated_claims.toml"
+total_findings   = 4
+severity_counts  = { high = 0, medium = 3, low = 1 }
+section_outcome  = "issues_present"
+finding_ids      = ["U4-F01", "U4-F02", "U4-F03", "U4-F04"]
+
+[per_step_sections.agent_source_reliability]
+source_file      = "findings/source_reliability.toml"
+total_findings   = 5
+severity_counts  = { high = 0, medium = 2, low = 3 }
+section_outcome  = "issues_present"
+finding_ids      = ["S2-F01", "S2-F02", "S2-F03", "S2-F04", "S2-F05"]
+positive_note    = "All 44 \\cite{} keys resolve to a bibliography entry; no orphan entries."
+
+[per_step_sections.step5_compliance_and_risks]
+source_file      = "findings/compliance_risks.toml"
+total_findings   = 4
+severity_counts  = { high = 0, medium = 2, low = 2 }
+section_outcome  = "issues_present"
+finding_ids      = ["C5-F01", "C5-F02", "C5-F03", "C5-F04"]
+
+[per_step_sections.step6_overall_quality]
+source_file      = "findings/quality.toml"
+total_findings   = 3
+severity_counts  = { high = 0, medium = 0, low = 3 }
+section_outcome  = "minor"
+finding_ids      = ["Q6-F01", "Q6-F02", "Q6-F03"]
+positive_note    = "Professional academic register sustained throughout; LaTeX construction conventional; numeric content cross-references the proof bundle precisely (with the exceptions listed in step2)."
+
+# ============================================================================
+# Roll-up
+# ============================================================================
+
+[totals]
+total_findings    = 29
+severity_counts   = { high = 1, medium = 12, low = 16 }
+sections_with_issues = 5
+sections_minor_only  = 2
+
+[overall_assessment]
+verdict     = "Minor revisions needed"
+one_line    = "Manuscript is empirically careful and well sourced; one numeric contradiction (JPlag file-count direction) and a recurring spec-vs-bundle conflation require corrections; the rest is tightening."
+detail      = """
+The paper is a high-quality empirical-methodology manuscript with
+unusually strong cross-checking between body claims and the
+accompanying proof bundle. Of 29 findings raised, 1 is high
+severity, 12 medium, and 16 low.
+
+The single high-severity finding (F2-F01) is a localised numeric
+contradiction in §sec:related-tools: the JPlag file-count sentence
+asserts '84 is higher than 87', which is false on the numbers given.
+The fix is mechanical (correct the direction word and / or the
+explanation) and does not undermine the comparison's conclusion.
+
+The largest cluster of medium-severity findings concerns a single
+recurring conflation: presenting proof-bundle conventions (the
+8-value verdict enum, the three-validator-per-bundle convention) as
+properties of the DAG-TOML spec, when the spec itself defines a
+smaller set and the bundle-level conventions are derived. F2-F03,
+Q6-F03, and parts of S1-F02 / F2-F06 all flow from this. A single
+clarifying sentence at §sec:spec resolves all of them.
+
+The next cluster concerns reviewer-approval framing (S1-F01, F2-F06):
+the paper underplays in §sec:llm-review and §sec:threats what the
+Acknowledgments correctly enumerate — that ALL THREE reviewers
+ultimately issued unconditional approval on the bundle. The fix is
+a sentence-level rewrite in two places.
+
+Source-reliability findings (S2-F01..F05) and unsubstantiated-claim
+findings (U4-F01..F04) are normal academic tightening: trim or
+substantiate the unsourced vendor and self-citations, add
+legal-precision around the SSO claim (C5-F02), and add a localised
+non-legal-advice disclaimer at §sec:legal (C5-F01).
+
+The two logical-leap findings (L3-F01, L3-F02) call for definitional
+sharpening of two rhetorical phrases ('cone of plausible values',
+'no longer cheap'), not for structural changes.
+
+None of the findings constitutes a basis for retracting any
+headline number — every C06 signal value and every cross-reference
+to the validation_report.json checks out.
+"""
+
+# ============================================================================
+# Prioritized recommendations
+# ============================================================================
+
+[[prioritized_recommendations]]
+rank          = 1
+priority      = "must-fix"
+title         = "Resolve the JPlag file-count internal contradiction"
+finding_refs  = ["F2-F01"]
+location      = "paper/main.tex:1305-1313"
+action        = "Either swap 'higher' to 'lower' and rewrite the explanation to reference JPlag's ANTLR parse errors (already documented at lines 1353-1360), or correct the printed digits if they are wrong. Verify against a re-run of paper/figures/scripts/run_jplag.sh."
+
+[[prioritized_recommendations]]
+rank          = 2
+priority      = "should-fix"
+title         = "Disambiguate spec-vs-bundle in the verdict-vocabulary claim"
+finding_refs  = ["F2-F03", "Q6-F03"]
+location      = "paper/main.tex:300-303 (§sec:spec, item 3 of the five-aspect list)"
+action        = "Rewrite to make clear that the 8-value enum is a BUNDLE-LEVEL declaration in traceability.toml, not a core-ontology attribute; the core ontology's only verdict vocabulary is the two-value gate_decision_verdict (pass | fail) on the readiness gate. Once-only edit; resolves the recurring conflation across the manuscript."
+
+[[prioritized_recommendations]]
+rank          = 3
+priority      = "should-fix"
+title         = "Correct the reviewer-approval framing in §sec:llm-review and §sec:threats"
+finding_refs  = ["S1-F01", "F2-F06", "S1-F02"]
+location      = "paper/main.tex:1179-1180 and 1122-1125"
+action        = "Replace 'two of three reviewers' phrasing with the Acknowledgments enumeration: ALL THREE reviewers issued unconditional approval on the bundle after iteration. Optionally narrow the abstract's 'multi-LLM-reviewed' phrase to 'bundle' to match the actual review record."
+
+[[prioritized_recommendations]]
+rank          = 4
+priority      = "should-fix"
+title         = "Add legal-doctrine precision to Reading B"
+finding_refs  = ["C5-F02"]
+location      = "paper/main.tex:1023-1026 (§sec:legal)"
+action        = "Replace 'strict LGPL interpretation' framing with explicit reference to Whelan v. Jaslow (3d Cir. 1986) and Altai (2d Cir. 1992); clarify that the LGPL governs licensing CONSEQUENCES once derivation is established, not the test for derivation."
+
+[[prioritized_recommendations]]
+rank          = 5
+priority      = "should-fix"
+title         = "Substantiate or remove unsourced industry-vendor claims"
+finding_refs  = ["U4-F01", "U4-F02", "U4-F03"]
+location      = "paper/main.tex:1403-1426 and 1029-1030"
+action        = "Either cite specific independent sources for the 98-99% accuracy figures and the 'humanised content accuracy degradation' claim, or hedge to vendor-acknowledged language only. Tighten the Carlini citation chain so it supports the corpus-membership claim it is invoked for, not a general memorisation claim."
+
+[[prioritized_recommendations]]
+rank          = 6
+priority      = "should-fix"
+title         = "Time-bind or update the LoC citation"
+finding_refs  = ["F2-F02"]
+location      = "paper/main.tex:427-429 (§sec:signals)"
+action        = "Re-pin the LoC numbers to HEAD (currently 589 + 232) with explicit commit reference, or accept the drift by saying 'approximately 600 + 230' and dropping the per-line precision."
+
+[[prioritized_recommendations]]
+rank          = 7
+priority      = "nice-to-have"
+title         = "Mark self-citations or replace with externally verifiable substitutes"
+finding_refs  = ["S2-F01"]
+location      = "paper/main.tex:1205-1238 and Acknowledgments lineage paragraph"
+action        = "Either annotate the four Verivus-authored entries in references.bib as 'Internal document; not publicly retrievable' or replace with externally retrievable substitutes where they exist (patent application filing number; arXiv preprint of the master thesis)."
+
+[[prioritized_recommendations]]
+rank          = 8
+priority      = "nice-to-have"
+title         = "Add a localised non-legal-advice disclaimer at §sec:legal"
+finding_refs  = ["C5-F01"]
+location      = "paper/main.tex:1000-1005 (entry to §sec:legal)"
+action        = "Insert one-line disclaimer: 'The two readings below are presented for technical-evidentiary purposes and do not constitute legal advice.'"
+
+[[prioritized_recommendations]]
+rank          = 9
+priority      = "nice-to-have"
+title         = "Define or downgrade the 'cone of plausible values' phrase"
+finding_refs  = ["L3-F01"]
+location      = "paper/main.tex:933-938 (§sec:sqry)"
+action        = "Either bound the cone explicitly with numbers, or downgrade to 'C06a and sqry are not in obvious conflict; we do not derive a quantitative prior linking the two.'"
+
+[[prioritized_recommendations]]
+rank          = 10
+priority      = "nice-to-have"
+title         = "Substantiate or hedge the adversary-cost claim"
+finding_refs  = ["L3-F02"]
+location      = "paper/main.tex:1060-1063 (§sec:adversary)"
+action        = "Either provide an engineer-time estimate to back 'no longer cheap', or drop the cost claim and replace with 'building such a tool is a substantive engineering undertaking, not a search-and-replace.'"
+
+# ============================================================================
+# Process confirmations (policy.process_checks).
+# Even though this is a self-review by the initiator (see
+# run_manifest.toml's single-reviewer note), the process checks
+# still apply.
+# ============================================================================
+
+[process_confirmations]
+findings_have_verbatim_quotes               = true
+findings_have_file_line_locations           = true
+findings_have_severity                      = true
+findings_have_suggested_fixes               = true
+no_paraphrase_in_place_of_quote             = true
+empty_per_step_sections_marked_explicit     = true   # all 7 sections present; none empty
+unverifiable_claims_marked_unverifiable     = true   # S2-F05 explicitly marked
+note = """
+This run is a self-review by the initiating model from the same
+session. Per the workflow DAG's [policy.roles] table, the initiator
+is excluded as a STANDARD reviewer and may act as a reviewer only
+in a fresh / clean-context session. This run does NOT satisfy that
+requirement. For a fresh-context independent multi-reviewer run,
+dispatch the document via tools/review-request-dag.toml to Codex,
+Gemini, and Grok with empty session context. The findings in this
+report are best read as a structured author self-audit; they should
+be re-confirmed (or contradicted) by an independent reviewer before
+being treated as a formal review record.
+"""

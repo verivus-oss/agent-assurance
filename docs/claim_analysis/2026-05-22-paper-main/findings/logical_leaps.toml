@@ -1,0 +1,46 @@
+# U05 — Document Review Prompt step 3 + Claim Analysis Agent process #2.
+#   "Examine Logical Leaps"
+# Imperative: look for jumps in reasoning where conclusions aren't
+# supported by evidence; detect logical fallacies.
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "claim-analysis-finding-set"
+unit           = "U05"
+step           = "step3"
+title          = "Examine Logical Leaps"
+document       = "paper/main.tex@9664be061e4bc8493de2e5054d3c3d61737bd666e56077b9856c19585dbde306"
+
+[summary]
+total_findings   = 3
+severity_counts  = { high = 0, medium = 2, low = 1 }
+section_outcome  = "issues_present"
+
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id                    = "L3-F01"
+step_reference        = "step3"
+severity              = "medium"
+quoted_document_part  = """The C06a similarity of 0.881 sits inside the cone of plausible values implied by sqry's structure-level divergence: not so high that it falsely declares the codebases identical, not so low that it contradicts sqry's evidence of a shared high-level shape."""
+location              = "paper/main.tex:933-938 (section sec:sqry)"
+problem_explanation   = """'Cone of plausible values' is invoked without specification. The text never defines what the cone's bounds ARE, what would constitute a value 'outside the cone', or how sqry's structure-level divergence sets the cone. The argument therefore claims corroboration without naming the test that could falsify it. This is a soft form of the texas-sharpshooter fallacy: the observation (0.881) is consistent with an unspecified prior; consistency is not evidence. Cross-checked against §sec:sqry's actual numbers (sqry sees v6=7947 nodes, v7=4292 nodes; ratio 0.54) and §sec:c06a's C06a numbers (v6=342, v7=358; ratio 0.95) — these are very different surfaces, and there is no derivation in the paper of why a 0.881 mean-symmetric-relative-difference similarity is the 'right' summary of the sqry-level divergence."""
+suggested_fix         = """Either (i) state and bound the cone explicitly ('we would expect C06a similarity below X if the sqry-level node ratio of 0.54 indicated true structural distance, and above Y if it indicated paraphrase; 0.881 falls between these'), or (ii) downgrade the claim to 'C06a and sqry's structural metrics are not in obvious conflict; we do not derive a quantitative prior linking the two', which is honest about what the corroboration does and does not establish."""
+
+[[finding]]
+id                    = "L3-F02"
+step_reference        = "step3"
+severity              = "medium"
+quoted_document_part  = """No known automated tool performs all of (i)--(iv) while preserving behaviour. We do not claim this is impossible; we claim it is no longer cheap."""
+location              = "paper/main.tex:1060-1063 (section sec:adversary)"
+problem_explanation   = """The conclusion ('no longer cheap') does not follow from the premise ('no known automated tool'). 'No known automated tool exists' is an absence-of-evidence statement; it does not establish a cost claim. Cost is a function of effort, not of automation. A motivated adversary writing 200 lines of Python could plausibly attempt (i)-(iv) for one specific target library by hand. The paper has not measured human-time cost for such an attempt. The 'no longer cheap' framing is intuitively persuasive but logically a non-sequitur from the cited premise."""
+suggested_fix         = """Either (i) substantiate with cost: 'we estimate a hand-rolled implementation of (i)-(iv) on a Python target at engineer-weeks rather than engineer-hours; AUX1-only paraphrase is engineer-minutes', or (ii) drop the cost claim: 'no known automated tool performs all of (i)-(iv); building one is a substantive engineering undertaking, not a search-and-replace.'"""
+
+[[finding]]
+id                    = "L3-F03"
+step_reference        = "step3"
+severity              = "low"
+quoted_document_part  = """The C06a and C06c values cannot distinguish between (i) a rewrite that copied v6's structure and (ii) an independent rewrite that converged on a similar structure because the problem domain admits a narrow design space."""
+location              = "paper/main.tex:1039-1042 (section sec:legal, 'What the numbers do not say')"
+problem_explanation   = """This is a sound caveat and is rhetorically well placed. The minor logical observation is that this caveat undermines part of §sec:c06a-rationale's argument that adversary cost is a strong signal: if the problem domain admits a narrow design space, an INDEPENDENT rewrite would face the same structural constraints as a DERIVATIVE rewrite, and the structural signals would converge in both cases. The paper acknowledges this here but does not propagate the acknowledgement to §sec:adversary's adversary-cost discussion, where the unspoken assumption is that structural similarity is informative about lineage. A reader who reads §sec:adversary first may feel §sec:legal pulls the rug. Note: this is not an internal contradiction — both claims can be true — but the relationship between them deserves an explicit reconciliation."""
+suggested_fix         = """Add a one-sentence cross-reference in §sec:adversary: 'See §sec:legal for the orthogonal limit: even an adversary who does nothing wrong (an independent rewrite) may produce a high-C06a result if the problem domain forces convergent structure. The signals are paraphrase-resistant but not provenance-resolving.'"""

@@ -1,0 +1,179 @@
+# Round-2 verification report for the S08 INV06 enforcement
+# remediation at commit 7782ade. R1 (2026-05-25-spec-e2e/) closed at
+# concrete_unresolvable_blocker with codex's S08 blocker: no shipped
+# validator enforced INV06 (the agent-assurance cross-provider
+# self-modification gate-decision invariant). Codex constructed two
+# negative variants (same-provider/different-family and
+# different-provider/same-family) and BOTH passed both primary
+# validators despite INV06's documented conjunctive AND requirement.
+#
+# Per user direction at the r1 defect-remediation menu (option A:
+# "ship the INV06 validator" including Rust/Go mode='gate-decision'),
+# commit 7782ade ships INV06 enforcement in all three validator
+# implementations + CI wiring with positive + both negative variants.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "verification-report"
+created        = "2026-05-25"
+review_session = "2026-05-25-spec-e2e-r2"
+predecessor    = "2026-05-25-spec-e2e"
+initiator      = "claude-opus-4-7"
+target_head    = "7782ade"
+predecessor_blocker_filer = "codex (r1 S08)"
+
+[program]
+intent = """
+Close S08 — the round-1 spec-e2e blocker on INV06 enforcement. The
+remediation commit (7782ade) adds three independent INV06 enforcers
+(Python reference at validators/validate_gate_decision.py, Rust
+primary mod gate_decision in tools/dagtoml-validate-rs/, Go primary
+validateGateDecision function in tools/dagtoml-validate-go/) and
+wires a CI step that asserts both positive cases pass AND both r1
+negative variants (same-provider/different-family,
+different-provider/same-family) FAIL across all three
+implementations. The descriptor's enforced_by fields had the
+(planned) marker stripped on all five INV0n entries.
+"""
+non_intent = """
+This r2 review's scope is the S08 remediation specifically. The
+other r1 secondary opens (S03 closure_root spot-check, S12 README
+repo-map omission of paper directories, S01/S04/S09 verify_by
+recipe defects) are not addressed by 7782ade and are NOT in scope
+for this r2 — they remain open as separate follow-ups.
+"""
+
+# ----------------------------------------------------------------------
+# S08 closures to verify against bytes at HEAD 7782ade.
+# ----------------------------------------------------------------------
+
+[[closures]]
+id        = "S08.1"
+title     = "Python reference validator validators/validate_gate_decision.py exists and is well-formed"
+verify_by = """
+1. ls -l validators/validate_gate_decision.py — must exist.
+2. python3 -c 'import py_compile; py_compile.compile(\"validators/validate_gate_decision.py\", doraise=True)' — must exit 0.
+3. python3 validators/validate_gate_decision.py --help — must print usage line citing INV01..INV06.
+4. Inspect the file: it MUST contain an explicit conjunctive-AND check (e.g., 'same_provider or same_family' rejection logic) — not 'and' (which would be inclusive-OR semantics on rejection). The descriptor's predicate is 'BOTH inequalities must hold' so the rejection is 'EITHER inequality fails'. Confirm this by reading the source.
+"""
+
+[[closures]]
+id        = "S08.2"
+title     = "Python validator passes the worked positive examples"
+verify_by = """
+Run from repo root:
+  python3 validators/validate_gate_decision.py --repo-root . examples/self-modification-gate-decision.toml
+  python3 validators/validate_gate_decision.py --repo-root . examples/minimal-gate-decision.toml
+Both MUST exit 0 with output 'GATE-DECISION VALIDATION PASSED (1 file checked; INV01..INV06 enforced).'
+The minimal example has subject_class absent so INV06 is dormant; the worked self-mod example has anthropic/claude proposing and openai/gpt deciding so BOTH inequalities hold.
+"""
+
+[[closures]]
+id        = "S08.3"
+title     = "Python validator FAILS both r1 negative variants"
+verify_by = """
+Construct in /tmp:
+  neg-same-provider.toml: subject_class=self-modification, proposing anthropic/claude, deciding anthropic/gpt
+  neg-same-family.toml:   subject_class=self-modification, proposing anthropic/claude, deciding openai/claude
+For each, run python3 validators/validate_gate_decision.py --repo-root . <file>:
+  - MUST exit 1
+  - Output MUST cite INV06 + the specific equality that violates the AND
+  - 'same-provider/different-family and different-provider/same-family BOTH fail INV06' wording MUST appear in the message
+
+If either negative variant passes, the remediation has not closed S08.
+"""
+
+[[closures]]
+id        = "S08.4"
+title     = "Rust primary mod gate_decision enforces INV06 identically"
+verify_by = """
+1. cd tools/dagtoml-validate-rs && cargo build --release --locked
+2. From repo root, run rs=tools/dagtoml-validate-rs/target/release/dagtoml-validate-rs against the same 4-file suite (2 positive + 2 negative). Same expected outcomes as S08.2 + S08.3.
+3. Inspect tools/dagtoml-validate-rs/src/main.rs for the new mod gate_decision: confirm the AND predicate is checked as 'same_provider || same_family' rejection (matching Python).
+4. Confirm cli::Mode::GateDecision is in the enum and the routing dispatch handles template_kind = 'gate-decision' in auto mode + explicit --mode gate-decision.
+"""
+
+[[closures]]
+id        = "S08.5"
+title     = "Go primary validateGateDecision enforces INV06 identically"
+verify_by = """
+1. cd tools/dagtoml-validate-go && go build -o /tmp/dagtoml-validate-go ./...
+2. Run /tmp/dagtoml-validate-go against the same 4-file suite. Same expected outcomes as S08.2 + S08.3.
+3. Inspect tools/dagtoml-validate-go/main.go for validateGateDecision: confirm the AND predicate, modeGateDecision constant, --mode gate-decision parsing, and template_kind='gate-decision' auto-routing.
+"""
+
+[[closures]]
+id        = "S08.6"
+title     = "Three implementations agree (no divergence)"
+verify_by = """
+Run all three validators against the same positive examples and confirm: every PASS in one MUST be a PASS in the others. Run against both negative variants and confirm: every FAIL in one MUST be a FAIL in the others. Bytewise output may differ (Python prints 'GATE-DECISION VALIDATION PASSED'; primaries print 'DAGTOML VALIDATION PASSED'); the PASS/FAIL outcome MUST agree.
+
+This is the divergence-is-a-build-break principle the README's Validation Tooling section claims; r1 codex flagged that no shipped validator enforced INV06, so this r2 check has to confirm not just one enforcer but three-way agreement.
+"""
+
+[[closures]]
+id        = "S08.7"
+title     = "CI workflow step asserts the positive + negative suite"
+verify_by = """
+1. grep -n 'Validate gate-decision INV01-INV06' .github/workflows/validate.yml — must find the step.
+2. Read the step: it MUST:
+   - run python3 validators/validate_gate_decision.py against the two positive examples
+   - synthesise both negative variants in a mktemp -d workdir via here-doc
+   - assert non-zero exit (via 'if validator passes; then echo REGRESSION; exit 1; fi' pattern) for each negative variant against EACH of the three implementations
+3. Confirm CI run for commit 7782ade returned success: `gh run list --branch main --limit 1` should show the most recent push-event CI run as completed/success.
+"""
+
+[[closures]]
+id        = "S08.8"
+title     = "Kind descriptor enforced_by markers no longer say (planned)"
+verify_by = """
+grep -nE 'enforced_by.*validate_gate_decision' profiles/agent-assurance/gate-decision-kind.toml MUST show 5 entries, NONE containing '(planned)'. The r1-era 'validate_gate_decision.py (planned)' marker is removed on all 5 hard invariants (INV01..INV06 minus INV05 which is scope-declaration-only).
+"""
+
+# ----------------------------------------------------------------------
+# Regression check on r1 S-closures that codex marked closed
+# (S02, S05, S06, S07, S10, S11) — these should still pass.
+# ----------------------------------------------------------------------
+
+[regression_check]
+must_still_pass = ["S02", "S05", "S06", "S07", "S10", "S11"]
+recipe = """
+Sanity-check that 7782ade did not regress any r1-closed surface:
+  - S02 abstraction-class: python3 validators/validate_abstraction_class.py --repo-root . core/*-kind.toml profiles/*/*-kind.toml MUST still pass.
+  - S05 primary validators full canonical sweep: should still pass against the existing canonical example set.
+  - S06 toml-conformance: make toml-conformance-all should still pass.
+  - S10 CI workflow: gh run list for main should show recent runs as success.
+
+A regression in any of these is a concrete blocker for r2.
+"""
+
+[approval]
+forbidden_bases = ["stated_intent", "plan_compliance_claim", "should_be_fixed_language"]
+required_bases  = ["inspected_code", "executed_tests_with_output", "inspected_docs", "persisted_review_evidence"]
+terminal_states = ["unconditional_approval", "concrete_unresolvable_blocker"]
+
+[iteration]
+initiator_rebuttal_rule = "Disagreement requires file:line evidence; assertion alone fails."
+polling_cadence_seconds = 90
+
+[reading_order]
+1 = "docs/reviews/2026-05-25-spec-e2e-r2/verification_report.toml (this file)"
+2 = "docs/reviews/2026-05-25-spec-e2e/raw_findings/codex.md (the r1 blocker being closed)"
+3 = "validators/validate_gate_decision.py"
+4 = "tools/dagtoml-validate-rs/src/main.rs (search for mod gate_decision)"
+5 = "tools/dagtoml-validate-go/main.go (search for validateGateDecision)"
+6 = "profiles/agent-assurance/gate-decision-kind.toml (INV06 declaration + enforced_by)"
+7 = ".github/workflows/validate.yml (search for 'Validate gate-decision')"
+8 = "git diff 1e0e155..7782ade (the exact remediation diff)"
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-25-spec-e2e-r2/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "terminal_decision.toml",
+]
+mistral_status = "unavailable on host"

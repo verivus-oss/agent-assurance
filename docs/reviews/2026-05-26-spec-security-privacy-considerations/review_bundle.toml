@@ -1,0 +1,34 @@
+schema_version = "1.0"
+review_id = "2026-05-26-spec-security-privacy-considerations"
+base_commit = "12b9473"
+reviewed_files = [
+  "SPEC.md",
+  "spec.md",
+  "CHANGELOG.md",
+  "docs/reviews/2026-05-26-spec-security-privacy-considerations/verification_report.toml",
+  "docs/reviews/2026-05-26-spec-security-privacy-considerations/review_bundle.toml",
+  "docs/reviews/2026-05-26-spec-security-privacy-considerations/reviewer_roster.toml",
+  "docs/reviews/2026-05-26-spec-security-privacy-considerations/permission_grant.toml",
+  "docs/reviews/2026-05-26-spec-security-privacy-considerations/review_prompt.md",
+  "docs/reviews/2026-05-26-spec-security-privacy-considerations/local_validation.md",
+]
+
+[diff]
+command = "git diff HEAD --find-renames -- SPEC.md spec.md CHANGELOG.md docs/reviews/2026-05-26-spec-security-privacy-considerations/verification_report.toml docs/reviews/2026-05-26-spec-security-privacy-considerations/review_bundle.toml docs/reviews/2026-05-26-spec-security-privacy-considerations/reviewer_roster.toml docs/reviews/2026-05-26-spec-security-privacy-considerations/permission_grant.toml docs/reviews/2026-05-26-spec-security-privacy-considerations/review_prompt.md docs/reviews/2026-05-26-spec-security-privacy-considerations/local_validation.md"
+primary_normative_files = [
+  "spec.md",
+  "CHANGELOG.md",
+]
+
+[evidence]
+verification_report = "docs/reviews/2026-05-26-spec-security-privacy-considerations/verification_report.toml"
+local_validation = "docs/reviews/2026-05-26-spec-security-privacy-considerations/local_validation.md"
+raw_findings_dir = "docs/reviews/2026-05-26-spec-security-privacy-considerations/raw_findings"
+job_ids = "docs/reviews/2026-05-26-spec-security-privacy-considerations/job_ids.toml"
+terminal_decision = "docs/reviews/2026-05-26-spec-security-privacy-considerations/terminal_decision.toml"
+validation_commands = [
+  "taplo lint",
+  "python3 validators/validate_closure_root.py --discover .",
+  "bash validators/check_manifest_drift.sh",
+  "python3 validators/validate_profile_descriptor.py --repo-root . profiles/agent-assurance/PROFILE.toml profiles/disclosure/PROFILE.toml profiles/cost/PROFILE.toml",
+]

@@ -1,0 +1,189 @@
+# Terminal decision for 2026-05-25-spec-13-retrofit-scoping-plan.
+# Split verdict 2-1 but codex's concrete_unresolvable_blocker rests
+# on live-executable validator evidence — strongest evidence binds.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-spec-13-retrofit-scoping-plan"
+
+[scope]
+commit_under_review = "c88f7ea"
+parent_commit       = "6b2d451"
+unit                = "U07"
+
+# ----------------------------------------------------------------------
+# Verdicts.
+# ----------------------------------------------------------------------
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "concrete_unresolvable_blocker"
+classification = "incomplete"
+blocker_count  = 3
+raw_findings   = "raw_findings/codex.md"
+evidence_class = "live-executable (read validate_abstraction_class.py:182 and :214 to verify validator-incompatibility) + descriptor structural inspection + plan §9 internal-contradiction citation"
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "unconditional_approval"
+classification = "complete"
+blocker_count  = 0
+raw_findings   = "raw_findings/gemini.md"
+evidence_class = "spec/descriptor byte inspection + validate_disclosure.py inspection; flagged SDP R2 leakage as 'minor' rather than blocking; flagged §9 contradiction as 'minor'; did NOT inspect validate_abstraction_class.py vocabularies"
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "unconditional_approval"
+classification = "complete"
+blocker_count  = 0
+raw_findings   = "raw_findings/grok.md"
+evidence_class = "exhaustive descriptor + SPEC byte inspection; flagged the same SDP R2 leakage + taxonomy-wording issues but did not elevate; did NOT inspect validate_abstraction_class.py vocabularies"
+
+# ----------------------------------------------------------------------
+# Strongest-evidence rule binds.
+# ----------------------------------------------------------------------
+
+[binding_verdict]
+reviewer            = "codex"
+verdict             = "concrete_unresolvable_blocker"
+rationale = """
+Per the established strongest-evidence rule used in three prior
+sessions of the 2026-05-24/25 arc, when reviewer verdicts split,
+the verdict resting on live-executable evidence binds under
+[policy.approval].required_approval_bases. Codex's three findings
+all carry stronger evidence than gemini's and grok's matching
+observations:
+
+  Finding 1 (SDP Family C is validator-incompatible) — codex read
+  validators/validate_abstraction_class.py:182 and :214 directly
+  to find the accepted vocabularies. Verified by initiator after
+  the review:
+    $ sed -n '180,195p' validators/validate_abstraction_class.py
+    # _check_domain_random: src not in ('os', 'deterministic_seed', 'none')
+    $ sed -n '212,225p' validators/validate_abstraction_class.py
+    # _check_domain_crypto_keys: accepts read_keys, use_keys, generate_allowed
+  The plan proposes entropy_source = 'system' (rejected) and
+  sign = false, verify = true (field names absent from validator).
+
+  Finding 2 (observation-record.v1 description doesn't fit 4/5
+  kinds) — codex cross-referenced cost-record:196 (categorical
+  dimensions + integer quantities) against evidence-matrix:90
+  (claims/evidence/matrix), gate-decision:95 (verdict roots),
+  assertion-log-record:95 (signature/hash), redaction-manifest:83
+  (redactions). The shared description in plan §6 line 163 is
+  cost-record-specific.
+
+  Finding 3 (plan §9 internal contradiction) — verified by
+  initiator:
+    $ sed -n '255,267p' docs/planning/2026-05-25-spec-13-retrofit-scoping.md
+    # Line 258: 'each retrofitted descriptor's closure_root MUST flip'
+    # Line 264-267: 'The sentinel value ... does NOT change'
+  These statements directly contradict each other.
+
+Gemini and grok both flagged SDP R2 leakage and the §9 contradiction
+but classified as "minor" / "not blocking". They did not inspect
+the validator code that makes Finding 1 mechanical rather than
+stylistic. Codex's verdict binds.
+"""
+
+# ----------------------------------------------------------------------
+# Blocker decomposition + proposed fix.
+# ----------------------------------------------------------------------
+
+[[blockers]]
+id          = "U07-F1"
+severity    = "high (validator-incompatible — would fail CI if implemented)"
+raised_by   = "codex (blocker), gemini (minor — R2 leakage), grok (caveat)"
+title       = "SDP Family C envelope is validator-incompatible"
+location    = "docs/planning/2026-05-25-spec-13-retrofit-scoping.md row 18 + §7 + §5"
+description = """
+Proposes random.entropy_source = 'system' (validator accepts only
+'os', 'deterministic_seed', 'none'); proposes crypto_keys.{sign,
+verify} (validator accepts only read_keys, use_keys,
+generate_allowed). Also R2 leakage per selective-disclosure-proof-kind.toml:61
+('verification ... is RUNTIME-SPEC').
+"""
+proposed_fix = """
+Move selective-disclosure-proof to Family A (all 9 domains
+denied/zeroed, same as cost-record). Cryptographic verification
+is RUNTIME-SPEC by the descriptor's own prose; the descriptor
+parse needs nothing more than TOML reading.
+"""
+
+[[blockers]]
+id          = "U07-F2"
+severity    = "medium (semantic wording defect; plan is still implementable)"
+raised_by   = "codex (major), grok (caveat)"
+title       = "observation-record.v1 description doesn't fit 4 of 5 kinds proposed to share it"
+location    = "docs/planning/2026-05-25-spec-13-retrofit-scoping.md §6 table row 1"
+description = """
+Plan §6 says the class description is 'closed-vocab dimensions +
+integer quantities'. That matches cost-record but not
+evidence-matrix (claims/evidence/matrix), gate-decision (verdict),
+assertion-log-record (signature/hash), redaction-manifest
+(redactions). Sharing the class id is a producer-attested
+labeling choice; the per-kind description field MUST reflect
+each kind's actual structural shape.
+"""
+proposed_fix = """
+Replace the description column in §6 row 1 with: 'Read-only
+observation of a past state, action, or outcome. Each kind under
+this class declares its own structural shape via [[kind.required_fields]]
+and [[kind.required_sections]]; the class id is a producer-attested
+label, not a structural-shape contract.' Note in plan that the
+per-kind [kind.abstraction_class].description field MUST be
+kind-specific (cost-record's existing description is the right
+shape for cost-record; the other 4 kinds need their own).
+"""
+
+[[blockers]]
+id          = "U07-F3"
+severity    = "medium (internal contradiction)"
+raised_by   = "codex (major), gemini (minor)"
+title       = "Plan §9 contradicts itself on closure_root behaviour"
+location    = "docs/planning/2026-05-25-spec-13-retrofit-scoping.md §9 line 258 (MUST flip) vs lines 264-267 (sentinel does NOT change)"
+description = """
+The bash block comment says 'each retrofitted descriptor's
+closure_root MUST flip' while the prose immediately after says
+the empty sentinel persists. Both can't be true.
+"""
+proposed_fix = """
+Keep only the prose statement (the sentinel persists, per SPEC
+§12.1 and §12.11; the cost-record example at HEAD confirms this).
+Delete the 'MUST flip' comment in the bash block. Optionally
+clarify: the descriptor file's SHA-256 changes (it has new bytes)
+but its declared closure_root value does not, because the
+descriptor cites no upstream evidence. SPEC §13.4's reference to
+the descriptor's closure_root 'flipping' on §13-block changes is
+a separate SPEC defect (file as new issue if not already filed).
+"""
+
+# ----------------------------------------------------------------------
+# Non-blocker observations also worth noting.
+# ----------------------------------------------------------------------
+
+[acknowledged_non_blockers]
+codex_q1_r1_vs_r2 = "Codex flagged that SPEC §13.4 text is ambiguous on R1 vs R2 for procedure-bearing kinds, not refuting R1 entirely. Gemini and grok both say R1 is the defensible default. Plan's adoption of R1 stands."
+gemini_spec_doc_bug = "Both gemini and codex flagged that SPEC.md §13.4 itself may have a doc-bug: it says §13 block changes 'flip the descriptor's closure root' but per §12.1 the closure_root for a self-contained descriptor stays at the empty sentinel. This is a SPEC defect, not a plan defect; file as a separate issue (ISS-005 candidate)."
+
+# ----------------------------------------------------------------------
+# Decision.
+# ----------------------------------------------------------------------
+
+[decision]
+outcome              = "concrete_unresolvable_blocker"
+verdict_distribution = { unconditional_approval = 2, concrete_unresolvable_blocker = 1 }
+binding_verdict      = "concrete_unresolvable_blocker (codex)"
+session_terminal     = false
+next_action          = "fix-in-place per [blockers].*.proposed_fix; re-dispatch round 2 at docs/reviews/2026-05-25-spec-13-retrofit-scoping-plan-r2/"
+
+[separate_spec_issue_candidate]
+title       = "SPEC.md §13.4 closure_root 'flip' language conflicts with §12.1 for self-contained descriptors"
+description = "Both gemini U07-F2 and codex Q6 flagged that SPEC §13.4 references the descriptor's closure_root 'flipping' on §13-block widening, but per §12.1 / §12.11 a descriptor that cites no upstream evidence stays at the empty-closure sentinel regardless of internal §13 content. This appears to be either a doc-bug in §13.4 OR an implicit assumption that future descriptors will start citing upstream evidence. Worth filing as ISS-005 if it's not already documented elsewhere."
+candidate_id = "ISS-005"
+out_of_scope_for_this_session = true

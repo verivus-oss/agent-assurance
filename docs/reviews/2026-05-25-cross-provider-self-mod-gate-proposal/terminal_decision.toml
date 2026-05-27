@@ -1,0 +1,191 @@
+# Terminal decision — proposal review for cross-provider gate-decision
+# on self-modification (agent-assurance profile).
+#
+# Initiator: claude-opus-4-7 (excluded from standard reviewer set).
+# Effective reviewer panel: codex, gemini, grok (mistral unavailable —
+# CLI not installed on initiator's host; recorded in raw_findings/mistral.md).
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-cross-provider-self-mod-gate-proposal"
+head_commit    = "8a63abb"
+
+[verdicts]
+codex   = "concrete_unresolvable_blocker"
+gemini  = "unconditional_approval"
+grok    = "concrete_unresolvable_blocker"
+mistral = "unavailable_cli_not_installed"
+
+[synthesis]
+terminal_state = "concrete_unresolvable_blocker"
+rationale = """
+Two of three effective reviewers (codex, grok) issued
+concrete_unresolvable_blocker citing identical primary defects, with
+file:line evidence the initiator independently verified by reading
+profiles/agent-assurance/tiers/solo.toml directly.
+
+Gemini's unconditional_approval is recorded for transparency but is
+NOT load-bearing here because it explicitly classified the tier
+coherence issue as 'low severity / posture choice' rather than
+addressing the byte-level contradiction with solo.toml C02 (L29-35)
+and C05 (L53-59). Per [policy.approval].forbidden_approval_bases the
+initiator cannot adopt 'should be fixed in implementation' as the
+approval basis when two independent reviewers identified concrete
+contradictions in the proposal text itself.
+
+Per [policy.evidence].disagreement_requires_code_or_doc_evidence, the
+initiator has no code/doc evidence rebutting the cited contradictions
+(initiator independently re-read solo.toml L21-60 — the cited contracts
+exist as quoted). No rebuttal is filed.
+"""
+
+# ----------------------------------------------------------------------
+# Bytes-verified blockers (convergent findings: codex + grok).
+# ----------------------------------------------------------------------
+
+[[blockers]]
+id        = "B1"
+sub_claim = "P01-C1"
+severity  = "high"
+sources   = ["codex C1-F1, C1-F2", "grok P01-C1"]
+summary   = "Self-modification predicate is not derivable from gate-decision artifact contents."
+evidence  = [
+  "profiles/agent-assurance/gate-decision-kind.toml:47-60 (root [decision] shape)",
+  "profiles/agent-assurance/gate-decision-kind.toml:81-123 (required_fields)",
+  "No 'subject', 'proposer', 'changed-path', 'harness/source marker', or upstream-proposal-attribution field exists.",
+]
+required_revision = """
+Proposal MUST specify a chain-verifiable self-modification predicate.
+Options:
+  (a) New field on gate-decision: decision.subject_class with a
+      closed vocabulary including 'self-modification'.
+  (b) Upstream-traceability marker that the gate-decision references
+      (e.g., implementation-dag unit attribute identifying the change
+      as a modification of the producer agent's own harness/source).
+Pick one and define the verification path. Runtime memory is NOT
+acceptable as the verification surface.
+"""
+
+[[blockers]]
+id        = "B2"
+sub_claim = "P01-C1"
+severity  = "high"
+sources   = ["codex C1-F1"]
+summary   = "Phrase 'different provider AND/OR different model family' is ambiguous; two conforming runtimes could disagree on what satisfies the rule."
+evidence  = [
+  "Proposal text P01-C1 — the 'and/or' construction admits at least three readings (provider-only, family-only, both-required).",
+]
+required_revision = """
+Replace with a single tight predicate. Codex's suggested wording is
+acceptable as a starting point:
+
+  deciding_provider_id MUST differ from proposing_provider_id
+  AND deciding_model_family_id MUST differ from proposing_model_family_id;
+  absence or unverifiable attribution fails the self-modification gate.
+
+The 'AND' (not 'and/or') is load-bearing.
+"""
+
+[[blockers]]
+id        = "B3"
+sub_claim = "P01-C2"
+severity  = "high"
+sources   = ["codex C2-F1", "grok P01-C2"]
+summary   = "Flat MUST-at-all-tiers directly contradicts solo tier contracts C02 and C05 in profiles/agent-assurance/tiers/solo.toml."
+evidence  = [
+  "profiles/agent-assurance/tiers/solo.toml:32 — C02 statement: 'AI agents MAY self-sign overrides at any severity_tier at this tier. Counter-sign is not required.'",
+  "profiles/agent-assurance/tiers/solo.toml:56 — C05 statement: 'Gate decisions require exactly one signer (the author or designated agent).'",
+  "Initiator independently re-read solo.toml L21-60; both citations are present at HEAD 8a63abb.",
+]
+required_revision = """
+Pick ONE reconciliation path:
+
+  (a) Soften 'all tiers' language. Re-frame as: the cross-provider
+      rule applies whenever the producer agent and the deciding agent
+      are the same identity, regardless of tier. Solo deployments
+      using a single self-signing AI agent for self-modification
+      gates are explicitly OUT OF CONFORMANCE for that gate type only
+      (partial assurance label).
+
+  (b) Update solo.toml C02 and C05 to explicitly exclude
+      self-modification gates from the self-sign permission.
+
+Either path needs the corresponding tier-file edit to land in the
+same PR as the profile prose change (no drift).
+"""
+
+# ----------------------------------------------------------------------
+# Required revisions outside the blockers (lower severity but
+# referenced by the terminal verdict — must be addressed before round 2).
+# ----------------------------------------------------------------------
+
+[[required_revisions]]
+id        = "R1"
+sub_claim = "P01-C1"
+severity  = "medium"
+source    = "codex C1-F3"
+summary   = "Provider-attribution fields should be additive optional on the base kind, with a hard invariant requiring them when the self-modification predicate holds — NOT unconditional required fields."
+rationale = "Per SPEC.md:482-489 versioning policy, adding required fields is a major change. Non-self-modification gates are explicitly unaffected by the proposal, so the field-shape MUST be conditional, not blanket-required."
+
+[[required_revisions]]
+id        = "R2"
+sub_claim = "P01-C2"
+severity  = "medium"
+sources   = ["codex (process checks)", "grok (process checks)"]
+summary   = "Add active-user migration/behavior-change guidance."
+rationale = "Proposal contains zero guidance for existing profile users (solo deployments, single-provider teams, air-gapped environments). Per [policy.process_checks].confirm_active_user_migration_or_behavior_change_guidance this is a required confirmation item; absent it the proposal cannot terminate at approval."
+required_placement = [
+  "profiles/agent-assurance/overview.md — new 'Scope and posture' subsection.",
+  "profiles/agent-assurance/tiers/README.md — cross-reference paragraph near the ladder description.",
+]
+
+[[required_revisions]]
+id        = "R3"
+sub_claim = "P01-C3"
+severity  = "low"
+sources   = ["codex C3-F3", "grok P01-C3 steering risk"]
+summary   = "Naming 'agent-federator' as a proper-noun runtime role in normative profile prose creates steering pull toward a single (likely centralized broker) implementation topology."
+rationale = "Both reviewers proposed near-identical topology-neutral wording instead. Initiator concurs: keep 'agent-federator' as an informal/non-normative example label only; describe the runtime CONTRACT in normative prose."
+suggested_wording = """
+The runtime MUST record proposer/decider provider attribution and
+route self-modification gate decisions to an independently attributed
+provider/family; implementations may be centralized, peer-to-peer,
+or otherwise distributed.
+"""
+
+# ----------------------------------------------------------------------
+# Items the proposal got right (recorded for round-2 continuity).
+# ----------------------------------------------------------------------
+
+[confirmed_correct]
+no_jsonschema_dependency = "All three reviewers confirmed (verifies feedback_no_json_schema memory)."
+no_vap_specific_names    = "All three reviewers confirmed (verifies reference_vap_architecture_20260522 memory)."
+no_spec_section_5_invariant_contradiction = "Codex and grok both verified against SPEC.md §5 (lines 341-389)."
+adapter_contract_misfit  = "Both substantive reviewers agree adapter-contract is NOT the right kind for the federator concept (codex: 'category error'; grok: 'orchestrator responsibility, not adapter')."
+terminology_collision_check = "Independently re-run by codex and grok; 'federator' absent from SPEC.md, core/, profiles/, validators/, examples/ outside this review session. Initiator claim holds."
+gate_decision_attribution_gap = "All three reviewers confirmed gate-decision-kind.toml currently has no provider-attribution surface — the gap the proposal correctly identifies."
+
+# ----------------------------------------------------------------------
+# Next action (per policy.completion).
+# ----------------------------------------------------------------------
+
+[next_action]
+action = "revise_proposal_and_dispatch_round_2"
+rationale = """
+Per [policy.completion].no_unit_complete_without_reviewer_evidence_or_queued_status,
+no implementation work proceeds. The proposal text itself must be
+revised to close blockers B1, B2, B3 and required revisions R1, R2,
+R3 before a round-2 review is dispatched.
+
+Round 2 SHOULD include the same panel (codex, gemini, grok) plus
+mistral if the CLI is installed in the interim, and SHOULD instruct
+all reviewers to re-evaluate against the revised proposal text and
+specifically against the closure of B1-B3.
+"""
+predecessor_session = ""  # this is round 1
+revised_proposal_session = "TBD on round-2 dispatch"

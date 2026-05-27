@@ -1,0 +1,327 @@
+# Kind descriptor for `template_kind = "cost-record"` (cost profile).
+#
+# A cost-record declares the cost of one costed action — an LLM call,
+# a CI evidence run, a human review, a notarisation, a transparency-
+# log write — so that a downstream gate-decision or evidence-matrix
+# can cite *which* costs witnessed the decision and an auditor can
+# see *what class of deciding entity* paid for it.
+#
+# This kind is observation, not policy. It declares what was spent;
+# it does NOT declare what was allowed. A separate (future) cost-
+# policy kind would declare caps, allowances, approval thresholds —
+# explicitly out of scope here.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "kind-descriptor"
+ontology_version  = 1
+title             = "Cost record kind descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/profiles/cost/PROFILE.toml"
+describes_kind    = "cost-record"
+authoritative_in  = "this file"
+confidentiality   = "public"
+license           = "Apache-2.0"
+
+[kind]
+name    = "cost-record"
+summary = "Declared cost of one costed action, witnessed by a producer at a timestamp, decided by a named class of entity, with a closed-set dimensions array."
+prose   = """
+A cost-record is a flat, self-contained artefact that records the
+cost of one costed action. It cites upward (the kind whose execution
+paid the cost via `[record].citing_kind` + `[record].citing_ref`)
+and is cited downward (by gate-decisions and evidence-matrix entries
+that name it, via separate additive changes to those kinds).
+
+ROOT SHAPE
+
+    closure_root = "sha256:…"          # SPEC §12.1 — required at root
+
+    [meta]
+    schema_version    = "0.1.0"
+    template_kind     = "cost-record"
+    framework_profile = "cost"
+    title             = "Cost record for <action>"
+    created           = "YYYY-MM-DD"
+    confidentiality   = "public"
+    license           = "Apache-2.0"
+
+    [record]
+    action_id        = "EVMTX:smoke-run-2026-05-22-001"   # free-form citation
+    incurred_at      = "2026-05-22T14:32:11Z"             # RFC 3339
+    citing_kind      = "smoke-validation"                  # closed vocab
+    citing_ref       = "sha256:…#section.checks[3]"       # free-form
+    decider_class    = "llm_consensus"                     # closed vocab
+    producer_id      = "did:agent-assurance:runtime:ci-worker-12"
+    hash_algorithm   = "sha256"
+    canonical_form   = "rfc8785-jcs"
+
+    [[record.dimensions]]
+    category    = "token_equivalent"                       # closed vocab
+    quantity    = 12450                                    # non-negative integer
+    unit_label  = "tokens.consensus-3way"                  # producer-attested
+    note        = "sum across three independent model invocations"
+
+REQUIRED STRUCTURE
+
+- Root-level `closure_root` per SPEC §12.1.
+- `[record].action_id` (non-empty free-form citation string).
+- `[record].incurred_at` (RFC 3339 timestamp).
+- `[record].citing_kind` drawn from the closed `cost_citing_kind`
+  vocabulary.
+- `[record].citing_ref` (non-empty free-form citation string).
+- `[record].decider_class` drawn from the closed `decider_class`
+  vocabulary.
+- `[record].producer_id` (non-empty free-form citation string).
+- `[record].hash_algorithm` (non-empty string, SHA-256 or stronger;
+  weaker algorithms forbidden, see SPEC §12.1).
+- `[record].canonical_form` (non-empty free-form short identifier;
+  the SPEC layer does not enumerate canonical forms — the producer
+  declares the form so a witnessing attestation can re-derive the
+  canonical bytes).
+- At least one `[[record.dimensions]]` entry, each carrying:
+  - `category` drawn from the closed `cost_dimension_category`
+    vocabulary.
+  - `quantity` (non-negative integer; floats are forbidden per
+    Stream D / canonical-form determinism — express fractional
+    quantities by choosing a finer-grained `unit_label`, e.g.
+    `wall-clock-milliseconds` instead of `wall-clock-seconds`).
+  - `unit_label` (non-empty free-form producer-attested string).
+  - `note` is OPTIONAL free-form.
+
+NOT IN SCOPE
+
+- Currency, vendor pricing, conversion rates: runtime / control plane.
+- Vendor SKUs and model identifiers: may be embedded inside the
+  producer-attested `unit_label` if the producer chooses.
+- Allowances, caps, approval thresholds: a separate future
+  cost-policy kind.
+- Aggregation across records: runtime concern (a future `cost-rollup`
+  artefact summarises; the canonical record does not).
+- Signatures: SPEC §12 closure-root + a Stream B attestation witness
+  the cost-record by hash; the record itself carries no signature
+  field.
+
+The cost-record is NOT transitive. A gate-decision cites the
+cost-records paid to reach this decision; it does NOT cite the
+cost-records of every upstream evidence-matrix entry that was paid
+earlier. Transitive aggregation is a runtime concern.
+
+The SPEC layer does not normalise units across records. Two records
+with the same `category` and different `unit_label` values are NOT
+directly comparable — by design. Comparability is established at
+runtime via a separately-attested conversion artefact.
+"""
+references = [
+  "spec.md",
+  "core/ontology.toml",
+  "profiles/cost/ontology.toml",
+  "docs/research/2026-05-22-spec-foundations-research/follow-up-2/13-stream-g-cost-witnessed-decision.md",
+]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[kind.required_fields]]
+path        = "meta.template_kind"
+must_equal  = "cost-record"
+description = "Identifies this file as a cost-record."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "meta.framework_profile"
+must_equal  = "cost"
+description = "Selects the cost profile."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "record.action_id"
+must_be     = "non-empty-string"
+description = "Free-form citation string identifying the costed action (typically a prefixed slug like `EVMTX:smoke-run-…`)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "record.incurred_at"
+must_be     = "rfc-3339-timestamp"
+description = "RFC 3339 timestamp at which the cost was incurred."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "record.citing_kind"
+must_be_in_vocabulary = "cost_citing_kind"
+description = "Closed-set discriminator identifying the kind of artefact whose execution paid this cost."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "record.citing_ref"
+must_be     = "non-empty-string"
+description = "Free-form citation into the citing artefact (typically a content hash + section pointer)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "record.decider_class"
+must_be_in_vocabulary = "decider_class"
+description = "Closed-set discriminator declaring the class of entity that incurred the cost. Auditors read this to determine which threat surface the decision defends against."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "record.producer_id"
+must_be     = "non-empty-string"
+description = "Free-form citation referencing the producing entity (key id, service account, agent id)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "record.hash_algorithm"
+must_be     = "non-empty-string"
+description = "Digest algorithm used in citing_ref and any downstream witnessing attestation. MUST be SHA-256 or stronger (SPEC §12.1 forbids MD5 / SHA-1)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "record.canonical_form"
+must_be     = "non-empty-string"
+description = "Producer-declared label naming the canonical form a witnessing attestation re-derives over (e.g. `rfc8785-jcs`). The SPEC layer does not enumerate canonical forms."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "record.dimensions"
+description = "At least one `[[record.dimensions]]` entry. Each entry MUST carry `category` (closed `cost_dimension_category` vocab), `quantity` (non-negative integer), `unit_label` (non-empty producer-attested string)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV01"
+statement   = "`[record].decider_class` is drawn from the closed `decider_class` vocabulary in `profiles/cost/ontology.toml`."
+enforced_by = "validators/validate_cost.py"
+see_also    = "profiles/cost/ontology.toml"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV02"
+statement   = "`[record].citing_kind` is drawn from the closed `cost_citing_kind` vocabulary."
+enforced_by = "validators/validate_cost.py"
+see_also    = "profiles/cost/ontology.toml"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV03"
+statement   = "Every `[[record.dimensions]].category` is drawn from the closed `cost_dimension_category` vocabulary."
+enforced_by = "validators/validate_cost.py"
+see_also    = "profiles/cost/ontology.toml"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV04"
+statement   = "Every `[[record.dimensions]].quantity` is a non-negative integer. Float values are rejected (canonical-form determinism, no-floats consensus). Fractional quantities are expressed via a finer-grained `unit_label`."
+enforced_by = "validators/validate_cost.py"
+see_also    = "docs/research/2026-05-22-spec-foundations-research/follow-up-2/13-stream-g-cost-witnessed-decision.md"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV05"
+statement   = "`[record].incurred_at` parses as an RFC 3339 `date-time`."
+enforced_by = "validators/validate_cost.py"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV06"
+statement   = "`[record].hash_algorithm` is one of `sha256`, `sha384`, `sha512`, or a stronger algorithm name. Weaker digests (`md5`, `sha1`) are forbidden per SPEC §12.1."
+enforced_by = "validators/validate_cost.py"
+see_also    = "spec.md §12.1"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV07"
+statement   = "Every entity prefix and relation predicate used in this kind's instance files resolves to an `ijb_primitive` declared in the loaded ontology set (core + cost profile)."
+enforced_by = "validators/validate_ijb_conformance.py"
+see_also    = "foundations/ijb/primitives.md"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name           = "minimal cost-record (LLM consensus smoke-validation)"
+file           = "examples/minimal-cost-record.toml"
+inline_summary = "One cost-record for a smoke-validation run decided by three-model LLM consensus, declaring token-equivalent, compute-time-seconds, and evidence-run-count dimensions."
+ijb_primitive = "observed"
+
+[kind.relation_to_ontology]
+entities_introduced = ["COST"]
+ontology_entries    = "profiles/cost/ontology.toml [[entities]] with id_prefix COST"
+predicates_used     = []
+note                = "The cost-record cites its incurring artefact via free-form `citing_ref` and the inverse direction (gate-decision -> cost-record citation) is a separate additive change to the gate-decision kind, not declared by this kind. No namespaced relation predicates are introduced in this version."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# This kind is the first worked example of the SPEC §13 primitive. A
+# cost-record's substrate is observation-of-cost only: it cites an action
+# by hash and declares quantities. It MUST NOT, at the kind layer, become
+# a transport for arbitrary capability assertions. Naming the class here
+# binds future cost-record producers to the contract; widening the
+# envelope cascade-breaks downstream cost-records (per §13.4).
+
+[kind.abstraction_class]
+id          = "observation-record.v1"
+description = "Read-only observation artefact: declares hashed citations to prior actions + closed-vocabulary categorical dimensions + integer quantities. No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms      = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576  # 1 MB — a cost record is a small categorical document
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed      = false
+monotonic_clock_allowed = false
+precision_cap_ms        = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

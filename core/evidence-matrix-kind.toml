@@ -1,0 +1,210 @@
+# Kind descriptor for `template_kind = "evidence-matrix"`.
+# Collapses the evidence-matrix portion of core/review-readiness.md.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "kind-descriptor"
+ontology_version  = 1
+title             = "Evidence matrix kind descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+describes_kind    = "evidence-matrix"
+authoritative_in  = "this file (collapsed from core/review-readiness.md, evidence-matrix section)"
+
+[kind]
+name    = "evidence-matrix"
+summary = "Three connected tables (claims, evidence, matrix) that link strong review claims to concrete proof artifacts with explicit scope and exclusions."
+prose   = """
+An evidence matrix has three tables: claims (the strong statements
+being made), evidence (the proof artifacts), and matrix (the explicit
+rows linking each claim to its supporting evidence with scope and
+exclusions).
+
+ROOT SHAPE
+
+    [meta]
+    schema_version = "0.1.0"
+    template_kind  = "evidence-matrix"
+    title          = "Evidence matrix for <component>"
+    status         = "draft"
+    created        = "YYYY-MM-DD"
+    review_subject = "<artifact-or-change-under-review>"
+
+CLAIMS
+
+    [[claims]]
+    id    = "E01"
+    claim = "ready_for_implementation"
+    scope_covered    = ["artifact-class gate passed", "core contracts declared"]
+    known_exclusions = ["does not prove downstream feature completeness"]
+    status = "draft"
+
+EVIDENCE
+
+    [[evidence]]
+    id            = "EV01"
+    artifact_path = "docs/planning/review_readiness.toml"
+    summary       = "Proof that the planning-pack gate passed."
+
+MATRIX
+
+    [[matrix]]
+    id              = "M01"
+    claim_id        = "E01"
+    evidence_id     = "EV01"
+    scope_covered   = "artifact-class gate passed"
+    known_exclusions = ["does not prove downstream feature completeness"]
+
+REQUIRED STRUCTURE
+
+- `[[claims]]` entries MUST have `id` and at least one of (`claim`,
+  `statement`, `assertion`).
+- `[[evidence]]` entries MUST have `id` and at least one of (`path`,
+  `artifact_path`, `evidence_path`, `file_path`).
+- `[[matrix]]` entries MUST have `id`, a claim reference (`claim` or
+  `claim_id`), an evidence reference (`evidence` or `evidence_id`), a
+  `scope_covered` (or `scope`) entry, and a `known_exclusions` (or
+  `exclusions` / `limitations`) entry.
+
+CROSS-REFERENCES
+
+Every `matrix[*].claim_id` MUST resolve to a `claims[*].id`; every
+`matrix[*].evidence_id` MUST resolve to an `evidence[*].id`.
+"""
+references = [
+  "spec.md",
+  "core/ontology.toml",
+]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[kind.required_fields]]
+path        = "meta.template_kind"
+must_equal  = "evidence-matrix"
+description = "Identifies this file as an evidence matrix."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "claims"
+description = "At least one claim with `id` and one of (claim/statement/assertion)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "evidence"
+description = "At least one evidence entry with `id` and one of (path/artifact_path/evidence_path/file_path)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "matrix"
+description = "At least one matrix row linking a claim to evidence with scope and exclusions."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV01"
+statement   = "Every `matrix[*].claim_id` resolves to a `claims[*].id`."
+enforced_by = "validators/validate_review_readiness.py"
+see_also    = "core/ontology.toml [[relations]] predicate `claim`"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV02"
+statement   = "Every `matrix[*].evidence_id` resolves to an `evidence[*].id`."
+enforced_by = "validators/validate_review_readiness.py"
+see_also    = "core/ontology.toml [[relations]] predicate `evidence`"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV03"
+statement   = "Both alias spellings (`claim`/`claim_id`, `evidence`/`evidence_id`) are accepted by validators; tooling SHOULD canonicalise to the `_id` form on read."
+enforced_by = "validators/validate_review_readiness.py"
+see_also    = "core/ontology.toml [[relations]] (alias_for entries)"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name           = "minimal evidence matrix"
+file           = "examples/minimal-review-readiness/evidence_matrix.toml"
+inline_summary = "Two claims (ready_for_implementation, no_behavior_changes), three evidence items, three matrix rows."
+ijb_primitive = "observed"
+
+[[kind.hard_invariants]]
+id          = "INV04"
+statement   = "Every entity prefix and relation predicate used in this kind's instance files resolves to an `ijb_primitive` declared in the ontology (core plus any active profile)."
+enforced_by = "validators/validate_ijb_conformance.py"
+see_also    = "foundations/ijb/primitives.md"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.relation_to_ontology]
+entities_introduced = ["claims", "evidence", "matrix"]
+ontology_entries    = "core/ontology.toml [[entities]] with id patterns E\\d+, EV\\d+, M\\d+"
+predicates_used     = ["claim", "claim_id", "evidence", "evidence_id"]
+note                = "All four field names (with alias relationships) are declared in core/ontology.toml [[relations]]."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# An evidence-matrix is observation-of-coverage: it declares which review
+# claims are linked to which proof artifacts, by id, with scope and
+# exclusions. It MUST NOT, at the kind layer, become a transport for
+# arbitrary capability assertions. Naming the class here binds future
+# evidence-matrix producers to the contract; widening the envelope
+# cascade-breaks downstream evidence-matrix instances (per §13.4).
+
+[kind.abstraction_class]
+id          = "observation-record.v1"
+description = "Read-only observation artefact: declares the three connected `[[claims]]`, `[[evidence]]`, and `[[matrix]]` tables that link strong review claims to concrete proof artefacts via id-based cross-references, with explicit scope and exclusions per row. No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms      = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576  # 1 MB — an evidence matrix is a small categorical document
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed      = false
+monotonic_clock_allowed = false
+precision_cap_ms        = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

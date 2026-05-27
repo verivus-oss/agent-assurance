@@ -1,0 +1,194 @@
+# Round-3 review of the cross-provider self-modification work.
+# Tightly scoped to verifying that residual defects N1 and N2 filed
+# in r2 are closed by commit 9b54702. NOT a re-review of B1-B3 / R1-R3
+# (already unanimously closed in r2).
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-25"
+review_session = "2026-05-25-cross-provider-self-mod-gate-proposal-r3"
+predecessor    = "2026-05-25-cross-provider-self-mod-gate-proposal-r2"
+
+[bundle]
+repo_root             = "/srv/repos/external/verivus-oss/agent-assurance"
+parent_commit_pre_r3  = "b7e2472"
+head_commit_post_r3   = "9b54702"   # f7b608a is review-session persistence; the substantive fix is 9b54702
+commit_range_r3       = "b7e2472..9b54702"
+total_new_commits     = 1
+description           = """
+Single substantive commit (9b54702) closing two residual defects
+identified by codex in r2:
+
+  N1 (codex blocker, grok low-severity): CHANGELOG.md's [Unreleased]
+  Added "Files changed" sub-bullet list enumerated only 6 of 14 files
+  changed by b7e2472. Now enumerates all 14, plus an r2-summary
+  paragraph documenting the gemini/grok approvals + codex's blocker
+  on this list + the r3 dispatch.
+
+  N2 (codex advisory): r2 review_bundle.toml [bundle] claimed
+  parent_commit_pre_r2 = "8a63abb" and total_new_commits = 1, but
+  b7e2472's true parent is c4286fb (the Add Dependabot config commit).
+  Corrected parent_commit_pre_r2 -> "c4286fb",
+  commit_range_r2 -> "c4286fb..b7e2472", added historical_range_note
+  per [policy.process_checks] (no retcon without correction note).
+
+Plus a separate audit-persistence commit (f7b608a) committing the
+r1 + r2 review session directories so the CHANGELOG references
+resolve at HEAD. f7b608a contains NO normative changes (pure
+audit-trail persistence) and is included here only for completeness;
+reviewers may treat f7b608a as scope-confirming rather than
+scope-changing.
+
+NO re-review of B1, B2, B3, R1, R2, R3 in this round. Those are
+already unanimously closed per
+docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal-r2/terminal_decision.toml
+[confirmed_correct] section. r3 reviewers MUST NOT reopen those
+dispositions absent NEW evidence that those closures regressed in
+9b54702 or f7b608a.
+"""
+
+[bundle.r2_summary]
+verdicts = { codex = "concrete_unresolvable_blocker", gemini = "unconditional_approval", grok = "unconditional_approval" }
+mistral  = "unavailable_cli_not_installed"
+binding_evidence_path  = "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal-r2/terminal_decision.toml"
+r2_residuals_summary = """
+N1 (blocker): CHANGELOG.md:19-44 "Files changed" sub-bullet list
+omitted 8 of 14 files (CHANGELOG self, MANIFEST.toml, 3 seed.sql,
+schema.ttl, 2 dagtoml-* hardcodes).
+
+N2 (advisory): r2 review_bundle.toml mis-stated commit range as
+8a63abb..b7e2472 (1 commit), but the actual range contained 2
+commits including the unrelated c4286fb Dependabot commit.
+"""
+
+# ----------------------------------------------------------------------
+# Units under review for r3.
+# ----------------------------------------------------------------------
+
+[[bundle.units]]
+id           = "U01"
+commit_sha   = "9b54702"
+title        = "Close r2 residual defects (CHANGELOG file list + bundle scope)"
+summary      = """
+Two-file diff (+301 / -1):
+
+  - CHANGELOG.md: extended the [Unreleased] Added entry's "Files
+    changed" sub-bullet list to enumerate all 14 files changed by
+    b7e2472 (added: CHANGELOG.md self-reference, MANIFEST.toml +
+    3 seed.sql + schema.ttl under reference/database/, and 2
+    tools/dagtoml-* hardcode updates). Added an "r2 review
+    summary" paragraph at the end of the rationale describing
+    gemini/grok approvals, codex blocker, and r3 dispatch.
+
+  - docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal-r2/review_bundle.toml:
+    fixed [bundle].parent_commit_pre_r2 from "8a63abb" -> "c4286fb",
+    commit_range_r2 from "8a63abb..b7e2472" -> "c4286fb..b7e2472",
+    added historical_range_note documenting the correction.
+
+NO touches to profiles/, examples/, reference/database/, validators/,
+core/, SPEC.md, or tools/. The structural change (B1-B3, R1-R3) is
+left exactly as the r2 panel approved.
+
+Initiator local-gate sweep post-fix:
+  $ taplo lint docs/reviews/.../review_bundle.toml                # OK
+  $ python3 -c 'tomllib.loads(...)'                              # OK
+  $ python3 validators/validate_closure_root.py --discover .     # PASSED (75 files)
+  $ python3 validators/check_attribute_values.py                 # COUNT-MIRROR OK
+
+This is plan-compliance language and MUST be independently verified.
+"""
+changed_files = [
+  "CHANGELOG.md",
+  "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal-r2/review_bundle.toml",
+]
+verify = [
+  "git show --stat 9b54702",
+  "git show 9b54702 -- CHANGELOG.md",
+  "git show 9b54702 -- docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal-r2/review_bundle.toml",
+  "git show --stat --name-only b7e2472 | tail -20   # the 14-file ground truth",
+  "git rev-parse b7e2472^   # MUST equal c4286fbfc44189af58650d8cc75367e08086bbd7",
+  "grep -nE '^\\s*-\\s*`' CHANGELOG.md | sed -n '/INV06/,/Rationale/p'   # the bullet list",
+  "python3 validators/validate_closure_root.py --discover .",
+  "python3 validators/check_attribute_values.py",
+  "bash validators/check_manifest_drift.sh",
+]
+
+[[bundle.units]]
+id           = "U02"
+commit_sha   = "f7b608a"
+title        = "Audit-trail persistence: r1 + r2 review session directories"
+summary      = """
+Pure docs/reviews/ persistence (14 new files, +1417 lines, no
+changes to existing tracked files). Adds the r1 session
+(docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal/
+with review_bundle, review_prompt, job_ids, raw_findings/{codex,
+gemini,grok,mistral}.md, terminal_decision.toml) and the r2 session
+non-bundle files (review_prompt, job_ids, raw_findings/{codex,
+gemini,grok}.md, terminal_decision.toml; review_bundle.toml was
+already committed in 9b54702).
+
+Effect: CHANGELOG references to both review session paths now
+resolve at HEAD. Reviewers SHOULD treat this commit as scope-
+confirming (it makes the existing references resolvable) and NOT
+re-evaluate the substance of those review artifacts.
+"""
+changed_files = [
+  "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal/job_ids.toml",
+  "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal/raw_findings/codex.md",
+  "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal/raw_findings/gemini.md",
+  "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal/raw_findings/grok.md",
+  "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal/raw_findings/mistral.md",
+  "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal/review_bundle.toml",
+  "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal/review_prompt.md",
+  "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal/terminal_decision.toml",
+  "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal-r2/job_ids.toml",
+  "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal-r2/raw_findings/codex.md",
+  "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal-r2/raw_findings/gemini.md",
+  "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal-r2/raw_findings/grok.md",
+  "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal-r2/review_prompt.md",
+  "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal-r2/terminal_decision.toml",
+]
+verify = [
+  "git show --stat f7b608a   # 14 files, all under docs/reviews/",
+  "git diff --stat 9b54702 f7b608a   # diff is pure additions under docs/reviews/",
+]
+
+[roster]
+initiator       = "claude-opus-4-7 (session running on /srv/repos/external/verivus-oss/agent-assurance, 2026-05-25)"
+initiator_role  = "excluded from standard reviewer set per [policy.roles].initiator_excluded_as_standard_reviewer"
+reviewer_models = ["codex", "gemini", "grok"]
+roster_note     = """
+Mistral CLI still unavailable on host. Panel composition matches r1
+and r2. r3 SHOULD include the same panel for continuity even though
+the scope is narrow.
+"""
+
+[review_instructions]
+rules_source  = "tools/review-request-dag.toml [policy.*]"
+prompt_path   = "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal-r3/review_prompt.md"
+narrow_scope  = """
+Two dispositions only (N1, N2 from r2). For each, classify as
+**closed**, **partial**, or **open** with file:line evidence
+drawn from 9b54702 (and f7b608a for the audit-persistence context).
+Approval bases: inspected_code, executed_tests_with_output,
+inspected_docs, persisted_review_evidence.
+
+EXPLICITLY OUT OF SCOPE: B1, B2, B3, R1, R2, R3 — those were
+unanimously closed in r2 and MUST NOT be re-litigated absent
+NEW evidence of regression in 9b54702 or f7b608a.
+"""
+iteration_rule = "If initiator disagrees with a finding, response MUST cite code/doc evidence (file + line), not assertion."
+polling_cadence_seconds = 90
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal-r3/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "terminal_decision.toml",
+]

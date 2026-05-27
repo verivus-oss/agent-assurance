@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.0.0",
+  "template_kind": "claim-analysis-output",
+  "agent": "Claim Analysis Agent",
+  "dag": "tools/claim-analysis-document-review-dag.toml",
+  "run_label": "2026-05-22-paper-main",
+  "document": {
+    "path": "paper/main.tex",
+    "sha256": "9664be061e4bc8493de2e5054d3c3d61737bd666e56077b9856c19585dbde306",
+    "line_count": 1659,
+    "repo_commit": "638a90e8a0dc68c3e4aa8dfa29b51f6466d435fe"
+  },
+  "tone": ["objective", "concise", "evidence-based"],
+  "totals": {
+    "findings": 29,
+    "by_severity": { "high": 1, "medium": 12, "low": 16 }
+  },
+  "per_step_sections": {
+    "step1_structure_and_clarity":     { "findings": 4, "outcome": "minor",           "high": 0, "medium": 1, "low": 3 },
+    "step2_factual_accuracy":          { "findings": 6, "outcome": "issues_present", "high": 1, "medium": 2, "low": 3 },
+    "step3_logical_leaps":             { "findings": 3, "outcome": "issues_present", "high": 0, "medium": 2, "low": 1 },
+    "step4_unsubstantiated_claims":    { "findings": 4, "outcome": "issues_present", "high": 0, "medium": 3, "low": 1 },
+    "agent_source_reliability":       { "findings": 5, "outcome": "issues_present", "high": 0, "medium": 2, "low": 3 },
+    "step5_compliance_and_risks":     { "findings": 4, "outcome": "issues_present", "high": 0, "medium": 2, "low": 2 },
+    "step6_overall_quality":          { "findings": 3, "outcome": "minor",           "high": 0, "medium": 0, "low": 3 }
+  },
+  "overall_assessment": {
+    "verdict": "Minor revisions needed",
+    "one_line": "Manuscript is empirically careful and well sourced; one numeric contradiction (JPlag file-count direction) and a recurring spec-vs-bundle conflation require corrections; the rest is tightening."
+  },
+  "prioritized_recommendations": [
+    { "rank": 1,  "priority": "must-fix",     "title": "Resolve the JPlag file-count internal contradiction",                            "finding_refs": ["F2-F01"],                       "location": "paper/main.tex:1305-1313" },
+    { "rank": 2,  "priority": "should-fix",   "title": "Disambiguate spec-vs-bundle in the verdict-vocabulary claim",                    "finding_refs": ["F2-F03", "Q6-F03"],            "location": "paper/main.tex:300-303"   },
+    { "rank": 3,  "priority": "should-fix",   "title": "Correct the reviewer-approval framing in sec:llm-review and sec:threats",        "finding_refs": ["S1-F01", "F2-F06", "S1-F02"], "location": "paper/main.tex:1179-1180 and 1122-1125" },
+    { "rank": 4,  "priority": "should-fix",   "title": "Add legal-doctrine precision to Reading B",                                       "finding_refs": ["C5-F02"],                       "location": "paper/main.tex:1023-1026" },
+    { "rank": 5,  "priority": "should-fix",   "title": "Substantiate or remove unsourced industry-vendor claims",                        "finding_refs": ["U4-F01", "U4-F02", "U4-F03"],  "location": "paper/main.tex:1403-1426 and 1029-1030" },
+    { "rank": 6,  "priority": "should-fix",   "title": "Time-bind or update the LoC citation",                                            "finding_refs": ["F2-F02"],                       "location": "paper/main.tex:427-429"   },
+    { "rank": 7,  "priority": "nice-to-have", "title": "Mark self-citations or replace with externally verifiable substitutes",         "finding_refs": ["S2-F01"],                       "location": "paper/main.tex:1205-1238" },
+    { "rank": 8,  "priority": "nice-to-have", "title": "Add a localised non-legal-advice disclaimer at sec:legal",                       "finding_refs": ["C5-F01"],                       "location": "paper/main.tex:1000-1005" },
+    { "rank": 9,  "priority": "nice-to-have", "title": "Define or downgrade the 'cone of plausible values' phrase",                      "finding_refs": ["L3-F01"],                       "location": "paper/main.tex:933-938"   },
+    { "rank": 10, "priority": "nice-to-have", "title": "Substantiate or hedge the adversary-cost claim",                                  "finding_refs": ["L3-F02"],                       "location": "paper/main.tex:1060-1063" }
+  ],
+  "process_confirmations": {
+    "findings_have_verbatim_quotes":           true,
+    "findings_have_file_line_locations":       true,
+    "findings_have_severity":                  true,
+    "findings_have_suggested_fixes":           true,
+    "no_paraphrase_in_place_of_quote":         true,
+    "empty_per_step_sections_marked_explicit": true,
+    "unverifiable_claims_marked_unverifiable": true,
+    "single_reviewer_self_review_disclosure":  "This run is a self-review by the initiator from the same session. For an independent multi-reviewer run, dispatch via tools/review-request-dag.toml to Codex / Gemini / Grok in fresh-context sessions."
+  },
+  "evidence_links": {
+    "report_toml":         "docs/claim_analysis/2026-05-22-paper-main/claim_analysis_report.toml",
+    "run_manifest":        "docs/claim_analysis/2026-05-22-paper-main/run_manifest.toml",
+    "reference_corpus":    "docs/claim_analysis/2026-05-22-paper-main/reference_corpus.toml",
+    "findings_dir":        "docs/claim_analysis/2026-05-22-paper-main/findings/"
+  }
+}

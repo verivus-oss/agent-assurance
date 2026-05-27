@@ -1,0 +1,61 @@
+# U01 — review bundle for the cost profile commit.
+#
+# This is the persistent record of what each reviewer was given.
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-23"
+review_session = "2026-05-23-cost-profile"
+
+[bundle]
+change_under_review   = "profiles/cost/ — Stream G cost-record kind (Cost-Witnessed Decision)"
+repo_commit           = "fccc1dcf8ebc796eaeee395d73126256fd94d869"
+parent_commit         = "953b8870b9cc0bbafa6f6c8ee9d3b8e80f7a8fb1"
+repo_root             = "/srv/repos/external/verivus-oss/agent-assurance"
+proposal_source       = "docs/research/2026-05-22-spec-foundations-research/follow-up-2/13-stream-G-cost-witnessed-decision.md"
+new_profile_dir       = "profiles/cost/"
+new_kind              = "cost-record"
+new_validator         = "validators/validate_cost.py"
+new_example           = "examples/minimal-cost-record.toml"
+ontology_additions    = [
+  "profiles/cost/ontology.toml — entity kind COST (cost_record)",
+  "profiles/cost/ontology.toml — closed vocab `cost_dimension_category` (7 values)",
+  "profiles/cost/ontology.toml — closed vocab `decider_class` (8 values)",
+  "profiles/cost/ontology.toml — closed vocab `cost_citing_kind` (7 values)",
+]
+ci_steps_modified = [
+  "Cross-check (Python) — adds profiles/cost/PROFILE.toml + minimal-cost-record.toml",
+  "Validate kind descriptors — glob extended to profiles/cost/*-kind.toml",
+  "Validate IJB conformance — includes profiles/cost/ontology.toml + kinds + PROFILE + minimal example",
+  "Primary validators (Rust + Go) — targets list extended with cost PROFILE + example",
+]
+manifest_count_deltas = "template_kinds 19→20, entity_kinds 26→27, attribute_vocabularies 38→41, attribute_values 84→106"
+
+[bundle.workflow_dag]
+file        = "tools/review-request-dag.toml"
+description = "The DAG-TOML workflow this review is operating under. See [policy.*] tables for the binding rules."
+
+[roster]
+initiator_model           = "claude-opus-4-7"
+initiator_excluded_as_standard_reviewer = true
+reviewer_models           = ["codex", "grok"]
+note = "Per policy.roles in tools/review-request-dag.toml, the initiator is excluded as a standard reviewer. Each reviewer operates in a fresh clean-context session and verifies claims against repo bytes at commit fccc1dc, not against the initiator's summary. Mistral skipped (vibe CLI not installed locally; gateway has no install pathway)."
+
+[permissions]
+codex_sandbox       = "workspace-write"
+codex_bypass        = true
+codex_mcp           = ["sqry", "ref_tools"]
+grok_permission     = "bypassPermissions"
+grok_always_approve = true
+grok_mcp            = ["sqry", "ref_tools"]
+poll_progress_interval_seconds_if_grant_not_durable = 90
+
+[outputs]
+raw_findings_dir         = "docs/reviews/2026-05-23-cost-profile/raw_findings/"
+expected_per_reviewer    = "raw_findings/<reviewer>.md (full review verbatim)"
+unit_classifications     = "docs/reviews/2026-05-23-cost-profile/unit_classifications.toml"
+process_confirmations    = "docs/reviews/2026-05-23-cost-profile/process_confirmations.toml"
+rebuttal_record          = "docs/reviews/2026-05-23-cost-profile/rebuttal_record.md"
+terminal_decision        = "docs/reviews/2026-05-23-cost-profile/terminal_decision.toml"
+gate_decision            = "docs/reviews/2026-05-23-cost-profile/gate_decision.toml"

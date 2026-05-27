@@ -1,0 +1,289 @@
+# Kind descriptor for `template_kind = "gate-decision"`.
+# Agent Assurance Profile artifact.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "kind-descriptor"
+ontology_version  = 1
+title             = "Gate decision kind descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+describes_kind    = "gate-decision"
+framework_profile = "agent-assurance"
+authoritative_in  = "this file"
+
+[kind]
+name    = "gate-decision"
+summary = "Mechanical outcome of evaluating declared constraints against cited assertion bundles. Pass/fail with no editorialization surface."
+prose   = """
+A gate-decision file records the mechanical outcome of evaluating a
+set of declared constraints against one or more cited assertion
+bundles. The verdict is a closed two-value enum (pass | fail). There
+is no comment, confidence, explanation, or rationale field — those
+would re-introduce an interpretation surface and are deliberately
+excluded.
+
+Overrides are recorded separately. An override is a canonical-grammar
+`observed(...)` line cited in `[[decision.override_refs]]`. Presence
+of an override does NOT toggle the verdict — that is a structural
+property of this kind: `verdict = "pass"` if and only if
+`failed_constraint_refs` is empty.
+
+A gate-decision MAY be referenced by a readiness-gate document as
+evidence supporting a `[meta].status` transition. That linkage is
+purely by reference; it introduces no schema change to readiness-gate.
+
+ROOT SHAPE
+
+    [meta]
+    schema_version    = "0.1.0"
+    template_kind     = "gate-decision"
+    framework_profile = "agent-assurance"
+    title             = "Gate decision for <change>"
+    created           = "YYYY-MM-DD"
+
+    [decision]
+    verdict                  = "fail"
+    evidence_root            = "0123...64hex"
+    evidence_root_algorithm  = "sha256-merkle-sorted-leaves"
+    decided_at               = "2026-05-21T03:14:15Z"
+
+    # Optional. Categorizes what this gate adjudicates. Default
+    # (absent) is equivalent to "downstream-change". The value
+    # "self-modification" triggers INV06 (cross-provider attribution).
+    subject_class            = "downstream-change"
+
+    # Optional in general. REQUIRED when subject_class =
+    # "self-modification" (INV06). Identify the LLM/agent identity
+    # that proposed the change AND the one that decided the gate.
+    # See `provider_id` and `model_family_id` vocabularies in
+    # profiles/agent-assurance/ontology.toml.
+    proposing_provider_id      = "anthropic"
+    proposing_model_family_id  = "claude"
+    deciding_provider_id       = "openai"
+    deciding_model_family_id   = "gpt"
+
+    [[decision.cited_bundles]]
+    bundle_ref = "bundles/red-team-001.toml"
+
+    [[decision.failed_constraint_refs]]
+    constraint_id = "A-authz-002"
+
+    [[decision.override_refs]]
+    observation_line = 'A-observed-override-001 = observed(id=ovr-001,asserts=A-authz-002,by=A-thing-signer-alice,time=A-time-002,within=A-scope-gate-G01)'
+
+VOCABULARIES
+
+- `[decision].verdict`                    -> `gate_decision_verdict`
+- `[decision].evidence_root_algorithm`    -> `evidence_root_algorithm`
+- `[decision].subject_class`              -> `subject_class`
+- `[decision].proposing_provider_id`      -> `provider_id`
+- `[decision].deciding_provider_id`       -> `provider_id`
+- `[decision].proposing_model_family_id`  -> `model_family_id`
+- `[decision].deciding_model_family_id`   -> `model_family_id`
+
+VALIDATOR MUST NOT resolve `failed_constraint_refs[].constraint_id`
+against `cited_bundles[].bundle_ref` content; MUST NOT verify the
+evidence-root hash; MUST NOT verify override signatures; MUST NOT
+re-evaluate constraints. Those are RUNTIME-SPEC.
+
+CROSS-PROVIDER ATTRIBUTION (INV06)
+
+When the change being adjudicated IS a modification of the
+producer agent's own harness or source code, `[decision].subject_class`
+MUST be set to `"self-modification"`. In that case the four
+provider/family attribution fields are REQUIRED, AND the deciding
+provider AND deciding model family MUST both differ from the
+proposing provider and model family. The conjunctive AND is
+load-bearing: same-provider/different-family and
+different-provider/same-family BOTH fail INV06. The SPEC layer
+verifies field presence, vocabulary membership, and the inequality
+predicates; it does NOT verify identity attestations cryptographically
+(that is RUNTIME-SPEC, typically realized by a runtime broker that
+records provider attribution into the artifact at decision time).
+
+This profile assumes a multi-provider operating environment; see
+profiles/agent-assurance/overview.md "Scope and posture" for the
+rationale and audience-impact note.
+"""
+references = [
+  "spec.md",
+  "profiles/agent-assurance/ontology.toml",
+  "foundations/ijb/canonical-assertion-grammar.md",
+  "core/readiness-gate-kind.toml",
+]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[kind.required_fields]]
+path        = "meta.template_kind"
+must_equal  = "gate-decision"
+description = "Identifies this file as a gate decision."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "meta.framework_profile"
+must_equal  = "agent-assurance"
+description = "Gate decision is an Agent Assurance Profile artifact."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "decision.verdict"
+description = "Verdict; value drawn from `gate_decision_verdict` vocabulary."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "decision.evidence_root"
+description = "SHA-256 hex string identifying the content-addressed evidence root."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "decision.evidence_root_algorithm"
+description = "Algorithm used to compute `evidence_root`; value drawn from `evidence_root_algorithm` vocabulary."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "decision.decided_at"
+description = "RFC3339 UTC timestamp."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "decision.cited_bundles"
+description = "At least one cited assertion bundle."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV01"
+statement   = "`decision.verdict` MUST equal `\"pass\"` if and only if `decision.failed_constraint_refs` is empty or absent. An override does NOT toggle the verdict."
+enforced_by = "validators/validate_gate_decision.py"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV02"
+statement   = "Every `[[decision.failed_constraint_refs]].constraint_id` MUST match the IJB assertion-id syntax `^A-[A-Za-z0-9][A-Za-z0-9_-]*$`."
+enforced_by = "validators/validate_gate_decision.py"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV03"
+statement   = "Every `[[decision.override_refs]].observation_line` MUST parse as a canonical-grammar `observed(...)` assertion per the ABNF in foundations/ijb/canonical-assertion-grammar.md lines 46-68."
+enforced_by = "validators/validate_gate_decision.py"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV04"
+statement   = "`decision.evidence_root` MUST match `^[0-9a-f]{64}$`."
+enforced_by = "validators/validate_gate_decision.py"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV05"
+statement   = "SPEC-layer validation MUST NOT resolve constraint IDs against cited bundle contents, MUST NOT verify the evidence-root hash, and MUST NOT verify or evaluate overrides. Those checks are RUNTIME-SPEC."
+enforced_by = "scope declaration; no validator action"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV06"
+statement   = "`decision.subject_class` is OPTIONAL; when present its value MUST be drawn from the `subject_class` vocabulary. When `decision.subject_class = \"self-modification\"`, ALL FOUR of `decision.proposing_provider_id`, `decision.proposing_model_family_id`, `decision.deciding_provider_id`, `decision.deciding_model_family_id` MUST be present, MUST be non-empty strings drawn from the `provider_id` and `model_family_id` vocabularies respectively, AND MUST satisfy BOTH `decision.deciding_provider_id != decision.proposing_provider_id` AND `decision.deciding_model_family_id != decision.proposing_model_family_id`. The conjunctive AND is load-bearing: same-provider/different-family and different-provider/same-family BOTH fail INV06. When `decision.subject_class` is absent or any value OTHER than `\"self-modification\"`, the four attribution fields remain optional and MAY be omitted."
+enforced_by = "validators/validate_gate_decision.py"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name           = "minimal gate decision"
+file           = "examples/minimal-gate-decision.toml"
+inline_summary = "Single cited bundle, one failed constraint, one override observation; verdict = fail. Pre-INV06 shape: subject_class absent, no provider attribution. Remains valid because INV06 only triggers when subject_class = \"self-modification\"."
+ijb_primitive = "observed"
+
+[[kind.example]]
+name           = "self-modification gate decision"
+file           = "examples/self-modification-gate-decision.toml"
+inline_summary = "subject_class = \"self-modification\" with all four cross-provider attribution fields. Proposing anthropic/claude, deciding openai/gpt — satisfies INV06 (provider AND family differ)."
+ijb_primitive = "observed"
+
+[kind.relation_to_ontology]
+entities_introduced = []
+ontology_entries    = "profiles/agent-assurance/ontology.toml [[attribute_vocabularies]]"
+attribute_vocabularies = [
+  "gate_decision_verdict",
+  "evidence_root_algorithm",
+  "subject_class",
+  "provider_id",
+  "model_family_id",
+]
+note                = "No new entity or relation declarations. Gate-decision documents are flat artifacts citing bundles by opaque ref string; they expose no instance entity IDs and no predicate-bearing fields at the SPEC layer. The `subject_class`, `provider_id`, and `model_family_id` vocabularies back the cross-provider self-modification rule (INV06)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# A gate-decision is observation-of-verdict: it records the mechanical
+# outcome of evaluating declared constraints against cited bundles, with
+# no comment / confidence / rationale surface. It MUST NOT, at the kind
+# layer, become a transport for arbitrary capability assertions. Naming
+# the class here binds future gate-decision producers to the contract;
+# widening the envelope cascade-breaks downstream gate-decisions
+# (per §13.4).
+
+[kind.abstraction_class]
+id          = "observation-record.v1"
+description = "Read-only observation artefact: declares the mechanical outcome of evaluating cited assertion bundles against constraints — a two-value `[decision].verdict`, a content-addressed `[decision].evidence_root`, opaque-ref `[[decision.cited_bundles]]` / `[[decision.failed_constraint_refs]]` / `[[decision.override_refs]]` citations, and an RFC3339 `[decision].decided_at` timestamp. No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms      = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576  # 1 MB — a gate decision is a small categorical document
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed      = false
+monotonic_clock_allowed = false
+precision_cap_ms        = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

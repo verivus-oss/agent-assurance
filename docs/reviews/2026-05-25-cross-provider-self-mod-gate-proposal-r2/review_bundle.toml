@@ -1,0 +1,268 @@
+# Round-2 review of the cross-provider self-modification implementation.
+# Round 1 (proposal-text) issued concrete_unresolvable_blocker from codex
+# and grok with three blockers (B1, B2, B3) and three required revisions
+# (R1, R2, R3). This r2 reviews commit b7e2472 against those dispositions.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-25"
+review_session = "2026-05-25-cross-provider-self-mod-gate-proposal-r2"
+predecessor    = "2026-05-25-cross-provider-self-mod-gate-proposal"
+
+[bundle]
+repo_root             = "/srv/repos/external/verivus-oss/agent-assurance"
+parent_commit_pre_r2  = "c4286fb"
+head_commit_post_r2   = "b7e2472"
+commit_range_r2       = "c4286fb..b7e2472"
+total_new_commits     = 1
+# Bundle scope correction (filed by codex in r2; see
+# raw_findings/codex.md "Scope note" and terminal_decision.toml
+# N2). The initial draft of this bundle wrote
+# `parent_commit_pre_r2 = "8a63abb"` and treated the range
+# `8a63abb..b7e2472` as one commit, but `c4286fb` (Add Dependabot
+# config to bump GitHub Actions weekly) was already present at
+# conversation start and was missed. b7e2472's true parent is
+# c4286fb; the range under review here is c4286fb..b7e2472 = the
+# single commit b7e2472. The unrelated c4286fb Dependabot commit
+# is OUT of r2 review scope.
+historical_range_note = "Initial draft used 8a63abb..b7e2472 (2 commits) — corrected here to c4286fb..b7e2472 (1 commit, b7e2472 only)."
+description           = """
+Single commit (b7e2472) implementing the round-1 proposal with all
+six blocker / required-revision dispositions baked in. 14 files
+changed (+372 / -33): profile prose + ontology + tier carve-out +
+gate-decision kind invariant + worked example + reference DB seed
+updates (postgres / duckdb / sqlite) + RDF schema regeneration +
+Rust + Go count-mirror hardcodes + CHANGELOG.
+
+Scope of this review: does b7e2472 close each of B1, B2, B3, R1, R2,
+R3 from r1, without introducing new defects? All CI gates ran green
+locally pre-commit (taplo lint, parse-all-toml, kind-descriptor,
+IJB conformance on ontology + kinds + new example, review-readiness
+on every tier file, closure-root over 75 files, count-mirror gate,
+manifest-drift gate).
+"""
+
+[bundle.r1_summary]
+verdicts = { codex = "concrete_unresolvable_blocker", gemini = "unconditional_approval", grok = "concrete_unresolvable_blocker" }
+mistral  = "unavailable_cli_not_installed"
+binding_evidence_path  = "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal/terminal_decision.toml"
+r1_blockers_summary = """
+B1 (high, P01-C1, codex C1-F1+C1-F2 / grok P01-C1): self-modification
+predicate not derivable from gate-decision artifact contents. Required
+revision: chain-verifiable subject field, not runtime memory.
+
+B2 (high, P01-C1, codex C1-F1): 'different provider and/or different
+model family' is ambiguous — admits three readings. Required revision:
+tight AND predicate, no 'and/or'.
+
+B3 (high, P01-C2, codex C2-F1 + grok P01-C2): flat MUST-at-all-tiers
+contradicts solo.toml C02 (L32: AI self-sign at any severity_tier) and
+C05 (L56: single signer). Required revision: pick one — soften tier
+language OR update solo.toml to carve out self-mod.
+
+R1 (medium, P01-C1, codex C1-F3): provider-attribution must be
+additive-optional + conditional hard invariant, not unconditional
+required fields (per SPEC.md:482-489 versioning policy).
+
+R2 (medium, P01-C2): missing migration / behavior-change guidance for
+existing single-provider profile users.
+
+R3 (low, P01-C3, codex C3-F3 + grok P01-C3): naming 'agent-federator'
+as a proper-noun runtime role in normative profile prose creates
+steering pull toward centralized broker topology. Suggested topology-
+neutral wording supplied.
+"""
+
+# ----------------------------------------------------------------------
+# Unit under review for r2.
+# ----------------------------------------------------------------------
+
+[[bundle.units]]
+id           = "P02"
+commit_sha   = "b7e2472"
+title        = "INV06 cross-provider gate-decision for self-modification (implementation)"
+summary      = """
+Closures the initiator claims (must be independently verified):
+
+  B1 closure — chain-verifiable predicate.
+    `decision.subject_class` added as optional gate-decision field
+    drawn from new subject_class vocabulary
+    (profiles/agent-assurance/ontology.toml). Closed values:
+    ["downstream-change", "self-modification"], extensible. Presence
+    of "self-modification" triggers INV06. Predicate is now a field
+    of the artifact, not runtime knowledge.
+    Files: profiles/agent-assurance/ontology.toml (new vocab block),
+    profiles/agent-assurance/gate-decision-kind.toml (ROOT SHAPE prose
+    + INV06 + relation_to_ontology).
+
+  B2 closure — tight AND, not "and/or".
+    INV06 statement uses 'MUST satisfy BOTH ... AND ...' with
+    explicit text: 'The conjunctive AND is load-bearing:
+    same-provider/different-family and different-provider/same-family
+    BOTH fail INV06.' No "and/or" anywhere in the rule text.
+    File: profiles/agent-assurance/gate-decision-kind.toml INV06.
+
+  B3 closure — solo tier carved out.
+    solo.toml C02 statement now reads: "AI agents MAY self-sign
+    overrides at any severity_tier at this tier, EXCEPT for
+    gate-decisions where `decision.subject_class = \\"self-modification\\"`.
+    Self-modification gate-decisions are governed by gate-decision INV06
+    ... the solo tier's self-sign permission does NOT relax this."
+    C05 reworded similarly: single-signer rule remains for all other
+    gate categories; self-modification deferred to INV06. Both gain
+    `gate-decision-invariant:INV06@1` in verified_by.
+    File: profiles/agent-assurance/tiers/solo.toml.
+
+  R1 closure — additive-optional + conditional invariant.
+    The five new fields (subject_class + 4 attribution fields) are
+    NOT added to [[kind.required_fields]] — they appear only in the
+    ROOT SHAPE prose with the marker "Optional in general. REQUIRED
+    when subject_class = \\"self-modification\\" (INV06)." INV06
+    encodes the conditional requirement: "When `decision.subject_class
+    = \\"self-modification\\"`, ALL FOUR of ... MUST be present ...".
+    Pre-INV06 gate-decision instances (no subject_class) remain valid.
+    Verified by re-running validate_kind_descriptor.py on the unmodified
+    examples/minimal-gate-decision.toml (passes).
+    File: profiles/agent-assurance/gate-decision-kind.toml.
+
+  R2 closure — migration + posture.
+    overview.md gains a new "Scope and posture" section with three
+    paragraphs: (i) multi-provider-only operating posture rooted in
+    why same-family review fails, (ii) audience impact paragraph
+    naming single-provider / air-gapped / regulated / sealed-appliance
+    users and giving three coherent options (accept partial assurance,
+    obtain second-provider review path, or stay on core DAG-TOML
+    only), (iii) migration note for existing profile users.
+    tiers/README.md ladder table solo row annotated; new
+    "Cross-tier rule" callout makes INV06's profile-level scope
+    explicit.
+    Files: profiles/agent-assurance/overview.md,
+    profiles/agent-assurance/tiers/README.md.
+
+  R3 closure — no proper-noun in normative prose.
+    The word 'federator' / 'agent-federator' appears NOWHERE in the
+    committed change (only in the r1 review session's persisted
+    audit artifacts, which are out of scope and will remain so).
+    Normative prose describes the runtime CONTRACT: 'the SPEC layer
+    verifies field presence, vocabulary membership, and the
+    inequality predicates; it does NOT verify identity attestations
+    cryptographically (that is RUNTIME-SPEC, typically realized by
+    a runtime broker that records provider attribution into the
+    artifact at decision time).' The implementation topology is
+    open.
+    Files: profiles/agent-assurance/gate-decision-kind.toml prose,
+    profiles/agent-assurance/overview.md "Scope and posture".
+
+  Reference DB + count-mirror plumbing (necessary derived updates).
+    postgres/duckdb/sqlite seed.sql each grew by 3 vocab rows + 22
+    value rows; engine-specific array syntax used (ARRAY[], [],
+    json_array()). MANIFEST.toml counts moved: attribute_vocabularies
+    43->46, attribute_values_declared 180->202, per-engine
+    attribute_value_allowed 116->138, rdf footer 43->46, rdf
+    expected_triple_counts.schema 1329->1400. RDF schema.ttl
+    regenerated via tools/dagtoml-rdf/target/release/dagtoml-rdf.
+    Rust EXPECTED_COUNTS (tools/dagtoml-duckdb/src/main.rs:24-30)
+    and Go expectedCounts (tools/dagtoml-duckdb-go/main.go:38-47)
+    bumped to match.
+
+  CHANGELOG.md gains an [Unreleased] Added entry with file-level
+  scope description, blocker closures B1-B3 + R1-R3 explicitly
+  enumerated, and a pointer to the r1 review session as predecessor.
+
+Initiator claim — local gate sweep:
+  $ taplo lint                                # passes
+  $ python3 -c '... tomllib.loads ...'        # OK parse-all
+  $ for f in core/*-kind.toml profiles/agent-assurance/*-kind.toml; do
+      python3 validators/validate_kind_descriptor.py "$f" \\
+        --repo-root . --check-references-exist
+    done                                       # OK
+  $ python3 validators/validate_ijb_conformance.py {core,profile}/ontology.toml
+  $ python3 validators/validate_ijb_conformance.py {kind files}
+  $ python3 validators/validate_ijb_conformance.py \\
+      examples/self-modification-gate-decision.toml --repo-root .
+                                               # OK
+  $ for t in profiles/agent-assurance/tiers/*.toml; do
+      python3 validators/validate_review_readiness.py "$t"
+    done                                       # OK
+  $ python3 validators/validate_closure_root.py --discover .
+                                               # PASSED (75 files)
+  $ python3 validators/check_attribute_values.py
+                                               # COUNT-MIRROR OK
+  $ bash validators/check_manifest_drift.sh
+                                               # OK
+
+This is plan-compliance language and MUST be independently
+verified by reviewers against repo bytes at b7e2472.
+"""
+changed_files = [
+  "CHANGELOG.md",
+  "profiles/agent-assurance/gate-decision-kind.toml",
+  "profiles/agent-assurance/ontology.toml",
+  "profiles/agent-assurance/overview.md",
+  "profiles/agent-assurance/tiers/README.md",
+  "profiles/agent-assurance/tiers/solo.toml",
+  "reference/database/MANIFEST.toml",
+  "reference/database/duckdb/seed.sql",
+  "reference/database/postgres/seed.sql",
+  "reference/database/rdf/schema.ttl",
+  "reference/database/sqlite/seed.sql",
+  "tools/dagtoml-duckdb-go/main.go",
+  "tools/dagtoml-duckdb/src/main.rs",
+  "examples/self-modification-gate-decision.toml",
+]
+verify = [
+  "git show --stat b7e2472",
+  "git show b7e2472 -- profiles/agent-assurance/gate-decision-kind.toml | head -200",
+  "git show b7e2472 -- profiles/agent-assurance/tiers/solo.toml",
+  "git show b7e2472 -- profiles/agent-assurance/overview.md",
+  "grep -rni 'agent-federator\\|federator' profiles/ SPEC.md core/   # MUST return zero matches",
+  "grep -n 'and/or' profiles/agent-assurance/gate-decision-kind.toml   # MUST return zero matches in INV06 statement",
+  "grep -n 'INV06' profiles/agent-assurance/gate-decision-kind.toml profiles/agent-assurance/tiers/solo.toml profiles/agent-assurance/overview.md profiles/agent-assurance/tiers/README.md",
+  "python3 validators/validate_kind_descriptor.py profiles/agent-assurance/gate-decision-kind.toml --repo-root . --check-references-exist",
+  "python3 validators/validate_ijb_conformance.py profiles/agent-assurance/ontology.toml",
+  "python3 validators/validate_ijb_conformance.py profiles/agent-assurance/gate-decision-kind.toml",
+  "python3 validators/validate_ijb_conformance.py examples/self-modification-gate-decision.toml --repo-root .",
+  "python3 validators/validate_review_readiness.py profiles/agent-assurance/tiers/solo.toml",
+  "python3 validators/validate_closure_root.py --discover .",
+  "python3 validators/check_attribute_values.py",
+  "bash validators/check_manifest_drift.sh",
+  "tools/dagtoml-rdf/target/release/dagtoml-rdf verify -o reference/database/rdf/schema.ttl",
+]
+
+[roster]
+initiator       = "claude-opus-4-7 (session running on /srv/repos/external/verivus-oss/agent-assurance, 2026-05-25)"
+initiator_role  = "excluded from standard reviewer set per [policy.roles].initiator_excluded_as_standard_reviewer"
+reviewer_models = ["codex", "gemini", "grok"]
+roster_note     = """
+Mistral / vibe CLI is genuinely absent from this host's PATH (verified
+via `which vibe`, `find /home/werner`, `ls /opt/nodejs/current/lib/node_modules/`).
+User asserted vibe is installed; initiator could not corroborate. The
+panel falls back to three reviewers, same composition as r1's effective
+panel.
+"""
+
+[review_instructions]
+rules_source  = "tools/review-request-dag.toml [policy.*]"
+prompt_path   = "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal-r2/review_prompt.md"
+narrow_scope  = """
+Six dispositions only (B1, B2, B3, R1, R2, R3). For each, classify as
+**closed**, **partial**, or **open** with file:line evidence drawn
+from the actual diff at b7e2472. Approval bases: inspected_code,
+executed_tests_with_output (the validator runs listed in `verify`),
+inspected_docs, persisted_review_evidence.
+"""
+iteration_rule = "If initiator disagrees with a finding, response MUST cite code/doc evidence (file + line), not assertion."
+polling_cadence_seconds = 90
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal-r2/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "terminal_decision.toml",
+]

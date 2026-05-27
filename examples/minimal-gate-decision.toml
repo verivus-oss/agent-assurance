@@ -1,0 +1,30 @@
+# Minimal gate-decision instance.
+# Validator-compatible shape per profiles/agent-assurance/gate-decision-kind.toml.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "gate-decision"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+framework_profile = "agent-assurance"
+title             = "Gate decision: red-team-review case-001"
+created           = "2026-05-21"
+
+[decision]
+verdict                 = "fail"
+evidence_root           = "3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d"
+evidence_root_algorithm = "sha256-merkle-sorted-leaves"
+decided_at              = "2026-05-21T03:14:30Z"
+
+[[decision.cited_bundles]]
+bundle_ref = "examples/minimal-assertion-bundle.toml"
+
+[[decision.failed_constraint_refs]]
+constraint_id = "A-authz-002"
+
+[[decision.override_refs]]
+observation_line = 'A-observed-override-001 = observed(id=ovr-001,asserts=A-authz-002,by=A-thing-signer-alice,time=A-time-002,within=A-scope-gate-G01)'

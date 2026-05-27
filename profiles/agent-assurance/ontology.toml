@@ -1,0 +1,395 @@
+# Agent Assurance Profile — ontology extension.
+#
+# This file declares the entities and attribute vocabularies the Agent
+# Assurance Profile adds on top of the core DAG-TOML ontology
+# (../../core/ontology.toml). It carries its own `ontology_version`
+# that tracks ONLY this profile's vocabulary; the core ontology's
+# `ontology_version` is unaffected by changes here.
+#
+# A machine consumer that loads both the core ontology and this
+# extension sees the complete entity inventory and attribute
+# vocabulary in use across the Agent Assurance Profile's published
+# documents.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "ontology"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+ontology_version  = 1
+framework_profile = "agent-assurance"
+title             = "Agent Assurance Profile ontology extension"
+extends           = "../../core/ontology.toml"
+authoritative_in  = "./overview.md"
+
+# IJB primitive annotations for the per-field semantics of this [meta]
+# table. See spec.md §10.2.
+[meta.ijb_field_primitives]
+framework_profile = { ijb_primitive = "scope",      ijb_class = "structural" }
+template_kind     = { ijb_primitive = "scope",      ijb_class = "structural" }
+schema_version    = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+ontology_version  = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+
+# Pre-publication. `ontology_version = 1` will be the first published
+# version. The version-bump rule below applies only AFTER the first
+# tagged release; during pre-publication drafting, the version stays
+# at 1 and changes are recorded inline in the affected sections.
+
+# ============================================================================
+# PROFILE-DEFINED ENTITIES
+# ============================================================================
+
+[[entities]]
+id_prefix    = "GUAR"
+section      = "contract.guarantees"
+schema       = "spec-contract"
+profile      = "agent-assurance"
+description  = "Measurable guarantee the implementation is held to."
+extensible   = false
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_prefix    = "INV"
+section      = "contract.invariants"
+schema       = "spec-contract"
+profile      = "agent-assurance"
+description  = "Invariant the implementation MUST not violate."
+extensible   = false
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_prefix    = "NG"
+section      = "contract.non_goals"
+schema       = "spec-contract"
+profile      = "agent-assurance"
+description  = "Explicit non-goal of the change."
+extensible   = false
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_prefix    = "THREAT"
+section      = "threats"
+schema       = "threat-model"
+profile      = "agent-assurance"
+description  = "Identified threat to the change or system."
+extensible   = false
+attributes   = ["likelihood", "impact", "residual_risk"]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_prefix    = "SMOKE"
+section      = "checks"
+schema       = "smoke-validation"
+profile      = "agent-assurance"
+description  = "Smoke-validation check entry."
+extensible   = false
+attributes   = ["status"]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_prefix    = "TRIG"
+section      = "rollback.triggers"
+schema       = "rollback-plan"
+profile      = "agent-assurance"
+description  = "Pre-declared rollback trigger condition."
+extensible   = false
+attributes   = ["trigger_kind"]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+# ============================================================================
+# PROFILE-DEFINED ATTRIBUTE VOCABULARIES
+# ============================================================================
+
+[[attribute_vocabularies]]
+attribute   = "trigger_kind"
+applies_to  = "TRIG"
+values      = ["error_rate_threshold", "behavioral_anomaly_detected", "determinism_regression", "perf_regression", "memory_safety_regression", "data_corruption", "windows_ci_regression", "validator_failure", "missing_evidence", "manual_override"]
+extensible  = true
+notes       = "Defined by the Agent Assurance Profile. `windows_ci_regression` is a platform-specific template value; rename per platform when adopting. The `validator_failure`, `missing_evidence`, and `manual_override` values cover spec-authoring and audit-flow rollbacks where the trigger is a tooling outcome rather than a runtime metric. After first publication, adding values bumps THIS profile's ontology_version (not the core ontology_version)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "likelihood"
+applies_to  = "THREAT"
+values      = ["negligible", "low", "medium", "high", "critical"]
+extensible  = false
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "impact"
+applies_to  = "THREAT"
+values      = ["negligible", "low", "medium", "high", "critical"]
+extensible  = false
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "residual_risk"
+applies_to  = "THREAT"
+values      = ["accepted", "mitigated", "open"]
+extensible  = false
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "smoke.decision"
+applies_to  = "smoke-validation"
+values      = ["pass", "fail", "inconclusive"]
+extensible  = false
+notes       = "Applies to the top-level [result].decision field of a smoke-validation file. `applies_to` here names the schema/template_kind because the field lives on a singleton table, not on an id-prefixed entity. By contrast, the `status` vocabulary below uses `applies_to = \"SMOKE\"` because it lives on individual `[[checks]]` entries."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "status"
+applies_to  = "SMOKE"
+values      = ["pass", "fail", "inconclusive"]
+extensible  = false
+notes       = "Per-check status on [[checks]] entries. Same value set as smoke.decision."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ----------------------------------------------------------------------------
+# Vocabularies for adapter-contract, assertion-bundle, gate-decision,
+# assertion-log-record, adapter-registry-binding.
+# ----------------------------------------------------------------------------
+
+[[attribute_vocabularies]]
+attribute   = "runtime_kind"
+applies_to  = "adapter-contract"
+values      = ["wasi-component", "oci-action", "os-sandbox"]
+extensible  = false
+notes       = "Declared runtime family for an adapter. SPEC layer only records the choice; execution is RUNTIME-SPEC."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "runtime_network_policy"
+applies_to  = "adapter-contract"
+values      = ["denied", "loopback-only", "allowlist", "open"]
+extensible  = false
+notes       = "Network capability the runtime must enforce. `denied` MUST mean no socket capability of any kind, including loopback."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "runtime_clock_policy"
+applies_to  = "adapter-contract"
+values      = ["injected", "source-date-epoch", "monotonic-from-zero", "host-wall-clock"]
+extensible  = false
+notes       = "Clock semantics the runtime exposes to the adapter. Determinism-bearing adapters MUST NOT use host-wall-clock."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "input_hash_method"
+applies_to  = "adapter-contract"
+values      = ["sha256-bytes", "sha256-jcs", "sha256-cbor-deterministic"]
+extensible  = true
+notes       = "How an adapter's raw input is canonicalized before hashing. Extensible per ontology rules."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "adapter_id_derivation"
+applies_to  = "adapter-contract"
+values      = ["content-hash", "nonce", "external"]
+extensible  = false
+notes       = "How the adapter derives assertion IDs. `content-hash` is required for reproducibility-bearing adapters."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "gate_decision_verdict"
+applies_to  = "gate-decision"
+values      = ["pass", "fail"]
+extensible  = false
+notes       = "Mechanical gate verdict. Closed two-value enum by design; an override does NOT introduce a third value."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "evidence_root_algorithm"
+applies_to  = "gate-decision"
+values      = ["sha256-merkle-sorted-leaves", "sha256-merkle-index-order"]
+extensible  = true
+notes       = "Algorithm used to compute the evidence root over cited bundle hashes. Extensible per ontology rules."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "record_signature_algorithm"
+applies_to  = "assertion-log-record"
+values      = ["ed25519", "ecdsa-p256"]
+extensible  = true
+notes       = "Signature algorithm for an assertion log record. Algorithm agility per ontology rules."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "record_hash_algorithm"
+applies_to  = "assertion-log-record"
+values      = ["sha256"]
+extensible  = true
+notes       = "Hash algorithm for record / bundle / chain hashes. Algorithm agility per ontology rules."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "record_canonical_form"
+applies_to  = "assertion-log-record"
+values      = ["deterministic-cbor", "rfc8785-jcs"]
+extensible  = true
+notes       = "Canonical serialization used as the input to record hashing."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "registry_scheme"
+applies_to  = "adapter-registry-binding"
+values      = ["file", "https", "oci", "ipfs"]
+extensible  = true
+notes       = "URL scheme of an adapter registry. Custom schemes are added by extending this vocabulary."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "adapter_ref_syntax"
+applies_to  = "adapter-registry-binding"
+values      = ["content-hash", "name-version-pin"]
+extensible  = false
+notes       = "Syntactic shape of an `adapter_ref` string."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ----------------------------------------------------------------------------
+# Vocabularies backing authority constraints (RBAC / ABAC / AIBAC operands).
+# These name the closed operand symbols used inside canonical
+# `constraint(...)` rule= strings authorizing overrides on failed
+# assertions. The rule= grammar is RUNTIME-SPEC; the SPEC layer treats
+# the rule= contents opaquely. These vocabularies declare what tokens
+# RUNTIME-SPEC may legitimately recognize.
+# ----------------------------------------------------------------------------
+
+[[attribute_vocabularies]]
+attribute   = "signer_class"
+applies_to  = "gate-decision"
+values      = ["human", "ai_agent", "service"]
+extensible  = true
+notes       = "Identity class of an override signer. Operand used inside authority constraint rule= strings."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "authority_role"
+applies_to  = "gate-decision"
+values      = ["author", "peer", "team-lead", "release-captain", "security-officer", "auditor"]
+extensible  = true
+notes       = "Role membership of an override signer (RBAC operand)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "severity_tier"
+applies_to  = "gate-decision"
+values      = ["info", "low", "medium", "high", "critical"]
+extensible  = false
+notes       = "Severity classification of a failed assertion (ABAC operand)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "autonomy_tier"
+applies_to  = "gate-decision"
+values      = ["t0", "t1", "t2", "t3"]
+extensible  = true
+notes       = "AI agent autonomy tier (AIBAC operand). Semantics deferred to RUNTIME-SPEC."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "override_decision_method"
+applies_to  = "gate-decision"
+values      = ["single-signer", "m-of-n", "co-signed-human-ai"]
+extensible  = true
+notes       = "How an override is authorized (operand for authority constraint rule= strings)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "override_rule_operator"
+applies_to  = "gate-decision"
+values      = ["=", "!=", "<", "<=", ">", ">=", "IN", "AND", "OR"]
+extensible  = false
+notes       = "Closed operator set permitted inside canonical authority `constraint(...)` rule= strings. The SPEC layer treats rule= contents opaquely; this vocabulary names the operator tokens RUNTIME-SPEC may legitimately recognize."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ----------------------------------------------------------------------------
+# Vocabularies for cross-provider gate-decisions on self-modification.
+# Used by gate-decision INV06 to gate-check that a self-modification
+# `gate-decision` is issued by a different provider AND different model
+# family than the proposing agent. See
+# profiles/agent-assurance/gate-decision-kind.toml [[kind.required_fields]]
+# (decision.subject_class, decision.proposing_provider_id,
+# decision.proposing_model_family_id, decision.deciding_provider_id,
+# decision.deciding_model_family_id) and INV06.
+# ----------------------------------------------------------------------------
+
+[[attribute_vocabularies]]
+attribute   = "subject_class"
+applies_to  = "gate-decision"
+values      = ["downstream-change", "self-modification"]
+extensible  = true
+notes       = "Closed-set categorization of what the gate-decision adjudicates. `self-modification` is the producer-attested marker that the subject of change IS the producer agent's own harness or source; presence of this value triggers gate-decision INV06 (cross-provider attribution required). `downstream-change` is the default category for ordinary gates. Extensible per ontology rules; runtimes adding new categories MUST also state whether the new value triggers INV06."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "provider_id"
+applies_to  = "gate-decision"
+values      = ["anthropic", "openai", "google", "xai", "mistralai", "meta", "deepseek", "qwen", "human", "other"]
+extensible  = true
+notes       = "Closed-but-extensible identifier of the LLM provider or signer class that proposed or decided a gate. Used by INV06 to verify `deciding_provider_id` differs from `proposing_provider_id` on self-modification gate-decisions. Values name the provider organization (or `human` for non-LLM signers, `other` as escape hatch). The SPEC layer treats provider identity opaquely; RUNTIME-SPEC determines how to verify it (e.g., signed attestation, API trace, witness)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "model_family_id"
+applies_to  = "gate-decision"
+values      = ["claude", "gpt", "gemini", "grok", "mistral", "llama", "deepseek", "qwen", "human", "other"]
+extensible  = true
+notes       = "Closed-but-extensible identifier of the underlying model family. Distinct from `provider_id` because one provider can ship multiple unrelated families (e.g., a vendor reselling another lab's weights) and one family can be served by multiple providers (e.g., open-weights deployed at several inference hosts). INV06 requires `deciding_model_family_id` to differ from `proposing_model_family_id`; this prevents two same-family models served by different providers from satisfying the cross-provider rule when they share the same training-data blind spots."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# PROFILE-DEFINED RELATIONS
+# ============================================================================
+#
+# Profile predicates MUST be namespaced per core/ontology.md §3.3
+# ("agent-assurance:<predicate>"). The profile currently introduces no
+# namespaced relation predicates; profile entities participate in the
+# core relations (e.g. `verified_by`) via the conventional patterns
+# documented in the profile's per-kind pages.
+
+# ============================================================================
+# EXTENSION RULES (profile-scoped)
+# ============================================================================
+
+[extension_rules]
+entity_kinds       = "closed_within_profile"
+relation_predicates = "must_be_namespaced_as_agent-assurance:<predicate>"
+version_bump_rule  = "After the first public release, adding a profile entity or attribute value bumps this file's ontology_version. The core ontology's ontology_version is unaffected. Pre-publication, ontology_version stays at 1 while drafts are revised in place."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"

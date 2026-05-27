@@ -1,0 +1,245 @@
+# Kind descriptor for `template_kind = "implementation-dag"`.
+#
+# This file collapses what was previously core/implementation-dag.md.
+# It carries the prose explanation, the required-field rules, and a
+# pointer to the worked example, all in one machine-readable document
+# that LLM agents and humans can both consume.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "kind-descriptor"
+ontology_version  = 1
+title             = "Implementation DAG kind descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+describes_kind    = "implementation-dag"
+authoritative_in  = "this file (collapsed from core/implementation-dag.md)"
+
+[kind]
+name    = "implementation-dag"
+summary = "Machine-readable dependency graph for LLM agent execution."
+prose   = """
+A machine-readable dependency graph that lets multiple agents work the
+same codebase in parallel without stepping on each other.
+
+USE CASES
+
+- Convert a spec or implementation plan into an executable DAG.
+- Coordinate parallel agents with explicit file ownership and conflict
+  detection.
+- Preserve traceable artifact flow from foundation units to final
+  outputs.
+
+ROOT SHAPE
+
+    [meta]
+    schema_version = "0.1.0"
+    template_kind  = "implementation-dag"
+    title          = "<feature-or-project-title>"
+    spec           = "docs/planning/spec.md"
+    decomposition  = "docs/planning/implementation_plan.md"
+    created        = "YYYY-MM-DD"
+    total_units    = 2
+    tier1_units    = ["U01", "U02"]
+    tier2_units    = []
+    tier3_units    = []
+
+UNITS
+
+Each unit is a distinct chunk of work an agent can pick up.
+
+    [units.U01]
+    name           = "<foundation-unit>"
+    summary        = "<first isolated capability>"
+    layer          = 0
+    tier           = 1
+    status         = "pending"
+    depends_on     = []
+    blocks         = ["U02"]
+    estimated_loc  = 120
+    files_modify   = ["src/foundation/mod.rs"]
+    produces       = ["ART:foundation-types"]
+    consumes       = []
+
+ARTIFACT FLOW
+
+Units exchange artifacts via `produces` / `consumes`. Internal
+artifacts use the `ART:` prefix; final deliverables use `OUT:`.
+
+LAYER ORDERING
+
+`layer` is a non-negative integer reflecting topological depth. Layer
+ordering MUST follow dependency ordering: a unit at layer N MUST NOT
+depend on a unit at layer >= N.
+
+QUERY PATTERNS
+
+- Ready to start: units with `status = "pending"` whose direct deps are
+  all `done`.
+- Critical path: longest weighted path through the DAG by
+  `estimated_loc`.
+- Runnable in parallel: pending units sharing no entries in
+  `files_modify`.
+- Conflict check: units sharing entries in `files_modify`.
+- Progress: count(status="done") / count(all units).
+"""
+references = [
+  "spec.md",
+  "core/ontology.toml",
+  "core/ontology.md",
+]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[kind.required_fields]]
+path        = "meta.template_kind"
+must_equal  = "implementation-dag"
+description = "Identifies this file as an implementation DAG."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "units"
+type        = "table"
+description = "At least one unit must be declared."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "units"
+description = "Per-unit declarations keyed by unit id (U01, U02, ...)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "computed"
+description = "Derived summary fields (entry_points, leaf_nodes, critical_path, [computed.max_parallel], loc_totals)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV01"
+statement   = "`blocks` is the exact inverse of direct `depends_on`."
+enforced_by = "validators/validate_implementation_dag.py"
+see_also    = "spec.md#5-hard-invariants"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV02"
+statement   = "Each `ART:` id has exactly one producer unit."
+enforced_by = "validators/validate_implementation_dag.py"
+see_also    = "spec.md#5-hard-invariants"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV03"
+statement   = "Each `consumes` entry matches an existing `produces` entry in another unit of the same document."
+enforced_by = "validators/validate_implementation_dag.py"
+see_also    = "spec.md#5-hard-invariants"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV04"
+statement   = "`layer` ordering follows dependency ordering."
+enforced_by = "validators/validate_implementation_dag.py"
+see_also    = "spec.md#5-hard-invariants"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV05"
+statement   = "`[computed]` values are derived from `units`, never authored by hand. Validators recompute and reject mismatches."
+enforced_by = "validators/validate_implementation_dag.py"
+see_also    = "spec.md#5-hard-invariants"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name           = "minimal two-unit DAG"
+file           = "examples/minimal-implementation-dag.toml"
+inline_summary = "Two units in two layers, one internal artifact flowing from U01 to U02, one final output."
+ijb_primitive = "observed"
+
+[[kind.hard_invariants]]
+id          = "INV06"
+statement   = "Every entity prefix and relation predicate used in this kind's instance files resolves to an `ijb_primitive` declared in the ontology (core plus any active profile)."
+enforced_by = "validators/validate_ijb_conformance.py"
+see_also    = "foundations/ijb/primitives.md"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.relation_to_ontology]
+entities_introduced = ["units", "ART", "OUT"]
+ontology_entries    = "core/ontology.toml [[entities]] section"
+predicates_used     = ["depends_on", "blocks", "produces", "consumes"]
+attribute_vocabularies = ["unit.status"]
+note                = "Allowed values for `unit.status` are governed by core/ontology.toml [[attribute_vocabularies]] (attribute = \"unit.status\"). The `tier` attribute is documented in this descriptor's prose only and is local to the implementation-dag kind. Do not re-declare ontology-owned value sets here."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# An implementation-dag is a plan-decomposition: it declares units to be
+# executed, the artifacts that flow between them, and the derived
+# scheduling shape — it does NOT execute anything itself. Per Reading R1
+# (docs/planning/2026-05-25-spec-13-retrofit-scoping.md §5), this
+# envelope bounds the processing of the descriptor itself (text parse +
+# DAG-shape validation), NOT the runtime capabilities the units it
+# describes may demand. A units' own capability envelope would be
+# declared on its producer kind, not here. Naming the class here binds
+# future implementation-dag producers to the contract; widening this
+# envelope cascade-breaks downstream implementation-dags (per §13.4).
+
+[kind.abstraction_class]
+id          = "plan-decomposition.v1"
+description = "Plan-decomposition artefact: declares `[units.Uxx]` rows (each carrying `layer`, `tier`, `status`, `depends_on`, `blocks`, `produces` / `consumes` of `ART:` and `OUT:` artifacts, `files_modify`, `estimated_loc`) plus a `[computed]` block (entry_points, leaf_nodes, critical_path, [computed.max_parallel], loc_totals) derived deterministically from `units`. Hard invariants: `blocks` is the exact inverse of `depends_on`, each `ART:` has exactly one producer, every `consumes` matches an existing `produces`, `layer` ordering follows dependency ordering, `[computed]` is recomputed and rejected on mismatch. Bounds the descriptor parse only; runtime capabilities of the units described are declared on each unit's producer kind. No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms      = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576  # 1 MB — the descriptor parse + DAG-shape validation is a small categorical workload
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed      = false
+monotonic_clock_allowed = false
+precision_cap_ms        = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

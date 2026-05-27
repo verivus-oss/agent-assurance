@@ -1,0 +1,32 @@
+name: Example or documentation gap
+description: Report missing, stale, or misleading examples or documentation.
+title: "Docs: "
+labels: ["documentation", "triage"]
+body:
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+  - type: input
+    id: location
+    attributes:
+      label: Affected file or topic
+      placeholder: "examples/minimal-traceability.toml, docs/architecture.md"
+    validations:
+      required: true
+  - type: textarea
+    id: gap
+    attributes:
+      label: What is missing or misleading?
+    validations:
+      required: true
+  - type: textarea
+    id: desired
+    attributes:
+      label: What would help?
+      description: Describe the example, diagram, command, or wording that would make this clearer.
+    validations:
+      required: true

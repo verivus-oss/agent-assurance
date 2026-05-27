@@ -1,0 +1,7 @@
+[section]
+step_reference = "agent.responsibilities.factual"
+title = "Factual Accuracy Verification"
+status = "findings"
+
+covered_by_findings = ["FA-001", "FA-002", "FA-003"]
+note = "Findings are recorded in findings/factual_accuracy.toml to avoid duplicating identical evidence."

@@ -1,0 +1,323 @@
+# Round-1 review of SPEC §13 Phase 3 retrofit (procedure-bearing +
+# special across 5 kinds). Phase-terminal: 14/19 -> 19/19.
+#
+# Scope: a single implementation commit landing the final 5 §13 kinds
+# from the previously-approved plan
+# (docs/planning/2026-05-25-spec-13-retrofit-scoping.md). The plan was
+# approved unanimously in
+# docs/reviews/2026-05-25-spec-13-retrofit-scoping-plan-r2/. Phase 1
+# (4 observation-record.v1 kinds) and Phase 2 (9 declaration kinds)
+# are committed and approved at 140bd9e / ec37e7d (P1) and
+# 092bccc / 6b63860 / 8a5e715 (P2).
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-25"
+review_session = "2026-05-25-spec-13-phase-3-procedure-and-special"
+predecessor    = "2026-05-25-spec-13-phase-2-declarations-r2"
+
+[bundle]
+repo_root             = "/srv/repos/external/verivus-oss/agent-assurance"
+parent_commit         = "8a5e715"
+head_commit           = "3749398"
+commit_range          = "8a5e715..3749398"
+total_new_commits     = 1
+description           = """
+Single commit (3749398) landing the Phase 3 retrofit from the
+approved plan. Adds two §13 blocks ([kind.abstraction_class] +
+[kind.capability_envelope], Family A — all 9 domains denied/zeroed,
+100ms CPU, 1MB memory) to the final 5 kind descriptors. Five new
+unique class ids — no shared ids in this phase, so the
+per-kind-description rule (plan §6) is trivially satisfied for all
+five. Plan §7 row 7 + §8 Phase 3 explicitly flagged adapter-contract
+for R1/R2 reviewer challenge.
+
+After this commit, all 19 of 19 blessed kind descriptors declare
+the §13 contract. The follow-up at SPEC.md:1478-1486 is fully
+closed.
+"""
+
+[bundle.plan_lineage]
+plan_path                       = "docs/planning/2026-05-25-spec-13-retrofit-scoping.md"
+plan_approved_in                = "docs/reviews/2026-05-25-spec-13-retrofit-scoping-plan-r2/terminal_decision.toml"
+plan_approval_verdict           = "unanimous unconditional_approval (codex / gemini / grok)"
+phase_3_scope_in_plan           = "§8 Phase 3 (lines 258-266); §5 R1/R2 (lines 109-164); §7 table rows 7, 9, 12, 13, 18"
+phase_1_predecessor_approved    = "docs/reviews/2026-05-25-spec-13-phase-1-observation-record/terminal_decision.toml"
+phase_2_predecessor_approved    = "docs/reviews/2026-05-25-spec-13-phase-2-declarations-r2/terminal_decision.toml"
+cost_record_reference           = "profiles/cost/cost-record-kind.toml:282-327 (Phase 0)"
+phase_1_2_reference_shape       = "the four Phase 1 + nine Phase 2 retrofits are load-bearing examples of the per-kind-description pattern + the R1 envelope-bounds-the-parse pattern"
+
+[bundle.r1_lessons_applied]
+pre_flight_forbidden_phrase_grep = "PASS"
+pre_flight_forbidden_phrase_command = "grep -niE 'forbidden|MUST NOT appear|only in this note|do not (appear|use)|MUST NOT use' on all 5 Phase 3 files"
+pre_flight_forbidden_phrase_result = "no matches in any of the 5 files — the threat-model trap is unique to that one kind"
+phase_2_r1_blocker_lesson = "from docs/reviews/2026-05-25-spec-13-phase-2-declarations/raw_findings/codex.md (the 'risk posture' leak in the §13 header comment, fixed in 6b63860)"
+
+# ----------------------------------------------------------------------
+# Units under review.
+# ----------------------------------------------------------------------
+
+[[bundle.units]]
+id           = "U01"
+commit_sha   = "3749398"
+title        = "Retrofit procedure-declaration.v1 to rollback-plan"
+file         = "profiles/agent-assurance/rollback-plan-kind.toml"
+class_id     = "procedure-declaration.v1"
+class_id_kind_count_after = 1
+summary      = """
+Appended §13 blocks. Description names the [plan] (summary + owner +
+ISO-8601 estimated_ttr), [[triggers]] rows (id + closed-vocabulary
+trigger_kind + metric + threshold + window + action), and
+[procedure].steps. R1 explicit (header comment + description tail):
+the envelope bounds the descriptor parse only; runtime trigger
+evaluation (metric scraping, threshold comparison, paging) and
+procedure-step execution (flag flips, redeploys) are RUNTIME-SPEC
+and lie outside this envelope.
+"""
+verify = [
+  "git show 3749398 -- profiles/agent-assurance/rollback-plan-kind.toml",
+  "python3 validators/validate_abstraction_class.py --repo-root . profiles/agent-assurance/rollback-plan-kind.toml",
+  "grep -n closure_root profiles/agent-assurance/rollback-plan-kind.toml",
+]
+
+[[bundle.units]]
+id           = "U02"
+commit_sha   = "3749398"
+title        = "Retrofit validation-record.v1 to smoke-validation"
+file         = "profiles/agent-assurance/smoke-validation-kind.toml"
+class_id     = "validation-record.v1"
+class_id_kind_count_after = 1
+summary      = """
+Appended §13 blocks. Description names [result] (closed-vocabulary
+decision (smoke.decision vocab) + duration_s + artefact), [[checks]]
+(id (SMOKE: prefix) + title + closed-vocabulary status (status
+applies_to SMOKE) + evidence pointer), plus the cross-field rule
+from INV03 (decision pass/fail/inconclusive derivation from required
+checks). The smoke run that produced the record is executed by a
+separate process; this envelope bounds the recorded descriptor only.
+"""
+verify = [
+  "git show 3749398 -- profiles/agent-assurance/smoke-validation-kind.toml",
+  "python3 validators/validate_abstraction_class.py --repo-root . profiles/agent-assurance/smoke-validation-kind.toml",
+  "grep -n closure_root profiles/agent-assurance/smoke-validation-kind.toml",
+]
+
+[[bundle.units]]
+id           = "U03"
+commit_sha   = "3749398"
+title        = "Retrofit assertion-set.v1 to assertion-bundle"
+file         = "profiles/agent-assurance/assertion-bundle-kind.toml"
+class_id     = "assertion-set.v1"
+class_id_kind_count_after = 1
+summary      = """
+Appended §13 blocks. Description names the sealed ordered
+[[bundle.assertions]] (each .line MUST parse against the IJB ABNF at
+foundations/ijb/CANONICAL-ASSERTION-GRAMMAR.md lines 46-83), plus
+the provenance fields adapter_contract_ref / adapter_version_pin /
+raw_input_hash + bundle_hash (both 64-hex SHA-256) / created_at
+(RFC3339). SPEC-layer parses + checks within-bundle ID uniqueness;
+hash/digest verification is RUNTIME-SPEC per the kind's own INV04.
+"""
+verify = [
+  "git show 3749398 -- profiles/agent-assurance/assertion-bundle-kind.toml",
+  "python3 validators/validate_abstraction_class.py --repo-root . profiles/agent-assurance/assertion-bundle-kind.toml",
+  "grep -n closure_root profiles/agent-assurance/assertion-bundle-kind.toml",
+]
+
+[[bundle.units]]
+id           = "U04"
+commit_sha   = "3749398"
+title        = "Retrofit interface-contract.v1 to adapter-contract (R1; R2 flagged)"
+file         = "profiles/agent-assurance/adapter-contract-kind.toml"
+class_id     = "interface-contract.v1"
+class_id_kind_count_after = 1
+summary      = """
+Appended §13 blocks. This is the kind the plan explicitly flagged
+(§7 row 7 + §8 Phase 3) for potential R1/R2 reviewer pushback. The
+§13 header comment is extra-explicit:
+
+  - R1 (adopted): the envelope bounds the descriptor parse only
+    (text parse + closed-vocabulary checks + ABNF-of-emits +
+    digest-shape checks).
+  - R2 (rejected with reasoning): would have to cover whatever any
+    conforming adapter might require at runtime — either unbounded
+    (LLM adapters need network, sandbox adapters need process_spawn,
+    signing adapters need crypto_keys) or duplicative of the
+    instance-level runtime_* declarations.
+  - The runtime capabilities a deployed adapter is permitted at
+    execution time are declared INSIDE the instance file's [adapter]
+    table (runtime_kind, runtime_network_policy, runtime_clock_policy,
+    runtime_env_allowlist) — NOT in this kind descriptor's envelope.
+
+Plan §5 explicitly chose R1 across the board; plan §8 Phase 3 said
+ship R1 baseline and revisit only on concrete-evidence blocker.
+Reviewers MAY file an R2 blocker IF they can cite evidence in the
+kind's existing prose / required-fields / worked example
+(examples/minimal-adapter-contract.toml) that the spec author
+intended R2.
+"""
+verify = [
+  "git show 3749398 -- profiles/agent-assurance/adapter-contract-kind.toml",
+  "sed -n '185,220p' profiles/agent-assurance/adapter-contract-kind.toml   # the §13 header comment with R1/R2 reasoning",
+  "python3 validators/validate_abstraction_class.py --repo-root . profiles/agent-assurance/adapter-contract-kind.toml",
+  "grep -n closure_root profiles/agent-assurance/adapter-contract-kind.toml",
+  "cat examples/minimal-adapter-contract.toml   # the worked example for context",
+]
+
+[[bundle.units]]
+id           = "U05"
+commit_sha   = "3749398"
+title        = "Retrofit cryptographic-proof.v1 to selective-disclosure-proof"
+file         = "profiles/disclosure/selective-disclosure-proof-kind.toml"
+class_id     = "cryptographic-proof.v1"
+class_id_kind_count_after = 1
+summary      = """
+Appended §13 blocks. Description names [[proofs]] (id SDP: prefix +
+subject + bound_source sha256:<64hex> per INV01 + closed-vocabulary
+proof_scheme per INV02 + covers RED: list per INV03 or proof_artifact
+path). Family A per plan §5 Family-B/C-exceptions paragraph; the
+§13 header comment explicitly cites the codex r1 plan finding that
+caught two earlier-draft defects in a proposed Family C envelope
+(validator-incompatible field names at validate_abstraction_class.py
+:182 and :214; RUNTIME-SPEC scope leakage). Per the kind's own prose
+at lines 61-62: SPEC layer enforces shape only; cryptographic
+verification is RUNTIME-SPEC.
+"""
+verify = [
+  "git show 3749398 -- profiles/disclosure/selective-disclosure-proof-kind.toml",
+  "sed -n '140,170p' profiles/disclosure/selective-disclosure-proof-kind.toml   # the §13 header comment + abstraction_class block",
+  "python3 validators/validate_abstraction_class.py --repo-root . profiles/disclosure/selective-disclosure-proof-kind.toml",
+  "grep -n closure_root profiles/disclosure/selective-disclosure-proof-kind.toml",
+  "sed -n '180,225p' validators/validate_abstraction_class.py   # the validator vocabularies codex r1 cited",
+]
+
+[[bundle.units]]
+id           = "U06"
+commit_sha   = "3749398"
+title        = "All four §13 validators green at 19/19 (PHASE-TERMINAL)"
+summary      = """
+The four plan-§9 verification commands all exit 0:
+  1. validate_abstraction_class.py over all 19 kind descriptors:
+     -> ABSTRACTION-CLASS VALIDATION PASSED (19 file(s) checked;
+        19 declared a §13 block).   [was 14 after Phase 2; PHASE-TERMINAL]
+  2. validate_ijb_conformance.py over all 19: 19 PASS.
+  3. validate_kind_descriptor.py --check-references-exist over 19: 19 PASS.
+  4. validate_closure_root.py --discover . -> CLOSURE-ROOT VALIDATION
+     PASSED (74 file(s)).
+  5. taplo lint over all 19 kind descriptors: clean.
+
+This is plan-compliance text and MUST be independently verified.
+"""
+verify = [
+  "python3 validators/validate_abstraction_class.py --repo-root . core/*-kind.toml profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml profiles/cost/*-kind.toml",
+  "for f in core/*-kind.toml profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml profiles/cost/*-kind.toml; do python3 validators/validate_ijb_conformance.py \"$f\"; done | grep -c 'IJB CONFORMANCE VALIDATION PASSED'",
+  "for f in core/*-kind.toml profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml profiles/cost/*-kind.toml; do python3 validators/validate_kind_descriptor.py \"$f\" --repo-root . --check-references-exist; done | grep -c 'KIND DESCRIPTOR VALIDATION PASSED'",
+  "python3 validators/validate_closure_root.py --discover .",
+  "taplo lint core/*-kind.toml profiles/*/*-kind.toml",
+]
+
+[[bundle.units]]
+id           = "U07"
+commit_sha   = "3749398"
+title        = "Phase 2 r1 lesson applied — no forbidden-phrase leak"
+summary      = """
+Phase 2 r1 caught a 'risk posture' leak in the threat-model §13
+header comment (codex blocker, fixed in 6b63860). For Phase 3 the
+initiator pre-flighted all five files for similar invariants:
+
+  $ for f in profiles/agent-assurance/rollback-plan-kind.toml \\
+             profiles/agent-assurance/smoke-validation-kind.toml \\
+             profiles/agent-assurance/assertion-bundle-kind.toml \\
+             profiles/agent-assurance/adapter-contract-kind.toml \\
+             profiles/disclosure/selective-disclosure-proof-kind.toml; do
+      echo "--- $f ---"
+      grep -niE 'forbidden|MUST NOT appear|only in this note|do not (appear|use)|MUST NOT use' "$f" || echo "(no matches)"
+    done
+
+All five files returned "(no matches)" pre-commit. No
+forbidden-phrase invariants exist in these kinds' existing prose.
+The threat-model trap was unique to that kind. Reviewers MAY re-run
+the pre-flight grep against HEAD to confirm.
+"""
+verify = [
+  "for f in profiles/agent-assurance/rollback-plan-kind.toml profiles/agent-assurance/smoke-validation-kind.toml profiles/agent-assurance/assertion-bundle-kind.toml profiles/agent-assurance/adapter-contract-kind.toml profiles/disclosure/selective-disclosure-proof-kind.toml; do echo \"--- $f ---\"; grep -niE 'forbidden|MUST NOT appear|only in this note|do not (appear|use)|MUST NOT use' \"$f\" || echo \"(no matches)\"; done",
+]
+
+[[bundle.units]]
+id           = "U08"
+commit_sha   = "3749398"
+title        = "closure_root sentinel preserved on all 5 files"
+summary      = """
+Per SPEC §12.11 + plan §9, descriptor's declared closure_root stays
+at the empty sentinel because none cite upstream evidence. The
+sentinel VALUE is what the §12 contract checks; line position varies
+with each file's pre-existing header-comment length (rollback-plan
+line 5; smoke-validation line 5; assertion-bundle line 5;
+adapter-contract line 5; selective-disclosure-proof line 5 — all
+five happen to be at line 5 in Phase 3; the Phase 2 line-5 quibble
+is moot here).
+"""
+verify = [
+  "grep -n 'closure_root' profiles/agent-assurance/rollback-plan-kind.toml profiles/agent-assurance/smoke-validation-kind.toml profiles/agent-assurance/assertion-bundle-kind.toml profiles/agent-assurance/adapter-contract-kind.toml profiles/disclosure/selective-disclosure-proof-kind.toml",
+  "python3 validators/validate_closure_root.py --discover .",
+]
+
+[[bundle.units]]
+id           = "U09"
+commit_sha   = "3749398"
+title        = "Scope discipline — only the 5 kind descriptors + CHANGELOG"
+summary      = """
+git show --stat 3749398 MUST show exactly 6 files modified:
+  - CHANGELOG.md
+  - profiles/agent-assurance/adapter-contract-kind.toml
+  - profiles/agent-assurance/assertion-bundle-kind.toml
+  - profiles/agent-assurance/rollback-plan-kind.toml
+  - profiles/agent-assurance/smoke-validation-kind.toml
+  - profiles/disclosure/selective-disclosure-proof-kind.toml
+
+No SPEC.md, no plan file, no validators, no ontology files, no
+Phase 1 or Phase 2 kind descriptors re-touched.
+"""
+verify = [
+  "git show --stat 3749398",
+  "git diff --name-only 8a5e715..3749398",
+]
+
+[roster]
+initiator       = "claude-opus-4-7 (session running on /srv/repos/external/verivus-oss/agent-assurance, 2026-05-25)"
+initiator_role  = "excluded from standard reviewer set per [policy.roles].initiator_excluded_as_standard_reviewer"
+reviewer_models = ["codex", "gemini", "grok"]
+
+[review_instructions]
+rules_source  = "tools/review-request-dag.toml [policy.*]"
+prompt_path   = "docs/reviews/2026-05-25-spec-13-phase-3-procedure-and-special/review_prompt.md"
+narrow_scope  = """
+Nine units (U01..U09). Each MUST be classified
+complete / incomplete / unverifiable with file:line evidence.
+Approval bases: inspected_code, executed_tests_with_output,
+inspected_docs, persisted_review_evidence. Forbidden bases:
+stated_intent, plan_compliance_claim, should_be_fixed_language.
+
+Special-attention items:
+  - U04 (adapter-contract): R1/R2 reviewer challenge. If a reviewer
+    has byte-level evidence that R2 is the spec author's intent, file
+    a blocker. Otherwise R1 stands per plan §5/§8.
+  - U07 (no forbidden-phrase leak): the Phase 2 r1 lesson is the
+    initiator's pre-flight check. Re-run the grep against HEAD to
+    confirm.
+"""
+iteration_rule = "If initiator disagrees with a finding, response MUST cite code/doc evidence (file + line), not assertion."
+polling_cadence_seconds = 90
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-25-spec-13-phase-3-procedure-and-special/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "terminal_decision.toml",
+]

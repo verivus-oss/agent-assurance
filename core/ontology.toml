@@ -1,0 +1,683 @@
+# Machine-readable companion to core/ontology.md.
+# Tools loading this file get the core entity inventory, the closed core
+# relation vocabulary, and the open-vs-closed extension rules without
+# reading prose.
+#
+# The prose definition in core/ontology.md is authoritative on disagreement.
+# This file MUST be updated in lockstep with that document. An
+# ontology-aware validator SHOULD reject a DAG-TOML document that uses an
+# entity prefix or relation predicate absent from this core file PLUS any
+# profile ontology extension named in the document's `framework_profile`
+# meta field. A validator that loads only this core file MUST scope its
+# rejection rule to documents that carry no `framework_profile`.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version   = "0.1.0"
+template_kind    = "ontology"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+ontology_version = 1
+title            = "DAG-TOML core ontology"
+authoritative_in = "core/ontology.md"
+
+# IJB primitive annotations for the per-field semantics of this [meta]
+# table. See spec.md §10.2. The map values are agent-assurance metadata
+# that mirrors the IJB primitive classification of each field's role.
+[meta.ijb_field_primitives]
+framework_profile = { ijb_primitive = "scope",      ijb_class = "structural" }
+template_kind     = { ijb_primitive = "scope",      ijb_class = "structural" }
+schema_version    = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+ontology_version  = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+confidentiality   = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+license           = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+embargo_until     = { ijb_primitive = "time" }
+
+# ============================================================================
+# ENTITIES
+# ============================================================================
+#
+# Every [[entities]] block is an IJB structural Thing: it declares a
+# kind of thing that exists in DAG-TOML documents. The corresponding
+# instance facts (per-document entity declarations such as
+# `[[requirements]]`, `[[checks]]`, ...) are `thing/instance` per
+# spec.md §10.2.
+
+[[entities]]
+id_prefix    = "INT"
+section      = "intents"
+schema       = "traceability"
+description  = "User or business intent. Top of the trace."
+extensible   = false
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_prefix    = "FEAT"
+section      = "features"
+schema       = "traceability"
+description  = "User-visible capability or feature."
+extensible   = false
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_prefix    = "REQ"
+section      = "requirements"
+schema       = "traceability"
+description  = "Normative, testable requirement."
+extensible   = false
+attributes   = ["requirement_kind", "priority"]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_prefix    = "REG"
+section      = "regulations"
+schema       = "traceability"
+description  = "Legal, policy, or regulatory obligation."
+extensible   = false
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_prefix    = "DEC"
+section      = "decisions"
+schema       = "traceability"
+description  = "Design or policy decision."
+extensible   = false
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_prefix    = "IMP"
+section      = "implementations"
+schema       = "traceability"
+description  = "Implementation work package."
+extensible   = false
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_prefix    = "CODE"
+section      = "code"
+schema       = "traceability"
+description  = "Concrete code artifact (file plus optional symbol)."
+extensible   = false
+required_attributes = ["path"]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_prefix    = "TEST"
+section      = "tests"
+schema       = "traceability"
+description  = "Verification artifact."
+extensible   = false
+required_attributes = ["path"]
+attributes   = ["test_kind"]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_prefix    = "OUT"
+section      = "outputs"
+schema       = "traceability"
+description  = "User-visible output or deliverable. Shared prefix with implementation-DAG terminal outputs."
+extensible   = false
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_pattern   = "U\\d+[a-z]?"
+section      = "units"
+schema       = "implementation-dag"
+description  = "Implementation-DAG unit."
+extensible   = false
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_prefix    = "ART"
+section      = "units.*.produces"
+schema       = "implementation-dag"
+description  = "Internal artifact flowing between DAG units."
+extensible   = false
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_pattern   = "A\\d+"
+section      = "artifact_classes"
+schema       = "readiness-gate"
+description  = "Review artifact class."
+extensible   = false
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_pattern   = "G\\d+"
+section      = "gates"
+schema       = "readiness-gate"
+description  = "Readiness gate keyed to one artifact class."
+extensible   = false
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_pattern   = "C\\d+"
+section      = "contracts"
+schema       = "contract-declaration"
+description  = "Declared contract."
+extensible   = false
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_pattern   = "E\\d+"
+section      = "claims"
+schema       = "evidence-matrix"
+description  = "Strong review claim."
+extensible   = false
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_pattern   = "EV\\d+"
+section      = "evidence"
+schema       = "evidence-matrix"
+description  = "Proof artifact."
+extensible   = false
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[entities]]
+id_pattern   = "M\\d+"
+section      = "matrix"
+schema       = "evidence-matrix"
+description  = "Claim ↔ evidence linkage row."
+extensible   = false
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+# ============================================================================
+# RELATIONS  (closed vocabulary for the core ontology)
+# ============================================================================
+#
+# Every [[relations]] block is an IJB structural Path: it declares
+# what edges may exist between entity kinds. Instance edges in
+# DAG-TOML documents (`verified_by = [...]`, `consumes = [...]`, ...)
+# are `path/instance` per spec.md §10.2.
+
+[[relations]]
+predicate    = "derived_from"
+source       = ["INT"]
+targets      = ["INT"]
+cardinality  = "0..*"
+inverse      = ""
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "realized_by"
+source       = ["INT"]
+targets      = ["FEAT", "REQ"]
+cardinality  = "0..*"
+inverse      = "realizes"
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "realizes"
+source       = ["FEAT", "CODE", "OUT"]
+targets      = ["INT", "IMP", "REQ", "FEAT"]
+cardinality  = "0..*"
+inverse      = "realized_by"
+notes        = "FEAT targets INT; CODE targets IMP and REQ; OUT targets FEAT and INT."
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "constrained_by"
+source       = ["FEAT"]
+targets      = ["REQ", "REG"]
+cardinality  = "0..*"
+inverse      = "constrains"
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "implemented_by"
+source       = ["FEAT"]
+targets      = ["IMP"]
+cardinality  = "0..*"
+inverse      = "implements"
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "produces"
+source       = ["FEAT", "units"]
+targets      = ["OUT", "ART"]
+cardinality  = "0..*"
+inverse      = ""
+notes        = "FEAT targets OUT; DAG units target ART and OUT."
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "constrains"
+source       = ["REQ", "REG"]
+targets      = ["FEAT", "IMP", "REQ"]
+cardinality  = "0..*"
+inverse      = "constrained_by"
+notes        = "REQ targets FEAT and IMP. REG targets REQ and IMP (regulations bind requirements, not features directly). Inverse `constrained_by` only applies to the FEAT side."
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "verified_by"
+source       = ["REQ", "REG"]
+targets      = ["TEST"]
+cardinality  = "0..*"
+inverse      = "verifies"
+notes        = "Entity-typed traceability variant. Contracts also use a field named `verified_by` but that is free-form and is declared separately in the review-readiness section below."
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "addresses"
+source       = ["DEC"]
+targets      = ["REQ", "REG"]
+cardinality  = "0..*"
+inverse      = ""
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "shapes"
+source       = ["DEC"]
+targets      = ["IMP", "CODE"]
+cardinality  = "0..*"
+inverse      = ""
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "supersedes"
+source       = ["DEC", "contracts"]
+targets      = ["DEC", "contracts"]
+cardinality  = "0..*"
+inverse      = ""
+notes        = "Target entity kind MUST match source. Chains MUST be acyclic."
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "implements"
+source       = ["IMP"]
+targets      = ["FEAT", "REQ"]
+cardinality  = "0..*"
+inverse      = "implemented_by"
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "guided_by"
+source       = ["IMP"]
+targets      = ["DEC"]
+cardinality  = "0..*"
+inverse      = ""
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "code"
+source       = ["IMP"]
+targets      = ["CODE"]
+cardinality  = "0..*"
+inverse      = ""
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "tests"
+source       = ["IMP"]
+targets      = ["TEST"]
+cardinality  = "0..*"
+inverse      = ""
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "downstream_outputs"
+source       = ["IMP"]
+targets      = ["OUT"]
+cardinality  = "0..*"
+inverse      = ""
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "verifies"
+source       = ["TEST"]
+targets      = ["REQ", "REG"]
+cardinality  = "0..*"
+inverse      = "verified_by"
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "depends_on"
+source       = ["units"]
+targets      = ["units"]
+cardinality  = "0..*"
+inverse      = "blocks"
+notes        = "MUST be the exact inverse of `blocks`."
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "blocks"
+source       = ["units"]
+targets      = ["units"]
+cardinality  = "0..*"
+inverse      = "depends_on"
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "consumes"
+source       = ["units"]
+targets      = ["ART"]
+cardinality  = "0..*"
+inverse      = ""
+notes        = "Each entry MUST match an existing `produces` entry."
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+# ----------------------------------------------------------------------------
+# Review-readiness relations (mirrors validate_review_readiness.py LINK_FIELDS)
+# ----------------------------------------------------------------------------
+
+[[relations]]
+predicate    = "artifact_class"
+source       = ["gates"]
+targets      = ["artifact_classes"]
+cardinality  = "1"
+inverse      = ""
+notes        = "Singular — each gate is keyed to exactly one artifact class."
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "depends_on"
+source       = ["contracts"]
+targets      = ["contracts"]
+cardinality  = "0..*"
+inverse      = ""
+notes        = "Distinct from the DAG-unit `depends_on` predicate; both share the field name."
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "supersedes"
+source       = ["contracts"]
+targets      = ["contracts"]
+cardinality  = "0..*"
+inverse      = ""
+notes        = "Contracts-scoped variant of `supersedes`; the DEC-scoped variant is declared above. Chains MUST be acyclic."
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "related_to"
+source       = ["contracts"]
+targets      = ["contracts"]
+cardinality  = "0..*"
+inverse      = ""
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "applies_to"
+source       = ["contracts"]
+targets      = ["unconstrained_label"]
+cardinality  = "0..*"
+inverse      = ""
+notes        = "Free-form label set; not validated against an entity table."
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "verified_by"
+source       = ["contracts"]
+targets      = ["unconstrained_label"]
+cardinality  = "0..*"
+inverse      = ""
+notes        = "Contract `verified_by` is free-form; the traceability `verified_by` (REQ/REG -> TEST) is the entity-typed variant above."
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "claim"
+source       = ["matrix"]
+targets      = ["claims"]
+cardinality  = "1"
+inverse      = ""
+notes        = "Singular. The truth-source validator also accepts the alias `claim_id`; see the separate entry below."
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "claim_id"
+source       = ["matrix"]
+targets      = ["claims"]
+cardinality  = "1"
+inverse      = ""
+alias_for    = "claim"
+notes        = "Accepted alias of `claim`. Declared as a separate relation so machine consumers reading this file see every field name the truth-source validator accepts."
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "evidence"
+source       = ["matrix"]
+targets      = ["evidence"]
+cardinality  = "1"
+inverse      = ""
+notes        = "Singular. The truth-source validator also accepts the alias `evidence_id`; see the separate entry below."
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+[[relations]]
+predicate    = "evidence_id"
+source       = ["matrix"]
+targets      = ["evidence"]
+cardinality  = "1"
+inverse      = ""
+alias_for    = "evidence"
+notes        = "Accepted alias of `evidence`. Declared as a separate relation so machine consumers reading this file see every field name the truth-source validator accepts."
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+# ----------------------------------------------------------------------------
+# Closure-root relation (cross-document upstream-evidence marker; SPEC §12)
+# ----------------------------------------------------------------------------
+
+[[relations]]
+predicate    = "cites_upstream"
+source       = ["unconstrained_label"]
+targets      = ["unconstrained_label"]
+cardinality  = "0..*"
+inverse      = ""
+notes        = "Cross-kind marker that a field in a `*-kind.toml` descriptor carries an upstream artifact reference (SHA-256 digest, document URI, signed-envelope pointer) that MUST flow into the document's root-level `closure_root` digest per SPEC §12.1. Kind descriptors apply this label via `[[kind.required_fields]].ontology_mapping = \"cites_upstream\"` (or the analogous mapping inside `[[kind.required_sections]]`). The relation is intentionally typed against `unconstrained_label` on both sides — concrete artifact entity kinds are profile-defined, but the closure-root rule fires uniformly across every conforming kind."
+ijb_primitive = "path"
+ijb_class     = "structural"
+
+# ============================================================================
+# ATTRIBUTE VOCABULARIES
+# ============================================================================
+#
+# Every [[attribute_vocabularies]] block is an IJB structural
+# Constraint: it declares a closed (or extensible) value set that
+# restricts what an attribute may take. Per-instance attribute values
+# (`priority = "must"`, `decision = "pass"`) are `observed/instance`
+# per spec.md §10.2.
+
+[[attribute_vocabularies]]
+attribute   = "requirement_kind"
+applies_to  = "REQ"
+values      = ["functional", "non_functional", "policy", "interface", "performance", "correctness", "operational"]
+extensible  = true
+notes       = "Profiles MAY add values. After first publication, additions bump ontology_version."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "test_kind"
+applies_to  = "TEST"
+values      = ["unit", "integration", "e2e", "audit", "property", "robustness", "benchmark"]
+extensible  = true
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "priority"
+applies_to  = "REQ"
+values      = ["must", "should", "could"]
+extensible  = false
+default     = "must"
+notes       = "Used by release-train policy packs to decide what may slip versus what blocks a cut."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "unit.status"
+applies_to  = "units"
+values      = ["pending", "in_progress", "done", "blocked", "deferred"]
+extensible  = false
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "review.status"
+applies_to  = "readiness-gate"
+values      = ["draft", "blocked", "ready", "in_review", "rereview_needed"]
+extensible  = false
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ----------------------------------------------------------------------------
+# Disclosure-posture vocabularies (spec.md §2.7).
+# `confidentiality` is closed by design; `license` is intentionally
+# free-form (the SPDX list moves faster than this spec). Their
+# IJB classification is `constraint/policy` because the values are
+# declared postures the SPEC layer does not act on — editors, CI
+# mirrors, control planes, and auditors do.
+# ----------------------------------------------------------------------------
+
+[[attribute_vocabularies]]
+attribute   = "confidentiality"
+applies_to  = "meta"
+values      = ["public", "restricted", "confidential", "trade-secret", "embargoed"]
+extensible  = false
+notes       = "Closed set per spec.md §2.7. The value `embargoed` REQUIRES the companion `[meta].embargo_until` RFC 3339 field; that cross-field requirement is enforced by validators recognising the field but is not encoded as a separate vocabulary entry."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "policy"
+
+[[attribute_vocabularies]]
+attribute   = "license"
+applies_to  = "meta"
+values      = []
+extensible  = true
+notes       = "Intentionally free-form. SHOULD be an SPDX identifier or `LicenseRef-…` prefix per spec.md §2.7. The SPDX list changes faster than this spec; validators MUST treat the value as an opaque declared posture and MUST NOT resolve it against an external registry."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "policy"
+
+# ----------------------------------------------------------------------------
+# Profile-namespace partition (spec.md §2.5 namespacing rules) and the
+# `[provenance.encryption]` sub-table shape (spec.md §11.1). Recorded
+# here so a machine consumer that loads only the ontology sees the
+# closed sets that bound the partition.
+# ----------------------------------------------------------------------------
+
+[[attribute_vocabularies]]
+attribute   = "framework_profile_namespace"
+applies_to  = "meta"
+values      = ["spec-reserved", "reverse-dns"]
+extensible  = false
+notes       = "Closed partition per SPEC §2.5. `spec-reserved` covers unprefixed kebab-case names spec-reserved by this spec; `reverse-dns` covers everything else (third-party / private). The value sits in the `profile-descriptor` `[profile].namespace` field, not in instance file metadata directly."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "policy"
+
+[[attribute_vocabularies]]
+attribute   = "provenance.encryption.hash_is_over"
+applies_to  = "provenance"
+values      = ["plaintext", "ciphertext"]
+extensible  = false
+notes       = "Closed set per SPEC §11.1. Determines whether the standard SHA-256 + byte-length recomputation in `validate_provenance.py` applies (ciphertext) or is downgraded to advisory (plaintext)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "closure_root.digest_algorithm"
+applies_to  = "document_root"
+values      = ["sha256", "sha384", "sha512"]
+extensible  = true
+notes       = "Closed-for-now set of digest algorithms permitted as the prefix on a root-level `closure_root` field (SPEC §12.1). Extension is reserved for stronger / post-quantum digests as they become widely deployed; weaker algorithms (MD5, SHA-1) are forbidden by the spec text and MUST NOT be added. The closure-root rule is independent of the digest choice — only the algorithm tag in the field's value is bounded here."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "capability_envelope.domain"
+applies_to  = "kind_descriptor"
+values      = [
+  "filesystem",
+  "sockets",
+  "http",
+  "clocks",
+  "random",
+  "environment",
+  "process_spawn",
+  "ipc",
+  "crypto_keys",
+]
+extensible  = false
+notes       = "Closed set of capability-domain sub-table names legal under `[kind.capability_envelope]` in any `*-kind.toml` descriptor (SPEC §13.3). Drawn from WASI Preview 2 WIT interfaces for portability across enforcement backends (Linux seccomp+landlock, FreeBSD Capsicum, macOS sandbox-exec, Wasmtime). A descriptor that uses a sub-table name outside this set is structurally invalid. Adding a new domain is a SPEC amendment that bumps `schema_version`. A domain whose sub-table is missing from a descriptor is treated as denied — fail-closed default per SPEC §13.9."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute   = "abstraction_class.id_pattern"
+applies_to  = "kind_descriptor"
+values      = ["<slug>.v<integer>"]
+extensible  = false
+notes       = "The shape (not the value set) of `[kind.abstraction_class].id` per SPEC §13.2. `<slug>` is producer-attested free-form; the `v<integer>` suffix is REQUIRED and monotonic. This vocabulary intentionally enumerates the *pattern* rather than the *values* — the value space is open by design (producers declare their own taxonomy) but the shape is closed (the `v<integer>` versioning enables consumers to reject class-version drift via the SPEC §12 closure-root cascade)."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# EXTENSION RULES
+# ============================================================================
+#
+# The extension-rules table is an IJB structural Constraint: it bounds
+# what evolutions of the ontology are permitted. The block carries
+# `ijb_primitive` / `ijb_constraint_type` consistent with that role.
+
+[extension_rules]
+entity_kinds       = "open"
+relation_predicates = "closed_in_core_profiles_may_namespace"
+attribute_vocabularies_default = "see_each_entry_extensible_field"
+extensible_attributes = ["requirement_kind", "test_kind"]
+closed_attributes     = ["priority", "unit.status", "review.status"]
+profile_attributes    = "trigger_kind and all other profile-defined attributes (e.g. THREAT likelihood/impact/residual_risk, smoke decision) live in profile ontology extensions; see profiles/agent-assurance/ontology.toml."
+version_bump_rule     = "After the first public release: adding a value to an extensible CORE attribute bumps the core ontology_version; adding a new CORE attribute or a new CORE entity kind bumps the core ontology_version; adding a new relation predicate to the CORE is a breaking change and bumps both ontology_version and schema_version major; profile-side changes bump the PROFILE ontology_version only and never the core. Pre-publication, ontology_version stays at 1 while drafts are revised in place."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[extension_rules.profile_namespace]
+format  = "<profile-slug>:<predicate>"
+example = "agent-assurance:mitigates"
+notes   = "Profile-defined predicates MUST be namespaced. They are not part of the core relation vocabulary above."

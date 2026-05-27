@@ -1,0 +1,81 @@
+# U10 — final gate decision.
+#
+# Per tools/review-request-dag.toml [policy.completion]: the initiator
+# MUST NOT mark any DAG unit complete unless either (a) reviewer
+# evidence for that unit exists or (b) the unit is explicitly queued
+# for review. This file is the formal gate decision closing the
+# multi-reviewer session.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-gate-decision"
+created        = "2026-05-23"
+review_session = "2026-05-23-spec-12-closure-root"
+commit_under_review = "20c620797d243da8ef929d9e829f3c4b4fc03244"
+
+# ----------------------------------------------------------------------
+# Decision
+# ----------------------------------------------------------------------
+[decision]
+verdict  = "approved"
+basis    = "unconditional_approval_by_codex_round_3_against_clean_archive_of_head"
+binding_evidence = "docs/reviews/2026-05-23-spec-12-closure-root/raw_findings/codex-r3.md"
+binding_verbatim = "UNCONDITIONAL APPROVAL — every prior blocker is resolved, and the clean committed tree at 20c620797d243da8ef929d9e829f3c4b4fc03244 passes python3 validators/validate_closure_root.py --discover . with CLOSURE-ROOT VALIDATION PASSED (65 file(s))."
+
+# ----------------------------------------------------------------------
+# Reviewer roster (final, round 3)
+# ----------------------------------------------------------------------
+[roster]
+reviewers_dispatched = ["codex", "grok"]
+reviewers_completed  = ["codex", "grok"]
+reviewers_skipped    = ["mistral"]
+mistral_skip_reason  = "vibe CLI not installed locally; gateway has no install pathway. User chose to proceed with two reviewers."
+
+# ----------------------------------------------------------------------
+# Final verdicts at round 3
+# ----------------------------------------------------------------------
+[verdicts]
+codex = "unconditional_approval"
+grok  = "concrete_unresolvable_blockers"
+
+[verdicts.note]
+text = "The split is methodological, not substantive. Both reviewers ran the same CI command (`python3 validators/validate_closure_root.py --discover .`). Codex ran it against a clean archive of HEAD (= what CI sees on `main`): exit 0, 65 conforming files passed. Grok ran it against the local working tree (which includes 5 untracked user-work files outside this commit's scope): exit 1, 5 failures. The user (initiator) adjudicated codex's clean-archive verdict as binding because CI on the public branch operates on a clean checkout, not on developer working trees. Full adjudication record in terminal_decision.toml [methodology_split]."
+
+# ----------------------------------------------------------------------
+# Acceptance criteria for closing the session
+# ----------------------------------------------------------------------
+[acceptance]
+unit_classifications_complete = true   # see unit_classifications.toml
+process_confirmations_complete = true  # see process_confirmations.toml
+rebuttals_recorded             = true  # see rebuttal_record.md
+terminal_state_reached         = true  # codex unconditional_approval
+all_blockers_resolved_or_documented = true
+# Per policy.completion.no_unit_complete_without_reviewer_evidence_or_queued_status:
+# Every DAG unit under review has reviewer evidence in raw_findings/ for at
+# least one round; the substantive content was approved on its own merits
+# by codex round 3.
+
+# ----------------------------------------------------------------------
+# Cumulative commit range that constitutes the approved deliverable
+# ----------------------------------------------------------------------
+[deliverable]
+parent_commit = "638a90e8a0dc68c3e4aa8dfa29b51f6466d435fe"
+head_commit   = "20c620797d243da8ef929d9e829f3c4b4fc03244"
+commits_in_range = [
+  "bc2a7c5ae0bb411f2d38698afb71abd0a1887739",  # initial §12 fold
+  "dc3a7b04b6f9a8c0a5c2c2d5a48e0c80fc44e95c",  # round 1 grok-fix follow-up
+  "5c145c8af372fc73bae972d3b731b8b79a25c059",  # round 1 codex-fix
+  "20c620797d243da8ef929d9e829f3c4b4fc03244",  # round 2 fix (this commit's parent's parent at session close)
+]
+files_changed_count = 78
+ci_at_head = "green (validate_closure_root --discover . exits 0 with 65 conforming files; manifest drift OK)"
+
+# ----------------------------------------------------------------------
+# Open items (recorded, not blocking)
+# ----------------------------------------------------------------------
+[open_items_for_follow_up]
+fu01 = { title = "Make validator --discover git-aware", severity = "low", evidence = "terminal_decision.toml [[open_issues]] FU01" }
+fu02 = { title = "User's 5 untracked working-tree files would need closure_root if committed", severity = "advisory", evidence = "terminal_decision.toml [[open_issues]] FU02" }

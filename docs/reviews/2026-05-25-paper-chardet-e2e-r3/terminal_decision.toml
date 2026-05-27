@@ -1,0 +1,105 @@
+# Round-3 terminal decision for 2026-05-25-paper-chardet-e2e-r3.
+# Gemini filed a new B3-class blocker: paper/main.tex:1020-1025 (§10.3
+# introductory sentence) contains the same global "scipy/numpy"
+# overclaim that r2 closed at the Conclusion. Codex and grok both
+# approved — their grep patterns missed the "scipy AND numpy" variant
+# (only matched "scipy / numpy" slash form), so they did not see the
+# stale claim that gemini's broader 'scipy|numpy' grep surfaced.
+# Bytes-verified by Claude: gemini is correct. Mechanical prose fix
+# warranted; r4 will re-verify.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-paper-chardet-e2e-r3"
+predecessor    = "2026-05-25-paper-chardet-e2e-r2"
+head_commit    = "4fbc906"
+
+[scope]
+unit                = "B3-conclusion closure + regression on r2-closed B1+B2+B3 substrate + r1-closed P-surfaces"
+verification_report = "docs/reviews/2026-05-25-paper-chardet-e2e-r3/verification_report.toml"
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "unconditional_approval"
+classification = "Conclusion closed; grep recipe too narrow — missed §10.3 intro"
+blocker_count  = 0
+raw_findings   = "raw_findings/codex.md"
+note           = "Codex ran the verification_report's verify_by:2 literally (`grep -nE 'scipy ?/ ?numpy'`); that pattern only matches the slash form. The §10.3 intro overclaim uses 'scipy AND numpy' (and-form), which codex's grep did not surface. Substantively the review process was correct — recipe-literal execution is what we asked for — but the recipe needed to enumerate the 'and' variant. Audit-trail responsibility lies with the verification_report author (Claude), not codex."
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "concrete_unresolvable_blocker"
+classification = "Caught new B3-class overclaim at §10.3 intro"
+blocker_count  = 1
+raw_findings   = "raw_findings/gemini.md"
+note           = "Gemini's grep was broader (`'scipy|numpy'`) and surfaced the §10.3 intro sentence at :1020-1025: 'we cross-validated each number against an independent re-implementation in scipy and numpy'. Same defect class as the r2 conclusion overclaim. Bytes-verified by Claude (sed -n '1019,1060p' paper/main.tex) — gemini is correct."
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "unconditional_approval"
+classification = "Read the bytes; assessed §10.3 intro as acceptable because subsequent paragraph corrects it"
+blocker_count  = 0
+raw_findings   = "raw_findings/grok.md"
+note           = "Grok's broad 'scipy|numpy' grep DID surface line 1024-1025; grok read the surrounding paragraph and concluded the framing was acceptable because the C06e paragraph that follows describes its actual validation accurately. Grok's interpretation is 'context redeems framing'; gemini's interpretation is 'audit-grade prose requires the framing itself to be accurate'. The spec-ethos position (security/legal-grade system per the user's framing) sides with gemini: a global claim in an intro sentence is exactly the kind of overclaim a legal reviewer reads first. The framing must stand on its own."
+
+[blockers]
+
+[[blockers.items]]
+id        = "B3-section10.3-overclaim"
+filer     = "gemini"
+severity  = "concrete (prose)"
+location  = "paper/main.tex:1022-1025 (§10.3 introductory sentence)"
+defect    = """
+The §10.3 introductory sentence reads: 'we cross-validated each number
+against an independent re-implementation in scipy and numpy'. This is
+the same class of global-scope overclaim that B3 (r2) closed at the
+Conclusion. It is false for C06e (validated via stdlib digest + subprocess
+to fingerprint_behavior.py, not scipy/numpy) and partially overstated
+for AUX1 (corpus digest is stdlib hashlib, not scipy/numpy).
+
+The subsequent paragraph correctly describes C06e's actual validation
+path, but the introductory framing precedes that correction and is what
+a legal-tier reviewer reads first. Codex's grep recipe missed the
+variant ('scipy and numpy' vs 'scipy / numpy'); the substrate is wrong,
+not the codex review process.
+"""
+remediation = """
+Scope the §10.3 intro sentence to AUX1+C06a-d explicitly, then let the
+C06e paragraph stand on its own as the second validation path — matching
+the structural pattern used in the new Conclusion sentence (which r3
+unanimously approved).
+
+Proposed replacement (one-sentence edit at paper/main.tex:1022-1025):
+
+  Old: 'we cross-validated each number against an independent
+        re-implementation in scipy and numpy'
+
+  New: 'we cross-validated AUX1 and the C06a--d results against an
+        independent re-implementation in scipy and numpy (with C06e
+        handled separately via stdlib digest re-derivation and a
+        subprocess to fingerprint\\_behavior.py, described below)'
+
+This matches the Conclusion's scoping discipline exactly and closes
+the recipe-literal version of the same defect class.
+"""
+
+[decision]
+outcome              = "concrete_unresolvable_blocker"
+unanimous            = false
+verdict_distribution = { unconditional_approval = 2, concrete_unresolvable_blocker = 1 }
+binding              = "concrete_unresolvable_blocker (gemini's bytes-verified finding is correct; codex/grok missed it via grep-pattern-narrowness/context-redeems-framing interpretations respectively). Resolution: apply the prose fix in r4."
+session_terminal     = false
+next_action          = "Apply §10.3 intro prose fix per blocker remediation; dispatch r4 paper-chardet review with verification_report that explicitly enumerates BOTH 'scipy / numpy' AND 'scipy and numpy' grep variants."
+
+[session_close]
+closed_at = "2026-05-25"
+closed_by = "consolidated reviewer verdicts at raw_findings/{codex,gemini,grok}.md + Claude byte-verification of gemini's finding"
+followup_notes = [
+  "Lesson for verification_report authors: prose-scope grep recipes must enumerate the FULL alternation pattern, not just the form that triggered the predecessor blocker. r2's blocker was the slash form, so r3's recipe defaulted to slash-only. The 'and' form was the surviving instance. r4's recipe will use `grep -nE 'scipy[[:space:]]*(/|and)[[:space:]]*numpy'` or equivalent.",
+  "Gemini-vs-codex/grok delta is interesting: gemini's pattern-broader approach won here; codex's recipe-literal approach won at r2 (the --help string check). Neither is uniformly better — they catch different defect classes. Three reviewers is the right number; reduce to two and you lose this lattice.",
+  "Substrate-wise: validate_numbers.py + corpus-digest + recompute_c06e_rates + SKIP + §10.3 C06e paragraph + Conclusion all closed. Remaining defect is one introductory sentence (~1 line of prose).",
+]

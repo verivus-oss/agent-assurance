@@ -1,0 +1,263 @@
+# Round-1 review of SPEC §13 Phase 1 retrofit
+# (observation-record.v1 across four kinds).
+#
+# Scope: a single implementation commit landing the four Phase 1 kinds
+# from the previously-approved plan
+# (docs/planning/2026-05-25-spec-13-retrofit-scoping.md, approved
+# unanimously in docs/reviews/2026-05-25-spec-13-retrofit-scoping-plan-r2/).
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-25"
+review_session = "2026-05-25-spec-13-phase-1-observation-record"
+predecessor    = "2026-05-25-spec-13-retrofit-scoping-plan-r2"
+
+[bundle]
+repo_root             = "/srv/repos/external/verivus-oss/agent-assurance"
+parent_commit         = "c63c57a"
+head_commit           = "140bd9e"
+commit_range          = "c63c57a..140bd9e"
+total_new_commits     = 1
+description           = """
+Single commit (140bd9e) landing the Phase 1 retrofit from the approved
+plan. Adds two §13 blocks ([kind.abstraction_class] +
+[kind.capability_envelope], Family A — all 9 domains denied/zeroed,
+100ms CPU, 1MB memory) to four kind descriptors. Each kind's
+[kind.abstraction_class].description is kind-specific and names the
+kind's own structural shape (per the per-kind-description rule in plan
+§6, lines 201-209). The shared id `observation-record.v1` is a
+producer-attested role label, not a byte-level shape contract.
+"""
+
+[bundle.plan_lineage]
+plan_path                    = "docs/planning/2026-05-25-spec-13-retrofit-scoping.md"
+plan_approved_in             = "docs/reviews/2026-05-25-spec-13-retrofit-scoping-plan-r2/terminal_decision.toml"
+plan_approval_verdict        = "unanimous unconditional_approval (codex / gemini / grok)"
+phase_1_scope_in_plan        = "§8 Phase 1 (lines 239-249); §9 verification commands (lines 268-313); §7 table rows 2, 10, 11, 17"
+cost_record_reference        = "profiles/cost/cost-record-kind.toml:282-327 (the only kind declaring §13 prior to this commit)"
+
+# ----------------------------------------------------------------------
+# Units under review.
+# ----------------------------------------------------------------------
+
+[[bundle.units]]
+id           = "U01"
+commit_sha   = "140bd9e"
+title        = "Retrofit observation-record.v1 to evidence-matrix"
+file         = "core/evidence-matrix-kind.toml"
+summary      = """
+Appended [kind.abstraction_class] + [kind.capability_envelope] blocks
+after [kind.relation_to_ontology]. The kind-specific description names
+the three connected tables ([[claims]], [[evidence]], [[matrix]]) per
+the kind's own [[kind.required_sections]] (lines 90-106 of the pre-commit
+file). Envelope is Family A.
+"""
+verify = [
+  "git show 140bd9e -- core/evidence-matrix-kind.toml",
+  "sed -n '155,225p' core/evidence-matrix-kind.toml",
+  "python3 validators/validate_abstraction_class.py --repo-root . core/evidence-matrix-kind.toml",
+  "grep -n closure_root core/evidence-matrix-kind.toml   # MUST still show the empty-closure sentinel at line 5",
+]
+
+[[bundle.units]]
+id           = "U02"
+commit_sha   = "140bd9e"
+title        = "Retrofit observation-record.v1 to gate-decision"
+file         = "profiles/agent-assurance/gate-decision-kind.toml"
+summary      = """
+Appended [kind.abstraction_class] + [kind.capability_envelope] blocks
+after [kind.relation_to_ontology]. The kind-specific description names
+the verdict, evidence_root, cited_bundles / failed_constraint_refs /
+override_refs citations, and decided_at timestamp per the kind's own
+[[kind.required_fields]] (lines 81-117 of the pre-commit file).
+Envelope is Family A.
+"""
+verify = [
+  "git show 140bd9e -- profiles/agent-assurance/gate-decision-kind.toml",
+  "sed -n '175,250p' profiles/agent-assurance/gate-decision-kind.toml",
+  "python3 validators/validate_abstraction_class.py --repo-root . profiles/agent-assurance/gate-decision-kind.toml",
+  "grep -n closure_root profiles/agent-assurance/gate-decision-kind.toml   # MUST still show the empty-closure sentinel",
+]
+
+[[bundle.units]]
+id           = "U03"
+commit_sha   = "140bd9e"
+title        = "Retrofit observation-record.v1 to assertion-log-record"
+file         = "profiles/agent-assurance/assertion-log-record-kind.toml"
+summary      = """
+Appended [kind.abstraction_class] + [kind.capability_envelope] blocks
+after [kind.relation_to_ontology]. The kind-specific description names
+index, prev_hash, bundle_hash, signer_id, signature, closed-vocabulary
+algorithm/canonical-form fields, and the RFC3339 timestamp per the
+kind's own [[kind.required_fields]] (lines 81-147 of the pre-commit
+file). Envelope is Family A. The header comment is explicit that
+signature verification, prev_hash chain checks, and timestamp
+corroboration are RUNTIME-SPEC and lie outside this envelope —
+consistent with the kind's existing INV04 (lines 170-175 pre-commit).
+"""
+verify = [
+  "git show 140bd9e -- profiles/agent-assurance/assertion-log-record-kind.toml",
+  "sed -n '195,275p' profiles/agent-assurance/assertion-log-record-kind.toml",
+  "python3 validators/validate_abstraction_class.py --repo-root . profiles/agent-assurance/assertion-log-record-kind.toml",
+  "grep -n closure_root profiles/agent-assurance/assertion-log-record-kind.toml   # MUST still show the empty-closure sentinel",
+]
+
+[[bundle.units]]
+id           = "U04"
+commit_sha   = "140bd9e"
+title        = "Retrofit observation-record.v1 to redaction-manifest"
+file         = "profiles/disclosure/redaction-manifest-kind.toml"
+summary      = """
+Appended [kind.abstraction_class] + [kind.capability_envelope] blocks
+after [kind.relation_to_ontology]. The kind-specific description names
+the [[redactions]] entries' subject, locator, closed-vocabulary
+redaction_method and redaction_reason, and the conditional notes
+requirement when reason='other' (per INV01..INV03 at lines 89-114 of
+the pre-commit file). Envelope is Family A. The header comment is
+explicit that cryptographic verification that the published bytes
+match the source modulo the listed redactions is delegated to the
+matching selective-disclosure-proof and is RUNTIME-SPEC.
+"""
+verify = [
+  "git show 140bd9e -- profiles/disclosure/redaction-manifest-kind.toml",
+  "sed -n '140,215p' profiles/disclosure/redaction-manifest-kind.toml",
+  "python3 validators/validate_abstraction_class.py --repo-root . profiles/disclosure/redaction-manifest-kind.toml",
+  "grep -n closure_root profiles/disclosure/redaction-manifest-kind.toml   # MUST still show the empty-closure sentinel",
+]
+
+[[bundle.units]]
+id           = "U05"
+commit_sha   = "140bd9e"
+title        = "All four §13 validators green"
+summary      = """
+The four §9 verification commands from the plan all exit 0:
+  1. validate_abstraction_class.py --repo-root . core/*-kind.toml
+     profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml
+     profiles/cost/*-kind.toml
+     -> ABSTRACTION-CLASS VALIDATION PASSED (19 file(s) checked;
+        5 declared a §13 block).   [was 1 before the commit]
+  2. validate_ijb_conformance.py over all 19 kind descriptors: PASS.
+  3. validate_kind_descriptor.py --repo-root . --check-references-exist
+     over all 19: PASS.
+  4. validate_closure_root.py --discover .
+     -> CLOSURE-ROOT VALIDATION PASSED (74 file(s)).
+  5. taplo lint over all 19 kind descriptors: clean.
+
+This is plan-compliance claim text and MUST be independently verified by
+reviewers against repo bytes.
+"""
+verify = [
+  "python3 validators/validate_abstraction_class.py --repo-root . core/*-kind.toml profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml profiles/cost/*-kind.toml",
+  "for f in core/*-kind.toml profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml profiles/cost/*-kind.toml; do python3 validators/validate_ijb_conformance.py \"$f\"; done",
+  "for f in core/*-kind.toml profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml profiles/cost/*-kind.toml; do python3 validators/validate_kind_descriptor.py \"$f\" --repo-root . --check-references-exist; done",
+  "python3 validators/validate_closure_root.py --discover .",
+  "taplo lint core/*-kind.toml profiles/*/*-kind.toml",
+]
+
+[[bundle.units]]
+id           = "U06"
+commit_sha   = "140bd9e"
+title        = "Per-kind-description rule satisfied"
+summary      = """
+Plan §6 requires that kinds sharing a class id MUST each declare a
+kind-specific [kind.abstraction_class].description that ties back to
+their own [[kind.required_fields]] / [[kind.required_sections]]. The
+reference shape is cost-record's description at
+profiles/cost/cost-record-kind.toml:284 (\"closed-vocabulary
+categorical dimensions + integer quantities\"). The four new
+descriptions:
+
+  - evidence-matrix:     names the three connected [[claims]],
+                         [[evidence]], [[matrix]] tables.
+  - gate-decision:       names verdict, evidence_root, cited_bundles /
+                         failed_constraint_refs / override_refs
+                         citations, decided_at.
+  - assertion-log-record: names index, prev_hash, bundle_hash,
+                          signer_id, signature, signature_algorithm,
+                          hash_algorithm, canonical_form, timestamp.
+  - redaction-manifest:   names [[redactions]] entries with subject,
+                          locator, closed-vocabulary redaction_method,
+                          redaction_reason (+ conditional notes for
+                          reason='other').
+
+All five (including cost-record) share id = 'observation-record.v1'.
+No two share a description string. This MUST be verified by reviewers
+against the diff bytes.
+"""
+verify = [
+  "grep -n 'observation-record.v1' core/*-kind.toml profiles/*/*-kind.toml profiles/cost/*-kind.toml profiles/disclosure/*-kind.toml",
+  "grep -nE '^description ' core/evidence-matrix-kind.toml profiles/agent-assurance/gate-decision-kind.toml profiles/agent-assurance/assertion-log-record-kind.toml profiles/disclosure/redaction-manifest-kind.toml profiles/cost/cost-record-kind.toml",
+]
+
+[[bundle.units]]
+id           = "U07"
+commit_sha   = "140bd9e"
+title        = "closure_root sentinel preserved on all four files"
+summary      = """
+Per SPEC §12.11 + plan §9, kind descriptors that cite no upstream
+evidence emit the canonical empty-closure sentinel
+sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+both before and after this commit. The descriptor file's SHA-256
+changes (new bytes); the declared closure_root value does not. The §12
+validator confirms this empirically at 74 file(s) PASS.
+"""
+verify = [
+  "grep -n 'closure_root' core/evidence-matrix-kind.toml profiles/agent-assurance/gate-decision-kind.toml profiles/agent-assurance/assertion-log-record-kind.toml profiles/disclosure/redaction-manifest-kind.toml",
+  "python3 validators/validate_closure_root.py --discover .",
+]
+
+[[bundle.units]]
+id           = "U08"
+commit_sha   = "140bd9e"
+title        = "Scope discipline — only the four kind descriptors + CHANGELOG"
+summary      = """
+git show --stat 140bd9e MUST show exactly 5 files changed:
+  - CHANGELOG.md
+  - core/evidence-matrix-kind.toml
+  - profiles/agent-assurance/assertion-log-record-kind.toml
+  - profiles/agent-assurance/gate-decision-kind.toml
+  - profiles/disclosure/redaction-manifest-kind.toml
+
+No SPEC.md, no plan file, no validators, no ontology files, no other
+kind descriptors. Per plan §11 \"Out of scope\" and the kickoff
+prompt's explicit OUT OF SCOPE list:
+  - SPEC.md is NOT modified.
+  - docs/planning/2026-05-25-spec-13-retrofit-scoping.md is NOT modified.
+  - The other 13 kinds (Phases 2 + 3) are NOT touched.
+  - ISS-005 (SPEC §13.4 vs §12.1 tension) is NOT addressed.
+"""
+verify = [
+  "git show --stat 140bd9e",
+  "git diff --name-only c63c57a..140bd9e",
+]
+
+[roster]
+initiator       = "claude-opus-4-7 (session running on /srv/repos/external/verivus-oss/agent-assurance, 2026-05-25)"
+initiator_role  = "excluded from standard reviewer set per [policy.roles].initiator_excluded_as_standard_reviewer"
+reviewer_models = ["codex", "gemini", "grok"]
+
+[review_instructions]
+rules_source  = "tools/review-request-dag.toml [policy.*]"
+prompt_path   = "docs/reviews/2026-05-25-spec-13-phase-1-observation-record/review_prompt.md"
+narrow_scope  = """
+Eight units (U01..U08). Each MUST be classified
+complete / incomplete / unverifiable with file:line evidence.
+Approval bases: inspected_code, executed_tests_with_output,
+inspected_docs, persisted_review_evidence. Forbidden bases:
+stated_intent, plan_compliance_claim, should_be_fixed_language.
+"""
+iteration_rule = "If initiator disagrees with a finding, response MUST cite code/doc evidence (file + line), not assertion."
+polling_cadence_seconds = 90
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-25-spec-13-phase-1-observation-record/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "terminal_decision.toml",
+]

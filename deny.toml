@@ -1,0 +1,95 @@
+# cargo-deny policy for every crate under tools/*-rs.
+#
+# This file is consumed by the EmbarkStudios/cargo-deny-action steps in
+# .github/workflows/validate.yml — see the "Rust license + ban..." steps
+# near the end of the workflow. Each Rust crate (tools/dagtoml-validate-rs,
+# tools/toml-test-decode-rs, tools/dagtoml-duckdb, tools/dagtoml-rdf) is
+# scanned against this same policy.
+#
+# Four sections enforced:
+#   [advisories]  — RustSec advisory DB (complements cargo-audit)
+#   [bans]        — forbidden crates + multiple-version policy
+#   [licenses]    — allowlist (permissive only; no GPL family)
+#   [sources]     — registry allowlist (crates.io only, no git deps)
+
+[graph]
+all-features = true
+# Target audit at Linux x86_64 — that's the only platform CI runs on and
+# the only target our primary validators are shipped for today. Expand
+# this when we add ARM or macOS targets.
+targets = [
+    { triple = "x86_64-unknown-linux-gnu" },
+]
+
+[output]
+feature-depth = 1
+
+# ---------------------------------------------------------------------
+# Advisories
+# ---------------------------------------------------------------------
+[advisories]
+# Reject any RustSec advisory whose status is not explicitly waived
+# below. Yanked crates are also rejected; they're a strong signal of
+# upstream intent to remove the version.
+version = 2
+yanked = "deny"
+ignore = []
+
+# ---------------------------------------------------------------------
+# Bans
+# ---------------------------------------------------------------------
+[bans]
+# Multiple versions of the same crate inflate compile time, advisory
+# surface, and audit cost. "warn" means we emit but don't fail; flip to
+# "deny" once the dep graph stabilises.
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
+# allow-wildcards-in-private exists for path/git deps in internal
+# workspaces; we have none.
+allow = []
+deny = []
+skip = []
+skip-tree = []
+
+# ---------------------------------------------------------------------
+# Licenses
+# ---------------------------------------------------------------------
+[licenses]
+# Allowlist only — anything outside this list fails the build.
+# Rationale: the validator triad is Apache-2.0-licensed and intended
+# for use in commercial agent-assurance pipelines; GPL-family licenses
+# would impose copyleft on downstream users.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "MPL-2.0",
+    "Zlib",
+    "CC0-1.0",
+]
+confidence-threshold = 0.93
+
+[[licenses.exceptions]]
+# Document any per-crate exceptions here. Keep empty until needed; each
+# exception is a policy choice that should be reviewed.
+allow = []
+name = "PLACEHOLDER-CRATE-NAME"
+version = "*"
+
+# ---------------------------------------------------------------------
+# Sources
+# ---------------------------------------------------------------------
+[sources]
+# Reject crates pulled from any source not in this allowlist. The only
+# entry is crates.io; supply-chain hygiene means we don't pull from
+# arbitrary git URLs.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

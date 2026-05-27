@@ -1,0 +1,28 @@
+[section]
+step_reference = "review_steps.step2"
+title = "Verify Factual Accuracy"
+status = "findings"
+
+[[findings]]
+id = "FA-001"
+step_reference = "review_steps.step2"
+quoted_document_part = '''llm_disclosure_location_verified_against_current_arxiv_policy = true   # see claim-analysis findings for paper/'''
+problem_explanation = "The trusted reference corpus provided for this review does not contain current arXiv LLM disclosure policy text. This claim is not fact-checkable from the supplied ground truth."
+suggested_fix = "Add the current official arXiv AI/LLM disclosure policy to trusted_sources, or mark this invariant as external/current-policy-dependent."
+severity = "major"
+
+[[findings]]
+id = "FA-002"
+step_reference = "review_steps.step2"
+quoted_document_part = '''Verify (a) exit 0, (b) 'Label(s) may have changed' appears then is resolved, (c) no '??' or 'undefined reference' in final PDF'''
+problem_explanation = "A clean compile does not necessarily require the specific warning 'Label(s) may have changed' to appear. The reliable requirement is that final labels/citations are resolved."
+suggested_fix = "Require final absence of unresolved-reference warnings in the log and visible unresolved markers in the PDF; record rerun warnings if present."
+severity = "minor"
+
+[[findings]]
+id = "FA-003"
+step_reference = "review_steps.step2"
+quoted_document_part = '''Add arXiv YYMM.NNNNN ids where missing.'''
+problem_explanation = "The supplied reference corpus supports bibliography hygiene, updating journal references, and checking bib text/style, but does not establish adding arXiv IDs as a required arXiv submission condition."
+suggested_fix = "Make arXiv ID insertion an optional bibliography enhancement requiring author/operator approval, not a mandatory compatibility gate."
+severity = "minor"

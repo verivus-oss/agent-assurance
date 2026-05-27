@@ -1,0 +1,189 @@
+# Kind descriptor for `template_kind = "spec-contract"`.
+# Agent Assurance Profile artifact. Collapses spec-contract.md.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "kind-descriptor"
+ontology_version  = 1
+title             = "Spec contract kind descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+describes_kind    = "spec-contract"
+framework_profile = "agent-assurance"
+authoritative_in  = "this file (collapsed from profiles/agent-assurance/spec-contract.md)"
+
+[kind]
+name    = "spec-contract"
+summary = "Machine-checkable contract the implementation is held to. Source of truth for what was promised."
+prose   = """
+A spec contract is the source of truth for what was promised. The
+implementation, tests, and review evidence are checked against it.
+
+ROOT SHAPE
+
+    [meta]
+    schema_version    = "0.1.0"
+    template_kind     = "spec-contract"
+    framework_profile = "agent-assurance"
+    title             = "Spec contract for <feature>"
+    spec_doc          = "docs/planning/01_spec.md"
+    created           = "YYYY-MM-DD"
+
+    [contract]
+    summary = "..."
+
+    [[contract.guarantees]]
+    id            = "GUAR:checkout-tax-correct"
+    statement     = "Cart totals include the correct tax for the customer's billing jurisdiction."
+    measurable_by = ["TEST:checkout::totals::with_tax"]
+
+    [[contract.non_goals]]
+    id        = "NG:tax-engine-replacement"
+    statement = "This change does not replace the upstream tax engine."
+
+    [[contract.invariants]]
+    id          = "INV:no-double-charge"
+    statement   = "A successful checkout MUST NOT charge the customer more than once."
+    enforced_by = ["CODE:src/checkout/idempotency.rs"]
+
+LINKING BACK
+
+Every `GUAR:` SHOULD be referenced from at least one `REQ:` in the
+traceability file, and every `INV:` SHOULD be enforced by at least one
+`CODE:` reference. Validators MAY warn on dangling guarantees and
+unverified invariants.
+"""
+references = [
+  "spec.md",
+  "profiles/agent-assurance/ontology.toml",
+  "core/ontology.toml",
+]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[kind.required_fields]]
+path        = "meta.template_kind"
+must_equal  = "spec-contract"
+description = "Identifies this file as a spec contract."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path        = "meta.framework_profile"
+must_equal  = "agent-assurance"
+description = "Spec contract is an Agent Assurance Profile artifact."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "contract.guarantees"
+description = "At least one measurable guarantee."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "contract.invariants"
+description = "At least one invariant the implementation must enforce."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV01"
+statement   = "Every `GUAR:` SHOULD be referenced from at least one `REQ:` in the matching traceability file."
+enforced_by = "validators/validate_spec_contract.py (planned)"
+see_also    = "profiles/agent-assurance/ontology.toml [[entities]] GUAR / INV / NG"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV02"
+statement   = "Every `INV:` SHOULD be enforced by at least one `CODE:` reference (or explicitly waived)."
+enforced_by = "validators/validate_spec_contract.py (planned)"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name           = "minimal spec contract"
+file           = "examples/minimal-spec-contract.toml"
+inline_summary = "Two guarantees, two non-goals, two invariants, all tied to the tax-receipt example."
+ijb_primitive = "observed"
+
+[[kind.hard_invariants]]
+id          = "INV03"
+statement   = "Every entity prefix and relation predicate used in this kind's instance files resolves to an `ijb_primitive` declared in the ontology (core plus any active profile)."
+enforced_by = "validators/validate_ijb_conformance.py"
+see_also    = "foundations/ijb/primitives.md"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.relation_to_ontology]
+entities_introduced = ["GUAR", "INV", "NG"]
+ontology_entries    = "profiles/agent-assurance/ontology.toml [[entities]] (profile section)"
+predicates_used     = ["measurable_by", "enforced_by"]
+note                = "GUAR / INV / NG are profile entities; declared in the profile ontology extension, not core."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# A spec-contract is declarative-policy-of-promises: it is the source of
+# truth for what was promised, against which implementation, tests, and
+# review evidence are checked. It MUST NOT, at the kind layer, become a
+# transport for arbitrary capability assertions. Naming the class here
+# binds future spec-contract producers to the contract; widening the
+# envelope cascade-breaks downstream spec-contracts (per §13.4). Three
+# kinds share the `policy-declaration.v1` class id (contract-declaration,
+# readiness-gate, spec-contract); each carries its own kind-specific
+# description tying back to its own [[kind.required_sections]] /
+# [[kind.required_fields]].
+
+[kind.abstraction_class]
+id          = "policy-declaration.v1"
+description = "Declarative policy artefact: enumerates `[[contract.guarantees]]` (each `GUAR:` id tied to one or more `measurable_by` test references), `[[contract.non_goals]]` (each `NG:` id naming an explicit exclusion), and `[[contract.invariants]]` (each `INV:` id tied to one or more `enforced_by` code references). Cross-document linkage: each `GUAR:` SHOULD be referenced from at least one `REQ:` in the matching traceability file, and each `INV:` SHOULD be enforced by at least one `CODE:` reference. No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms      = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576  # 1 MB — a spec contract is a small categorical document
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed      = false
+monotonic_clock_allowed = false
+precision_cap_ms        = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

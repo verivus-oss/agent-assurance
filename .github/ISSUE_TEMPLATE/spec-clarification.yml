@@ -1,0 +1,42 @@
+name: Spec clarification
+description: Report ambiguous, contradictory, or incomplete specification text.
+title: "Clarification: "
+labels: ["spec", "triage"]
+body:
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: This is about the DAG-TOML specification, not a runtime implementation.
+          required: true
+  - type: input
+    id: location
+    attributes:
+      label: Affected section or file
+      placeholder: "spec.md#5-hard-invariants, core/traceability-kind.toml"
+    validations:
+      required: true
+  - type: textarea
+    id: ambiguity
+    attributes:
+      label: What is unclear?
+      description: Describe the text or rule that could be read more than one way.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Why does it matter?
+      description: Explain the implementation, validation, or interoperability consequence.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Suggested clarification
+      description: Optional wording or examples that would resolve the ambiguity.
+    validations:
+      required: false

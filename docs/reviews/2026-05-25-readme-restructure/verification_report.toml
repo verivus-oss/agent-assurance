@@ -1,0 +1,214 @@
+# Verification report (corrective-program spec) for the README
+# restructure at commit b759eaf. This document is the authoritative
+# enumeration of WHAT THE PRIOR README WAS WRONG ABOUT and WHAT THE
+# NEW README MUST CORRECT. Reviewers verify the post-commit state
+# against each closure entry by reading bytes, not by accepting the
+# initiator's summary.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version  = "1.0.0"
+template_kind   = "verification-report"
+created         = "2026-05-25"
+review_session  = "2026-05-25-readme-restructure"
+initiator       = "claude-opus-4-7"
+predecessor_blob = "bc2a7c5:README.md"   # the prior README state
+postcondition_blob = "b759eaf:README.md" # the README state to verify
+
+[program]
+intent = """
+Bring the public-facing README into line with the post-§13 /
+multi-profile state of the repository. The previous README was
+last touched at bc2a7c5 (SPEC §12 era) and predates SPEC §13
+(abstraction-class + capability-envelope), the cost + disclosure
+profiles, INV06, the safe-Rust + safe-Go primary validators with
+the toml-test parser-conformance harnesses, the agent-assurance
+deployment tiers (solo→enterprise), and the calendar-UTC release
+tag convention. The corrective program is a comprehensive refresh
+that: drops the 'after the repository is made public' premise,
+re-groups Start Here by reader role, adds first-class pointers to
+the missing surfaces, ships a Validation tooling subsection
+describing the safe-Rust + safe-Go + Python triad, and rewrites
+the Local Validation block with the full workflow.
+"""
+non_intent = """
+The commit does NOT add new normative content, change schema
+versions, modify any *-kind.toml descriptor, ontology file,
+validator, example, or DAG-TOML instance. It documents the
+existing state of the repository at commit b759eaf. Reviewers
+who file blockers based on objections to that existing state
+(e.g., disagreement with SPEC §13's existence, with the multi-
+profile model, with the deployment-tier ladder) are filing the
+WRONG REVIEW. Such objections belong on the underlying SPEC /
+profile commit, not on a documentation refresh.
+"""
+
+# ----------------------------------------------------------------------
+# Closure list: each item names a specific defect in the prior README
+# (bc2a7c5:README.md) and the byte-level correction the new README
+# (b759eaf:README.md) is supposed to ship. Reviewers MUST verify the
+# correction byte-for-byte.
+# ----------------------------------------------------------------------
+
+[[closures]]
+id        = "C01"
+defect    = "Prior README §Status said: 'The first public release tag will be cut after the repository is made public; see GOVERNANCE.md#releases.' This is now factually false — release tag v2026-05-25T03-30-02Z was cut while the repo is private."
+correction = "New README §Status drops the 'after public' premise entirely. Replaces it with a calendar-UTC tag-convention statement plus a pointer to CLAUDE.md's two-version-pins policy and SPEC §8 versioning."
+verify_by = """
+1. `git show bc2a7c5:README.md | grep -n 'after the repository is made public'`
+   should return a hit; verify the wrong sentence existed.
+2. `grep -nE 'after.*made public' README.md` on b759eaf should return
+   zero hits.
+3. `grep -n 'calendar-versioned UTC' README.md` should return a hit.
+4. `git tag --list 'v*'` should return at least one tag matching the
+   v<YYYY-MM-DD>T<HH-MM-SS>Z pattern.
+"""
+
+[[closures]]
+id        = "C02"
+defect    = "Prior README Repository Map listed only `dagtoml-rdf, dagtoml-duckdb` under tools/, missing dagtoml-validate-rs (primary Rust validator), dagtoml-validate-go (primary Go validator), dagtoml-rdf-go, dagtoml-duckdb-go, and toml-test-decode-rs. Also missing the top-level Makefile."
+correction = "New README Repository Map enumerates all 7 tools/* subdirectories and the Makefile, with one-line descriptions per entry."
+verify_by = """
+1. `ls -d tools/*/` should list 7 subdirectories.
+2. Each subdirectory name should appear in the README Repository Map.
+3. `Makefile` (top-level) should appear in the Repository Map.
+4. `grep -c '^tools/' README.md` should match (or exceed by 1 for
+   trailing whitespace) the count from step 1.
+"""
+
+[[closures]]
+id        = "C03"
+defect    = "Prior README Start Here table did NOT include first-class pointers to SPEC §13 (abstraction-class + capability-envelope), the cost profile, the disclosure profile, the agent-assurance deployment tiers, or INV06."
+correction = "New README Start Here is grouped by reader role (understand / author / enforce / implement). The 'enforce' subgroup adds rows for SPEC §12 closure-root, SPEC §13 abstraction-class, agent-assurance tiers (solo→enterprise), INV06, cost profile, and disclosure profile."
+verify_by = """
+1. `grep -nE 'SPEC\\.md#12|SPEC\\.md#13|INV06|profiles/cost|profiles/disclosure|tiers/README' README.md`
+   should return at least 6 distinct hits.
+2. The string 'INV06' should appear at least once.
+3. The string 'tiers/README.md' should appear at least once.
+4. The grouping headers ('If you want to understand', 'author',
+   'enforce', 'implement') should all appear as h3 (### ).
+"""
+
+[[closures]]
+id        = "C04"
+defect    = "Prior README Local Validation block listed only three Python validator invocations. Did not mention Taplo lint, the primary Rust + Go validators, the IJB-conformance validator, the closure-root validator (SPEC §12), the abstraction-class validator (SPEC §13), or the toml-test parser-conformance harnesses (Makefile targets)."
+correction = "New README Local Validation block ships the full developer workflow: pip install, Taplo lint, build of both primary validators, parser conformance via `make toml-conformance-all`, per-validator spot-checks against canonical examples, IJB conformance, closure-root, abstraction-class."
+verify_by = """
+1. The Local Validation block should reference all of: `taplo lint`,
+   `cargo build --release` (twice — once per primary), `go build`,
+   `make toml-conformance-install`, `make toml-conformance-all`,
+   `validate_ijb_conformance`, `validate_closure_root`,
+   `validate_abstraction_class`.
+2. The cited python files should exist under validators/.
+3. The cited make targets should exist in the top-level Makefile.
+"""
+
+[[closures]]
+id        = "C05"
+defect    = "Prior README implied a single validator with no parser-conformance signal. Did not describe the Rust + Go + Python triad or its rationale."
+correction = "New README adds a 'Validation tooling' section with a four-row table (Syntax / Parser conformance / Primary / Reference) describing the triad. The 'why a triad' paragraph states the rationale: spec is for security/legal-grade artifacts; one implementation cannot self-vouch."
+verify_by = """
+1. The section heading `## Validation tooling` should exist.
+2. A table under it should reference 'Taplo', 'toml-lang/toml-test',
+   '#![forbid(unsafe_code)]', 'unsafe-free', and 'cross-check'.
+3. The 'one implementation cannot self-vouch' rationale paragraph
+   should be present.
+"""
+
+[[closures]]
+id        = "C06"
+defect    = "Prior README Status table did not list the cost + disclosure profiles. Both have been blessed with schema_version=1.0.0 and exist under profiles/cost/ and profiles/disclosure/."
+correction = "New README Status table includes rows for 'Cost Profile schema' and 'Disclosure Profile schema', both at 1.0.0, Release candidate."
+verify_by = """
+1. The Status table should contain rows for 'Cost Profile schema'
+   and 'Disclosure Profile schema'.
+2. `cat profiles/cost/PROFILE.toml | grep schema_version` should
+   show 1.0.0.
+3. `cat profiles/disclosure/PROFILE.toml | grep schema_version`
+   should show 1.0.0.
+"""
+
+[[closures]]
+id        = "C07"
+defect    = "Prior README §Governance described the maintainer-led process but did not surface the multi-LLM independent-review requirement at tools/review-request-dag.toml for substantive SPEC/core/profile/validator changes."
+correction = "New README §Governance adds an explicit sentence calling out the tools/review-request-dag.toml policy for substantive changes."
+verify_by = """
+1. `grep -n 'review-request-dag.toml' README.md` should return a hit
+   in the Governance section.
+2. `cat tools/review-request-dag.toml | head -20` should show this is
+   a real file at the cited path.
+"""
+
+# ----------------------------------------------------------------------
+# Out-of-scope: defects NOT addressed by this commit. A reviewer who
+# files one of these as a blocker is wrong on scope.
+# ----------------------------------------------------------------------
+
+[out_of_scope]
+items = [
+  "SPEC.md itself — not modified by this commit; objections to its content belong on a SPEC commit.",
+  "Profile contents (agent-assurance, cost, disclosure) — not modified by this commit.",
+  "Validator source code — not modified by this commit.",
+  "Example DAG-TOML instances — not modified by this commit.",
+  "The CHANGELOG.md entries enumerating prior work — not added or changed by this commit (the README change does not touch CHANGELOG).",
+  "The schema_version=1.0.0 pin across files — that is a SPEC §8 + CLAUDE.md policy decision, not a README defect.",
+  "The decision to use calendar-UTC tags instead of semver — that policy was set at v2026-05-25T03-30-02Z; objections belong on that release commit.",
+]
+
+# ----------------------------------------------------------------------
+# Forbidden vs required approval bases (mirrors
+# tools/review-request-dag.toml [policy.approval]).
+# ----------------------------------------------------------------------
+
+[approval]
+forbidden_bases = [
+  "stated_intent",                 # "the README intends to..."
+  "plan_compliance_claim",         # "it matches the verification report"
+  "should_be_fixed_language",      # "this should be fixed eventually"
+]
+required_bases = [
+  "inspected_code",                # actually read the file under review
+  "executed_tests_with_output",    # ran the commands the README cites
+  "inspected_docs",                # cross-checked against SPEC / profiles
+  "persisted_review_evidence",     # findings file is written to disk verbatim
+]
+terminal_states = [
+  "unconditional_approval",
+  "concrete_unresolvable_blocker",
+]
+
+# ----------------------------------------------------------------------
+# Iteration rule for initiator-reviewer disagreements.
+# ----------------------------------------------------------------------
+
+[iteration]
+initiator_rebuttal_rule = """
+If the initiator (claude-opus-4-7) disagrees with any reviewer
+finding, the rebuttal MUST cite code or documentation evidence
+(file:line), not assertion. A rebuttal without file:line evidence
+fails: the original finding stands and the reviewer's verdict is
+binding.
+"""
+termination_rule = """
+Iterate dispatch → review → rebuttal → re-review until every
+reviewer either issues unconditional_approval OR files a concrete
+blocker that cannot be resolved (e.g., a contract collision the
+initiator cannot fix without re-opening an already-approved
+predecessor commit). Iteration is bounded by the budget the
+initiator can defend in writing.
+"""
+
+# ----------------------------------------------------------------------
+# Pointers reviewers MUST read before starting.
+# ----------------------------------------------------------------------
+
+[reading_order]
+1 = "docs/reviews/2026-05-25-readme-restructure/verification_report.toml (this file)"
+2 = "docs/reviews/2026-05-25-readme-restructure/review_bundle.toml"
+3 = "docs/reviews/2026-05-25-readme-restructure/review_prompt.md"
+4 = "README.md (the file under review)"
+5 = "git show bc2a7c5:README.md (the prior state, for diff context)"
+6 = "git show --stat 1f08dea..b759eaf (the commit range)"
+7 = "tools/review-request-dag.toml [policy.*] (binding policy)"

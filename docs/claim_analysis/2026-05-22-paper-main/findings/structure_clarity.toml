@@ -1,0 +1,56 @@
+# U03 — Document Review Prompt step 1.
+#   "Scan for Structure and Clarity"
+# Imperative: check organisation, logical flow, consistent language,
+# tone, formatting; flag ambiguities, inconsistencies, missing
+# sections, readability issues.
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "claim-analysis-finding-set"
+unit           = "U03"
+step           = "step1"
+title          = "Scan for Structure and Clarity"
+document       = "paper/main.tex@9664be061e4bc8493de2e5054d3c3d61737bd666e56077b9856c19585dbde306"
+
+[summary]
+total_findings   = 4
+severity_counts  = { high = 0, medium = 1, low = 3 }
+section_outcome  = "minor"
+
+# ---------------------------------------------------------------------------
+
+[[finding]]
+id                    = "S1-F01"
+step_reference        = "step1"
+severity              = "medium"
+quoted_document_part  = """Two of the three reviewers returned unconditional approval after one or two iteration rounds."""
+location              = "paper/main.tex:1179-1180 (section sec:llm-review)"
+problem_explanation   = """The sentence is ambiguous as to which artefact it refers to (bundle, paper, or both). Cross-referencing the Acknowledgments enumeration at lines 1559-1607 shows that on the BUNDLE: Codex eventually approved in Round 3 (3 rounds, not 1-2), Grok approved in Round 1, Gemini approved in Round 1 — i.e. all three approved the bundle, just with different round counts. On the PAPER: only Grok reached unconditional approval; Codex was still iterating after Round 2; Gemini could not complete due to quota. The 'two of three' statement reads as a bundle-level count of those who approved within 1-2 rounds, but the qualifier is implicit and may mislead readers into thinking one reviewer never approved."""
+suggested_fix         = """Disambiguate explicitly. Suggested rewrite: 'On the bundle, all three reviewers ultimately issued unconditional approval (Grok and Gemini in Round 1; Codex in Round 3 after two earlier rejections). On this manuscript, Grok issued unconditional approval in Round 2; Codex was still iterating after its second rejection at submission time; Gemini's runs were cut short by a TerminalQuotaError before they could begin (see Acknowledgments).'"""
+
+[[finding]]
+id                    = "S1-F02"
+step_reference        = "step1"
+severity              = "low"
+quoted_document_part  = """The contribution is the methodology and the bundle: a self-contained, multi-LLM-reviewed artefact that any reviewer, lawyer, or court can re-run and inspect."""
+location              = "paper/main.tex:86-89 (abstract)"
+problem_explanation   = """'Multi-LLM-reviewed' in the abstract is technically correct but elides the asymmetry the Acknowledgments document at lines 1559-1607: the BUNDLE got three independent reviewer approvals, but on THIS MANUSCRIPT only one reviewer (Grok) reached unconditional approval before submission. A careful reader reaching the LLM-review section may feel the abstract over-promises about the paper itself."""
+suggested_fix         = """Either narrow the abstract to 'bundle' (which is what was fully multi-reviewed) or add a clarifying parenthetical: 'a self-contained, multi-LLM-reviewed bundle (paper review record disclosed in Acknowledgments).'"""
+
+[[finding]]
+id                    = "S1-F03"
+step_reference        = "step1"
+severity              = "low"
+quoted_document_part  = """The contracts described in this paper depend on the shape of the substrate, not on the specific syntax: an equivalent JSON, CBOR, or relational encoding that preserved the same five aspects below would carry the same six signal contracts unchanged."""
+location              = "paper/main.tex:281-286 (section sec:spec)"
+problem_explanation   = """This passage promises 'the same five aspects below' but the enumerated list at lines 288-319 contains FIVE items only by virtue of treating the validators-and-no-JSON-Schema item as one aspect and the separation of contract-declaration from verification-report as another. The mapping is reasonable but a reader counting items 'below' may briefly look for an explicit '(1) ... (5)' enumeration of *aspects*, not of TOML mechanics. Inserting a half-sentence label per item ('Aspect 1: discriminator. ... Aspect 5: contract/verification separation.') would make the reference exact."""
+suggested_fix         = """Prefix each enumerate item with an 'Aspect N:' label to make the five-aspect promise machine-checkable for the reader."""
+
+[[finding]]
+id                    = "S1-F04"
+step_reference        = "step1"
+severity              = "low"
+quoted_document_part  = """We do not adjudicate that dispute. We instead introduce a detection harness ..."""
+location              = "paper/main.tex:75-77 (abstract)"
+problem_explanation   = """Sentence breaks the formal abstract register with a short conversational pivot ('We do not adjudicate that dispute.'). This is a deliberate stylistic choice that recurs across the paper (e.g., lines 119-120 'The conversation is currently being conducted on assertion. We propose to conduct it on evidence.'). It is not an error and it is rhetorically effective, but it sits awkwardly next to surrounding sentences in the abstract that carry numeric content. A reader expecting a uniform abstract register may pause."""
+suggested_fix         = """Optional. If kept, the cadence works — leave it. If smoothed, fold the two sentences: 'We do not adjudicate that dispute but instead introduce a detection harness ...'"""

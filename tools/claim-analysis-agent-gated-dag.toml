@@ -1,0 +1,367 @@
+# Claim Analysis Agent persona, encoded as a DAG-TOML
+# `implementation-dag`. Author: Werner Kasselman.
+#
+# PURPOSE
+#
+# Decompose ONE source artefact into a machine-readable DAG that an
+# agent (or human reviewer) can execute end-to-end:
+#
+#   Verivus "Claim Analysis Agent" persona
+#   (source: PROMPTS/Claim Analysis Agent.json — internal repo)
+#
+# This is the persona-only cut, with the ground-truth model corrected
+# AND source reliability promoted to a gate ahead of the
+# cross-reference.
+#
+# GROUND-TRUTH MODEL
+#
+# Ground-truth is DISCOVERED FROM the document — the agent reviews the
+# document, extracts the sources it references, and fetches them. It
+# is never a pre-supplied corpus.
+#
+# RELIABILITY-AS-GATE (the change)
+#
+# Source reliability is evaluated BEFORE the cross-reference, and gates
+# it: there is no point checking how correctly a claim applies a source
+# that has already been judged unreliable. A claim resting on an
+# unreliable source is recorded as a finding at the gate and the
+# application-check is skipped for it. The cross-reference therefore
+# only adjudicates application against sources that cleared the gate.
+#
+# Pipeline (strictly sequential at the head):
+#
+#   trigger/fetch document
+#     → extract referenced sources
+#       → fetch referenced ground-truth
+#         → EVALUATE RELIABILITY  (gate)
+#           → CROSS-REFERENCE      (claim ↔ reliable-source ↔ correct application)
+#             → factual / logical checks read the cross-reference
+#               → aggregate → emit claim_analysis.json + event
+#
+# LINEAGE
+#
+# - SPEC: spec.md (DAG-TOML core).
+# - Derived from: tools/claim-analysis-agent-xref-dag.toml, with
+#   source-reliability moved ahead of the cross-reference as a gate
+#   and aggregation split into its own unit.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+# This document is self-contained: no [provenance], no cites_upstream
+# fields, no upstream evidence rows. Per §12.11 the empty sentinel
+# is the correct value.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "implementation-dag"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+title             = "Claim Analysis Agent — reliability gates the cross-reference"
+spec              = "tools/claim-analysis-agent-gated-dag.toml"
+decomposition     = "tools/claim-analysis-agent-gated-dag.toml"
+created           = "2026-05-22"
+total_units       = 9
+tier1_units       = ["U01","U02","U03","U04","U05","U06","U07","U08","U09"]
+tier2_units       = []
+tier3_units       = []
+
+# ============================================================================
+# [policy.agent] — persona, lifted verbatim from
+# PROMPTS/Claim Analysis Agent.json.
+# ============================================================================
+
+[policy.agent]
+name                 = "Claim Analysis Agent"
+role                 = "Fact-Checker and Technical Editor"
+purpose              = "Automatically analyze documentation and other text-based artifacts for factual accuracy, logical consistency, and source credibility."
+validation_type      = "Semantic Validation"
+workflow_initiator   = false
+description          = "Specialized service triggered during PR reviews for documentation, providing an automated quality check on written content."
+
+[policy.agent.orchestration]
+consumes_events      = ["DocumentationChanged", "PROpened"]
+produces_events      = ["ClaimAnalysisComplete"]
+
+[policy.agent.responsibilities]
+items = [
+  "Factual accuracy verification.",
+  "Logical coherence analysis.",
+  "Source reliability evaluation.",
+]
+
+[policy.agent.outputs]
+file_artifact = "claim_analysis.json"
+event         = "ClaimAnalysisComplete"
+
+# ============================================================================
+# [policy.reliability_gate] — reliability is judged first and decides
+# which fetched sources are eligible for application-checking.
+# ============================================================================
+
+[policy.reliability_gate]
+# Each fetched source is graded; the grade determines whether the
+# cross-reference will check claims against it.
+grade_required_fields = [
+  "source_id",
+  "authority",        # who published it, standing of the publisher
+  "recency",          # is it current enough for the claim's domain
+  "primacy",          # "primary" | "secondary" | "tertiary"
+  "reliability_verdict",  # "reliable" | "weak" | "unreliable"
+]
+# Sources graded "unreliable" do NOT enter the cross-reference; any
+# claim that rests solely on them is emitted as a finding here.
+gate_passes_only      = ["reliable", "weak"]
+gate_blocks           = ["unreliable"]
+# "weak" sources pass the gate but their downstream xref verdicts
+# inherit a reduced-confidence flag.
+weak_sources_flagged_low_confidence = true
+
+# ============================================================================
+# [policy.cross_reference] — only runs against gate-passing sources.
+# Binds a claim to its source and adjudicates correct application.
+# ============================================================================
+
+[policy.cross_reference]
+record_required_fields = [
+  "claim_quote",            # verbatim claim from the document under review
+  "referenced_source_id",   # the gate-passing source the claim points to
+  "source_locator",         # where in the source the support is
+  "application_verdict",     # "supported" | "misapplied" | "overstated" | "unsupported" | "source_unreachable"
+  "low_confidence",          # true if the backing source was graded "weak"
+  "rationale",
+]
+# Claims with no referenced source are unverifiable findings.
+unreferenced_claims_are_findings = true
+# Claims whose only source was blocked by the reliability gate are
+# recorded as findings WITHOUT an application-check (the gate already
+# settled them); they carry verdict "rests_on_unreliable_source".
+gated_claims_skip_application_check = true
+gated_claim_verdict   = "rests_on_unreliable_source"
+unreachable_source_verdict = "source_unreachable"
+
+# ============================================================================
+# [policy.report_shape] — required shape of the emitted JSON.
+# ============================================================================
+
+[policy.report_shape]
+per_finding_required_fields = [
+  "responsibility_reference",
+  "quoted_document_part",      # verbatim quote, NOT paraphrase
+  "cross_reference_id",        # the xref record this finding is grounded in (if any)
+  "problem_explanation",
+  "suggested_fix",
+  "severity",
+]
+overall_report_required_fields = [
+  "per_responsibility_sections",
+  "overall_assessment",
+  "prioritized_recommendations",
+]
+tone = ["objective", "concise", "evidence-based"]
+
+# ============================================================================
+# [policy.proofs_mapping] — every persona claim bound to one unit.
+# ============================================================================
+
+[policy.proofs_mapping]
+"agent.orchestration.consumes_events"       = { unit = "U01", produces = "ART:document-under-review" }
+"agent.responsibilities.source_reliability" = { unit = "U04", produces = "ART:source-reliability-findings" }
+"cross_reference.record"                    = { unit = "U05", produces = "ART:cross-reference-table" }
+"agent.responsibilities.factual"            = { unit = "U06", produces = "ART:factual-accuracy-findings" }
+"agent.responsibilities.logical"            = { unit = "U07", produces = "ART:logical-coherence-findings" }
+"agent.orchestration.produces_events"       = { unit = "U09", produces = "OUT:claim-analysis-complete-event" }
+"agent.outputs.file_artifact"               = { unit = "U09", produces = "OUT:claim-analysis-json" }
+"report_shape.per_finding_required_fields"     = { unit = "U08", produces = "ART:claim-analysis-report" }
+"report_shape.overall_report_required_fields"  = { unit = "U08", produces = "ART:claim-analysis-report" }
+
+# ============================================================================
+# [policy.evidence] — non-negotiables across all units.
+# ============================================================================
+
+[policy.evidence]
+every_finding_requires_verbatim_quote          = true
+no_paraphrase_in_place_of_quote                = true
+ground_truth_is_derived_from_the_document      = true
+reliability_is_judged_before_application       = true   # the gate
+unreliable_sources_excluded_from_cross_reference = true
+every_finding_traces_to_a_cross_reference_or_marks_its_absence = true
+unverifiable_claims_must_be_marked_unverifiable_not_silently_dropped = true
+empty_per_responsibility_section_must_be_explicit = true
+
+# ============================================================================
+# [policy.instance] — fill at point of use.
+# ============================================================================
+
+[policy.instance]
+document_path        = ""    # path to the document under review
+document_sha         = ""    # sha256 of the exact bytes reviewed
+triggering_event     = ""    # "DocumentationChanged" | "PROpened"
+run_label            = ""    # short slug -> docs/claim_analysis/<slug>/
+source_fetch_allowlist = []  # optional: domains/repos U03 may fetch ground-truth from
+
+# ============================================================================
+# UNITS
+# ============================================================================
+
+# U01 — capture the trigger and fetch the document.
+[units.U01]
+name           = "capture-trigger-and-fetch-document"
+summary        = "On DocumentationChanged or PROpened, fetch the document, record its sha256, and freeze the bytes for the duration of the run."
+layer          = 0
+tier           = 1
+status         = "pending"
+depends_on     = []
+blocks         = ["U02","U07"]
+estimated_loc  = 30
+files_modify   = ["docs/claim_analysis/__run__/document_under_review.bin"]
+produces       = ["ART:document-under-review"]
+consumes       = []
+
+# U02 — extract the sources the document itself references.
+[units.U02]
+name           = "extract-referenced-sources"
+summary        = "Parse the document and enumerate every source it cites or references (links, citations, footnotes, named works), each paired with the claim it supports."
+layer          = 1
+tier           = 1
+status         = "pending"
+depends_on     = ["U01"]
+blocks         = ["U03"]
+estimated_loc  = 45
+files_modify   = ["docs/claim_analysis/__run__/referenced_sources.toml"]
+produces       = ["ART:referenced-sources"]
+consumes       = ["ART:document-under-review"]
+
+# U03 — fetch the referenced ground-truth.
+[units.U03]
+name           = "fetch-ground-truth"
+summary        = "Resolve and fetch each referenced source (subject to source_fetch_allowlist), capturing its bytes/sha and locator metadata. Unreachable sources are recorded as such, not dropped."
+layer          = 2
+tier           = 1
+status         = "pending"
+depends_on     = ["U02"]
+blocks         = ["U04"]
+estimated_loc  = 55
+files_modify   = ["docs/claim_analysis/__run__/ground_truth_corpus.toml"]
+produces       = ["ART:ground-truth-corpus"]
+consumes       = ["ART:referenced-sources"]
+
+# U04 — THE GATE. Persona responsibility #3 (source reliability),
+# evaluated up front so it can decide what the cross-reference checks.
+[units.U04]
+name           = "evaluate-source-reliability-gate"
+summary        = "Grade each fetched source for authority, recency, and primacy. Emit a reliability verdict per source; sources graded 'unreliable' are excluded from the cross-reference and any claim resting solely on them becomes a finding here. 'weak' sources pass but are flagged low-confidence."
+layer          = 3
+tier           = 1
+status         = "pending"
+depends_on     = ["U03"]
+blocks         = ["U05"]
+estimated_loc  = 60
+files_modify   = [
+  "docs/claim_analysis/__run__/source_reliability_grades.toml",
+  "docs/claim_analysis/__run__/findings/source_reliability.toml",
+]
+produces       = ["ART:source-reliability-grades","ART:source-reliability-findings"]
+consumes       = ["ART:referenced-sources","ART:ground-truth-corpus"]
+
+# U05 — THE CROSS-REFERENCE, gated. Adjudicates application only
+# against sources that cleared the reliability gate.
+[units.U05]
+name           = "cross-reference-claims-to-reliable-ground-truth"
+summary        = "For each claim backed by a gate-passing source, locate it in the source and grade application (supported | misapplied | overstated | unsupported | source_unreachable), carrying low_confidence for 'weak' sources. Claims whose only source was gate-blocked are recorded as 'rests_on_unreliable_source' without an application-check. Unreferenced claims are recorded unverifiable."
+layer          = 4
+tier           = 1
+status         = "pending"
+depends_on     = ["U04"]
+blocks         = ["U06","U07","U08"]
+estimated_loc  = 90
+files_modify   = ["docs/claim_analysis/__run__/cross_reference_table.toml"]
+produces       = ["ART:cross-reference-table"]
+consumes       = ["ART:document-under-review","ART:ground-truth-corpus","ART:source-reliability-grades"]
+
+# U06 — Persona responsibility #1: factual accuracy verification.
+[units.U06]
+name           = "verify-factual-accuracy"
+summary        = "From the cross-reference table, surface claims whose application_verdict is misapplied, overstated, unsupported, or rests_on_unreliable_source as factual-accuracy findings. Verbatim quote each."
+layer          = 5
+tier           = 1
+status         = "pending"
+depends_on     = ["U05"]
+blocks         = ["U08"]
+estimated_loc  = 55
+files_modify   = ["docs/claim_analysis/__run__/findings/factual_accuracy.toml"]
+produces       = ["ART:factual-accuracy-findings"]
+consumes       = ["ART:cross-reference-table"]
+
+# U07 — Persona responsibility #2: logical coherence analysis.
+[units.U07]
+name           = "analyze-logical-coherence"
+summary        = "Find jumps in reasoning, unexplained assumptions, and conclusions unsupported by their cited evidence. Verbatim quote each issue."
+layer          = 5
+tier           = 1
+status         = "pending"
+depends_on     = ["U01","U05"]
+blocks         = ["U08"]
+estimated_loc  = 55
+files_modify   = ["docs/claim_analysis/__run__/findings/logical_coherence.toml"]
+produces       = ["ART:logical-coherence-findings"]
+consumes       = ["ART:document-under-review","ART:cross-reference-table"]
+
+# U08 — aggregate every findings artefact into the report shape.
+[units.U08]
+name           = "aggregate-and-prioritize"
+summary        = "Merge source-reliability, cross-reference-derived factual, and logical findings into one structured report: per-responsibility sections, overall assessment, prioritized recommendations. Enforce per-finding required fields."
+layer          = 6
+tier           = 1
+status         = "pending"
+depends_on     = ["U04","U05","U06","U07"]
+blocks         = ["U09"]
+estimated_loc  = 45
+files_modify   = ["docs/claim_analysis/__run__/claim_analysis_report.toml"]
+produces       = ["ART:claim-analysis-report"]
+consumes       = [
+  "ART:source-reliability-findings",
+  "ART:cross-reference-table",
+  "ART:factual-accuracy-findings",
+  "ART:logical-coherence-findings",
+]
+
+# U09 — emit the canonical persona outputs.
+[units.U09]
+name           = "emit-claim-analysis-outputs"
+summary        = "Serialize the aggregated report to claim_analysis.json and emit ClaimAnalysisComplete event."
+layer          = 7
+tier           = 1
+status         = "pending"
+depends_on     = ["U08"]
+blocks         = []
+estimated_loc  = 20
+files_modify   = [
+  "docs/claim_analysis/__run__/claim_analysis.json",
+  "docs/claim_analysis/__run__/claim_analysis_complete.event.toml",
+]
+produces       = ["OUT:claim-analysis-json","OUT:claim-analysis-complete-event"]
+consumes       = ["ART:claim-analysis-report"]
+
+# ============================================================================
+# [computed] — derived from [units]. Recomputed by validators.
+# ============================================================================
+
+[computed]
+entry_points      = ["U01"]
+leaf_nodes        = ["U09"]
+# Longest path by LOC: U01->U02->U03->U04->U05->U06->U08->U09
+#   30 + 45 + 55 + 60 + 90 + 55 + 45 + 20 = 400
+critical_path     = ["U01","U02","U03","U04","U05","U06","U08","U09"]
+critical_path_loc = 400
+loc_totals        = { tier1 = 455, all = 455 }
+
+[computed.max_parallel]
+layer0 = 1   # U01
+layer1 = 1   # U02
+layer2 = 1   # U03
+layer3 = 1   # U04 (gate)
+layer4 = 1   # U05 (cross-reference)
+layer5 = 2   # U06, U07
+layer6 = 1   # U08
+layer7 = 1   # U09

@@ -1,0 +1,381 @@
+# Claim Analysis Agent + Document Review workflow, encoded as a
+# DAG-TOML `implementation-dag`. Author: Werner Kasselman.
+#
+# PURPOSE
+#
+# Decompose two source artefacts into one machine-readable DAG that
+# an agent (or human reviewer) can execute end-to-end:
+#
+#   1. Verivus "Claim Analysis Agent" persona
+#      (source: PROMPTS/Claim Analysis Agent.json — internal repo)
+#      Persona facts: purpose, role, triggers, processes, outputs,
+#      orchestration, validation type.
+#
+#   2. "Document Review Prompt" — corporate document review
+#      checklist
+#      (source: PROMPTS/Document Review Prompt.md — internal repo)
+#      Six imperative review steps + output report shape.
+#
+# The agent persona supplies the WHEN and WHAT-TO-EMIT (triggers,
+# events, output file). The review prompt supplies the WHAT-TO-CHECK
+# (six review steps + report shape). The DAG fuses them: trigger →
+# parallel review steps → aggregate → emit canonical output +
+# event.
+#
+# `[policy]` tables below carry the persona facts and step-imperative
+# rules verbatim (so the DAG remains the single source of truth);
+# the `[units]` table sequences them.
+#
+# LINEAGE
+#
+# - SPEC: spec.md (DAG-TOML core).
+# - Kind descriptor: core/implementation-dag-kind.toml.
+# - Shape reference: examples/minimal-implementation-dag.toml.
+# - Same idiom as: tools/review-request-dag.toml.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+# This document is self-contained: no [provenance], no cites_upstream
+# fields, no upstream evidence rows. Per §12.11 the empty sentinel
+# is the correct value.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "implementation-dag"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+title             = "Claim Analysis Agent — document review workflow"
+spec              = "tools/claim-analysis-document-review-dag.toml"
+decomposition     = "tools/claim-analysis-document-review-dag.toml"
+created           = "2026-05-22"
+total_units       = 11
+tier1_units       = ["U01","U02","U03","U04","U05","U06","U07","U08","U09","U10","U11"]
+tier2_units       = []
+tier3_units       = []
+
+# ============================================================================
+# [policy.agent] — Claim Analysis Agent persona, lifted verbatim from
+# PROMPTS/Claim Analysis Agent.json. Reproduced here so the DAG is a
+# self-contained source of truth.
+# ============================================================================
+
+[policy.agent]
+name                 = "Claim Analysis Agent"
+role                 = "Fact-Checker and Technical Editor"
+purpose              = "Automatically analyze documentation and other text-based artifacts for factual accuracy, logical consistency, and source credibility."
+validation_type      = "Semantic Validation"
+workflow_initiator   = false
+description          = "Specialized service triggered during PR reviews for documentation, providing an automated quality check on written content."
+
+[policy.agent.orchestration]
+consumes_events      = ["DocumentationChanged", "PROpened"]
+produces_events      = ["ClaimAnalysisComplete"]
+
+[policy.agent.responsibilities]
+items = [
+  "Factual accuracy verification.",
+  "Logical coherence analysis.",
+  "Source reliability evaluation.",
+]
+
+[policy.agent.outputs]
+file_artifact = "claim_analysis.json"
+event         = "ClaimAnalysisComplete"
+
+# ============================================================================
+# [policy.review_steps] — the six imperative checks from
+# PROMPTS/Document Review Prompt.md, lifted verbatim. Each step is
+# numbered exactly as in the source prompt and mapped to the unit
+# that executes it via `policy.proofs_mapping` below.
+# ============================================================================
+
+[policy.review_steps.step1]
+title       = "Scan for Structure and Clarity"
+imperative  = "Check if the document is well-organized, with logical flow, consistent language, tone, and formatting. Flag any ambiguities, inconsistencies, missing sections, or poor readability (e.g., unclear sentences, repetitive phrasing, or formatting errors like inconsistent headings)."
+
+[policy.review_steps.step2]
+title       = "Verify Factual Accuracy"
+imperative  = "Cross-reference all facts, data, figures, dates, and statements against reliable knowledge or logic. Identify any inaccuracies, outdated information, or contradictions. If something seems off, note why and suggest corrections."
+
+[policy.review_steps.step3]
+title       = "Examine Logical Leaps"
+imperative  = "Look for jumps in reasoning where conclusions aren't supported by evidence. Check if arguments follow logically, without gaps or assumptions that aren't explained."
+
+[policy.review_steps.step4]
+title       = "Spot Unsubstantiated Claims"
+imperative  = "Flag any statements that lack evidence, sources, or backing (e.g., claims about performance, risks, or benefits without data). Verify if they could be misleading, and assess if they comply with corporate standards like avoiding false statements or ensuring claims are based on reasonable grounds."
+
+[policy.review_steps.step5]
+title       = "Assess Compliance and Risks"
+imperative  = "Ensure the document meets general corporate quality standards, such as including necessary disclaimers, adhering to regulations (e.g., no misleading impressions), and handling sensitive info properly. Check for potential legal risks, like dishonest or misunderstood elements that could lead to liability."
+
+[policy.review_steps.step6]
+title       = "Overall Quality Check"
+imperative  = "Review for grammar, spelling, completeness, audience fit, and professionalism. Suggest improvements for better engagement and accuracy."
+
+# ============================================================================
+# [policy.report_shape] — required shape of each finding and of the
+# overall report, lifted from the prompt's output instruction:
+# "structured report with sections for each step above. For each
+# issue, quote the relevant document part, explain the problem
+# briefly, and suggest fixes. End with an overall assessment ... and
+# a prioritized list of recommendations. Be objective, concise, and
+# evidence-based."
+# ============================================================================
+
+[policy.report_shape]
+per_finding_required_fields = [
+  "step_reference",        # which review step (1..6 or agent process)
+  "quoted_document_part",  # verbatim quote, NOT paraphrase
+  "problem_explanation",   # brief
+  "suggested_fix",
+  "severity",              # added so the report is actionable
+]
+overall_report_required_fields = [
+  "per_step_sections",     # one section per review step, even if empty
+  "overall_assessment",    # e.g. "High quality with minor fixes" | "Major revisions needed"
+  "prioritized_recommendations",
+]
+tone = ["objective", "concise", "evidence-based"]
+
+# ============================================================================
+# [policy.proofs_mapping] — explicit map from each review-step
+# imperative and each agent-persona responsibility to the unit that
+# discharges it. This is the "decompose the requirements into proofs"
+# step the user asked for: every claim the source documents make
+# about what the agent must do is bound to exactly one unit that
+# produces an ART:* findings artefact serving as the proof.
+# ============================================================================
+
+[policy.proofs_mapping]
+"review_steps.step1"                      = { unit = "U03", produces = "ART:structure-clarity-findings" }
+"review_steps.step2"                      = { unit = "U04", produces = "ART:factual-accuracy-findings" }
+"review_steps.step3"                      = { unit = "U05", produces = "ART:logical-leap-findings" }
+"review_steps.step4"                      = { unit = "U06", produces = "ART:unsubstantiated-claim-findings" }
+"review_steps.step5"                      = { unit = "U08", produces = "ART:compliance-risk-findings" }
+"review_steps.step6"                      = { unit = "U09", produces = "ART:quality-findings" }
+"agent.responsibilities.factual"          = { unit = "U04", produces = "ART:factual-accuracy-findings" }
+"agent.responsibilities.logical"          = { unit = "U05", produces = "ART:logical-leap-findings" }
+"agent.responsibilities.source_reliability" = { unit = "U07", produces = "ART:source-reliability-findings" }
+"agent.orchestration.consumes_events"     = { unit = "U01", produces = "ART:document-under-review" }
+"agent.orchestration.produces_events"     = { unit = "U11", produces = "OUT:claim-analysis-complete-event" }
+"agent.outputs.file_artifact"             = { unit = "U11", produces = "OUT:claim-analysis-json" }
+"report_shape.per_finding_required_fields" = { unit = "U10", produces = "ART:claim-analysis-report" }
+"report_shape.overall_report_required_fields" = { unit = "U10", produces = "ART:claim-analysis-report" }
+
+# ============================================================================
+# [policy.evidence] — non-negotiables that cut across all units.
+# These derive from the prompt's "Be objective, concise, and
+# evidence-based" instruction and from the agent's
+# `validationPerformed = Semantic Validation` declaration.
+# ============================================================================
+
+[policy.evidence]
+every_finding_requires_verbatim_quote          = true
+no_paraphrase_in_place_of_quote                = true
+findings_must_cite_source_for_external_claims  = true
+unverifiable_claims_must_be_marked_unverifiable_not_silently_dropped = true
+empty_per_step_section_must_be_explicit        = true   # "no findings" is a real outcome, not a missing section
+
+# ============================================================================
+# [policy.instance] — fill at point of use.
+# ============================================================================
+
+[policy.instance]
+document_path        = ""    # path to the document under review
+document_sha         = ""    # sha256 of the exact bytes reviewed (proof binding)
+triggering_event     = ""    # "DocumentationChanged" | "PROpened"
+run_label            = ""    # short slug -> docs/claim_analysis/<slug>/
+trusted_sources      = []    # URIs / repo paths used as ground truth for U04
+corporate_standards  = []    # repo paths / URIs of policy docs used by U08
+
+# ============================================================================
+# UNITS
+# ============================================================================
+
+# U01 — capture the trigger and fetch the document.
+# Implements: policy.agent.orchestration.consumes_events.
+[units.U01]
+name           = "capture-trigger-and-fetch-document"
+summary        = "On DocumentationChanged or PROpened, fetch the document, record its sha256, and freeze the bytes for the duration of the run."
+layer          = 0
+tier           = 1
+status         = "pending"
+depends_on     = []
+blocks         = ["U03","U04","U05","U06","U07","U08","U09"]
+estimated_loc  = 30
+files_modify   = ["docs/claim_analysis/__run__/document_under_review.bin"]
+produces       = ["ART:document-under-review"]
+consumes       = []
+
+# U02 — load trusted sources + corporate-standards corpus.
+# Implements: policy.instance.trusted_sources, policy.instance.corporate_standards.
+[units.U02]
+name           = "load-reference-corpus"
+summary        = "Resolve trusted_sources and corporate_standards into a single reference corpus the review steps can query."
+layer          = 0
+tier           = 1
+status         = "pending"
+depends_on     = []
+blocks         = ["U04","U06","U07","U08"]
+estimated_loc  = 25
+files_modify   = ["docs/claim_analysis/__run__/reference_corpus.toml"]
+produces       = ["ART:reference-corpus"]
+consumes       = []
+
+# U03 — Document Review Prompt step 1.
+[units.U03]
+name           = "scan-structure-and-clarity"
+summary        = "Flag ambiguities, inconsistencies, missing sections, poor readability, formatting errors. Verbatim quote each issue."
+layer          = 1
+tier           = 1
+status         = "pending"
+depends_on     = ["U01"]
+blocks         = ["U10"]
+estimated_loc  = 40
+files_modify   = ["docs/claim_analysis/__run__/findings/structure_clarity.toml"]
+produces       = ["ART:structure-clarity-findings"]
+consumes       = ["ART:document-under-review"]
+
+# U04 — Document Review Prompt step 2 + agent process #1.
+[units.U04]
+name           = "verify-factual-accuracy"
+summary        = "Cross-reference facts, data, figures, dates, statements against the reference corpus. Identify inaccuracies, outdated info, contradictions. Verbatim quote each issue."
+layer          = 1
+tier           = 1
+status         = "pending"
+depends_on     = ["U01","U02"]
+blocks         = ["U10"]
+estimated_loc  = 80
+files_modify   = ["docs/claim_analysis/__run__/findings/factual_accuracy.toml"]
+produces       = ["ART:factual-accuracy-findings"]
+consumes       = ["ART:document-under-review","ART:reference-corpus"]
+
+# U05 — Document Review Prompt step 3 + agent process #2.
+[units.U05]
+name           = "examine-logical-leaps"
+summary        = "Find jumps in reasoning where conclusions aren't supported by evidence; detect logical fallacies. Verbatim quote each issue."
+layer          = 1
+tier           = 1
+status         = "pending"
+depends_on     = ["U01"]
+blocks         = ["U10"]
+estimated_loc  = 55
+files_modify   = ["docs/claim_analysis/__run__/findings/logical_leaps.toml"]
+produces       = ["ART:logical-leap-findings"]
+consumes       = ["ART:document-under-review"]
+
+# U06 — Document Review Prompt step 4.
+[units.U06]
+name           = "spot-unsubstantiated-claims"
+summary        = "Flag statements lacking evidence, sources, or backing; assess corporate-standards compliance (no false statements, claims on reasonable grounds)."
+layer          = 1
+tier           = 1
+status         = "pending"
+depends_on     = ["U01","U02"]
+blocks         = ["U10"]
+estimated_loc  = 60
+files_modify   = ["docs/claim_analysis/__run__/findings/unsubstantiated_claims.toml"]
+produces       = ["ART:unsubstantiated-claim-findings"]
+consumes       = ["ART:document-under-review","ART:reference-corpus"]
+
+# U07 — Agent process #3 ("Evaluates the reliability of sources cited in the text").
+[units.U07]
+name           = "evaluate-source-reliability"
+summary        = "For every source cited in the document, evaluate reliability (authority, recency, primary vs secondary) using the reference corpus."
+layer          = 1
+tier           = 1
+status         = "pending"
+depends_on     = ["U01","U02"]
+blocks         = ["U10"]
+estimated_loc  = 50
+files_modify   = ["docs/claim_analysis/__run__/findings/source_reliability.toml"]
+produces       = ["ART:source-reliability-findings"]
+consumes       = ["ART:document-under-review","ART:reference-corpus"]
+
+# U08 — Document Review Prompt step 5.
+[units.U08]
+name           = "assess-compliance-and-risks"
+summary        = "Check disclaimers, regulatory adherence, sensitive-info handling. Surface legal risks (misleading, dishonest, or misunderstood elements that could lead to liability)."
+layer          = 1
+tier           = 1
+status         = "pending"
+depends_on     = ["U01","U02"]
+blocks         = ["U10"]
+estimated_loc  = 70
+files_modify   = ["docs/claim_analysis/__run__/findings/compliance_risks.toml"]
+produces       = ["ART:compliance-risk-findings"]
+consumes       = ["ART:document-under-review","ART:reference-corpus"]
+
+# U09 — Document Review Prompt step 6.
+[units.U09]
+name           = "overall-quality-check"
+summary        = "Grammar, spelling, completeness, audience fit, professionalism. Suggest improvements."
+layer          = 1
+tier           = 1
+status         = "pending"
+depends_on     = ["U01"]
+blocks         = ["U10"]
+estimated_loc  = 40
+files_modify   = ["docs/claim_analysis/__run__/findings/quality.toml"]
+produces       = ["ART:quality-findings"]
+consumes       = ["ART:document-under-review"]
+
+# U10 — Aggregate the seven finding artefacts into the structured
+# report shape declared in policy.report_shape.
+[units.U10]
+name           = "aggregate-and-prioritize"
+summary        = "Merge all step findings into one structured report: per-step sections, overall assessment, prioritized recommendations. Enforce per-finding required fields."
+layer          = 2
+tier           = 1
+status         = "pending"
+depends_on     = ["U03","U04","U05","U06","U07","U08","U09"]
+blocks         = ["U11"]
+estimated_loc  = 45
+files_modify   = ["docs/claim_analysis/__run__/claim_analysis_report.toml"]
+produces       = ["ART:claim-analysis-report"]
+consumes       = [
+  "ART:structure-clarity-findings",
+  "ART:factual-accuracy-findings",
+  "ART:logical-leap-findings",
+  "ART:unsubstantiated-claim-findings",
+  "ART:source-reliability-findings",
+  "ART:compliance-risk-findings",
+  "ART:quality-findings",
+]
+
+# U11 — Emit the canonical persona outputs:
+# the claim_analysis.json file and the ClaimAnalysisComplete event.
+[units.U11]
+name           = "emit-claim-analysis-outputs"
+summary        = "Serialize the aggregated report to claim_analysis.json and emit ClaimAnalysisComplete event."
+layer          = 3
+tier           = 1
+status         = "pending"
+depends_on     = ["U10"]
+blocks         = []
+estimated_loc  = 20
+files_modify   = [
+  "docs/claim_analysis/__run__/claim_analysis.json",
+  "docs/claim_analysis/__run__/claim_analysis_complete.event.toml",
+]
+produces       = ["OUT:claim-analysis-json","OUT:claim-analysis-complete-event"]
+consumes       = ["ART:claim-analysis-report"]
+
+# ============================================================================
+# [computed] — derived from [units]. Recomputed by validators.
+# ============================================================================
+
+[computed]
+entry_points      = ["U01","U02"]
+leaf_nodes        = ["U11"]
+critical_path     = ["U01","U04","U10","U11"]
+critical_path_loc = 175
+loc_totals        = { tier1 = 515, all = 515 }
+
+[computed.max_parallel]
+layer0 = 2
+layer1 = 7
+layer2 = 1
+layer3 = 1

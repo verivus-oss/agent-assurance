@@ -1,0 +1,143 @@
+# Round-2 terminal decision for
+# 2026-05-25-spec-13-retrofit-scoping-plan-r2.
+# Unanimous unconditional_approval; all three codex r1 blockers
+# closed against bytes.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-spec-13-retrofit-scoping-plan-r2"
+predecessor    = "2026-05-25-spec-13-retrofit-scoping-plan"
+
+[scope]
+commit_under_review = "073d5c5"
+parent_commit       = "c88f7ea"
+unit                = "U08"
+
+# ----------------------------------------------------------------------
+# Verdicts.
+# ----------------------------------------------------------------------
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "unconditional_approval"
+classification = "complete"
+blocker_count  = 0
+raw_findings   = "raw_findings/codex.md"
+evidence_class = "live-executable (grep, git show, validate_closure_root.py, validate_abstraction_class.py); validator source re-read at lines 182, 214 (codex's own r1 citations)"
+note           = "codex was the reviewer that filed all three r1 blockers; it now classifies U07-F1, U07-F2, U07-F3 as closed"
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "unconditional_approval"
+classification = "complete"
+blocker_count  = 0
+raw_findings   = "raw_findings/gemini.md"
+evidence_class = "live-executable (closure_root validator) + validator source inspection at 180-225 + section-level byte inspection of plan §6, §9, §11"
+note           = "gemini re-inspected the validator code this round (it had missed the validator-incompatibility in r1); explicitly confirmed the entropy_source / crypto_keys vocabulary constraints"
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "unconditional_approval"
+classification = "complete"
+blocker_count  = 0
+raw_findings   = "raw_findings/grok.md"
+evidence_class = "live-executable (3 grep variants + 2 validators + git ancestry); validator source at 182, 214; cross-checks against 5 kind descriptors confirming structural divergence claim"
+
+# ----------------------------------------------------------------------
+# R1 blocker disposition.
+# ----------------------------------------------------------------------
+
+[r1_blocker_disposition]
+
+[[r1_blocker_disposition.items]]
+id          = "U07-F1"
+severity_r1 = "high"
+status      = "closed"
+evidence    = """
+3/3 reviewers independently confirmed:
+  - Plan row 18 (line 232) now reads `selective-disclosure-proof` |
+    `cryptographic-proof.v1` | **A** (not C).
+  - Section-limited grep over §6 / §7 / §8 returns zero matches
+    for `entropy_source = "system"`, `crypto_keys.sign`, or
+    `crypto_keys.verify` as live-proposal fields.
+  - The historical references (lines 141-154) are inside an
+    explanatory paragraph framed as "Earlier draft proposed...
+    but round-1 review caught two defects" — intentional audit
+    trail.
+  - Validator code at validators/validate_abstraction_class.py:182
+    (entropy_source: os | deterministic_seed | none) and :214
+    (crypto_keys: read_keys | use_keys | generate_allowed) was
+    re-inspected by all three reviewers; confirmed codex's r1
+    citation.
+  - Descriptor selective-disclosure-proof-kind.toml:61 still
+    delegates verification to RUNTIME-SPEC.
+"""
+
+[[r1_blocker_disposition.items]]
+id          = "U07-F2"
+severity_r1 = "medium"
+status      = "closed"
+evidence    = """
+3/3 reviewers independently confirmed:
+  - Plan §6 preamble (lines 167-177) explicitly reframes class id
+    as a "producer-attested label for the artefact's role" and
+    states it is "NOT a byte-level structural-shape contract".
+  - Table column renamed to "Role at the artefact level (NOT a
+    byte-level shape)".
+  - observation-record.v1 row description generalised: "Read-only
+    observation of a past state, action, or outcome; each kind
+    declares its own structural shape."
+  - New "Per-kind description field rule" added (lines 201-209)
+    mandating kind-specific descriptions when sharing a class id.
+  - Cost-record's existing description at
+    profiles/cost/cost-record-kind.toml:282-286 cited as canonical
+    shape.
+  - Grok and codex cross-checked the structural divergence claim
+    against evidence-matrix:90, gate-decision:95,
+    assertion-log-record:95, redaction-manifest:83 — confirmed
+    each has its own distinct shape.
+"""
+
+[[r1_blocker_disposition.items]]
+id          = "U07-F3"
+severity_r1 = "medium"
+status      = "closed"
+evidence    = """
+3/3 reviewers independently confirmed:
+  - `grep -n 'MUST flip' docs/planning/...` returns exit 1, zero
+    matches.
+  - Plan §9 (lines 299-322) is now a single coherent block:
+    sentinel persists per SPEC §12.1 / §12.11; cost-record at HEAD
+    confirms this; descriptor file's SHA-256 changes but its
+    declared closure_root value does not.
+  - SPEC §13.4-vs-§12.1 tension explicitly filed as ISS-005
+    candidate in §11 (lines 349-356); out-of-scope acknowledged.
+  - `python3 validators/validate_closure_root.py --discover .`
+    exit 0 (CLOSURE-ROOT VALIDATION PASSED 74 file(s)).
+"""
+
+# ----------------------------------------------------------------------
+# Decision.
+# ----------------------------------------------------------------------
+
+[decision]
+outcome              = "unconditional_approval"
+unanimous            = true
+binding_reviewer     = "codex (originally filed all three r1 blockers; re-classifies all three as closed)"
+verdict_distribution = { unconditional_approval = 3, concrete_unresolvable_blocker = 0 }
+session_terminal     = true
+next_action          = "Plan is approved. Phase 1 implementation PR (retrofit observation-record.v1 to evidence-matrix, gate-decision, assertion-log-record, redaction-manifest) can be drafted per plan §8, §9. That PR will dispatch its own multi-LLM review."
+
+[session_close]
+closed_at = "2026-05-25"
+closed_by = "consolidated reviewer verdicts at raw_findings/{codex,gemini,grok}.md"
+followup_notes = [
+  "ISS-005 candidate (SPEC §13.4 vs §12.1 tension on whether descriptor closure_root flips on §13-block changes) is filed in plan §11 and acknowledged by all three r2 reviewers. Worth filing as an actual docs/issues/ entry independent of the retrofit work.",
+  "Phase 1 (5 kinds, all observation-record.v1) is the smallest first PR. Implementer should follow plan §9 verification commands and dispatch a multi-LLM review per tools/review-request-dag.toml [policy.*]. The plan now provides enough specificity to implement Phase 1 without further initiator clarification.",
+  "The arc 2026-05-25-spec-13-retrofit-scoping-plan / -r2 forms a second worked counter-example for ISS-001 (after the 2026-05-24 tooling-sweep arc): codex r1 caught three real defects in a self-approved planning artefact that all would have shipped under initiator self-approval. The discipline is working.",
+]

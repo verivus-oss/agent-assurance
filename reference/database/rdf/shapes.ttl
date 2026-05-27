@@ -1,0 +1,233 @@
+# DAG-TOML SHACL shapes (non-normative).
+#
+# Companion to reference/database/rdf/schema.ttl. Encodes the spec.md
+# invariants that the closed-vocabulary owl:oneOf ranges in schema.ttl
+# do NOT cover by themselves — graph-shaped constraints (single producer
+# per artifact, depends_on/blocks symmetry, cardinality 1 on matrix
+# claim/evidence edges, contract-free-form vs typed verified_by, etc.).
+#
+# Apply with any SHACL processor (Apache Jena `shacl validate`, pySHACL,
+# rdflib + pyshacl, TopBraid SHACL API). The shapes assume the data
+# graph follows the schema.ttl predicate convention (lowercase predicate
+# names, namespaced contract:* for the contract-scoped variants).
+#
+# This file is hand-authored, not generated, because the invariants are
+# fixed by spec.md and do not move with each ontology edit. When the
+# spec changes a hard invariant, edit here in the same PR.
+
+@prefix dagtoml: <https://verivus-oss.org/dagtoml/v1#> .
+@prefix ijb:     <https://verivus-oss.org/dagtoml/ijb/v1#> .
+@prefix sh:      <http://www.w3.org/ns/shacl#> .
+@prefix rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:    <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd:     <http://www.w3.org/2001/XMLSchema#> .
+
+
+###
+### 1. Cardinality-1 relations
+###     The ontology marks `cardinality = 1` on artifact_class, claim,
+###     claim_id, evidence, evidence_id. SHACL min=max=1 enforces this.
+###
+
+dagtoml:GateArtifactClassShape a sh:NodeShape ;
+    sh:targetClass dagtoml:Gate ;
+    sh:property [
+        sh:path        dagtoml:artifact_class ;
+        sh:minCount    1 ;
+        sh:maxCount    1 ;
+        sh:class       dagtoml:ArtifactClass ;
+        sh:message     "Every gate (G\\d+) must reference exactly one artifact_class (A\\d+). SPEC: core/readiness-gate-kind.toml hard_invariant." ;
+        sh:severity    sh:Violation ;
+    ] .
+
+dagtoml:MatrixCardinalityShape a sh:NodeShape ;
+    sh:targetClass dagtoml:Matrix ;
+    sh:property [
+        sh:path        dagtoml:claim ;
+        sh:minCount    1 ;
+        sh:maxCount    1 ;
+        sh:class       dagtoml:Claim ;
+        sh:message     "Every [[matrix]] row must reference exactly one claim. SPEC: core/evidence-matrix-kind.toml." ;
+    ] ;
+    sh:property [
+        sh:path        dagtoml:evidence ;
+        sh:minCount    1 ;
+        sh:maxCount    1 ;
+        sh:class       dagtoml:Evidence ;
+        sh:message     "Every [[matrix]] row must reference exactly one evidence." ;
+    ] .
+
+
+###
+### 2. Single producer per artifact (spec.md §5)
+###     For every dagtoml:Artifact instance, exactly one inbound
+###     dagtoml:produces edge.
+###
+
+dagtoml:ArtifactSingleProducerShape a sh:NodeShape ;
+    sh:targetClass dagtoml:Artifact ;
+    sh:property [
+        sh:path        [ sh:inversePath dagtoml:produces ] ;
+        sh:minCount    1 ;
+        sh:maxCount    1 ;
+        sh:message     "Every ART:* must have exactly one producer edge (spec.md §5)." ;
+        sh:severity    sh:Violation ;
+    ] .
+
+
+###
+### 3. depends_on / blocks symmetry (spec.md §5)
+###     Every (A depends_on B) must have a matching (B blocks A) edge,
+###     and vice versa. Expressed as a SPARQL constraint because SHACL
+###     property paths cannot natively assert two-way existence.
+###
+
+dagtoml:DependsOnBlocksSymmetryShape a sh:NodeShape ;
+    sh:targetClass dagtoml:Unit ;
+    sh:sparql [
+        sh:message  "depends_on without matching blocks (spec.md §5)" ;
+        sh:prefixes dagtoml:Prefixes ;
+        sh:select """
+            SELECT $this ?b
+            WHERE {
+                $this dagtoml:depends_on ?b .
+                FILTER NOT EXISTS { ?b dagtoml:blocks $this }
+            }
+        """ ;
+    ] ;
+    sh:sparql [
+        sh:message  "blocks without matching depends_on (spec.md §5)" ;
+        sh:prefixes dagtoml:Prefixes ;
+        sh:select """
+            SELECT $this ?a
+            WHERE {
+                $this dagtoml:blocks ?a .
+                FILTER NOT EXISTS { ?a dagtoml:depends_on $this }
+            }
+        """ ;
+    ] .
+
+
+###
+### 4. depends_on acyclicity (spec.md §5)
+###     SPARQL path-length test. Reports any unit that reaches itself
+###     via a chain of depends_on of any length.
+###
+
+dagtoml:DependsOnAcyclicShape a sh:NodeShape ;
+    sh:targetClass dagtoml:Unit ;
+    sh:sparql [
+        sh:message  "depends_on cycle reaches $this (spec.md §5)" ;
+        sh:prefixes dagtoml:Prefixes ;
+        sh:select """
+            SELECT $this
+            WHERE {
+                $this dagtoml:depends_on+ $this .
+            }
+        """ ;
+    ] .
+
+
+###
+### 5. Closed attribute vocabularies
+###     Some of these are already enforced via owl:oneOf in schema.ttl,
+###     but SHACL gives validators a clearer error path. Listed here
+###     are the structural attributes from core + profile that have
+###     extensible = false (the ontology says so).
+###
+
+dagtoml:RequirementPriorityShape a sh:NodeShape ;
+    sh:targetClass dagtoml:Requirement ;
+    sh:property [
+        sh:path     dagtoml:priority ;
+        sh:in       ( "must" "should" "could" ) ;
+        sh:maxCount 1 ;
+        sh:message  "priority must be one of must/should/could." ;
+    ] .
+
+dagtoml:UnitStatusShape a sh:NodeShape ;
+    sh:targetClass dagtoml:Unit ;
+    sh:property [
+        sh:path     dagtoml:unit_status ;
+        sh:in       ( "pending" "in_progress" "done" "blocked" "deferred" ) ;
+        sh:maxCount 1 ;
+        sh:message  "unit.status must be one of pending/in_progress/done/blocked/deferred." ;
+    ] .
+
+dagtoml:ThreatRiskShape a sh:NodeShape ;
+    sh:targetClass dagtoml:Threat ;
+    sh:property [
+        sh:path     dagtoml:likelihood ;
+        sh:in       ( "negligible" "low" "medium" "high" "critical" ) ;
+        sh:maxCount 1 ;
+    ] ;
+    sh:property [
+        sh:path     dagtoml:impact ;
+        sh:in       ( "negligible" "low" "medium" "high" "critical" ) ;
+        sh:maxCount 1 ;
+    ] ;
+    sh:property [
+        sh:path     dagtoml:residual_risk ;
+        sh:in       ( "accepted" "mitigated" "open" ) ;
+        sh:maxCount 1 ;
+    ] .
+
+
+###
+### 6. Identifier prefix conformance (spec.md §3)
+###     Each entity instance's qualified_id (the URI's local name) must
+###     match the prefix declared in its class. This is informational —
+###     real enforcement happens at ingestion time when the qualified_id
+###     is parsed against id_prefix / id_pattern from the ontology.
+###     Listed here as a pattern shape only for the fixed-prefix kinds;
+###     regex-keyed entities (units, gates, artifact_class, contracts,
+###     claims, evidence, matrix) require client-side parsing.
+###
+
+dagtoml:RequirementIdPrefixShape a sh:NodeShape ;
+    sh:targetClass dagtoml:Requirement ;
+    sh:property [
+        sh:path     rdfs:label ;
+        sh:pattern  "^REQ:" ;
+        sh:message  "Requirement qualified_id must begin with REQ:." ;
+    ] .
+
+dagtoml:ImplementationIdPrefixShape a sh:NodeShape ;
+    sh:targetClass dagtoml:Implementation ;
+    sh:property [
+        sh:path     rdfs:label ;
+        sh:pattern  "^IMP:" ;
+        sh:message  "Implementation qualified_id must begin with IMP:." ;
+    ] .
+
+dagtoml:TestIdPrefixShape a sh:NodeShape ;
+    sh:targetClass dagtoml:Test ;
+    sh:property [
+        sh:path     rdfs:label ;
+        sh:pattern  "^TEST:" ;
+        sh:message  "Test qualified_id must begin with TEST:." ;
+    ] .
+
+
+###
+### Prefix declaration block used by sh:prefixes in the SPARQL shapes
+### above. SHACL requires this when SPARQL queries reference CURIEs.
+###
+
+dagtoml:Prefixes
+    sh:declare [
+        sh:prefix    "dagtoml" ;
+        sh:namespace "https://verivus-oss.org/dagtoml/v1#"^^xsd:anyURI ;
+    ] ,
+    [
+        sh:prefix    "ijb" ;
+        sh:namespace "https://verivus-oss.org/dagtoml/ijb/v1#"^^xsd:anyURI ;
+    ] ,
+    [
+        sh:prefix    "rdf" ;
+        sh:namespace "http://www.w3.org/1999/02/22-rdf-syntax-ns#"^^xsd:anyURI ;
+    ] ,
+    [
+        sh:prefix    "rdfs" ;
+        sh:namespace "http://www.w3.org/2000/01/rdf-schema#"^^xsd:anyURI ;
+    ] .

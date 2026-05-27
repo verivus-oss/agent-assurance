@@ -1,0 +1,191 @@
+# Kind descriptor for `template_kind = "readiness-gate"`.
+# Collapses the readiness-gate portion of core/review-readiness.md.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "kind-descriptor"
+ontology_version  = 1
+title             = "Readiness gate kind descriptor"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+describes_kind    = "readiness-gate"
+authoritative_in  = "this file (collapsed from core/review-readiness.md, readiness-gate section)"
+
+[kind]
+name    = "readiness-gate"
+summary = "Preflight gate that decides whether a work product is reviewable for its artifact class."
+prose   = """
+A readiness gate is keyed to one or more artifact classes (e.g.
+`planning_pack`, `policy_standard`, `implementation_rereview`) and
+defines what must be true before review of that class can open.
+
+ROOT SHAPE
+
+    [meta]
+    schema_version = "0.1.0"
+    template_kind  = "readiness-gate"
+    title          = "Review readiness for <component>"
+    status         = "ready"
+    created        = "YYYY-MM-DD"
+    review_subject = "<artifact-or-change-under-review>"
+
+ARTIFACT CLASSES AND GATES
+
+    [[artifact_classes]]
+    id          = "A01"
+    name        = "planning_pack"
+    description = "Multi-document planning package reviewed before implementation."
+
+    [[gates]]
+    id                 = "G01"
+    artifact_class     = "A01"
+    name               = "Planning pack gate"
+    purpose            = "Block review until the planning pack is complete and cross-linked."
+    required_documents = ["spec", "design", "plan"]
+    required_links     = ["spec to design", "design to plan"]
+    pass_conditions    = ["all required documents exist", "documents are cross-linked"]
+    block_conditions   = ["missing prerequisite document", "broken cross-link"]
+    next_step          = "complete the planning pack before opening review"
+
+REQUIRED STRUCTURE
+
+- `[[artifact_classes]]` entries MUST have `id` and `name`.
+- `[[gates]]` entries MUST have `id`, `artifact_class`, and at least one
+  of `checks`, `required_documents`, `criteria`, or `summary`.
+- Every `gates[*].artifact_class` value MUST resolve to an
+  `artifact_classes[*].id`.
+
+STATUS VALUES
+
+`draft` | `blocked` | `ready` | `in_review` | `rereview_needed`.
+
+These review-stage status values are closed; profiles MUST NOT extend
+them.
+"""
+references = [
+  "spec.md",
+  "core/ontology.toml",
+]
+ijb_primitive = "thing"
+ijb_class     = "structural"
+
+[[kind.required_fields]]
+path        = "meta.template_kind"
+must_equal  = "readiness-gate"
+description = "Identifies this file as a readiness gate."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "artifact_classes"
+description = "At least one artifact class with `id` and `name`."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_sections]]
+table       = "gates"
+description = "At least one gate with `id`, `artifact_class`, and at least one of `checks`/`required_documents`/`criteria`/`summary`."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV01"
+statement   = "Every `gates[*].artifact_class` value resolves to an existing `artifact_classes[*].id`."
+enforced_by = "validators/validate_review_readiness.py"
+see_also    = "core/ontology.toml [[relations]] predicate `artifact_class`"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id          = "INV02"
+statement   = "Status values are drawn from the closed set draft | blocked | ready | in_review | rereview_needed."
+enforced_by = "validators/validate_review_readiness.py"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name           = "minimal readiness gate"
+file           = "examples/minimal-review-readiness/review_readiness.toml"
+inline_summary = "One artifact class (planning_pack), one gate (G01) with required documents and pass/block conditions."
+ijb_primitive = "observed"
+
+[[kind.hard_invariants]]
+id          = "INV03"
+statement   = "Every entity prefix and relation predicate used in this kind's instance files resolves to an `ijb_primitive` declared in the ontology (core plus any active profile)."
+enforced_by = "validators/validate_ijb_conformance.py"
+see_also    = "foundations/ijb/primitives.md"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.relation_to_ontology]
+entities_introduced = ["artifact_classes", "gates"]
+ontology_entries    = "core/ontology.toml [[entities]] with id patterns A\\d+ and G\\d+"
+predicates_used     = ["artifact_class"]
+attribute_vocabularies = ["review.status"]
+note                = "Allowed values for the meta-level `status` field on readiness-gate files are governed by core/ontology.toml [[attribute_vocabularies]] (attribute = \"review.status\"). Review-readiness predicates are documented in core/ontology.md §3.2 and core/ontology.toml [[relations]] (review-readiness block). Do not re-declare ontology-owned value sets here."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# A readiness-gate is declarative-policy-of-review-preflight: it names
+# the artifact classes a work product belongs to and the gates that
+# MUST pass before review of that class can open. It MUST NOT, at the
+# kind layer, become a transport for arbitrary capability assertions.
+# Naming the class here binds future readiness-gate producers to the
+# contract; widening the envelope cascade-breaks downstream
+# readiness-gates (per §13.4). Three kinds share the
+# `policy-declaration.v1` class id; each carries its own kind-specific
+# description tying back to its own [[kind.required_sections]] /
+# [[kind.required_fields]].
+
+[kind.abstraction_class]
+id          = "policy-declaration.v1"
+description = "Declarative policy artefact: enumerates `[[artifact_classes]]` (each keyed by `id` + `name`) and `[[gates]]` (each carrying `id` + `artifact_class` + at least one of `checks` / `required_documents` / `criteria` / `summary`) that a consumer MUST evaluate before opening review of a given class. The closed `review.status` vocabulary (`draft` | `blocked` | `ready` | `in_review` | `rereview_needed`) governs the file-level review-stage transition. Cross-field rule: every `gates[*].artifact_class` MUST resolve to an `artifact_classes[*].id`. No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms      = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576  # 1 MB — a readiness gate is a small categorical document
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed      = false
+monotonic_clock_allowed = false
+precision_cap_ms        = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

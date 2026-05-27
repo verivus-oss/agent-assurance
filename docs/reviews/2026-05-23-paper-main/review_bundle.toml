@@ -1,0 +1,45 @@
+# U01 — review bundle for tools/review-request-dag.toml.
+#
+# This is the persistent record of what each reviewer was given.
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-23"
+review_session = "2026-05-23-paper-main"
+
+[bundle]
+document_under_review = "paper/main.tex"
+document_sha          = "9664be061e4bc8493de2e5054d3c3d61737bd666e56077b9856c19585dbde306"
+repo_commit           = "638a90e8a0dc68c3e4aa8dfa29b51f6466d435fe"
+repo_root             = "/srv/repos/external/verivus-oss/agent-assurance"
+verification_report   = "examples/proof-chardet-relicense/VERIFICATION_REPORT.toml"
+secondary_verification = "paper/VERIFICATION_REPORT.toml"
+self_review_report    = "docs/claim_analysis/2026-05-22-paper-main/claim_analysis_report.toml"
+self_review_json      = "docs/claim_analysis/2026-05-22-paper-main/claim_analysis.json"
+implementation_plan   = "examples/proof-chardet-relicense/IMPLEMENTATION_DAG.toml"
+contract_declaration  = "examples/proof-chardet-relicense/CONTRACT_DECLARATION.toml"
+traceability          = "examples/proof-chardet-relicense/TRACEABILITY.toml"
+evidence_matrix       = "examples/proof-chardet-relicense/EVIDENCE_MATRIX.toml"
+readiness_gate        = "examples/proof-chardet-relicense/REVIEW_READINESS.toml"
+
+[bundle.workflow_dag]
+file        = "tools/review-request-dag.toml"
+description = "The DAG-TOML workflow this review is operating under. See [policy.*] tables for the binding rules."
+
+[roster]
+initiator_model           = "claude-opus-4-7[1m]"
+initiator_excluded_as_standard_reviewer = true
+reviewer_models           = ["codex", "gemini", "grok"]
+note = "Per policy.roles in tools/review-request-dag.toml, the initiator is excluded as a standard reviewer. The initiator MAY act as a reviewer in a fresh / clean-context session; the prior self-review at docs/claim_analysis/2026-05-22-paper-main/ does NOT satisfy that requirement and is being shipped to each reviewer as PRIOR ART, not as ground truth."
+
+[permissions]
+codex_sandbox       = "workspace-write"
+codex_ask_approval  = "never"
+codex_mcp           = ["sqry", "ref_tools", "exa"]
+gemini_approval     = "yolo"
+gemini_mcp          = ["sqry", "ref_tools", "exa"]
+grok_permission     = "bypassPermissions"
+grok_always_approve = true
+grok_mcp            = ["sqry", "ref_tools", "exa"]
+poll_progress_interval_seconds_if_grant_not_durable = 90

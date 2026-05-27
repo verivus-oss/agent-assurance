@@ -1,0 +1,988 @@
+name: validate
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+# Default to read-only on the GITHUB_TOKEN. Every step in this workflow
+# either reads the working tree, runs validators, or emits findings via
+# job-summary/annotations — none of them push commits, create issues,
+# or write release artifacts. If a future step ever does need write
+# access, it should declare permissions on the step itself rather than
+# loosening this top-level default. Caught by zizmor (excessive-permissions).
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: validate (spec + reference validators + security scanning)
+    runs-on: ubuntu-latest
+    # Job-level permissions match the workflow default explicitly — zizmor
+    # flags ambiguous-inheritance otherwise.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
+        with:
+          # Wipe the auth token from .git/config after checkout so it
+          # cannot be picked up by later steps (zizmor artipacked).
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: python3 -m pip install --upgrade pip && python3 -m pip install -r requirements.txt
+
+      - name: Set up Go (primary validator toolchain)
+        # Track the latest stable Go release. Per repo policy
+        # (tools/README.md), Go is one of the two primary native
+        # languages; pinning to "stable" keeps CI on the same line as
+        # the language's own release cadence rather than freezing a
+        # minor version that will drift behind.
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c  # v6
+        with:
+          go-version: "stable"
+          cache-dependency-path: tools/dagtoml-validate-go/go.sum
+
+      - name: Set up Rust (primary validator toolchain)
+        # Use the official rust-toolchain action tracking stable.
+        # MSRV pins in tools/*/Cargo.toml (rust-version = "1.85") are
+        # the floor; CI builds on whatever is current stable, which
+        # MUST be >= MSRV. Per repo policy (tools/README.md), safe
+        # Rust is one of the two primary native languages.
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
+
+      - name: Build primary Rust validator
+        run: |
+          set -e
+          cd tools/dagtoml-validate-rs
+          cargo build --release --locked || cargo build --release
+          cp target/release/dagtoml-validate-rs "${RUNNER_TEMP}/dagtoml-validate-rs"
+
+      - name: Build primary Go validator
+        run: |
+          set -e
+          cd tools/dagtoml-validate-go
+          go build -o "${RUNNER_TEMP}/dagtoml-validate-go" ./...
+
+      - name: Build dagtoml-rdf (required by manifest-drift gate)
+        # validators/check_attribute_values.py invokes
+        # tools/dagtoml-rdf/target/release/dagtoml-rdf to compute the
+        # RDF triple-count surface compared against
+        # `[verification.rdf].expected_triple_counts` in
+        # reference/database/MANIFEST.toml. The script intentionally
+        # hard-fails when the binary is absent (lines 397-415:
+        # missing-binary is "the silent-mirror-rot pattern the gate
+        # exists to prevent"). Build it in-place so the binary lives
+        # at the path the script probes.
+        run: |
+          set -e
+          cargo build --release --locked \
+            --manifest-path tools/dagtoml-rdf/Cargo.toml \
+            || cargo build --release \
+                 --manifest-path tools/dagtoml-rdf/Cargo.toml
+
+      - name: Install Taplo
+        run: |
+          set -e
+          TAPLO_VERSION="0.10.0"
+          curl -fsSL \
+            "https://github.com/tamasfe/taplo/releases/download/${TAPLO_VERSION}/taplo-linux-x86_64.gz" \
+            | gunzip -c > "${RUNNER_TEMP}/taplo"
+          chmod +x "${RUNNER_TEMP}/taplo"
+          sudo mv "${RUNNER_TEMP}/taplo" /usr/local/bin/taplo
+          taplo --version
+
+      - name: Taplo lint (TOML syntax + duplicate-key checks)
+        run: taplo lint
+
+      - name: TOML 1.0 spec conformance (BurntSushi parser used by Go validator)
+        # Runs the toml-lang/toml-test suite against the BurntSushi/toml
+        # decoder shim. That decoder is shipped by the same module the
+        # Go validator (tools/dagtoml-validate-go) depends on, so a
+        # conformance pass here is evidence about the parser the Go
+        # validator actually uses at runtime. The 13 known-tolerated
+        # invalid-test misses (BurntSushi v1.4 vs current TOML 1.1
+        # tightening) are listed in the Makefile skiplist with
+        # rationale; bumping the pinned decoder version means
+        # revisiting that list.
+        run: |
+          set -e
+          make toml-conformance-install
+          make toml-conformance
+
+      - name: TOML 1.0 spec conformance (`toml` crate used by Rust validator)
+        # Symmetric to the BurntSushi check above. Builds the in-repo
+        # tools/toml-test-decode-rs/ shim against the same `toml` 0.8
+        # crate dagtoml-validate-rs depends on, then runs the
+        # toml-lang/toml-test suite. The Rust crate is strictly more
+        # conformant than BurntSushi v1.4: it currently passes
+        # 185/185 valid + 371/371 invalid with NO skiplist. If a future
+        # crate bump regresses, add a TOML_CONFORMANCE_RS_SKIPS variable
+        # in the Makefile mirroring the existing TOML_CONFORMANCE_SKIPS
+        # pattern, with the same bump-discipline rationale.
+        run: |
+          set -e
+          make toml-conformance-rs
+
+      - name: Manifest drift (reference/database/MANIFEST.toml vs ontology)
+        run: bash validators/check_manifest_drift.sh
+
+      - name: Safe-tools policy (no unsafe Rust or Go under tools/)
+        # Rust crates under tools/ MUST carry #![forbid(unsafe_code)];
+        # Go modules under tools/ MUST NOT import "unsafe". Dependencies'
+        # internal unsafe is out of scope for this check.
+        run: bash validators/check_safe_tools.sh
+
+      - name: Parse all TOML
+        run: |
+          python3 - <<'PY'
+          import sys, pathlib, tomllib
+          fails = []
+          for p in sorted(pathlib.Path(".").rglob("*.toml")):
+              if any(part.startswith(".") for part in p.parts):
+                  continue
+              try:
+                  tomllib.loads(p.read_text())
+              except Exception as e:
+                  fails.append((str(p), str(e)))
+          if fails:
+              for path, err in fails:
+                  print(f"PARSE FAIL {path}: {err}")
+              sys.exit(1)
+          print(f"parsed OK: {sum(1 for _ in pathlib.Path('.').rglob('*.toml'))} files")
+          PY
+
+      - name: Primary validators (Rust + Go) — full canonical sweep
+        # Safe-Rust + Go are the primary validators for the draft
+        # layering artifacts AND for the SPEC §2.2 / §2.5 / §2.6 / §2.7 /
+        # §11.1 meta surface that applies to EVERY DAG-TOML file.
+        # CI runs them against every canonical example, every tier
+        # file, every profile descriptor, and the new disclosure
+        # examples so the meta-rules can't drift unnoticed on old
+        # kinds. Python validators below run as cross-checks;
+        # divergence between primary and reference is a build break.
+        run: |
+          set -e
+          rs="${RUNNER_TEMP}/dagtoml-validate-rs"
+          go_bin="${RUNNER_TEMP}/dagtoml-validate-go"
+          targets=(
+            profiles/agent-assurance/PROFILE.toml
+            profiles/disclosure/PROFILE.toml
+            profiles/cost/PROFILE.toml
+            examples/minimal-disclosure-attestation.toml
+            examples/minimal-redaction-manifest.toml
+            examples/minimal-selective-disclosure-proof.toml
+            examples/minimal-cost-record.toml
+            examples/minimal-implementation-dag.toml
+            examples/minimal-traceability.toml
+            examples/minimal-spec-contract.toml
+            examples/minimal-threat-model.toml
+            examples/minimal-smoke-validation.toml
+            examples/minimal-rollback-plan.toml
+            examples/minimal-adapter-contract.toml
+            examples/minimal-adapter-registry-binding.toml
+            examples/minimal-assertion-bundle.toml
+            examples/minimal-assertion-log-record.toml
+            examples/minimal-gate-decision.toml
+            examples/minimal-review-readiness/review_readiness.toml
+            examples/minimal-review-readiness/contract_declaration.toml
+            examples/minimal-review-readiness/evidence_matrix.toml
+            profiles/agent-assurance/tiers/solo.toml
+            profiles/agent-assurance/tiers/team.toml
+            profiles/agent-assurance/tiers/group.toml
+            profiles/agent-assurance/tiers/organization.toml
+            profiles/agent-assurance/tiers/enterprise.toml
+          )
+          echo "--- Rust primary ---"
+          "$rs" --repo-root . "${targets[@]}"
+          echo "--- Go primary ---"
+          "$go_bin" --repo-root . "${targets[@]}"
+
+      - name: Cross-check (Python) — profile descriptors, disclosure profile, cost profile
+        run: |
+          set -e
+          python3 validators/validate_profile_descriptor.py \
+            --repo-root . \
+            profiles/agent-assurance/PROFILE.toml \
+            profiles/disclosure/PROFILE.toml \
+            profiles/cost/PROFILE.toml
+          python3 validators/validate_disclosure.py \
+            --repo-root . \
+            examples/minimal-disclosure-attestation.toml \
+            examples/minimal-redaction-manifest.toml \
+            examples/minimal-selective-disclosure-proof.toml
+          python3 validators/validate_cost.py \
+            --repo-root . \
+            examples/minimal-cost-record.toml
+
+      - name: Validate abstraction class + capability envelope (SPEC §13)
+        # Every `*-kind.toml` descriptor MAY declare optional
+        # `[kind.abstraction_class]` and `[kind.capability_envelope]`
+        # blocks per SPEC §13. The structural-conformance gate
+        # accepts descriptors that omit both blocks (backwards
+        # compatible) and rejects descriptors that declare them
+        # malformed. Sub-table names under capability_envelope are
+        # bounded by the closed `capability_envelope.domain`
+        # vocabulary in core/ontology.toml.
+        run: |
+          set -e
+          python3 validators/validate_abstraction_class.py \
+            --repo-root . \
+            core/*-kind.toml \
+            profiles/agent-assurance/*-kind.toml \
+            profiles/disclosure/*-kind.toml \
+            profiles/cost/*-kind.toml
+
+      - name: Validate closure_root (SPEC §12) on every conforming DAG-TOML document
+        # Every conforming DAG-TOML document MUST carry a root-level
+        # `closure_root` field. Self-contained documents emit the
+        # empty-closure sentinel (SHA-256("")). Documents with
+        # `[provenance].source_sha256` must compute the SPEC §12.8
+        # source-hash closure in Rust, Go, and Python. Weak digests are
+        # forbidden. This step gates the brittleness-propagation rule.
+        #
+        # Discovery is by convention: any TOML whose
+        # `[meta].template_kind` is one of the kinds declared by
+        # `core/*-kind.toml` / `profiles/<name>/*-kind.toml`, or the
+        # meta kinds `kind-descriptor` / `ontology`. Process-artifact
+        # TOMLs (review bundles, claim-analysis runs) use unblessed
+        # `template_kind` values and are intentionally out of scope
+        # per SPEC §12.1.
+        #
+        # We walk the whole repo (--discover .) so a new tracked
+        # conforming document under any directory — skills/,
+        # tools/, examples/, profiles/, core/, anywhere — is caught
+        # automatically.
+        run: |
+          set -e
+          python3 - <<'PY' > "${RUNNER_TEMP}/conforming-dagtoml-files.txt"
+          import pathlib, tomllib
+
+          root = pathlib.Path(".")
+          spec_reserved = {"kind-descriptor", "ontology"}
+
+          def kind_name(path):
+              try:
+                  data = tomllib.loads(path.read_text())
+              except Exception:
+                  return None
+              kind = data.get("kind")
+              if isinstance(kind, dict) and isinstance(kind.get("name"), str):
+                  return kind["name"]
+              return None
+
+          for descriptor in root.glob("core/*-kind.toml"):
+              if name := kind_name(descriptor):
+                  spec_reserved.add(name)
+          for descriptor in root.glob("profiles/*/*-kind.toml"):
+              if name := kind_name(descriptor):
+                  spec_reserved.add(name)
+
+          skip_dirs = {"target", "node_modules", "__pycache__"}
+          for path in sorted(root.rglob("*.toml")):
+              if any(part.startswith(".") or part in skip_dirs for part in path.parts):
+                  continue
+              try:
+                  data = tomllib.loads(path.read_text())
+              except Exception:
+                  continue
+              meta = data.get("meta")
+              if isinstance(meta, dict) and meta.get("template_kind") in spec_reserved:
+                  print(path)
+          PY
+          mapfile -t closure_targets < "${RUNNER_TEMP}/conforming-dagtoml-files.txt"
+          if [ "${#closure_targets[@]}" -eq 0 ]; then
+            echo "no conforming DAG-TOML files discovered"
+            exit 1
+          fi
+          "${RUNNER_TEMP}/dagtoml-validate-rs" \
+            --repo-root . --mode provenance "${closure_targets[@]}"
+          "${RUNNER_TEMP}/dagtoml-validate-go" \
+            --repo-root . --mode provenance "${closure_targets[@]}"
+          python3 validators/validate_closure_root.py \
+            --discover .
+
+      - name: Validate kind descriptors
+        run: |
+          set -e
+          for f in core/*-kind.toml profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml profiles/cost/*-kind.toml; do
+            [ -e "$f" ] || continue
+            echo "--- $f ---"
+            python3 validators/validate_kind_descriptor.py "$f" \
+              --repo-root . --check-references-exist
+          done
+
+      - name: Validate canonical examples (strict, no --allow-placeholders)
+        run: |
+          set -e
+          python3 validators/validate_implementation_dag.py \
+            examples/minimal-implementation-dag.toml
+          python3 validators/validate_traceability.py \
+            examples/minimal-traceability.toml
+          python3 validators/validate_review_readiness.py \
+            examples/minimal-review-readiness/review_readiness.toml
+          python3 validators/validate_review_readiness.py \
+            examples/minimal-review-readiness/contract_declaration.toml
+          python3 validators/validate_review_readiness.py \
+            examples/minimal-review-readiness/evidence_matrix.toml
+
+      - name: Validate IJB conformance (ontologies + kind descriptors + canonical examples)
+        run: |
+          set -e
+          python3 validators/validate_ijb_conformance.py core/ontology.toml
+          python3 validators/validate_ijb_conformance.py \
+            profiles/agent-assurance/ontology.toml
+          python3 validators/validate_ijb_conformance.py \
+            profiles/disclosure/ontology.toml
+          python3 validators/validate_ijb_conformance.py \
+            profiles/cost/ontology.toml
+          for f in core/*-kind.toml profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml profiles/cost/*-kind.toml; do
+            [ -e "$f" ] || continue
+            python3 validators/validate_ijb_conformance.py "$f"
+          done
+          for f in profiles/agent-assurance/PROFILE.toml profiles/disclosure/PROFILE.toml profiles/cost/PROFILE.toml; do
+            python3 validators/validate_ijb_conformance.py "$f"
+          done
+          for f in examples/minimal-implementation-dag.toml \
+                   examples/minimal-traceability.toml \
+                   examples/minimal-spec-contract.toml \
+                   examples/minimal-threat-model.toml \
+                   examples/minimal-smoke-validation.toml \
+                   examples/minimal-rollback-plan.toml \
+                   examples/minimal-adapter-contract.toml \
+                   examples/minimal-adapter-registry-binding.toml \
+                   examples/minimal-assertion-bundle.toml \
+                   examples/minimal-assertion-log-record.toml \
+                   examples/minimal-gate-decision.toml \
+                   examples/minimal-review-readiness/review_readiness.toml \
+                   examples/minimal-review-readiness/contract_declaration.toml \
+                   examples/minimal-review-readiness/evidence_matrix.toml \
+                   examples/minimal-disclosure-attestation.toml \
+                   examples/minimal-redaction-manifest.toml \
+                   examples/minimal-selective-disclosure-proof.toml \
+                   examples/minimal-cost-record.toml; do
+            python3 validators/validate_ijb_conformance.py "$f" \
+              --repo-root . --check-references-exist
+          done
+          # Profile examples have no dedicated validator yet; just parse.
+          python3 -c '
+          import tomllib, pathlib
+          for name in [
+              "minimal-spec-contract.toml",
+              "minimal-threat-model.toml",
+              "minimal-smoke-validation.toml",
+              "minimal-rollback-plan.toml",
+              "minimal-adapter-contract.toml",
+              "minimal-assertion-bundle.toml",
+              "minimal-gate-decision.toml",
+              "minimal-assertion-log-record.toml",
+              "minimal-adapter-registry-binding.toml",
+          ]:
+              tomllib.loads(pathlib.Path(f"examples/{name}").read_text())
+              print(f"parsed OK: examples/{name}")
+          '
+
+      - name: Validate deployment-tier files (contract-declaration instances)
+        run: |
+          set -e
+          for f in profiles/agent-assurance/tiers/*.toml; do
+            [ -e "$f" ] || continue
+            echo "--- $f ---"
+            python3 validators/validate_review_readiness.py "$f"
+          done
+
+      - name: Validate rollback-plan trigger_kind closure
+        run: |
+          set -e
+          for f in examples/minimal-rollback-plan.toml \
+                   skills/convert-md-to-dag/rollback_plan.toml; do
+            [ -e "$f" ] || { echo "MISSING: $f"; exit 1; }
+            echo "--- $f ---"
+            python3 validators/validate_rollback_plan.py "$f" --repo-root .
+          done
+
+      - name: Validate gate-decision INV01-INV06 (incl. cross-provider self-modification)
+        # Enforces every hard invariant declared in
+        # profiles/agent-assurance/gate-decision-kind.toml. The
+        # load-bearing one is INV06: when decision.subject_class =
+        # "self-modification", the deciding model's provider_id AND
+        # model_family_id MUST both differ from the proposing model's
+        # (conjunctive AND). Two negative variants below pin the
+        # AND-not-OR semantics in CI: a same-provider/different-family
+        # case and a different-provider/same-family case BOTH must
+        # FAIL. Surfaced as defect S08 in
+        # docs/reviews/2026-05-25-spec-e2e/raw_findings/codex.md.
+        run: |
+          set -e
+
+          # Positive cases: the worked example with subject_class =
+          # self-modification and the pre-INV06 minimal example
+          # (subject_class absent — INV06 dormant). Both MUST PASS.
+          for f in examples/self-modification-gate-decision.toml \
+                   examples/minimal-gate-decision.toml; do
+            [ -e "$f" ] || { echo "MISSING: $f"; exit 1; }
+            echo "--- POSITIVE: $f (expect PASS) ---"
+            python3 validators/validate_gate_decision.py --repo-root . "$f"
+          done
+
+          # Negative cases (synthesised in-flight). Both MUST FAIL
+          # INV06. The CI step asserts the validator returns non-zero
+          # for each.
+          neg_workdir="$(mktemp -d)"
+          trap 'rm -rf "${neg_workdir}"' EXIT
+
+          cat > "${neg_workdir}/neg-same-provider.toml" <<'TOML'
+          closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          [meta]
+          schema_version = "0.1.0"
+          template_kind = "gate-decision"
+          framework_profile = "agent-assurance"
+          [decision]
+          verdict = "pass"
+          evidence_root = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+          evidence_root_algorithm = "sha256-merkle-sorted-leaves"
+          decided_at = "2026-05-25T03:14:30Z"
+          subject_class = "self-modification"
+          proposing_provider_id = "anthropic"
+          proposing_model_family_id = "claude"
+          deciding_provider_id = "anthropic"
+          deciding_model_family_id = "gpt"
+          [[decision.cited_bundles]]
+          bundle_ref = "examples/minimal-assertion-bundle.toml"
+          TOML
+
+          cat > "${neg_workdir}/neg-same-family.toml" <<'TOML'
+          closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          [meta]
+          schema_version = "0.1.0"
+          template_kind = "gate-decision"
+          framework_profile = "agent-assurance"
+          [decision]
+          verdict = "pass"
+          evidence_root = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+          evidence_root_algorithm = "sha256-merkle-sorted-leaves"
+          decided_at = "2026-05-25T03:14:30Z"
+          subject_class = "self-modification"
+          proposing_provider_id = "anthropic"
+          proposing_model_family_id = "claude"
+          deciding_provider_id = "openai"
+          deciding_model_family_id = "claude"
+          [[decision.cited_bundles]]
+          bundle_ref = "examples/minimal-assertion-bundle.toml"
+          TOML
+
+          for f in "${neg_workdir}/neg-same-provider.toml" "${neg_workdir}/neg-same-family.toml"; do
+            echo "--- NEGATIVE (python reference): $f (expect FAIL) ---"
+            if python3 validators/validate_gate_decision.py --repo-root . "$f"; then
+              echo "REGRESSION: $f passed Python validator but INV06 says it MUST fail"
+              exit 1
+            else
+              echo "  ok: python validator correctly rejected"
+            fi
+          done
+
+          # Belt-and-suspenders: exercise both primary validators
+          # (safe-Rust and safe-Go) against the same suite. INV06 is
+          # the only invariant where the three implementations all
+          # carry the AND-not-OR predicate; CI catches drift between
+          # them per the divergence-is-a-build-break policy. The
+          # primary binaries were built earlier in the workflow.
+          rs="${RUNNER_TEMP}/dagtoml-validate-rs"
+          go_bin="${RUNNER_TEMP}/dagtoml-validate-go"
+          for primary in "$rs" "$go_bin"; do
+            label="$(basename "$primary")"
+            for f in examples/self-modification-gate-decision.toml \
+                     examples/minimal-gate-decision.toml; do
+              echo "--- POSITIVE ($label): $f (expect PASS) ---"
+              "$primary" --repo-root . "$f"
+            done
+            for f in "${neg_workdir}/neg-same-provider.toml" "${neg_workdir}/neg-same-family.toml"; do
+              echo "--- NEGATIVE ($label): $f (expect FAIL) ---"
+              if "$primary" --repo-root . --mode gate-decision "$f"; then
+                echo "REGRESSION: $f passed $label but INV06 says it MUST fail"
+                exit 1
+              else
+                echo "  ok: $label correctly rejected"
+              fi
+            done
+          done
+
+      - name: Validate [provenance] bindings (spec.md §11)
+        run: |
+          set -e
+          # Every TOML with a [provenance] table must bind to its
+          # source artifact (SHA-256 + byte length recompute).
+          mapfile -t prov_files < <(grep -rl "^\[provenance\]" \
+            --include="*.toml" . | grep -v "^\./\." | sort)
+          if [ "${#prov_files[@]}" -eq 0 ]; then
+            echo "no [provenance] tables found; skipping"
+          else
+            echo "files with [provenance]:"
+            printf '  %s\n' "${prov_files[@]}"
+            python3 validators/validate_provenance.py "${prov_files[@]}" \
+              --repo-root .
+          fi
+
+      - name: Validate skill packages (IJB + provenance)
+        run: |
+          set -e
+          for f in skills/convert-md-to-dag/implementation_dag.toml \
+                   skills/convert-md-to-dag/contract_declaration.toml \
+                   skills/convert-md-to-dag/review_readiness.toml \
+                   skills/convert-md-to-dag/traceability.toml \
+                   skills/convert-md-to-dag/threat_model.toml \
+                   skills/convert-md-to-dag/rollback_plan.toml; do
+            [ -e "$f" ] || { echo "MISSING: $f"; exit 1; }
+            echo "--- $f ---"
+            python3 validators/validate_ijb_conformance.py "$f" \
+              --repo-root . --check-references-exist
+          done
+          python3 validators/validate_implementation_dag.py \
+            skills/convert-md-to-dag/implementation_dag.toml
+          python3 validators/validate_review_readiness.py \
+            skills/convert-md-to-dag/contract_declaration.toml
+          python3 validators/validate_review_readiness.py \
+            skills/convert-md-to-dag/review_readiness.toml
+          python3 validators/validate_traceability.py \
+            skills/convert-md-to-dag/traceability.toml --repo-root .
+
+      - name: Validate language-validation fixture (IJB + path-existence)
+        run: |
+          set -e
+          python3 validators/validate_traceability.py \
+            examples/language-validation/traceability.toml \
+            --repo-root . --check-paths-exist
+          python3 validators/validate_ijb_conformance.py \
+            examples/language-validation/traceability.toml \
+            --repo-root . --check-references-exist
+
+      - name: Verify language fixture symbols (grep-level drift check)
+        # This is a cheap, sqry-independent drift gate so the fixtures
+        # cannot silently lose the symbols their TRACEABILITY entries
+        # declare. The full AST-aware check lives in
+        # validators/validate_code_symbols.py and is gated on a
+        # separate sqry-install workflow (see docs/language-validators.md).
+        run: |
+          set -e
+          declare -A expect=(
+            ["examples/language-validation/src/rust/receipt.rs"]="render_receipt"
+            ["examples/language-validation/src/go/receipt.go"]="RenderReceipt"
+            ["examples/language-validation/src/typescript/receipt.ts"]="renderReceipt"
+            ["examples/language-validation/src/java/ReceiptRenderer.java"]="renderReceipt"
+          )
+          for path in "${!expect[@]}"; do
+            symbol="${expect[$path]}"
+            if [ ! -f "$path" ]; then
+              echo "MISSING fixture: $path"; exit 1
+            fi
+            if ! grep -q "$symbol" "$path"; then
+              echo "FAIL: symbol '$symbol' missing in $path"; exit 1
+            fi
+          done
+          echo "all language fixtures contain declared symbols"
+
+      - name: Verify no banned markers
+        run: |
+          set -e
+          if grep -rn "^[[:space:]]*kind[[:space:]]*=" examples/ --include="*.toml" \
+              | grep -vE "(requirement_kind|test_kind|trigger_kind|template_kind)"; then
+            echo "FAIL: bare \`kind\` field found in examples; use role-specific name."
+            exit 1
+          fi
+          # Look for internal paths (constructed dynamically so this rule
+          # does not match itself when scanning the workflow file).
+          #
+          # Excluded directories (grep --exclude-dir matches the basename,
+          # so we use `.git` and `.github`; docs/reviews/ is filtered with
+          # an explicit post-pipe because --exclude-dir cannot match a
+          # path prefix):
+          #   .git/              — version control internals.
+          #   .github/           — the workflow file constructs the needle
+          #                       and necessarily contains the literal
+          #                       substring in its rationale comments.
+          # Excluded files:
+          #   CLAUDE.md          — agent instructions reference the policy
+          #                       by name.
+          #   CHANGELOG.md       — changelog entries discussing this gate
+          #                       must be able to name the policy too.
+          # Post-pipe filter:
+          #   docs/reviews/      — multi-LLM review audit trails legitimately
+          #                       discuss the policy by name as part of
+          #                       their evidence record ("Confirmed —
+          #                       banned internal path prefix absent.").
+          #                       The grep is meant to catch ACTUAL path
+          #                       leaks in spec/example/code/paper surfaces,
+          #                       not narrative discussion of the policy
+          #                       in audit trails. Editing historical
+          #                       review files to obfuscate the string
+          #                       would falsify the audit record.
+          NEEDLE="/srv/$(printf %s repos/internal)"
+          hits=$(grep -rn "$NEEDLE" . \
+                    --exclude-dir=.git \
+                    --exclude-dir=.github \
+                    --exclude=CLAUDE.md \
+                    --exclude=CHANGELOG.md \
+                    2>/dev/null \
+                | grep -vE "^\.?/?docs/reviews/" \
+                || true)
+          if [ -n "$hits" ]; then
+            echo "$hits"
+            echo "FAIL: hardcoded internal path leaked into public repo."
+            exit 1
+          fi
+          echo "no banned markers found"
+
+      - name: Verify documented examples exist
+        run: |
+          set -e
+          for f in examples/minimal-implementation-dag.toml \
+                   examples/minimal-traceability.toml \
+                   examples/minimal-spec-contract.toml \
+                   examples/minimal-threat-model.toml \
+                   examples/minimal-smoke-validation.toml \
+                   examples/minimal-rollback-plan.toml \
+                   examples/minimal-adapter-contract.toml \
+                   examples/minimal-assertion-bundle.toml \
+                   examples/minimal-gate-decision.toml \
+                   examples/minimal-assertion-log-record.toml \
+                   examples/minimal-adapter-registry-binding.toml \
+                   examples/minimal-review-readiness/review_readiness.toml \
+                   examples/minimal-review-readiness/contract_declaration.toml \
+                   examples/minimal-review-readiness/evidence_matrix.toml \
+                   profiles/agent-assurance/tiers/solo.toml \
+                   profiles/agent-assurance/tiers/team.toml \
+                   profiles/agent-assurance/tiers/group.toml \
+                   profiles/agent-assurance/tiers/organization.toml \
+                   profiles/agent-assurance/tiers/enterprise.toml \
+                   profiles/agent-assurance/PROFILE.toml \
+                   profiles/disclosure/PROFILE.toml \
+                   profiles/disclosure/ontology.toml \
+                   profiles/disclosure/disclosure-attestation-kind.toml \
+                   profiles/disclosure/redaction-manifest-kind.toml \
+                   profiles/disclosure/selective-disclosure-proof-kind.toml \
+                   examples/minimal-disclosure-attestation.toml \
+                   examples/minimal-redaction-manifest.toml \
+                   examples/minimal-selective-disclosure-proof.toml \
+                   core/profile-descriptor-kind.toml \
+                   docs/adoption.md; do
+            [ -e "$f" ] || { echo "MISSING: $f"; exit 1; }
+          done
+          echo "all canonical examples present"
+
+      # ----------------------------------------------------------------
+      # OSS security + quality scanning (13 tools, all fail-the-build)
+      # ----------------------------------------------------------------
+      # This block exists because the repo runs on a free-plan private
+      # GitHub org, where Advanced Security (CodeQL + secret scanning +
+      # branch protection) is not available. Each step below is the
+      # free-OSS local equivalent of one GHAS feature, SHA-pinned where
+      # the upstream provides a stable release tag, and configured to
+      # fail the build on ANY finding (continue-on-error: false is the
+      # default but made explicit here to document intent).
+      #
+      # Coverage map:
+      #   actionlint      — GHA workflow correctness (broken expressions,
+      #                     deprecated APIs, shell-injection in `run:`)
+      #   zizmor          — GHA workflow security (impostor-commit,
+      #                     unpinned uses, excessive permissions)
+      #   shellcheck      — shell-script correctness for validators/*.sh
+      #                     and example witness scripts
+      #   typos           — source-code spellchecker; critical for spec
+      #                     repos (a misspelled ontology predicate is a
+      #                     silent semantic error)
+      #   ruff            — Python deep linter (security `S` rules,
+      #                     correctness, dead-code); defense-in-depth
+      #                     above bandit
+      #   bandit          — Python static security analysis of validators/
+      #   osv-scanner     — CVEs in requirements.txt + Cargo.lock + go.sum
+      #                     (complements Dependabot: catches transitive
+      #                     and advisory-DB-only entries Dependabot misses)
+      #   gitleaks        — secret leak detection in commits + working
+      #                     tree (replaces GHAS secret scanning)
+      #   cargo-audit     — RustSec advisory DB check for every tools/*-rs
+      #   cargo-deny      — Rust license policy + dep ban + advisories
+      #                     (catches license drift that audit doesn't)
+      #   govulncheck     — Go call-graph-aware vuln check for tools/*-go
+      #   golangci-lint   — Go meta-linter (gosec + staticcheck + errcheck
+      #                     + govet + ineffassign + unused)
+      #   lychee          — link rot across spec.md, README, references.bib
+
+      # --- Workflow integrity (fast; gate everything that follows) ---
+
+      - name: Workflow lint (actionlint)
+        continue-on-error: false
+        # Lints the workflow files themselves: broken `${{ }}` expressions,
+        # invalid runner labels, deprecated event names, shell-injection
+        # patterns in `run:` blocks. Caught bugs here would silently break
+        # every other security step.
+        run: |
+          set -euo pipefail
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          "$(go env GOPATH)/bin/actionlint" -color
+
+      - name: Workflow security audit (zizmor)
+        continue-on-error: false
+        # Catches GHA-specific security antipatterns: impostor-commit
+        # (action SHA pin that doesn't actually point at the claimed
+        # release), unpinned action references, excessive token scopes,
+        # credential persistence through artifacts.
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user 'zizmor==1.25.2'
+          # Default min-severity (low+); informational findings (job
+          # names, concurrency limits, superfluous actions) are tracked
+          # but not enforced — those don't move the security needle.
+          "$HOME/.local/bin/zizmor" .github/workflows/
+
+      # --- Content correctness (cheap, broad coverage) ---
+
+      - name: Shell-script lint (shellcheck)
+        continue-on-error: false
+        # ubuntu-latest pre-installs shellcheck. Validator shell scripts
+        # are gate-critical (a bug in check_safe_tools.sh would silently
+        # let unsafe code ship).
+        run: |
+          set -euo pipefail
+          shellcheck --version
+          shellcheck \
+            validators/check_safe_tools.sh \
+            validators/check_manifest_drift.sh
+
+      - name: Source-code spellcheck (typos)
+        continue-on-error: false
+        uses: crate-ci/typos@7b04f660f4ee4f048d18fd341887cf28dfbedfe2  # v1.46.3
+
+      # --- Language-specific deep checks ---
+
+      - name: Python lint (ruff)
+        continue-on-error: false
+        # ruff is a polyglot Python linter that includes the flake8-bandit
+        # security ruleset (S101..S702), plus correctness (F), dead-code,
+        # bug patterns (B), and simplifications (SIM). Pairs with bandit:
+        # ruff catches more correctness/bug patterns; bandit catches a
+        # few AST taint patterns ruff still doesn't. Defense in depth.
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user 'ruff==0.14.5'
+          # Rules selected:
+          #   F = pyflakes — real bugs (unused imports, undefined names,
+          #                  unused variables)
+          #   S = flake8-bandit — security (overlaps bandit; both run for
+          #                       defense-in-depth)
+          # NOT selected today:
+          #   E,W   = pycodestyle (style/whitespace) — high noise on
+          #           existing validator code; address in dedicated PR
+          #   B     = flake8-bugbear — useful but 7 findings on legacy
+          #           code (closure-over-loop-var patterns intentionally
+          #           used in cycle-detection); address in dedicated PR
+          #   SIM   = simplify suggestions — style, not security
+          # Skip S404 (import subprocess) — same rationale as bandit:
+          # pure informational, the call-site checks (S603) are what
+          # matter.
+          "$HOME/.local/bin/ruff" check \
+            --select S,F \
+            --ignore S404 \
+            --line-length 120 \
+            validators/
+
+      # --- Existing 5 scanners follow below ---
+
+      - name: Lock-file CVE scan (osv-scanner)
+        continue-on-error: false
+        uses: google/osv-scanner-action/osv-scanner-action@9a498708959aeaef5ef730655706c5a1df1edbc2  # v2.3.8
+        with:
+          # osv-scanner v2 removed --skip-git (the action's default
+          # already excludes .git internals via image filtering); pass
+          # only the directory + recursive flag.
+          #
+          # --no-resolve disables network-required transitive dependency
+          # resolution. We rely on lockfile-based scanning (Cargo.lock,
+          # go.sum) instead, which has full transitive info baked in.
+          # The only manifest that lacks a lockfile (requirements.txt
+          # — 1 Python package, networkx) gets direct-dep-only coverage
+          # rather than transitive. Acceptable trade-off: the
+          # transitive-resolution gRPC service is flaky and treating
+          # its outages as build failures is wrong (a clean dep tree
+          # isn't a CVE finding). When we add a requirements.lock file
+          # we can re-enable transitive resolution.
+          scan-args: |-
+            --recursive
+            --no-resolve
+            ./
+
+      - name: Secret scan (gitleaks)
+        continue-on-error: false
+        # Install the official gitleaks binary at a pinned version
+        # (not the gitleaks-action — the action requires an org license
+        # for >25-member orgs and adds a Node.js dep we don't need).
+        # The binary is a single static Go executable; the SHA256 below
+        # is the published release checksum for the linux_x64 tarball.
+        run: |
+          set -euo pipefail
+          VERSION="8.30.1"
+          TARBALL="gitleaks_${VERSION}_linux_x64.tar.gz"
+          # SHA256 fetched from the release artifact directly on
+          # 2026-05-26 by `sha256sum` of the linux_x64 tarball. Update
+          # this pin when bumping the VERSION above.
+          EXPECTED_SHA="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/${TARBALL}" -o "/tmp/${TARBALL}"
+          actual=$(sha256sum "/tmp/${TARBALL}" | awk '{print $1}')
+          if [ "${actual}" != "${EXPECTED_SHA}" ]; then
+            echo "FAIL: gitleaks tarball SHA256 mismatch."
+            echo "  expected: ${EXPECTED_SHA}"
+            echo "  actual:   ${actual}"
+            exit 1
+          fi
+          mkdir -p /tmp/gitleaks-bin
+          tar -xzf "/tmp/${TARBALL}" -C /tmp/gitleaks-bin gitleaks
+          /tmp/gitleaks-bin/gitleaks detect \
+            --source . \
+            --no-banner \
+            --redact \
+            --verbose \
+            --exit-code 1
+
+      - name: Python static security analysis (bandit)
+        continue-on-error: false
+        # bandit catches subprocess shell=True, eval, pickle, weak crypto,
+        # hardcoded credentials, path traversal patterns. Scan the
+        # validators/ tree (the only Python surface we ship); examples/
+        # and docs/ are TOML/Markdown only.
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user 'bandit==1.9.4'
+          # Bandit exits non-zero on any finding at or above the configured
+          # severity/confidence floor — DO NOT pass --exit-zero (that flag
+          # SUPPRESSES non-zero exits, which is the opposite of what this
+          # CI step wants).
+          #
+          # --skip B404: this check fires on every `import subprocess`
+          # statement regardless of whether subprocess is used safely. The
+          # call-site checks (B602 shell=True, B603 subprocess-without-shell,
+          # B607 partial-path) catch actual issues; B404 is pure
+          # informational noise on a codebase that legitimately needs
+          # subprocess for its `dagtoml-rdf verify` and `sqry search`
+          # invocations. Suppressed globally; specific call-sites are
+          # annotated with `# nosec B603 - <reason>` where the safety
+          # argument is non-obvious.
+          python3 -m bandit \
+            --recursive validators/ \
+            --severity-level low \
+            --confidence-level low \
+            --skip B404
+
+      - name: Rust advisory DB check (cargo-audit)
+        continue-on-error: false
+        # cargo-audit consults the RustSec advisory DB. Run against
+        # every primary-validator + reference tooling crate.
+        run: |
+          set -euo pipefail
+          cargo install --locked --version 0.22.1 cargo-audit
+          for d in tools/dagtoml-validate-rs \
+                   tools/toml-test-decode-rs \
+                   tools/dagtoml-duckdb \
+                   tools/dagtoml-rdf; do
+            echo "::group::cargo audit in ${d}"
+            (cd "${d}" && cargo audit --deny warnings)
+            echo "::endgroup::"
+          done
+
+      - name: Go vulnerability scan (govulncheck)
+        continue-on-error: false
+        # govulncheck is call-graph aware: only flags vulnerabilities
+        # whose affected symbols are actually reachable from our code.
+        # Lower false-positive rate than blanket SBOM scanners.
+        run: |
+          set -euo pipefail
+          go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
+          for d in tools/dagtoml-validate-go \
+                   tools/dagtoml-duckdb-go \
+                   tools/dagtoml-rdf-go; do
+            echo "::group::govulncheck in ${d}"
+            (cd "${d}" && "$(go env GOPATH)/bin/govulncheck" ./...)
+            echo "::endgroup::"
+          done
+
+      - name: Rust license + ban + advisory policy (cargo-deny)
+        continue-on-error: false
+        # cargo-deny adds license policy (require Apache/MIT/BSD/MPL),
+        # banned-crate enforcement, and source allowlist (only crates.io
+        # — no arbitrary git deps). Each tools/*-rs crate is scanned
+        # against the policy in deny.toml at the repo root.
+        uses: EmbarkStudios/cargo-deny-action@a531616d8ce3b9177443e48a1159bc945a099823  # v2.0.19
+        with:
+          # Default `command: check` runs advisories + bans + licenses
+          # + sources against every Cargo.lock found.
+          command: check advisories bans licenses sources
+          # The action scans the manifest closest to GITHUB_WORKSPACE by
+          # default. We have four independent crates under tools/*-rs;
+          # invoke the action four times, once per crate, via the
+          # `manifest-path` input.
+          manifest-path: tools/dagtoml-validate-rs/Cargo.toml
+
+      - name: Rust license + ban (toml-test-decode-rs)
+        continue-on-error: false
+        uses: EmbarkStudios/cargo-deny-action@a531616d8ce3b9177443e48a1159bc945a099823  # v2.0.19
+        with:
+          command: check advisories bans licenses sources
+          manifest-path: tools/toml-test-decode-rs/Cargo.toml
+
+      - name: Rust license + ban (dagtoml-duckdb)
+        continue-on-error: false
+        uses: EmbarkStudios/cargo-deny-action@a531616d8ce3b9177443e48a1159bc945a099823  # v2.0.19
+        with:
+          command: check advisories bans licenses sources
+          manifest-path: tools/dagtoml-duckdb/Cargo.toml
+
+      - name: Rust license + ban (dagtoml-rdf)
+        continue-on-error: false
+        uses: EmbarkStudios/cargo-deny-action@a531616d8ce3b9177443e48a1159bc945a099823  # v2.0.19
+        with:
+          command: check advisories bans licenses sources
+          manifest-path: tools/dagtoml-rdf/Cargo.toml
+
+      - name: Go meta-linter (golangci-lint)
+        continue-on-error: false
+        # golangci-lint runs the configured suite from .golangci.yml:
+        # gosec (security), staticcheck (correctness), errcheck (error
+        # handling), govet, ineffassign, unused.
+        uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee  # v9.2.1
+        with:
+          version: v2.12.2
+          # Run against each Go module independently. The action accepts
+          # a single working-directory; loop in CI by invoking three
+          # times below via separate steps.
+          working-directory: tools/dagtoml-validate-go
+          args: --config=${{ github.workspace }}/.golangci.yml
+
+      - name: Go meta-linter (golangci-lint - duckdb-go)
+        continue-on-error: false
+        uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee  # v9.2.1
+        with:
+          version: v2.12.2
+          working-directory: tools/dagtoml-duckdb-go
+          args: --config=${{ github.workspace }}/.golangci.yml
+
+      - name: Go meta-linter (golangci-lint - rdf-go)
+        continue-on-error: false
+        uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee  # v9.2.1
+        with:
+          version: v2.12.2
+          working-directory: tools/dagtoml-rdf-go
+          args: --config=${{ github.workspace }}/.golangci.yml
+
+      - name: Link-rot scan (lychee)
+        continue-on-error: false
+        # lychee checks every http(s):// URL in tracked markdown, TOML,
+        # and TeX files. Catches dead citations and dead spec references.
+        # Configured by lychee.toml at the repo root.
+        uses: lycheeverse/lychee-action@8646ba30535128ac92d33dfc9133794bfdd9b411  # v2.8.0
+        with:
+          fail: true
+          args: --config lychee.toml --no-progress .

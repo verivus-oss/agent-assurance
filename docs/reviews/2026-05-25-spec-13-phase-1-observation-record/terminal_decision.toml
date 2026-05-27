@@ -1,0 +1,105 @@
+# Round-1 terminal decision for
+# 2026-05-25-spec-13-phase-1-observation-record.
+# Unanimous unconditional_approval; zero concrete blockers across the
+# three independent reviewers.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-spec-13-phase-1-observation-record"
+predecessor    = "2026-05-25-spec-13-retrofit-scoping-plan-r2"
+
+[scope]
+commit_under_review = "140bd9e"
+parent_commit       = "c63c57a"
+unit                = "U09 (iterate-until-terminal) reached on round 1; no rebuttal cycle needed"
+
+# ----------------------------------------------------------------------
+# Verdicts.
+# ----------------------------------------------------------------------
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "unconditional_approval"
+classification = "complete on all 8 units (U01..U08)"
+blocker_count  = 0
+raw_findings   = "raw_findings/codex.md"
+evidence_class = """
+live-executable: per-file validate_abstraction_class.py runs, full-set
+validate_abstraction_class.py + ijb_conformance loop + kind_descriptor
+loop + validate_closure_root.py + taplo lint. Validator source inspected
+via sqry at lines 52 (ID_PATTERN), 58-67 (_load_domains), 182-190
+(_check_domain_random), 214-223 (_check_domain_crypto_keys). Closed-set
+domain vocabulary read from core/ontology.toml:633-648 (9 values).
+File:line evidence for each retrofitted descriptor's abstraction_class
++ capability_envelope blocks. Full grep -nE '^description ' output
+quoted across all 5 §13-declaring kinds confirming distinctness.
+"""
+note = "Detailed report (278 lines)."
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "unconditional_approval"
+classification = "complete on all 8 units (U01..U08)"
+blocker_count  = 0
+raw_findings   = "raw_findings/gemini.md"
+evidence_class = """
+live-executable: all five validator commands exit 0 with the expected
+summary lines; file:line evidence for each retrofitted descriptor's
+abstraction_class + capability_envelope blocks; per-kind-description
+distinctness confirmed; closure_root sentinel preserved at line 5 on
+all four files; git show --stat confirmed exactly the expected 5
+files modified.
+"""
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "unconditional_approval"
+classification = "complete on all 8 units (U01..U08)"
+blocker_count  = 0
+raw_findings   = "raw_findings/grok.md"
+evidence_class = """
+live-executable: all five validator commands re-executed and quoted;
+sqry semantic search on validator internals (ID_PATTERN, _load_domains,
+DOMAIN_CHECKERS, entropy/crypto rules) per
+policy.evidence.search_order; per-file abstraction validator runs on
+all four kinds; grep -n 'closure_root' and 'observation-record.v1'
+output cited; cross-cutting checks on the 9-domain closed set and the
+random/crypto_keys allowed values. Two sqry tool-error fallbacks
+recorded in stderr but did not impact the verdict (the reviewer
+recovered with grep + read_file).
+"""
+
+# ----------------------------------------------------------------------
+# Decision.
+# ----------------------------------------------------------------------
+
+[decision]
+outcome              = "unconditional_approval"
+unanimous            = true
+binding_reviewer     = "codex (longest, most byte-citation-dense report; verified validator source and closed-set vocabulary by sqry)"
+verdict_distribution = { unconditional_approval = 3, concrete_unresolvable_blocker = 0 }
+session_terminal     = true
+next_action          = """
+Phase 1 retrofit (commit 140bd9e) is approved. The four kinds
+evidence-matrix, gate-decision, assertion-log-record, and
+redaction-manifest now participate in the §13 contract alongside
+cost-record. Phase 2 (8 declaration kinds) and Phase 3 (5
+procedure-bearing + special kinds) remain follow-up PRs per
+docs/planning/2026-05-25-spec-13-retrofit-scoping.md §8.
+"""
+
+[session_close]
+closed_at = "2026-05-25"
+closed_by = "consolidated reviewer verdicts at raw_findings/{codex,gemini,grok}.md"
+followup_notes = [
+  "Three independent reviewers all classified all 8 units as complete with file:line evidence; no concrete defects were filed. Round 2 is not required.",
+  "Codex's job remained flagged 'running' for several minutes after persisting its full review to raw_findings/codex.md (lingering CLI activity post-write). The on-disk review is complete and ends with a terminal verdict — verified via grep '^## Terminal verdict'.",
+  "Process checks (active-user guidance, no retcon, claimed tests actually executed) were independently confirmed by all three reviewers.",
+  "The ISS-005 candidate (SPEC §13.4 vs §12.1 closure_root tension) remains explicitly out-of-scope per plan §11 and the kickoff prompt; round 1 reviewers did not raise it as a defect for this commit.",
+  "Phase 2 implementer should follow the same shape this Phase 1 PR uses: append the two §13 blocks after [kind.relation_to_ontology], include a kind-specific header comment naming the kind's structural shape + RUNTIME-SPEC boundary, and write a kind-specific description that ties back to [[kind.required_fields]] / [[kind.required_sections]]. The four reviewed files are now load-bearing examples.",
+]

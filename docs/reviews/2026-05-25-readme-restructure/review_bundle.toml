@@ -1,0 +1,312 @@
+# Round-1 review of the README restructure for the post-§13 /
+# multi-profile state of the repository.
+#
+# Scope: a single-file documentation change (README.md only;
+# +139 / -46 lines). It does NOT modify SPEC.md, core/, profiles/,
+# validators/, examples/, ontologies, kind descriptors, or any
+# DAG-TOML instance. It rewrites the public-facing entry document
+# to reflect what the repository actually ships today (SPEC §13,
+# Cost + Disclosure profiles, deployment tiers, INV06, the
+# safe-Rust + safe-Go primary validators, the toml-test
+# parser-conformance harnesses, and the first calendar-UTC
+# release tag).
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-25"
+review_session = "2026-05-25-readme-restructure"
+predecessor    = "2026-05-25-toml-conformance-harness"
+
+[bundle]
+repo_root         = "/srv/repos/external/verivus-oss/agent-assurance"
+parent_commit     = "1f08dea"
+head_commit       = "b759eaf"
+commit_range      = "1f08dea..b759eaf"
+total_new_commits = 1
+description       = """
+Single commit (b759eaf) restructuring README.md for the post-§13,
+multi-profile state of the repository. The previous README was
+last touched at bc2a7c5 (SPEC §12 era) and predated:
+
+  - SPEC §13 (abstraction-class + capability-envelope)
+  - the Cost profile (profiles/cost/)
+  - the Disclosure profile (profiles/disclosure/)
+  - INV06 (cross-provider self-modification gate-decision invariant)
+  - the safe-Rust + safe-Go primary validators
+    (tools/dagtoml-validate-rs, tools/dagtoml-validate-go)
+  - the toml-test parser-conformance harnesses
+    (Makefile targets toml-conformance{,-rs,-all};
+    tools/toml-test-decode-rs/)
+  - the five agent-assurance deployment tiers (solo→enterprise)
+  - the first calendar-UTC release tag (v2026-05-25T03-30-02Z)
+
+Substantive changes summarised by the commit message:
+
+  - Status table: drop the "first public release tag will be cut
+    after the repository is made public" premise; document the
+    calendar-UTC tag convention; add Cost + Disclosure profile rows.
+
+  - Start Here: re-grouped by reader role (understand format /
+    author / enforce policy / implement validator).
+
+  - Repository Map: now includes Makefile, all 7 tools/*
+    subdirectories, top-level CHANGELOG + GOVERNANCE call-out,
+    and a one-line description of each profile.
+
+  - NEW: "Validation tooling" section describing the three-layer
+    triad (syntax via Taplo; parser conformance via toml-test;
+    semantics via the safe-Rust + safe-Go primary validators +
+    Python reference cross-check).
+
+  - Local Validation: replaces the 3-validator example with a
+    full workflow.
+
+  - Governance: surfaces the multi-LLM review requirement at
+    tools/review-request-dag.toml.
+
+The change does NOT touch the SPEC, profiles, validators,
+ontologies, kind descriptors, examples, or any DAG-TOML instance.
+"""
+
+[bundle.lineage]
+predecessor_review_terminal = "docs/reviews/2026-05-25-toml-conformance-harness/terminal_decision.toml"
+authorising_recommendation  = """
+The README had drifted ~13 substantive surface changes behind the
+working tree. The initiator (claude-opus-4-7) rewrote it in a
+single commit after the toml-conformance harness session landed.
+User accepted: 'dispatch a multi-LLM review for the README rewrite'.
+Per [[feedback_no_self_approval]] the change does not strictly
+require a review (it is a docs-only change, not a
+SPEC/core/profile/validator change), but the README is the public
+face of the spec and every factual claim it makes is a stated
+contract with new readers — independent confirmation is warranted.
+"""
+
+[bundle.files_changed]
+list = [
+  "README.md",                         # +139 / -46
+]
+
+[bundle.initiator_self_verification]
+notes = """
+Before requesting review the initiator independently verified:
+  - all 40 internal links resolve to on-disk files;
+  - all 5 SPEC.md#section-anchor links hit real headers in SPEC.md;
+  - README does not mention paper-arxiv-prep/ (or any paper
+    directory) — no internal-path exposure concerns.
+Reviewers should cross-check these independently and treat the
+initiator's claim as just one input.
+"""
+
+# ----------------------------------------------------------------------
+# Units to classify.
+# ----------------------------------------------------------------------
+
+[[bundle.units]]
+id           = "U01"
+name         = "factual-accuracy-every-claim-matches-on-disk-state"
+summary      = """
+Every concrete factual claim the README makes about the repository
+MUST match the on-disk state of the tree at commit b759eaf. The
+load-bearing claims are listed in `verify` below; reviewers should
+also scan for any further factual claim and check it.
+"""
+verify       = """
+1. "SPEC §13 added abstraction-class + capability-envelope" —
+   confirm SPEC.md line 1195 opens `## 13. Abstraction class and
+   capability envelope` and the section actually defines those
+   two concepts.
+
+2. "Five deployment tiers (solo→enterprise)" — list
+   `profiles/agent-assurance/tiers/*.toml` and confirm exactly
+   {solo, team, group, organization, enterprise}.
+
+3. "Cost profile exists with cost-record kind" — confirm
+   `profiles/cost/PROFILE.toml` and
+   `profiles/cost/cost-record-kind.toml` exist.
+
+4. "Disclosure profile exists with disclosure-attestation,
+   redaction-manifest, selective-disclosure-proof kinds" — confirm
+   `profiles/disclosure/PROFILE.toml`,
+   `profiles/disclosure/disclosure-attestation-kind.toml`,
+   `profiles/disclosure/redaction-manifest-kind.toml`,
+   `profiles/disclosure/selective-disclosure-proof-kind.toml`
+   all exist.
+
+5. "INV06 lives in agent-assurance gate-decision-kind.toml" —
+   confirm the literal string `INV06` appears in
+   `profiles/agent-assurance/gate-decision-kind.toml`.
+
+6. "Rust + Go primary validators + Rust parser-conformance shim"
+   — confirm `tools/dagtoml-validate-rs/`,
+   `tools/dagtoml-validate-go/`, and `tools/toml-test-decode-rs/`
+   all exist.
+
+7. "Makefile targets toml-conformance{,-rs,-all}" — confirm all
+   three target names appear in the top-level Makefile.
+
+8. Any factual claim that fails to match on-disk state is a
+   finding. Severity ≥ medium if it would mislead a new reader
+   about what the repo ships; concrete_unresolvable_blocker if it
+   amounts to a stated falsehood about a normative surface (e.g.,
+   misnaming a kind, claiming a profile that does not exist).
+"""
+
+[[bundle.units]]
+id           = "U02"
+name         = "link-integrity-40-internal-links-and-5-spec-anchors"
+summary      = """
+Every `[label](path)` and `[label](path#anchor)` in README.md
+MUST resolve. The initiator claims 40 internal links + 5 SPEC
+anchors all check; reviewers re-run independently.
+"""
+verify       = """
+1. Extract every Markdown link target from README.md and bucket
+   into (a) external https, (b) internal repo path, (c) internal
+   path with section anchor.
+
+2. For each (b) internal repo path: confirm the file or
+   directory exists at the indicated relative path.
+
+3. For each (c) anchor link of form `SPEC.md#<anchor>`:
+   - Confirm SPEC.md exists.
+   - Compute the GitHub-flavoured anchor for every `## ` and
+     `### ` heading in SPEC.md (lowercase, spaces → hyphens, drop
+     punctuation) and confirm the cited anchor appears in that set.
+
+4. Any broken link is a finding (severity high if it would 404
+   for a public reader; concrete_unresolvable_blocker if multiple
+   top-level navigation links are broken).
+"""
+
+[[bundle.units]]
+id           = "U03"
+name         = "reader-role-grouping-coherence"
+summary      = """
+The "Start Here" section is grouped by reader role
+(understand format / author DAG-TOML / enforce policy /
+implement validator). Each row MUST be appropriate for the
+role of its enclosing group.
+"""
+verify       = """
+1. Read README.md "Start Here" section (the four sub-sections
+   under H3 headings).
+2. For each row, ask: would a reader who self-selected into
+   this group be helped by this pointer, or does it belong in
+   one of the other three groups?
+3. Specific cross-checks:
+   - Is "Pick a deployment tier" correctly under "enforce
+     policy" (not "implement validator")?
+   - Is "Validate source-code symbols against a traceability
+     file" correctly under "author" or should it be under
+     "implement validator"?
+   - Is "Per-kind contract" correctly under "implement
+     validator"?
+4. Findings here are severity low/medium (taxonomic, not
+   factual), but the README's stated value proposition is that
+   the grouping helps. If the grouping demonstrably misroutes a
+   reader, that is a medium finding worth flagging.
+"""
+
+[[bundle.units]]
+id           = "U04"
+name         = "status-table-version-numbers-accurate"
+summary      = """
+The Status table claims `schema_version = "1.0.0"` for core,
+agent-assurance, cost, and disclosure profile surfaces, and
+`ontology_version = 1` for core. Each claim MUST match the
+authoritative on-disk file.
+"""
+verify       = """
+1. "Core DAG-TOML schema 1.0.0" — confirm
+   `core/ontology.toml`'s top-level `schema_version = "1.0.0"`
+   (or equivalent canonical core-surface descriptor).
+
+2. "Core ontology 1" — confirm `core/ontology.toml`'s top-level
+   `ontology_version = 1`.
+
+3. "Agent Assurance Profile schema 1.0.0" — confirm
+   `profiles/agent-assurance/ontology.toml` (or the profile's
+   canonical top-level descriptor) has `schema_version = "1.0.0"`.
+
+4. "Cost Profile schema 1.0.0" — confirm
+   `profiles/cost/PROFILE.toml` has `schema_version = "1.0.0"`.
+
+5. "Disclosure Profile schema 1.0.0" — confirm
+   `profiles/disclosure/PROFILE.toml` has `schema_version = "1.0.0"`.
+
+6. Any mismatch is a finding. Severity high (this is a top-of-
+   document "Status" claim — wrong numbers materially mislead
+   adopters about API stability).
+"""
+
+[[bundle.units]]
+id           = "U05"
+name         = "local-validation-block-actually-executable"
+summary      = """
+The "Local Validation" shell block ships commands a reader is
+expected to run. Every cited validator script MUST exist; every
+cited make target MUST exist; every cited example path MUST exist.
+The block does not have to *run* in the reviewer's sandbox, but
+each line's referenced bytes must be resolvable.
+"""
+verify       = """
+1. Read README.md "Local Validation" section (the fenced ```sh
+   block).
+2. For each `python3 validators/<name>.py …` line: confirm
+   `validators/<name>.py` exists.
+3. For each `make <target>` line: confirm the target is declared
+   in the top-level Makefile.
+4. For each example file path mentioned: confirm the file exists.
+5. For each binary path (e.g. `./tools/dagtoml-validate-rs/target/
+   release/dagtoml-validate-rs`, `/tmp/dagtoml-validate-go`):
+   confirm the build command immediately preceding it would
+   produce that binary at that path.
+6. Any unresolvable reference is a finding (severity high — the
+   reader's first experience would be a "no such file" error,
+   damaging trust in the rest of the document).
+"""
+
+[[bundle.units]]
+id           = "U06"
+name         = "governance-claim-matches-policy-file"
+summary      = """
+README's Governance section claims a multi-LLM review process
+exists at `tools/review-request-dag.toml` for substantive SPEC/
+core/profile/validator changes. That file MUST exist and its
+`[policy.*]` tables MUST match the README's description.
+"""
+verify       = """
+1. Confirm `tools/review-request-dag.toml` exists.
+2. Confirm it contains `[policy.*]` tables (roles, evidence,
+   approval, etc.).
+3. Read the [policy.approval] block (or equivalent) and confirm
+   the README's characterisation is faithful — i.e., it really
+   does require multi-LLM review for substantive
+   SPEC/core/profile/validator changes, not a narrower or
+   broader surface.
+4. Any over- or under-claim is a finding (severity medium — the
+   README is making a governance promise to readers).
+"""
+
+# ----------------------------------------------------------------------
+# Approval policy (from tools/review-request-dag.toml [policy.*]).
+# ----------------------------------------------------------------------
+
+[approval]
+forbidden_bases = [
+  "stated_intent",
+  "plan_compliance_claim",
+  "should_be_fixed_language",
+]
+required_bases = [
+  "inspected_code",
+  "executed_tests_with_output",
+  "inspected_docs",
+  "persisted_review_evidence",
+]
+terminal_states = ["unconditional_approval", "concrete_unresolvable_blocker"]

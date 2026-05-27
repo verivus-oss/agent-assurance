@@ -1,0 +1,131 @@
+# Round-1 terminal decision for 2026-05-25-paper-chardet-e2e.
+# UNANIMOUS concrete_unresolvable_blocker (3/3). Three defects converged
+# across reviewers, two of them traceable to the initiator's own
+# 1e0e155 commit (the \ref{sec:six-signals} mismatch) and one pre-
+# existing in the manuscript (C06e validation over-claim).
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-25"
+review_session = "2026-05-25-paper-chardet-e2e"
+head_commit    = "1e0e155"
+target_file    = "paper/main.tex"
+
+[scope]
+unit                = "P01-P10 (whole-manuscript review)"
+verification_report = "docs/reviews/2026-05-25-paper-chardet-e2e/verification_report.toml"
+
+[[verdicts]]
+reviewer       = "codex"
+verdict        = "concrete_unresolvable_blocker"
+classification = "P01/P04/P05/P06/P07/P09 complete; P02/P03/P08 incomplete; P10 complete with caveat"
+blocker_count  = 3
+raw_findings   = "raw_findings/codex.md"
+evidence_class = "live-executable (citation/reference cross-check scripts; figure regeneration to /tmp; JPlag JSON parsing; detect.sh runs; LaTeX brace+begin/end+label/ref structural checks; sentence-CV computation)"
+
+[[verdicts]]
+reviewer       = "gemini"
+verdict        = "concrete_unresolvable_blocker"
+classification = "P03 + P02 fail; others closed"
+blocker_count  = 2
+raw_findings   = "raw_findings/gemini.md"
+evidence_class = "live-executable (P03 figure-reference scan; P02 ran validate_numbers.py and observed C06e omission + corpus-digest mismatch 8fbc70630c023315 vs 58e54831f84183c7)"
+
+[[verdicts]]
+reviewer       = "grok"
+verdict        = "concrete_unresolvable_blocker"
+classification = "P08 label/ref unresolved set {'sec:six-signals'}; other closures pass"
+blocker_count  = 1
+raw_findings   = "raw_findings/grok.md"
+evidence_class = "live-executable (python3 brace/label/ref cross-check)"
+
+[blockers]
+
+[[blockers.items]]
+id        = "B1"
+filer     = "codex + grok (convergent)"
+severity  = "concrete (unrebuttable; mechanical fix)"
+location  = "paper/main.tex:366 \\ref{sec:six-signals} vs paper/main.tex:467 \\label{sec:signals}"
+defect    = "Unresolved LaTeX reference. The \\ref at line 366 cites 'sec:six-signals' but the matching \\label at line 467 is 'sec:signals'. Would render as ?? in the PDF."
+introduced_by = "initiator 1e0e155 (the §2.4 wrap-up paragraph I added — my typo)"
+remediation   = "One-line fix: change paper/main.tex:366 from \\ref{sec:six-signals} to \\ref{sec:signals}."
+
+[[blockers.items]]
+id        = "B2"
+filer     = "codex + gemini (convergent)"
+severity  = "concrete (substantive — orphan figures)"
+location  = "paper/main.tex:879 (\\label{fig:dag}) and :889 (\\label{fig:topology}) defined but never \\ref/\\cref'd anywhere in prose"
+defect    = "Figures 1 and 2 (fig:dag and fig:topology) exist as labeled figure environments but the prose never refers to them. They render in the PDF but are orphaned from the narrative. Only fig:cfhist is referenced (at paper/main.tex:837 via \\cref{fig:cfhist})."
+remediation = "Either add \\ref{fig:dag} and \\ref{fig:topology} where the prose discusses what each figure shows, or remove the unreferenced figure environments."
+
+[[blockers.items]]
+id        = "B3"
+filer     = "codex + gemini (convergent)"
+severity  = "concrete (substantive — paper makes a false evidence claim)"
+location  = "paper/main.tex:1012-1025 and :1534-1537 (Werner's claims of 'every one' cross-validated) vs paper/figures/scripts/validate_numbers.py:304-308 (C06e omission) and :401-440 (no C06e comparison rows). Gemini additionally observed corpus-digest mismatch 8fbc70630c023315 (harness) vs 58e54831f84183c7 (validator)."
+defect    = """
+The manuscript claims at lines 1012-1025 (and again at 1534-1537)
+that ALL SIX of the headline signals (AUX1, C06a-e) have been
+independently cross-validated by paper/figures/scripts/validate_numbers.py.
+
+Bytes-verified: validate_numbers.py at lines 304-308 explicitly does
+NOT invoke chardet for C06e, and at lines 401-440 the comparison
+loop never includes any C06e row. C06e is therefore NOT
+cross-validated by that script.
+
+Additionally, gemini observed a corpus-digest mismatch between the
+harness and the validator script — 8fbc70630c023315 vs
+58e54831f84183c7 — meaning the two are not even reading the same
+corpus.
+
+Either fix validate_numbers.py to actually validate C06e (and
+reconcile the corpus-digest), or correct the prose to say five of
+six (AUX1 + C06a-d) are cross-validated and C06e is not.
+"""
+remediation_options = [
+  "(A) Fix validate_numbers.py to include C06e + reconcile the corpus-digest, then re-run and update the numbers reported in the paper if they shift.",
+  "(B) Temper the prose: change 'every one' / 'all six' to 'five of the six (AUX1 + C06a through C06d)' and add a sentence noting C06e is reported but not independently re-derived. Honest and easy.",
+]
+
+[secondary_findings]
+
+[[secondary_findings.items]]
+id      = "S1"
+filer   = "codex"
+status  = "incomplete (P04 caveat)"
+defect  = "P04 verify_by required 'each signal subsection states the signal's measurement procedure in reproducible terms'. The runnable command is centralized in §5 Methodology rather than repeated per signal subsection. Codex classed this 'complete with caveat' — measurement source IS identifiable, just not per-subsection."
+
+[[secondary_findings.items]]
+id      = "S2"
+filer   = "codex"
+status  = "complete (P10 caveat)"
+defect  = "Limitations section is intellectually honest; C06e validation wording above (B3) affects the evidence claim, not the limitations."
+
+[decision]
+outcome              = "concrete_unresolvable_blocker"
+unanimous            = true
+binding_reviewer     = "all three (codex + gemini + grok converged on B1; codex + gemini converged on B2; codex + gemini converged on B3 — convergence under independent dispatch is the strongest bytes-verified signal)"
+verdict_distribution = { unconditional_approval = 0, concrete_unresolvable_blocker = 3 }
+session_terminal     = false
+next_action          = """
+1. Apply B1 fix (one-line \\ref correction) — mechanical, can land in
+   any commit.
+2. Apply B2 fix (add or remove fig:dag/fig:topology refs) — author
+   decision, but mechanical once decided.
+3. Decide B3 remediation (A or B). A is substantive engineering
+   work; B is a prose fix that ships an honest narrower claim.
+4. Dispatch r2 once remediation lands.
+"""
+
+[session_close]
+closed_at = "2026-05-25"
+closed_by = "consolidated reviewer verdicts at raw_findings/{codex,gemini,grok}.md"
+followup_notes = [
+  "B1 was MY edit defect — I introduced the unresolved \\ref in 1e0e155 when I added the §2.4 wrap-up paragraph. I should have run a label/ref consistency check before committing. Worth absorbing into future LaTeX-touching commits: post-edit, run a python3 ref-vs-label scan as a pre-commit step. The chardet review's verify_by recipe specifically called this out (P08) and is a good template.",
+  "B2 (orphan figures) is a pre-existing manuscript-shape issue not introduced by recent commits.",
+  "B3 (C06e validation claim) is the most substantive defect: it affects the manuscript's headline evidence claim, not just typography. Either path (fix the script or temper the claim) is honest; the author should decide.",
+  "Mistral remains unavailable. 3/3 convergence on B1 + 2/3 on B2 and B3 makes this an unrebuttable unanimous block. Initiator cannot defend any of the three findings against bytes.",
+]

@@ -1,0 +1,70 @@
+# R2 review bundle for tools/review-request-dag.toml — fresh session
+# dispatched after applying the four blockers from R1.
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-23"
+review_session = "2026-05-23-paper-main-r2"
+prior_session  = "2026-05-23-paper-main"
+
+[bundle]
+document_under_review = "paper/main.tex"
+document_sha          = "6ba15597a36096462cadd55aade3b7bac13c8e7abd86a26b3b53374001437025"
+prior_document_sha    = "9664be061e4bc8493de2e5054d3c3d61737bd666e56077b9856c19585dbde306"
+repo_commit           = "638a90e8a0dc68c3e4aa8dfa29b51f6466d435fe"
+worktree_state        = "dirty: paper/main.tex modified vs HEAD"
+repo_root             = "/srv/repos/external/verivus-oss/agent-assurance"
+verification_report   = "examples/proof-chardet-relicense/VERIFICATION_REPORT.toml"
+secondary_verification = "paper/VERIFICATION_REPORT.toml"
+implementation_plan   = "examples/proof-chardet-relicense/IMPLEMENTATION_DAG.toml"
+contract_declaration  = "examples/proof-chardet-relicense/CONTRACT_DECLARATION.toml"
+traceability          = "examples/proof-chardet-relicense/TRACEABILITY.toml"
+evidence_matrix       = "examples/proof-chardet-relicense/EVIDENCE_MATRIX.toml"
+readiness_gate        = "examples/proof-chardet-relicense/REVIEW_READINESS.toml"
+
+[bundle.prior_review]
+session          = "docs/reviews/2026-05-23-paper-main/"
+gate_decision    = "docs/reviews/2026-05-23-paper-main/gate_decision.toml"
+terminal_decision = "docs/reviews/2026-05-23-paper-main/terminal_decision.toml"
+classifications  = "docs/reviews/2026-05-23-paper-main/unit_classifications.toml"
+process_checks   = "docs/reviews/2026-05-23-paper-main/process_confirmations.toml"
+rebuttal_record  = "docs/reviews/2026-05-23-paper-main/rebuttal_record.md"
+raw_findings_dir = "docs/reviews/2026-05-23-paper-main/raw_findings/"
+prior_verdict    = "fail (3 reviewers, 4 concrete blockers raised)"
+
+[bundle.workflow_dag]
+file        = "tools/review-request-dag.toml"
+description = "The DAG-TOML workflow this review is operating under. See [policy.*] tables for the binding rules."
+
+[roster]
+initiator_model           = "claude-opus-4-7[1m]"
+initiator_excluded_as_standard_reviewer = true
+reviewer_models           = ["codex", "gemini", "grok"]
+note = """
+This is round 2 (R2). Per [policy.completion]:
+no_unit_complete_without_reviewer_evidence_or_queued_status,
+prior-session reviewer evidence does NOT carry over. Each
+reviewer in R2 must independently verify the current bytes
+(sha 6ba15597...). The prior session is provided as
+corrective-program context, not as ground truth.
+"""
+
+[blockers_addressed_in_r2]
+# The four blockers from docs/reviews/2026-05-23-paper-main/terminal_decision.toml
+# that the initiator believes were fixed between sha 9664be06... and sha 6ba15597...
+b1_jplag_file_count_direction = { fix_location = "paper/main.tex:1336-1347", note = "Rewrote sentence: now says JPlag counted '84 v6 ... fewer than the extractor's 87 and 33'; new causal clause cites PEP 515 parse errors; old 'neither affects the headline' replaced with 'strengthens rather than weakens the contrast'." }
+b2_spec_vs_bundle_item3       = { fix_location = "paper/main.tex:300-318", note = "Rewrote sec:spec item 3 to distinguish core gate_decision_verdict (2-value pass|fail at profiles/agent-assurance/ontology.toml:210-214) from this bundle's 8-value evidence vocabulary (TRACEABILITY.toml:40)." }
+b2_spec_vs_bundle_verifier    = { fix_location = "paper/main.tex:1120",     note = "sec:verifier opening rewritten: 'The spec ships three validators...' -> 'The core spec ships three validators that confirm an implementation-dag, traceability, and readiness-gate document...'." }
+b3_c06e_validation_overclaim  = { fix_location = "paper/main.tex:1009-1027", note = "Rewrote sec:numeric-validation C06e paragraph: now says validate_numbers.py confirms PRNG byte-reproducibility only, cites docstring at lines 304-307 ('not invoke chardet'), names both digests with JSON keys (8fbc70630c023315 under independent.c06e_corpus_check vs 58e54831f84183c7 under harness_headline), explicitly states the headline rate/digest are taken from persisted harness output." }
+b4_unpersisted_sandbox_claim  = { fix_location = "paper/main.tex:749-761",   note = "Downgraded 'Both runs produced identical static signal values' to determinism-derived expectation + single-run observation; notes that sandbox_vs_workstation.txt is not yet persisted." }
+
+[permissions]
+codex_sandbox       = "workspace-write"
+codex_mcp           = ["sqry", "ref_tools", "exa"]
+gemini_approval     = "yolo"
+gemini_mcp          = ["sqry", "ref_tools", "exa"]
+grok_permission     = "bypassPermissions"
+grok_always_approve = true
+grok_mcp            = ["sqry", "ref_tools", "exa"]
+poll_progress_interval_seconds_if_grant_not_durable = 90
