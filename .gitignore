@@ -76,3 +76,4 @@ reference/database/duckdb/*.duckdb
 # Local-only working files: style guides, scratch, personal config — never published
 .local/
 tools/werner-style-policy.toml
+.wrangler/

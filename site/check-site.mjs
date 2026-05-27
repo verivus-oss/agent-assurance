@@ -14,6 +14,7 @@ const required = [
   "sitemap.md",
   "robots.txt",
   "AGENTS.md",
+  "ab02de421738fed7233351db2d3ab5f4a4fbddb8050cc6c977b2fc940b8c8a68.txt",
   ".well-known/agent.json",
   ".well-known/agent-skills/index.json",
 ];

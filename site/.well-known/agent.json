@@ -1,32 +1,87 @@
 {
-  "schema_version": "0.1.0",
-  "id": "com.verivus.dag-toml.docs",
-  "name": "DAG-TOML Specification Documentation",
-  "type": "documentation-resource",
-  "canonical_url": "https://agent-assurance.dev/",
-  "repository": "https://github.com/verivus-oss/agent-assurance",
-  "license": "Apache-2.0",
-  "status": "draft-specification",
-  "protocols": [
-    "https",
-    "llms.txt",
-    "markdown"
-  ],
-  "entrypoints": {
-    "human": "https://agent-assurance.dev/",
-    "llms": "https://agent-assurance.dev/llms.txt",
-    "sitemap_markdown": "https://agent-assurance.dev/sitemap.md",
-    "sitemap_xml": "https://agent-assurance.dev/sitemap.xml"
+  "awp_version": "0.2",
+  "domain": "agent-assurance.dev",
+  "intent": "DAG-TOML specification documentation for policy, traceability, evidence, closure roots, and review gates in agent-driven software work.",
+  "protocols": {
+    "x-https": {
+      "version": "1.1",
+      "endpoint": "https://agent-assurance.dev/",
+      "transport": "http"
+    }
   },
-  "normative_sources": [
-    "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md",
-    "https://github.com/verivus-oss/agent-assurance/tree/main/core",
-    "https://github.com/verivus-oss/agent-assurance/tree/main/profiles"
+  "capabilities": {
+    "streaming": false,
+    "pagination": "none",
+    "idempotency": true
+  },
+  "auth": {
+    "required_for": [],
+    "optional_for": [],
+    "type": "none"
+  },
+  "actions": [
+    {
+      "id": "read_llms",
+      "description": "Read the curated machine-readable entry point for the DAG-TOML specification site.",
+      "auth_required": false,
+      "inputs": {},
+      "outputs": {
+        "document": "text/markdown"
+      },
+      "endpoint": "/llms.txt",
+      "method": "GET",
+      "execution_model": "sync"
+    },
+    {
+      "id": "read_markdown_sitemap",
+      "description": "Read the compact Markdown sitemap for page selection.",
+      "auth_required": false,
+      "inputs": {},
+      "outputs": {
+        "document": "text/markdown"
+      },
+      "endpoint": "/sitemap.md",
+      "method": "GET",
+      "execution_model": "sync"
+    },
+    {
+      "id": "read_spec_overview",
+      "description": "Read the DAG-TOML specification overview as Markdown.",
+      "auth_required": false,
+      "inputs": {},
+      "outputs": {
+        "document": "text/markdown"
+      },
+      "endpoint": "/spec/index.md",
+      "method": "GET",
+      "execution_model": "sync"
+    },
+    {
+      "id": "read_validator_overview",
+      "description": "Read the validator overview and repository entry points.",
+      "auth_required": false,
+      "inputs": {},
+      "outputs": {
+        "document": "text/markdown"
+      },
+      "endpoint": "/validators/index.md",
+      "method": "GET",
+      "execution_model": "sync"
+    },
+    {
+      "id": "compare_agent_protocols",
+      "description": "Read how DAG-TOML relates to MCP, A2A, ACP, ANP, Agent Manifest, agent.json, and JSON Agents.",
+      "auth_required": false,
+      "inputs": {},
+      "outputs": {
+        "document": "text/markdown"
+      },
+      "endpoint": "/compare/index.md",
+      "method": "GET",
+      "execution_model": "sync"
+    }
   ],
-  "capabilities": [
-    "describe-dag-toml",
-    "locate-kind-descriptor",
-    "locate-validator",
-    "compare-agent-protocol-surfaces"
-  ]
+  "agent_status": {
+    "operational": true
+  }
 }

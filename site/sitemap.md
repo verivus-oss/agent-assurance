@@ -17,3 +17,5 @@
 - XML sitemap: https://agent-assurance.dev/sitemap.xml
 - Well-known agent metadata: https://agent-assurance.dev/.well-known/agent.json
 - Well-known agent skills: https://agent-assurance.dev/.well-known/agent-skills/index.json
+- Root agent metadata: https://agent-assurance.dev/agent.json
+- Root agent skills: https://agent-assurance.dev/agent-skills.json

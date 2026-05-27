@@ -4,3 +4,5 @@
 /profiles.md /profiles/index.md 200
 /validators.md /validators/index.md 200
 /compare.md /compare/index.md 200
+/agent.json /.well-known/agent.json 200
+/agent-skills.json /.well-known/agent-skills/index.json 200
