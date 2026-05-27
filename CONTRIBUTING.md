@@ -142,11 +142,13 @@ python3 validators/validate_closure_root.py --discover .
 
 CI runs the full matrix in [.github/workflows/validate.yml](.github/workflows/validate.yml).
 CI also runs thirteen OSS security and quality scanners on every push and
-pull request (`actionlint`, `zizmor`, `shellcheck`, `typos`, `ruff`,
-`bandit`, `osv-scanner`, `gitleaks`, `cargo-audit`, `cargo-deny`,
-`govulncheck`, `golangci-lint`, `lychee`); each fails the build on any
-finding. CodeQL advanced-setup covers `actions`, `go`, `python`, and
-`rust`. See [SECURITY.md](SECURITY.md) for the full defensive posture.
+pull request — in the order of the validate.yml "Coverage map" comment
+block: `actionlint`, `zizmor`, `shellcheck`, `typos`, `ruff`, `bandit`,
+`osv-scanner`, `gitleaks`, `cargo-audit`, `cargo-deny`, `govulncheck`,
+`golangci-lint`, `lychee`. Each fails the build on any finding. CodeQL
+advanced-setup covers `actions`, `go`, `python`, and `rust`. See
+[SECURITY.md](SECURITY.md) for the full defensive posture and per-tool
+role descriptions.
 
 ## Style
 
