@@ -1,6 +1,7 @@
 # DAG-TOML
 
 [![Validate](https://github.com/verivus-oss/agent-assurance/actions/workflows/validate.yml/badge.svg)](https://github.com/verivus-oss/agent-assurance/actions/workflows/validate.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/verivus-oss/agent-assurance/badge)](https://scorecard.dev/viewer/?uri=github.com/verivus-oss/agent-assurance)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 **Declarative policy, workflow, and review evidence for
@@ -40,13 +41,13 @@ to entry.
 | Cost Profile | `0.1.0` | `1` | Draft Specification |
 | Disclosure Profile | `0.1.0` | `1` | Draft Specification |
 
-Pre-publication, the document maturity is `Draft Specification`.
-`schema_version` is a semver string that pins the file shape;
-`ontology_version` is a monotonic positive integer snapshot that pins
-the relation vocabulary. They intentionally use different versioning
-forms because consumers ask different questions of each surface.
-Release tags use calendar-versioned UTC timestamps
-(`v<YYYY-MM-DD>T<HH-MM-SS>Z`) and are separate from both fields.
+The public repository was minted at `v0.1.0` on 2026-05-27. The document
+maturity remains `Draft Specification`: `schema_version` is a semver
+string that pins the file shape; `ontology_version` is a monotonic
+positive integer snapshot that pins the relation vocabulary. They
+intentionally use different versioning forms because consumers ask
+different questions of each surface. Release tags are separate from the
+document maturity label.
 
 The first public stable schema can become `schema_version = "1.0.0"`
 when maintainers are ready to promise schema stability. The core and

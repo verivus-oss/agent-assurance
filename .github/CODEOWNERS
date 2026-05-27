@@ -1,0 +1,13 @@
+# Maintainer-owned public specification surface.
+* @verivus-oss/signing-approvers
+
+# Normative specification, profile, example, and validator changes require
+# the maintainer review path defined in GOVERNANCE.md.
+/spec.md @verivus-oss/signing-approvers
+/core/ @verivus-oss/signing-approvers
+/profiles/ @verivus-oss/signing-approvers
+/examples/ @verivus-oss/signing-approvers
+/validators/ @verivus-oss/signing-approvers
+/tools/ @verivus-oss/signing-approvers
+/GOVERNANCE.md @verivus-oss/signing-approvers
+/SECURITY.md @verivus-oss/signing-approvers

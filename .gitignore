@@ -65,6 +65,14 @@ reference/database/duckdb/*.duckdb
 /labels.txt
 /refs.txt
 
+# Local paper/research scratch files kept out of the public spec repo.
+/.gobin/
+/all_links.txt
+/bib_keys.txt
+/cited_keys.txt
+/find_matches.py
+/find_matches_v2.py
+
 # Local-only working files: style guides, scratch, personal config — never published
 .local/
 tools/werner-style-policy.toml

@@ -52,18 +52,27 @@ compatibility promise. Ontology pins are monotonic positive integer
 snapshots; core and profile ontologies stay at `1` until the first
 vocabulary change after publication.
 
-The first public release will be tagged after the repository setup work
-is complete and the maintainers explicitly choose to make the repository
-public. Until then, GitHub repository visibility must remain private.
-Release tags use calendar-versioned UTC timestamps:
-`v<YYYY-MM-DD>T<HH-MM-SS>Z`.
+The public repository was minted at `v0.1.0` on 2026-05-27. Pre-1.0
+release tags may either bind to the schema version, as `v0.1.0` does, or
+use calendar-versioned UTC timestamps (`v<YYYY-MM-DD>T<HH-MM-SS>Z`) for
+process-only snapshots that do not claim a new schema pin. Published
+release notes must state which form they use.
 
-After the first public tag:
+After the public mint:
 
 - Additive file-shape changes use a minor schema-version bump.
 - Breaking changes use a major schema-version bump and a migration note.
 - Changelog entries are grouped under the release version.
 - Published release artifacts should cite the matching commit tag.
+
+## Repository Controls
+
+The public repository is expected to keep `main` protected with required
+pull requests, required validation checks, force-push and deletion blocks,
+and CODEOWNERS-backed review for maintainer-owned paths. Release tags
+should be annotated and signed when the maintainer tooling supports it;
+release artifacts should include provenance and an SBOM before the project
+is promoted beyond draft status.
 
 ## Issues and Discussions
 

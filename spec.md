@@ -2,14 +2,15 @@
 
 **Document maturity:** Draft Specification
 **Schema version:** 0.1.0
-**Status:** draft, pre-publication (see
+**Status:** public draft release (see
 [GOVERNANCE.md §Releases](GOVERNANCE.md#releases))
 
 The draft maturity label describes the stability of this document. It
 is distinct from `schema_version`, which pins the on-file compatibility
 contract for DAG-TOML documents. Release tags use calendar-versioned UTC
-timestamps (`v<YYYY-MM-DD>T<HH-MM-SS>Z`) rather than document maturity
-labels.
+timestamps during pre-1.0 development unless a release explicitly binds to
+the schema version, as `v0.1.0` does for the initial public draft. Tags are
+separate from document maturity labels.
 
 If an AI agent can generate 10,000 lines of functional code in seconds,
 relying on a human to manually read the diff to catch a subtle

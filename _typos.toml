@@ -2,8 +2,8 @@
 # "Source-code spellcheck (typos)" step.
 #
 # Scope: catch genuine spec/code typos in normative surfaces (spec.md,
-# core/, profiles/, foundations/ijb/*.toml, validators/, tools/, paper/
-# main.tex). Skip non-normative surfaces where "wrong" words are
+# core/, profiles/, foundations/ijb/*.toml, validators/, tools/). Skip
+# non-normative surfaces where "wrong" words are
 # intentional (anti-pattern dictionaries, immutable audit trails,
 # historical research, canonical-grammar example identifiers).
 
@@ -53,10 +53,6 @@ extend-exclude = [
   # genuine typo.
   "tools/werner-style-policy.toml",
 
-  # User-quote artifact: paper/user-prompts.md preserves verbatim user
-  # messages including their original spellings.
-  "paper/user-prompts.md",
-
   # IJB canonical-grammar example files use made-up structured
   # identifiers (kebab + camel + snake mix). typos cannot reliably
   # distinguish identifier substrings from English words.
@@ -64,7 +60,6 @@ extend-exclude = [
   "foundations/ijb/examples/07-*.md",
 
   # Local-only working copies (also gitignored).
-  "paper-arxiv-prep/**",
   ".local/**",
 
   # Lock files — typos doesn't usefully check these.

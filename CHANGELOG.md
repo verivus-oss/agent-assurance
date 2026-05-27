@@ -7,6 +7,29 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- **OSS readiness sweep.** Added public-repository metadata and ownership
+  files, ignored local paper/research scratch files, added an OpenSSF
+  Scorecard workflow and README badge, documented the non-normative status
+  of historical review/research directories, and corrected public-status
+  and release-policy wording after the `v0.1.0` mint.
+
+## [v0.1.0] - 2026-05-27
+
+### Added
+
+- **Initial public draft release.** Minted the specification repository as
+  a clean public tree with the DAG-TOML draft specification, core kind
+  descriptors, spec-reserved profiles, examples, validators, governance
+  docs, and CI configuration.
+
+## Pre-Public Development History
+
+The entries below were retained from the private development history as
+traceability evidence. They may refer to paper workspaces, review bundles,
+or preparation directories that now live outside this specification repo.
+
 ### Changed
 
 - **Public stability label changed to Draft Specification.**
