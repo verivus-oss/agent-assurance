@@ -1,65 +1,113 @@
 <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="0 0 960 520">
-  <title id="title">DAG-TOML evidence flow</title>
-  <desc id="desc">A diagram showing agent intent flowing through a DAG, evidence, validation, and review readiness.</desc>
+  <title id="title">DAG-TOML evidence surface</title>
+  <desc id="desc">A technical schematic showing implementation-dag, traceability, and review-readiness artifacts grounded by a hash-bound closure root and resolved into a review readiness gate.</desc>
   <style>
     :root {
-      --diagram-bg: #f7f8f4;
-      --diagram-line: #2f4f46;
-      --diagram-ink: #16231f;
-      --diagram-card: #ffffff;
-      --diagram-card-line: #b9c5bd;
-      --diagram-soft: #e8f0eb;
-      --diagram-soft-line: #7f988e;
-      --diagram-dark: #1c332d;
-      --diagram-dark-ink: #ffffff;
+      --bg: #f7f8f4;
+      --grid: #d8e1dc;
+      --ink: #14211d;
+      --muted: #5f6f68;
+      --line: #b9c5bd;
+      --surface: #ffffff;
+      --surface-soft: #eef3ef;
+      --accent: #2f6b56;
+      --accent-strong: #173d33;
+      --accent-ink: #ffffff;
+      --seal: #8a5d18;
     }
 
     @media (prefers-color-scheme: dark) {
       :root {
-        --diagram-bg: #101715;
-        --diagram-line: #78c7aa;
-        --diagram-ink: #ecf3ee;
-        --diagram-card: #17221f;
-        --diagram-card-line: #33443e;
-        --diagram-soft: #1f2c28;
-        --diagram-soft-line: #5b8f7a;
-        --diagram-dark: #a7e7cf;
-        --diagram-dark-ink: #0f1714;
+        --bg: #101715;
+        --grid: #26342f;
+        --ink: #ecf3ee;
+        --muted: #aebcb5;
+        --line: #33443e;
+        --surface: #17221f;
+        --surface-soft: #1f2c28;
+        --accent: #78c7aa;
+        --accent-strong: #a7e7cf;
+        --accent-ink: #0f1714;
+        --seal: #e0b86b;
       }
     }
+
+    .title { font: 800 24px Inter, Arial, sans-serif; fill: var(--ink); }
+    .label { font: 750 19px Inter, Arial, sans-serif; fill: var(--ink); }
+    .small { font: 500 13px Inter, Arial, sans-serif; fill: var(--muted); }
+    .mono { font: 650 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: var(--muted); }
+    .eyebrow { font: 800 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: var(--accent-strong); letter-spacing: 0.08em; }
+    .card { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+    .soft { fill: var(--surface-soft); stroke: var(--line); stroke-width: 1.5; }
+    .gate { fill: var(--accent-strong); stroke: var(--accent); stroke-width: 1.5; }
+    .gate-text { fill: var(--accent-ink); }
+    .wire { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+    .wire-muted { fill: none; stroke: var(--line); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+    .wire-dashed { fill: none; stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 6 7; vector-effect: non-scaling-stroke; }
   </style>
-  <rect width="960" height="520" fill="var(--diagram-bg)"/>
-  <g fill="none" stroke="var(--diagram-line)" stroke-width="2">
-    <path d="M180 150 C260 95 348 92 430 150"/>
-    <path d="M530 150 C612 92 700 95 780 150"/>
-    <path d="M235 265 H725"/>
-    <path d="M480 180 V300"/>
-    <path d="M270 365 H690"/>
+  <defs>
+    <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M28 0H0V28" fill="none" stroke="var(--grid)" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M1 1L9 5L1 9Z" fill="var(--accent)"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="520" fill="var(--bg)"/>
+  <rect width="960" height="520" fill="url(#grid)" opacity="0.38"/>
+
+  <text x="60" y="56" class="eyebrow">DAG-TOML EVIDENCE SURFACE</text>
+  <text x="60" y="86" class="title">Declarative artifacts grounded by closure</text>
+  <text x="60" y="111" class="small">The format records governed work products. It does not execute, schedule, or grant access.</text>
+
+  <rect x="68" y="154" width="252" height="112" rx="8" class="card"/>
+  <text x="92" y="187" class="label">implementation-dag</text>
+  <text x="92" y="211" class="small">units, scope, dependencies</text>
+  <g fill="none" stroke="var(--accent)" stroke-width="1.6" vector-effect="non-scaling-stroke">
+    <circle cx="118" cy="238" r="6" fill="var(--accent)"/>
+    <circle cx="168" cy="226" r="6" fill="var(--accent)"/>
+    <circle cx="218" cy="249" r="6" fill="var(--accent)"/>
+    <circle cx="270" cy="236" r="6" fill="var(--accent)"/>
+    <path d="M124 237L162 228M174 228L212 247M224 248L264 238M174 228L264 238"/>
   </g>
-  <g font-family="Inter, Arial, sans-serif" fill="var(--diagram-ink)">
-    <g>
-      <rect x="80" y="100" width="200" height="100" rx="8" fill="var(--diagram-card)" stroke="var(--diagram-card-line)"/>
-      <text x="112" y="140" font-size="22" font-weight="700">Intent</text>
-      <text x="112" y="168" font-size="15">requirements and units</text>
-    </g>
-    <g>
-      <rect x="380" y="100" width="200" height="100" rx="8" fill="var(--diagram-card)" stroke="var(--diagram-card-line)"/>
-      <text x="414" y="140" font-size="22" font-weight="700">DAG</text>
-      <text x="414" y="168" font-size="15">dependencies and scope</text>
-    </g>
-    <g>
-      <rect x="680" y="100" width="200" height="100" rx="8" fill="var(--diagram-card)" stroke="var(--diagram-card-line)"/>
-      <text x="714" y="140" font-size="22" font-weight="700">Evidence</text>
-      <text x="714" y="168" font-size="15">tests, traces, outputs</text>
-    </g>
-    <g>
-      <rect x="300" y="300" width="360" height="100" rx="8" fill="var(--diagram-soft)" stroke="var(--diagram-soft-line)"/>
-      <text x="356" y="342" font-size="22" font-weight="700">Closure root</text>
-      <text x="356" y="370" font-size="15">hash-bound upstream provenance</text>
-    </g>
-    <g>
-      <rect x="330" y="425" width="300" height="62" rx="8" fill="var(--diagram-dark)"/>
-      <text x="382" y="464" font-size="20" font-weight="700" fill="var(--diagram-dark-ink)">Review readiness</text>
-    </g>
-  </g>
+
+  <rect x="354" y="154" width="252" height="112" rx="8" class="card"/>
+  <text x="378" y="187" class="label">traceability</text>
+  <text x="378" y="211" class="small">requirement to test to artifact</text>
+  <path d="M388 238H550" class="wire-muted"/>
+  <circle cx="388" cy="238" r="5" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>
+  <circle cx="470" cy="238" r="5" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>
+  <circle cx="550" cy="238" r="5" fill="var(--surface)" stroke="var(--accent)" stroke-width="2"/>
+  <text x="378" y="256" class="mono">REQ:</text>
+  <text x="458" y="256" class="mono">TEST:</text>
+  <text x="536" y="256" class="mono">ART:</text>
+
+  <rect x="640" y="154" width="252" height="112" rx="8" class="card"/>
+  <text x="664" y="187" class="label">review-readiness</text>
+  <text x="664" y="211" class="small">gate, contract, evidence matrix</text>
+  <rect x="664" y="226" width="184" height="24" rx="5" class="soft"/>
+  <text x="676" y="243" class="mono">readiness-gate</text>
+  <rect x="664" y="254" width="184" height="24" rx="5" class="soft"/>
+  <text x="676" y="271" class="mono">contract-declaration</text>
+
+  <path d="M194 266V298" class="wire-dashed"/>
+  <path d="M480 266V298" class="wire-dashed"/>
+  <path d="M766 266V298" class="wire-dashed"/>
+  <path d="M194 298H766" class="wire-dashed"/>
+  <path d="M480 298V316" class="wire" marker-end="url(#arrow)"/>
+
+  <rect x="128" y="326" width="704" height="78" rx="8" class="soft"/>
+  <path d="M162 360H798" stroke="var(--seal)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
+  <circle cx="162" cy="360" r="5" fill="var(--seal)"/>
+  <circle cx="798" cy="360" r="5" fill="var(--seal)"/>
+  <text x="178" y="352" class="label">closure_root</text>
+  <text x="178" y="379" class="mono">sha256(source hash closure)</text>
+  <text x="630" y="352" class="mono">source_sha256 = required</text>
+  <text x="630" y="379" class="mono">weak digests forbidden</text>
+
+  <path d="M480 404V428" class="wire" marker-end="url(#arrow)"/>
+  <rect x="328" y="438" width="304" height="54" rx="8" class="gate"/>
+  <text x="386" y="463" class="label gate-text">review readiness</text>
+  <text x="398" y="482" class="mono gate-text">reviewable, not executable</text>
 </svg>
