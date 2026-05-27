@@ -2,6 +2,7 @@
 
 [![Validate](https://github.com/verivus-oss/agent-assurance/actions/workflows/validate.yml/badge.svg)](https://github.com/verivus-oss/agent-assurance/actions/workflows/validate.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/verivus-oss/agent-assurance/badge)](https://scorecard.dev/viewer/?uri=github.com/verivus-oss/agent-assurance)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13003/badge)](https://www.bestpractices.dev/projects/13003)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 **Declarative policy, workflow, and review evidence for
