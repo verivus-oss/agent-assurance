@@ -98,7 +98,7 @@ for the issue history and the worked counter-example.
 
 ### Agent-specific note on auto-memory
 
-Agent-based contributors (e.g. Claude Code, Codex, Gemini, Grok) may
+Agent-based contributors (e.g. provider-specific agent CLI, Codex, Gemini, Grok) may
 use a per-session, host-specific auto-memory facility to remember
 this discipline across sessions. Such facilities are NOT part of
 the repo, NOT visible to other contributors or other agent CLIs,

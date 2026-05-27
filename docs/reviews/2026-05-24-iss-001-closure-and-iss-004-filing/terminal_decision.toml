@@ -83,7 +83,7 @@ codex cites are reproducible:
   119:- `memory/feedback_blessed_kind_closure_root_in_same_commit.md`
 
 Both issue files reference repo-relative paths under `memory/` that
-do not exist in the repo. The actual files live in Claude Code's
+do not exist in the repo. The actual files live in provider-specific agent CLI's
 per-session auto-memory at
 `~/.claude/projects/-srv-repos-external-verivus-oss-agent-assurance/memory/`,
 which is host-/user-specific, not committed, and invisible to
@@ -104,7 +104,7 @@ description = """
 The closing note cites `memory/feedback_no_self_approval.md` (and
 says it is "Listed in `MEMORY.md`") as the load-bearing safeguard
 artefact. Neither file exists in the repo. The memory file is
-Claude Code's per-session auto-memory at
+provider-specific agent CLI's per-session auto-memory at
 `~/.claude/projects/.../memory/feedback_no_self_approval.md`, which
 is host-specific and not contributor-visible. The original ISS-001
 body (lines 128, 148, 174) also pre-cited the same path before the
@@ -157,7 +157,7 @@ description = """
 If user chooses fix-in-place:
   1. ISS-001 closing note (and earlier body references at lines
      128, 148, 174, 235): replace `memory/feedback_no_self_approval.md`
-     with an explicit description: "Claude Code's per-session
+     with an explicit description: "provider-specific agent CLI's per-session
      auto-memory (host-specific, not contributor-visible) at
      `~/.claude/projects/<project-slug>/memory/feedback_no_self_approval.md`,
      plus a paragraph in CONTRIBUTING.md that any contributor can
@@ -171,7 +171,7 @@ If user chooses fix-in-place:
      not these CI artefacts."
   3. ISS-004 references (lines 91, 96, 104, 119): same treatment
      — clarify that `feedback_blessed_kind_*.md` and
-     `feedback_no_self_approval.md` refer to Claude Code's
+     `feedback_no_self_approval.md` refer to provider-specific agent CLI's
      per-session auto-memory, not committed repo files. Either
      remove the references or describe them as host-specific.
   4. Optional follow-up (not required by this blocker): create a

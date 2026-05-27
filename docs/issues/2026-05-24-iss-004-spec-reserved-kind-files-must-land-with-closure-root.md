@@ -91,7 +91,7 @@ installation).
   the Safeguard A discipline. This is the contributor-visible
   artefact — the one humans and other agents can actually read.
 - Optional: agent-based contributors may add the rule to their
-  per-session host-specific auto-memory (e.g. Claude Code's
+  per-session host-specific auto-memory (e.g. provider-specific agent CLI's
   `~/.claude/projects/<project-slug>/memory/`) as an
   implementation-side convenience. Such auto-memory is NOT
   contributor-visible and MUST NOT be cited as the load-bearing
@@ -118,7 +118,7 @@ line ~180); CI red is the symptom of this issue, not the prevention.
    in the same place as the other pre-commit validators.
 3. **Optional auto-memory** (per-agent convenience, not load-bearing).
    Agent-based contributors may save the rule to their per-session
-   auto-memory (e.g. Claude Code's
+   auto-memory (e.g. provider-specific agent CLI's
    `~/.claude/projects/<project-slug>/memory/`); this is a
    per-agent implementation-side convenience that complements
    `CONTRIBUTING.md`, not a substitute for it.

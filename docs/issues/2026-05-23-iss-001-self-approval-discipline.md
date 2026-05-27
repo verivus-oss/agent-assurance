@@ -125,7 +125,7 @@ Make the safeguard discoverable for future contributors / agents:
   one, citing `tools/review-request-dag.toml [policy.approval]`
   and naming this issue as the worked example.
 - Optional: add a trigger phrase to per-agent session-private
-  auto-memory (e.g. Claude Code's
+  auto-memory (e.g. provider-specific agent CLI's
   `~/.claude/projects/<project-slug>/memory/`) so the discipline
   loads on session entry. NOTE: such auto-memory is host-specific
   and not contributor-visible; the contributor-visible mechanism
@@ -247,7 +247,7 @@ The actual closing artefacts are:
    existing rule. Cites `tools/review-request-dag.toml
    [policy.approval]` and this issue as the worked example.
    Agent-based contributors may also use per-session,
-   host-specific auto-memory (e.g. Claude Code's
+   host-specific auto-memory (e.g. provider-specific agent CLI's
    `~/.claude/projects/<project-slug>/memory/`) as an
    implementation-side convenience; the agent-specific note in
    `CONTRIBUTING.md` "Review Discipline" calls this out and

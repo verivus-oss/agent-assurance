@@ -18,12 +18,17 @@ permissions:
 jobs:
   validate:
     name: validate (spec + reference validators + security scanning)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Job-level permissions match the workflow default explicitly — zizmor
     # flags ambiguous-inheritance otherwise.
     permissions:
       contents: read
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
         with:
           # Wipe the auth token from .git/config after checkout so it
@@ -607,7 +612,7 @@ jobs:
           #                       and necessarily contains the literal
           #                       substring in its rationale comments.
           # Excluded files:
-          #   CLAUDE.md          — agent instructions reference the policy
+          #   AGENTS.md          — agent instructions reference the policy
           #                       by name.
           #   CHANGELOG.md       — changelog entries discussing this gate
           #                       must be able to name the policy too.
@@ -626,7 +631,7 @@ jobs:
           hits=$(grep -rn "$NEEDLE" . \
                     --exclude-dir=.git \
                     --exclude-dir=.github \
-                    --exclude=CLAUDE.md \
+                    --exclude=AGENTS.md \
                     --exclude=CHANGELOG.md \
                     2>/dev/null \
                 | grep -vE "^\.?/?docs/reviews/" \

@@ -20,7 +20,7 @@ parent_commit_pre_r2  = "ca50b2c"
 head_commit_post_r2   = "79fe0aa"
 commit_range_r2       = "ca50b2c..79fe0aa"
 total_new_commits     = 1
-description           = "Single follow-up commit (79fe0aa) that closes the codex r1 blockers by (a) moving both disciplines into CONTRIBUTING.md as a contributor-visible repo file, (b) replacing all dead repo-path references to `memory/feedback_*.md` / `MEMORY.md` with explicit descriptions of Claude Code per-session auto-memory + CONTRIBUTING.md pointers, and (c) marking the original ISS-001 acceptance criteria as superseded with inline strikethrough explanations. Scope is narrow: does 79fe0aa close the two r1 blockers and introduce no new defect."
+description           = "Single follow-up commit (79fe0aa) that closes the codex r1 blockers by (a) moving both disciplines into CONTRIBUTING.md as a contributor-visible repo file, (b) replacing all dead repo-path references to `memory/feedback_*.md` / `MEMORY.md` with explicit descriptions of provider-specific agent CLI per-session auto-memory + CONTRIBUTING.md pointers, and (c) marking the original ISS-001 acceptance criteria as superseded with inline strikethrough explanations. Scope is narrow: does 79fe0aa close the two r1 blockers and introduce no new defect."
 
 [bundle.r1_summary]
 verdicts = { codex = "concrete_unresolvable_blocker", grok = "unconditional_approval", gemini = "unconditional_approval" }
@@ -69,7 +69,7 @@ Three files changed:
              the same commit — cites ISS-004 + SPEC §12.11 +
              validate_closure_root.py + .github/workflows/validate.yml.
       - Agent-specific note explicitly stating per-session
-        host-specific auto-memory (e.g. Claude Code's per-project
+        host-specific auto-memory (e.g. provider-specific agent CLI's per-project
         memory dir) is NOT a load-bearing safeguard.
       - Added validate_closure_root.py command to Local Checks.
 
@@ -77,7 +77,7 @@ Three files changed:
       - All references to `memory/feedback_no_self_approval.md`
         and `MEMORY.md` (Symptom-area, Resolution Steps, Closing
         note) replaced with explicit descriptions of
-        Claude Code's per-session host-specific auto-memory
+        provider-specific agent CLI's per-session host-specific auto-memory
         + pointers to CONTRIBUTING.md "Review Discipline"
         section 1.
       - Original Acceptance criteria preserved verbatim with a

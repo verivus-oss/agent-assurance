@@ -203,11 +203,11 @@ questions; otherwise proceed.
   the discipline by reading the plan, `CONTRIBUTING.md`, and the
   prior review-session artifacts.
 - The new session's per-project auto-memory at
-  `~/.claude/projects/.../memory/` (if Claude Code) may already
+  `~/.claude/projects/.../memory/` (if provider-specific agent CLI) may already
   carry `feedback_no_self_approval.md` and the matching
   `MEMORY.md` index from this session — that's fine; the prompt
   doesn't depend on it.
-- If the new agent is not Claude Code (e.g. Codex CLI run
+- If the new agent is not provider-specific agent CLI (e.g. Codex CLI run
   directly), the auto-memory won't be present; the prompt's
   reference to `CONTRIBUTING.md "Review Discipline"` is the
   load-bearing pointer.

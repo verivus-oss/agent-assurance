@@ -11,9 +11,11 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 - **OSS readiness sweep.** Added public-repository metadata and ownership
   files, ignored local paper/research scratch files, added an OpenSSF
-  Scorecard workflow and README badge, documented the non-normative status
-  of historical review/research directories, and corrected public-status
-  and release-policy wording after the `v0.1.0` mint.
+  Scorecard workflow and README badge, pinned CI to GitHub-hosted
+  `ubuntu-24.04` runners with Harden-Runner audit telemetry, documented
+  the non-normative status of historical review/research directories, and
+  corrected public-status and release-policy wording after the `v0.1.0`
+  mint.
 
 ## [v0.1.0] - 2026-05-27
 
@@ -52,7 +54,7 @@ or preparation directories that now live outside this specification repo.
   validators. The rename aligns the prose form with the
   machine-readable `namespace = "spec.reserved"` field already
   present in every profile-descriptor, closing the
-  prose↔machine-readable gap that `CLAUDE.md`'s no-drift rule
+  prose↔machine-readable gap that the agent-notes no-drift rule
   warns against. Python identifier renames in
   `validators/validate_closure_root.py` use the underscore
   variant `ALWAYS_SPEC_RESERVED_KINDS` /
