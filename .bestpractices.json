@@ -195,14 +195,14 @@
   "static_analysis_often_status": "Met",
   "static_analysis_often_justification": "Static analysis runs on every push and pull request. CodeQL additionally runs weekly via cron. OpenSSF Scorecard runs weekly.",
 
-  "dynamic_analysis_status": "N/A",
-  "dynamic_analysis_justification": "This is a specification repository (TOML + Markdown). There is no executable deliverable for which dynamic analysis (fuzzing, runtime sanitizers) is meaningful. Reference validators under tools/ could be fuzzed but they are non-normative implementer guidance, not the project's deliverable.",
+  "dynamic_analysis_status": "Unmet",
+  "dynamic_analysis_justification": "Project deliverable is a TOML data format + Markdown prose specification, not executable code; there is no production runtime to dynamically analyze. Reference validators under tools/ (Rust + Go) are non-normative implementer guidance, not the project's deliverable, and they themselves run only in CI under static-analysis coverage (CodeQL, cargo-audit, govulncheck, etc.). Note: this criterion is category SUGGESTED at the Passing level and does not block the badge.",
 
   "dynamic_analysis_unsafe_status": "N/A",
-  "dynamic_analysis_unsafe_justification": "See dynamic_analysis_status. Reference validators are written in safe-Rust (#![forbid(unsafe_code)], tools/dagtoml-validate-rs/) and safe-Go (no unsafe import, enforced by validate.yml 'Safe-tools policy' step). The deliverable spec has no executable surface.",
+  "dynamic_analysis_unsafe_justification": "Project does not include software written in memory-unsafe languages. Reference validators are written in safe-Rust (#![forbid(unsafe_code)] declared at the top of tools/dagtoml-validate-rs/src/main.rs) and safe-Go (no `unsafe` import; enforced by the 'Safe-tools policy (no unsafe Rust or Go under tools/)' step in .github/workflows/validate.yml). Python validators are also memory-safe. The conditional precondition of this criterion (memory-unsafe-language code) is not triggered.",
 
-  "dynamic_analysis_enable_assertions_status": "N/A",
-  "dynamic_analysis_enable_assertions_justification": "See dynamic_analysis_status. Reference validators include assertion-driven test cases via the canonical-example matrix.",
+  "dynamic_analysis_enable_assertions_status": "Met",
+  "dynamic_analysis_enable_assertions_justification": "The conditional precondition of this criterion — 'IF the software produced by the project includes software written using a memory-unsafe language (e.g., C or C++)' — is not satisfied. The project's software (TOML spec + Markdown + safe-Rust + safe-Go + Python) contains no memory-unsafe-language code (verified by the 'Safe-tools policy' step in validate.yml). Therefore the criterion is vacuously satisfied. Where the reference validators use assertions, they do so via Rust's `assert!`/`debug_assert!` macros and Go's testing assertions in their own test suites.",
 
   "dynamic_analysis_fixed_status": "N/A",
   "dynamic_analysis_fixed_justification": "See dynamic_analysis_status. No dynamic-analysis findings to fix.",
