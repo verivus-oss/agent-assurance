@@ -63,28 +63,33 @@ This repository runs the following defensive controls:
 ### Thirteen OSS scanning tools in CI
 
 `.github/workflows/validate.yml` runs the following scanners on every
-push and pull request; each step fails the build on any finding:
+push and pull request; each step fails the build on any finding. The
+order and one-line role descriptions below are the verbatim "Coverage
+map" comment block in `validate.yml` (lines 694-719):
 
 - `actionlint` — GHA workflow correctness (broken expressions,
-  deprecated APIs, shell-injection in `run:`).
+  deprecated APIs, shell-injection in `run:`)
 - `zizmor` — GHA workflow security (impostor-commit, unpinned uses,
-  excessive permissions).
+  excessive permissions)
 - `shellcheck` — shell-script correctness for `validators/*.sh` and
-  example witness scripts.
-- `typos` — source-code spellchecker; critical for spec repos.
+  example witness scripts
+- `typos` — source-code spellchecker; critical for spec repos (a
+  misspelled ontology predicate is a silent semantic error)
 - `ruff` — Python deep linter (security `S` rules, correctness,
-  dead-code); defense-in-depth above bandit.
-- `bandit` — Python static security analysis of `validators/`.
+  dead-code); defense-in-depth above bandit
+- `bandit` — Python static security analysis of `validators/`
 - `osv-scanner` — CVEs in `requirements.txt` + `Cargo.lock` + `go.sum`
-  (complements Dependabot; catches transitive and advisory-DB-only
-  entries Dependabot misses).
-- `gitleaks` — secret leak detection in commits + working tree.
-- `cargo-audit` — RustSec advisory DB check for every `tools/*-rs`.
-- `cargo-deny` — Rust license policy + dep ban + advisories.
-- `govulncheck` — Go call-graph-aware vuln check for `tools/*-go`.
+  (complements Dependabot: catches transitive and advisory-DB-only
+  entries Dependabot misses)
+- `gitleaks` — secret leak detection in commits + working tree
+  (replaces GHAS secret scanning)
+- `cargo-audit` — RustSec advisory DB check for every `tools/*-rs`
+- `cargo-deny` — Rust license policy + dep ban + advisories (catches
+  license drift that audit doesn't)
+- `govulncheck` — Go call-graph-aware vuln check for `tools/*-go`
 - `golangci-lint` — Go meta-linter (gosec + staticcheck + errcheck +
-  govet + ineffassign + unused).
-- `lychee` — link-rot scan across `spec.md`, README, references.
+  govet + ineffassign + unused)
+- `lychee` — link rot across `spec.md`, README, `references.bib`
 
 Every workflow action is SHA-pinned. Pip and cargo installs are
 version-pinned; hash-pinning is on the roadmap and tracked in the
