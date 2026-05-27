@@ -166,13 +166,18 @@ h3 {
 }
 
 h1 {
-  max-width: 11ch;
+  max-width: 18ch;
   margin: 12px 0 18px;
-  font-size: clamp(2.7rem, 8vw, 5.4rem);
+  font-size: clamp(2rem, 3.5vw, 3rem);
+}
+
+.hero h1 {
+  max-width: 20ch;
+  font-size: clamp(2rem, 3.2vw, 2.85rem);
 }
 
 .page h1 {
-  max-width: 13ch;
+  max-width: 16ch;
 }
 
 h2 {
