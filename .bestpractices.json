@@ -89,13 +89,13 @@
   "enhancement_responses_justification": "GOVERNANCE.md 'Decision Types' table (https://github.com/verivus-oss/agent-assurance/blob/main/GOVERNANCE.md#decision-types) lists the required path for each change type. 'Review Expectations' commits maintainers to reviewable-in-one-sitting responses.",
 
   "report_archive_status": "Met",
-  "report_archive_justification": "All issue threads, PR threads, and discussions are public and archived by GitHub by default. PRs #8, #9, #10, #11 are current examples.",
+  "report_archive_justification": "Public archive of reports and responses, searchable: https://github.com/verivus-oss/agent-assurance/issues?q=is%3Aissue (issues, open and closed); https://github.com/verivus-oss/agent-assurance/discussions (discussions, all categories); https://github.com/verivus-oss/agent-assurance/pulls?q=is%3Apr (pull requests, open and closed). Repo-wide search at https://github.com/search?q=repo%3Averivus-oss%2Fagent-assurance&type=issues. All threads — including closed ones — are retained indefinitely by GitHub and remain publicly viewable.",
 
   "vulnerability_report_process_status": "Met",
   "vulnerability_report_process_justification": "SECURITY.md Reporting section (https://github.com/verivus-oss/agent-assurance/blob/main/SECURITY.md) documents the vulnerability-report process: email security@verivus.com with a short description, minimal reproduction, and scope statement. GitHub's native private vulnerability reporting is also enabled.",
 
   "vulnerability_report_private_status": "Met",
-  "vulnerability_report_private_justification": "Private channel: security@verivus.com (SECURITY.md line 5). Plus GitHub's native private-vuln-reporting via the Security tab.",
+  "vulnerability_report_private_justification": "Two private channels for vulnerability reports. (1) Email security@verivus.com, documented at https://github.com/verivus-oss/agent-assurance/blob/main/SECURITY.md (Reporting a vulnerability section, lines 3-15) — acknowledgement within five business days; default 30-day disclosure embargo. (2) GitHub Private Vulnerability Reporting (PVR) — end-to-end-private form submission via https://github.com/verivus-oss/agent-assurance/security/advisories/new (Report a vulnerability button in the repository Security tab). Both channels are private: email is point-to-point to a maintainer-controlled inbox; GitHub PVR is audit-logged inside the Security tab and never visible to non-maintainers.",
 
   "vulnerability_report_response_status": "Met",
   "vulnerability_report_response_justification": "SECURITY.md commits to acknowledgement within five business days. No vulnerability reports filed yet (project minted 2026-05-27); documented process is ready.",
