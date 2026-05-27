@@ -1,38 +1,65 @@
 <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="0 0 960 520">
   <title id="title">DAG-TOML evidence flow</title>
   <desc id="desc">A diagram showing agent intent flowing through a DAG, evidence, validation, and review readiness.</desc>
-  <rect width="960" height="520" fill="#f7f8f4"/>
-  <g fill="none" stroke="#2f4f46" stroke-width="2">
+  <style>
+    :root {
+      --diagram-bg: #f7f8f4;
+      --diagram-line: #2f4f46;
+      --diagram-ink: #16231f;
+      --diagram-card: #ffffff;
+      --diagram-card-line: #b9c5bd;
+      --diagram-soft: #e8f0eb;
+      --diagram-soft-line: #7f988e;
+      --diagram-dark: #1c332d;
+      --diagram-dark-ink: #ffffff;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --diagram-bg: #101715;
+        --diagram-line: #78c7aa;
+        --diagram-ink: #ecf3ee;
+        --diagram-card: #17221f;
+        --diagram-card-line: #33443e;
+        --diagram-soft: #1f2c28;
+        --diagram-soft-line: #5b8f7a;
+        --diagram-dark: #a7e7cf;
+        --diagram-dark-ink: #0f1714;
+      }
+    }
+  </style>
+  <rect width="960" height="520" fill="var(--diagram-bg)"/>
+  <g fill="none" stroke="var(--diagram-line)" stroke-width="2">
     <path d="M180 150 C260 95 348 92 430 150"/>
     <path d="M530 150 C612 92 700 95 780 150"/>
     <path d="M235 265 H725"/>
     <path d="M480 180 V300"/>
     <path d="M270 365 H690"/>
   </g>
-  <g font-family="Inter, Arial, sans-serif" fill="#16231f">
+  <g font-family="Inter, Arial, sans-serif" fill="var(--diagram-ink)">
     <g>
-      <rect x="80" y="100" width="200" height="100" rx="8" fill="#ffffff" stroke="#b9c5bd"/>
+      <rect x="80" y="100" width="200" height="100" rx="8" fill="var(--diagram-card)" stroke="var(--diagram-card-line)"/>
       <text x="112" y="140" font-size="22" font-weight="700">Intent</text>
       <text x="112" y="168" font-size="15">requirements and units</text>
     </g>
     <g>
-      <rect x="380" y="100" width="200" height="100" rx="8" fill="#ffffff" stroke="#b9c5bd"/>
+      <rect x="380" y="100" width="200" height="100" rx="8" fill="var(--diagram-card)" stroke="var(--diagram-card-line)"/>
       <text x="414" y="140" font-size="22" font-weight="700">DAG</text>
       <text x="414" y="168" font-size="15">dependencies and scope</text>
     </g>
     <g>
-      <rect x="680" y="100" width="200" height="100" rx="8" fill="#ffffff" stroke="#b9c5bd"/>
+      <rect x="680" y="100" width="200" height="100" rx="8" fill="var(--diagram-card)" stroke="var(--diagram-card-line)"/>
       <text x="714" y="140" font-size="22" font-weight="700">Evidence</text>
       <text x="714" y="168" font-size="15">tests, traces, outputs</text>
     </g>
     <g>
-      <rect x="300" y="300" width="360" height="100" rx="8" fill="#e8f0eb" stroke="#7f988e"/>
+      <rect x="300" y="300" width="360" height="100" rx="8" fill="var(--diagram-soft)" stroke="var(--diagram-soft-line)"/>
       <text x="356" y="342" font-size="22" font-weight="700">Closure root</text>
       <text x="356" y="370" font-size="15">hash-bound upstream provenance</text>
     </g>
     <g>
-      <rect x="330" y="425" width="300" height="62" rx="8" fill="#1c332d"/>
-      <text x="382" y="464" font-size="20" font-weight="700" fill="#ffffff">Review readiness</text>
+      <rect x="330" y="425" width="300" height="62" rx="8" fill="var(--diagram-dark)"/>
+      <text x="382" y="464" font-size="20" font-weight="700" fill="var(--diagram-dark-ink)">Review readiness</text>
     </g>
   </g>
 </svg>
