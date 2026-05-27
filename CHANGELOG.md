@@ -16,6 +16,35 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   the non-normative status of historical review/research directories, and
   corrected public-status and release-policy wording after the `v0.1.0`
   mint.
+- **CodeQL advanced-setup workflow.** Added
+  [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml) scanning
+  `actions`, `go`, `python`, and `rust` with build-mode `none` on every
+  push, every pull request, and weekly. GitHub's default-setup REST API
+  does not currently accept `rust` as a language value (verified by a
+  live `PATCH` probe that returned
+  `Invalid property /languages/3: 'rust' is not a possible value`),
+  which would have left roughly one third of this repository's source
+  unscanned. Advanced-setup restores Rust coverage. All actions are
+  SHA-pinned to the same versions used elsewhere in the workflow
+  directory.
+
+### Changed
+
+- **`SECURITY.md` documents the full defensive posture.** Rewritten to
+  describe secret scanning + push protection, Dependabot security
+  updates, CodeQL advanced-setup over the four languages, the
+  `main-branch-protection` ruleset, the `signing-approvers` team,
+  sigstore-signed release tags (with the `gitsign verify` instruction),
+  OpenSSF Scorecard publishing, and the thirteen OSS scanning tools in
+  [`.github/workflows/validate.yml`](.github/workflows/validate.yml).
+  The thirteen-tool section mirrors the `validate.yml` "Coverage map"
+  comment block verbatim (same order, same one-line role descriptions),
+  and names that comment block as the canonical source so future
+  contributors know which file leads if they diverge again.
+- **`CONTRIBUTING.md` references the canonical scanner inventory.** One
+  paragraph appended under "Local Checks" pointing to `SECURITY.md` for
+  the per-tool role descriptions and listing the thirteen-tool sequence
+  in the same order as `validate.yml`.
 
 ## [v0.1.0] - 2026-05-27
 
