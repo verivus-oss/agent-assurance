@@ -36,6 +36,60 @@ Out of scope:
   (report to the runtime project).
 - Aesthetic preferences about the spec.
 
+## Defensive posture
+
+This repository runs the following defensive controls:
+
+- **Secret scanning + push protection** at the GitHub level.
+- **Dependabot security updates** with a weekly cadence.
+- **CodeQL advanced-setup** scans `actions`, `go`, `python`, and `rust`
+  on every push, every pull request, and on a weekly schedule. See
+  [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml).
+- **Branch protection ruleset** `main-branch-protection` enforces
+  `non_fast_forward`, `required_linear_history`, no `deletion`, and a
+  pull-request rule that requires one approving review,
+  `require_code_owner_review`, `required_review_thread_resolution`, and
+  `dismiss_stale_reviews_on_push`.
+- **`signing-approvers` team** holds `maintain` permission on this
+  repository and reviews changes touching signing material.
+- **Sigstore-signed release tags.** Annotated tags are signed with
+  `gitsign`; the `v0.1.0` tag is the reference shape. GitHub's native
+  tag-verification view shows "Unverified" because the sigstore root is
+  not in GitHub's trust set; verify via `gitsign verify <tag>` against
+  the public Rekor log.
+- **OpenSSF Scorecard** publishes weekly; see the README badge for the
+  current score.
+
+### Thirteen OSS scanning tools in CI
+
+`.github/workflows/validate.yml` runs the following scanners on every
+push and pull request; each step fails the build on any finding:
+
+- `actionlint` — GHA workflow correctness (broken expressions,
+  deprecated APIs, shell-injection in `run:`).
+- `zizmor` — GHA workflow security (impostor-commit, unpinned uses,
+  excessive permissions).
+- `shellcheck` — shell-script correctness for `validators/*.sh` and
+  example witness scripts.
+- `typos` — source-code spellchecker; critical for spec repos.
+- `ruff` — Python deep linter (security `S` rules, correctness,
+  dead-code); defense-in-depth above bandit.
+- `bandit` — Python static security analysis of `validators/`.
+- `osv-scanner` — CVEs in `requirements.txt` + `Cargo.lock` + `go.sum`
+  (complements Dependabot; catches transitive and advisory-DB-only
+  entries Dependabot misses).
+- `gitleaks` — secret leak detection in commits + working tree.
+- `cargo-audit` — RustSec advisory DB check for every `tools/*-rs`.
+- `cargo-deny` — Rust license policy + dep ban + advisories.
+- `govulncheck` — Go call-graph-aware vuln check for `tools/*-go`.
+- `golangci-lint` — Go meta-linter (gosec + staticcheck + errcheck +
+  govet + ineffassign + unused).
+- `lychee` — link-rot scan across `spec.md`, README, references.
+
+Every workflow action is SHA-pinned. Pip and cargo installs are
+version-pinned; hash-pinning is on the roadmap and tracked in the
+`chore/pip-hash-pinning` branch.
+
 ## Disclosure
 
 We coordinate disclosure: the reporter, the maintainers, and (if the
