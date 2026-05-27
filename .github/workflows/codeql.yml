@@ -3,8 +3,8 @@ name: CodeQL
 # Advanced-setup CodeQL. Default-setup default-setup is explicitly disabled
 # on this repository because GitHub's default-setup API does not currently
 # accept "rust" as a language value, and ~33% of this repo's source is
-# Rust under tools/. This workflow scans all four languages with build-mode
-# none and uploads SARIF results to the Security tab.
+# Rust under tools/. This workflow scans all four languages (build-mode `none` for actions/python/rust, `autobuild` for go)
+# and uploads SARIF results to the Security tab.
 
 on:
   push:
@@ -47,7 +47,9 @@ jobs:
         uses: github/codeql-action/init@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4
         with:
           languages: ${{ matrix.language }}
-          build-mode: none
+          # Go does not support build-mode "none" — it needs autobuild
+          # (or manual). actions/python/rust use the static "none" mode.
+          build-mode: ${{ matrix.language == 'go' && 'autobuild' || 'none' }}
           queries: security-and-quality
 
       - name: Perform CodeQL analysis
