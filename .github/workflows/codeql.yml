@@ -38,6 +38,10 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          # Wipe the auth token from .git/config after checkout so it
+          # cannot be picked up by later steps (zizmor artipacked).
+          persist-credentials: false
 
       - name: Initialize CodeQL (${{ matrix.language }})
         uses: github/codeql-action/init@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4
