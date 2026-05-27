@@ -41,7 +41,12 @@ jobs:
           python-version: "3.11"
 
       - name: Install Python dependencies
-        run: python3 -m pip install --upgrade pip && python3 -m pip install -r requirements.txt
+        # --require-hashes refuses to install anything not pinned by
+        # sha256 in requirements.txt (Pinned-Dependencies / Scorecard
+        # compliance). The ubuntu-24.04 runner ships pip 24.x which is
+        # new enough; we deliberately do NOT --upgrade pip here because
+        # `pip install --upgrade pip` is itself an unpinned install.
+        run: python3 -m pip install --require-hashes -r requirements.txt
 
       - name: Set up Go (primary validator toolchain)
         # Track the latest stable Go release. Per repo policy
@@ -739,7 +744,7 @@ jobs:
         # credential persistence through artifacts.
         run: |
           set -euo pipefail
-          python3 -m pip install --user 'zizmor==1.25.2'
+          python3 -m pip install --user --require-hashes -r requirements/zizmor.txt
           # Default min-severity (low+); informational findings (job
           # names, concurrency limits, superfluous actions) are tracked
           # but not enforced — those don't move the security needle.
@@ -774,7 +779,7 @@ jobs:
         # few AST taint patterns ruff still doesn't. Defense in depth.
         run: |
           set -euo pipefail
-          python3 -m pip install --user 'ruff==0.14.5'
+          python3 -m pip install --user --require-hashes -r requirements/ruff.txt
           # Rules selected:
           #   F = pyflakes — real bugs (unused imports, undefined names,
           #                  unused variables)
@@ -861,7 +866,7 @@ jobs:
         # and docs/ are TOML/Markdown only.
         run: |
           set -euo pipefail
-          python3 -m pip install --user 'bandit==1.9.4'
+          python3 -m pip install --user --require-hashes -r requirements/bandit.txt
           # Bandit exits non-zero on any finding at or above the configured
           # severity/confidence floor — DO NOT pass --exit-zero (that flag
           # SUPPRESSES non-zero exits, which is the opposite of what this
