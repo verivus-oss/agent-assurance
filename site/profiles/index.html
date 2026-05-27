@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Profiles | DAG-TOML</title>
+  <meta name="description" content="DAG-TOML profiles for agent assurance, disclosure, and cost artifacts.">
+  <link rel="canonical" href="https://agent-assurance.dev/profiles/">
+  <link rel="alternate" type="text/markdown" href="https://agent-assurance.dev/profiles/index.md">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/"><span class="brand-mark">DT</span><span>DAG-TOML</span></a>
+    <nav aria-label="Primary"><a href="/spec/">Spec</a><a aria-current="page" href="/profiles/">Profiles</a><a href="/validators/">Validators</a><a href="/compare/">Compare</a><a href="/agent-readiness/">Agents</a></nav>
+  </header>
+  <main class="page">
+    <p class="eyebrow">Extension surface</p>
+    <h1>Profiles</h1>
+    <p class="lead">Profiles extend the core format with spec-reserved kinds for assurance gates, disclosure posture, selective proof, and cost accounting.</p>
+    <div class="grid three">
+      <article class="card">
+        <h2>Agent Assurance</h2>
+        <p>Threat models, smoke validations, rollback plans, adapter contracts, assertion bundles, gate decisions, and adapter registry bindings.</p>
+        <a href="https://github.com/verivus-oss/agent-assurance/tree/main/profiles/agent-assurance">Profile files</a>
+      </article>
+      <article class="card">
+        <h2>Disclosure</h2>
+        <p>Disclosure attestations, redaction manifests, and selective-disclosure proofs for evidence that crosses organizational boundaries.</p>
+        <a href="https://github.com/verivus-oss/agent-assurance/tree/main/profiles/disclosure">Profile files</a>
+      </article>
+      <article class="card">
+        <h2>Cost</h2>
+        <p>Cost records make resource and economic impact visible as governed artifacts instead of hidden execution metadata.</p>
+        <a href="https://github.com/verivus-oss/agent-assurance/tree/main/profiles/cost">Profile files</a>
+      </article>
+    </div>
+    <section class="callout">
+      <h2>Assurance tiers</h2>
+      <p>The Agent Assurance Profile defines deployment tiers from <code>solo</code> through <code>enterprise</code>. Higher tiers add stronger review, separation, traceability, and operational requirements.</p>
+      <a class="button primary" href="https://github.com/verivus-oss/agent-assurance/tree/main/profiles/agent-assurance/tiers">Open tiers</a>
+    </section>
+  </main>
+  <footer class="site-footer"><a href="/sitemap.md">sitemap.md</a><a href="/llms.txt">llms.txt</a></footer>
+</body>
+</html>

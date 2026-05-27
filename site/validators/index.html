@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Validators | DAG-TOML</title>
+  <meta name="description" content="DAG-TOML validator implementations and local validation commands.">
+  <link rel="canonical" href="https://agent-assurance.dev/validators/">
+  <link rel="alternate" type="text/markdown" href="https://agent-assurance.dev/validators/index.md">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/"><span class="brand-mark">DT</span><span>DAG-TOML</span></a>
+    <nav aria-label="Primary"><a href="/spec/">Spec</a><a href="/profiles/">Profiles</a><a aria-current="page" href="/validators/">Validators</a><a href="/compare/">Compare</a><a href="/agent-readiness/">Agents</a></nav>
+  </header>
+  <main class="page">
+    <p class="eyebrow">Conformance</p>
+    <h1>Validators</h1>
+    <p class="lead">DAG-TOML uses independent Rust, Go, and Python implementations so one validator does not self-vouch for legal-grade or security-grade artifacts.</p>
+    <div class="content-grid">
+      <article>
+        <h2>Primary Rust</h2>
+        <p><code>tools/dagtoml-validate-rs/</code> is a safe Rust primary validator with <code>#![forbid(unsafe_code)]</code>.</p>
+      </article>
+      <article>
+        <h2>Primary Go</h2>
+        <p><code>tools/dagtoml-validate-go/</code> is an unsafe-free Go primary validator covering the same Tier 1 surface as Rust.</p>
+      </article>
+      <article>
+        <h2>Python reference</h2>
+        <p><code>validators/*.py</code> cross-check the primaries and retain legacy surfaces while they move into Tier 1 validators.</p>
+      </article>
+      <article>
+        <h2>TOML parser conformance</h2>
+        <p>The CI matrix runs parser-conformance checks using the <code>toml-test</code> suite for imported Rust and Go TOML parsers.</p>
+      </article>
+    </div>
+    <section class="callout">
+      <h2>Local spot check</h2>
+      <pre><code>cargo build --release --manifest-path tools/dagtoml-validate-rs/Cargo.toml
+go build -o /tmp/dagtoml-validate-go ./tools/dagtoml-validate-go
+./tools/dagtoml-validate-rs/target/release/dagtoml-validate-rs --repo-root . examples/minimal-implementation-dag.toml
+/tmp/dagtoml-validate-go --repo-root . examples/minimal-implementation-dag.toml</code></pre>
+    </section>
+  </main>
+  <footer class="site-footer"><a href="/sitemap.md">sitemap.md</a><a href="/llms.txt">llms.txt</a></footer>
+</body>
+</html>

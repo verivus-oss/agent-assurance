@@ -1,0 +1,16 @@
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Link: <https://agent-assurance.dev/llms.txt>; rel="alternate"; type="text/markdown"
+  Link: <https://agent-assurance.dev/sitemap.xml>; rel="sitemap"; type="application/xml"
+
+/*.md
+  Content-Type: text/markdown; charset=utf-8
+  Link: <https://agent-assurance.dev/>; rel="canonical"; type="text/html"
+
+/llms.txt
+  Content-Type: text/markdown; charset=utf-8
+
+/sitemap.md
+  Content-Type: text/markdown; charset=utf-8

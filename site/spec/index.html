@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Specification | DAG-TOML</title>
+  <meta name="description" content="Core DAG-TOML specification overview: metadata, template kinds, closure roots, IJB, and versioning.">
+  <link rel="canonical" href="https://agent-assurance.dev/spec/">
+  <link rel="alternate" type="text/markdown" href="https://agent-assurance.dev/spec/index.md">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="/"><span class="brand-mark">DT</span><span>DAG-TOML</span></a>
+    <nav aria-label="Primary">
+      <a aria-current="page" href="/spec/">Spec</a>
+      <a href="/profiles/">Profiles</a>
+      <a href="/validators/">Validators</a>
+      <a href="/compare/">Compare</a>
+      <a href="/agent-readiness/">Agents</a>
+    </nav>
+  </header>
+  <main id="main" class="page">
+    <p class="eyebrow">Normative surface</p>
+    <h1>Specification overview</h1>
+    <p class="lead">A DAG-TOML document is a TOML file whose root <code>[meta]</code> table declares its schema version, template kind, and optional framework profile.</p>
+
+    <section class="content-grid">
+      <article>
+        <h2>Root metadata</h2>
+        <pre><code>[meta]
+schema_version = "0.1.0"
+template_kind = "implementation-dag"
+docs = "https://agent-assurance.dev/spec/"</code></pre>
+        <p><code>schema_version</code> pins the file shape. <code>ontology_version</code>, when present, pins the graph vocabulary snapshot.</p>
+      </article>
+      <article>
+        <h2>Core template kinds</h2>
+        <ul>
+          <li><code>implementation-dag</code></li>
+          <li><code>traceability</code></li>
+          <li><code>readiness-gate</code></li>
+          <li><code>contract-declaration</code></li>
+          <li><code>evidence-matrix</code></li>
+          <li><code>kind-descriptor</code></li>
+          <li><code>profile-descriptor</code></li>
+        </ul>
+      </article>
+      <article>
+        <h2>Closure roots</h2>
+        <p>Closure roots make upstream evidence brittleness explicit. A downstream artifact cannot silently become stronger than the source hash and provenance it depends on.</p>
+      </article>
+      <article>
+        <h2>IJB foundation</h2>
+        <p>The IJB substrate provides the meta-ontology that binds kind descriptors, attributes, predicates, and invariants into a shared vocabulary.</p>
+      </article>
+    </section>
+
+    <section class="callout">
+      <h2>Source of truth</h2>
+      <p>The full normative document remains in the repository until this site grows a generated spec mirror.</p>
+      <div class="actions">
+        <a class="button primary" href="https://github.com/verivus-oss/agent-assurance/blob/main/spec.md">Open spec.md</a>
+        <a class="button" href="https://github.com/verivus-oss/agent-assurance/tree/main/core">Core descriptors</a>
+      </div>
+    </section>
+  </main>
+  <footer class="site-footer"><a href="/sitemap.md">sitemap.md</a><a href="/llms.txt">llms.txt</a></footer>
+</body>
+</html>

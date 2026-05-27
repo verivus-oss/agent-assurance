@@ -1,0 +1,32 @@
+{
+  "schema_version": "0.1.0",
+  "id": "com.verivus.dag-toml.docs",
+  "name": "DAG-TOML Specification Documentation",
+  "type": "documentation-resource",
+  "canonical_url": "https://agent-assurance.dev/",
+  "repository": "https://github.com/verivus-oss/agent-assurance",
+  "license": "Apache-2.0",
+  "status": "draft-specification",
+  "protocols": [
+    "https",
+    "llms.txt",
+    "markdown"
+  ],
+  "entrypoints": {
+    "human": "https://agent-assurance.dev/",
+    "llms": "https://agent-assurance.dev/llms.txt",
+    "sitemap_markdown": "https://agent-assurance.dev/sitemap.md",
+    "sitemap_xml": "https://agent-assurance.dev/sitemap.xml"
+  },
+  "normative_sources": [
+    "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md",
+    "https://github.com/verivus-oss/agent-assurance/tree/main/core",
+    "https://github.com/verivus-oss/agent-assurance/tree/main/profiles"
+  ],
+  "capabilities": [
+    "describe-dag-toml",
+    "locate-kind-descriptor",
+    "locate-validator",
+    "compare-agent-protocol-surfaces"
+  ]
+}

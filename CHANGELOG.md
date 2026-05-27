@@ -9,6 +9,10 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Static specification site.** Added the Cloudflare Pages static site
+  under `site/`, including human-readable pages, Markdown mirrors,
+  agent discovery metadata, a deploy workflow, favicon assets, and the
+  social share image used by Open Graph and Twitter cards.
 - **OSS readiness sweep.** Added public-repository metadata and ownership
   files, ignored local paper/research scratch files, added an OpenSSF
   Scorecard workflow and README badge, pinned CI to GitHub-hosted

@@ -1,0 +1,11 @@
+{
+  "name": "agent-assurance-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "site:serve": "npx wrangler pages dev site",
+    "site:deploy": "npx wrangler pages deploy site --project-name agent-assurance",
+    "site:check": "node site/check-site.mjs"
+  },
+  "devDependencies": {}
+}

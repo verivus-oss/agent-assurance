@@ -1,0 +1,6 @@
+/github https://github.com/verivus-oss/agent-assurance 302
+/release https://github.com/verivus-oss/agent-assurance/releases/tag/v0.1.0 302
+/spec.md /spec/index.md 200
+/profiles.md /profiles/index.md 200
+/validators.md /validators/index.md 200
+/compare.md /compare/index.md 200
