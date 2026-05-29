@@ -1,0 +1,33 @@
+# Negative fixture: closure_root is consistent with the declared
+# source_sha256, but that source_sha256 does not match README.md bytes.
+# Dedicated provenance-binding checks MUST reject this file.
+closure_root = "sha256:51c37a7dbf48d1ed2a8a9ae387cfba15a1f010328c6018aec00523e7fbe45e1a"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "implementation-dag"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "public"
+license = "Apache-2.0"
+title = "Negative provenance binding fixture"
+spec = "README.md"
+decomposition = "README.md"
+created = "2026-05-29"
+total_units = 0
+tier1_units = []
+tier2_units = []
+tier3_units = []
+
+[provenance]
+source_path = "README.md"
+source_sha256 = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+source_bytes = 13560
+
+[computed]
+entry_points = []
+leaf_nodes = []
+critical_path = []
+critical_path_loc = 0
+loc_totals = { tier1 = 0 }
+
+[computed.max_parallel]
