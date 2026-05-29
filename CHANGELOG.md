@@ -30,6 +30,12 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **Root scratch artifacts moved local-only.** Verified the loose paper
+  scratch files (`all_links.txt`, `bib_keys.txt`, `cited_keys.txt`,
+  `labels.txt`, `find_matches.py`, `find_matches_v2.py`) are untracked
+  and unused by CI, Makefile, docs, examples, or tools; moved the local
+  copies under `.local/scratch/`. Existing root-only `.gitignore` rules
+  keep them from being accidentally committed.
 - **`SECURITY.md` documents the full defensive posture.** Rewritten to
   describe secret scanning + push protection, Dependabot security
   updates, CodeQL advanced-setup over the four languages, the
