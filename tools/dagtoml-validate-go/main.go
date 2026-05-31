@@ -689,9 +689,37 @@ func validateProvenanceBinding(path string, doc rawDoc, repoRoot string) []strin
 	if !ok {
 		return []string{fmt.Sprintf("%s: [provenance].source_bytes is required and must be an integer", path)}
 	}
-	data, err := os.ReadFile(filepath.Join(repoRoot, sourcePath))
+	// SPEC §11: source_path MUST be relative and resolve to a file under
+	// repo root. Reject absolute paths and any `..`/symlink escape so an
+	// attestation cannot bind its provenance digest to a file outside the
+	// repo (e.g. "../../etc/passwd"). Mirrors
+	// validators/validate_provenance.py; a primary validator must not be
+	// weaker than the cross-check.
+	if filepath.IsAbs(sourcePath) {
+		return []string{fmt.Sprintf(
+			"%s: [provenance].source_path must be relative to repo root, got absolute path %s", path, sourcePath)}
+	}
+	canonRoot, err := filepath.EvalSymlinks(repoRoot)
 	if err != nil {
-		return []string{fmt.Sprintf("%s: [provenance].source_path does not resolve under repo root (%s): %v", path, sourcePath, err)}
+		return []string{fmt.Sprintf("%s: [provenance] cannot canonicalize repo root: %v", path, err)}
+	}
+	// EvalSymlinks resolves `..` and follows symlinks (so a symlinked escape
+	// is caught by the containment check below) and returns an error for a
+	// non-existent path.
+	full, err := filepath.EvalSymlinks(filepath.Join(canonRoot, sourcePath))
+	if err != nil {
+		return []string{fmt.Sprintf("%s: [provenance].source_path does not resolve to a file under repo root (%s): %v", path, sourcePath, err)}
+	}
+	rel, err := filepath.Rel(canonRoot, full)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return []string{fmt.Sprintf("%s: [provenance].source_path %s resolves outside repo root (%s not under %s); SPEC §11 requires source_path to point to a file under repo root", path, sourcePath, full, canonRoot)}
+	}
+	if info, statErr := os.Stat(full); statErr != nil || !info.Mode().IsRegular() {
+		return []string{fmt.Sprintf("%s: [provenance].source_path does not resolve to a regular file under repo root (%s)", path, sourcePath)}
+	}
+	data, err := os.ReadFile(full)
+	if err != nil {
+		return []string{fmt.Sprintf("%s: [provenance].source_path could not be read (%s): %v", path, sourcePath, err)}
 	}
 	if enc, ok := prov["encryption"].(map[string]any); ok {
 		if hashOver, _ := enc["hash_is_over"].(string); hashOver == "plaintext" {
@@ -3079,19 +3107,30 @@ var (
 	gdObservedRe  = regexp.MustCompile(`^A-[A-Za-z0-9][A-Za-z0-9_-]*\s*=\s*observed\([^)]+\)\s*$`)
 )
 
-// gdAsTableArray normalises an array-of-tables value from BurntSushi/toml's
-// dynamic decoder, which returns either []map[string]any or []any
-// (where elements are map[string]any) depending on context.
-func gdAsTableArray(v any) []map[string]any {
+// gdRawArray normalises an array value from BurntSushi/toml's dynamic
+// decoder into a flat []any WITHOUT dropping non-table elements. The Rust
+// reference (tools/dagtoml-validate-rs/src/main.rs gate_decision) iterates
+// the raw TOML array so that INV01's emptiness test sees every element and
+// INV02/INV03 can report a non-table entry as a violation. A previous
+// table-only normaliser silently discarded scalar elements, which let a
+// `verdict = "pass"` document carrying `failed_constraint_refs = ["A-1"]`
+// (an array of strings) pass INV01 in Go while Rust rejected it — a
+// cross-implementation divergence on the separation-of-duty gate. Keep the
+// element type intact; the INV loops decide table-vs-not per element.
+func gdRawArray(v any) []any {
 	switch x := v.(type) {
-	case []map[string]any:
-		return x
 	case []any:
-		out := make([]map[string]any, 0, len(x))
-		for _, e := range x {
-			if m, ok := e.(map[string]any); ok {
-				out = append(out, m)
-			}
+		return x
+	case []map[string]any:
+		out := make([]any, len(x))
+		for i := range x {
+			out[i] = x[i]
+		}
+		return out
+	case []string:
+		out := make([]any, len(x))
+		for i := range x {
+			out[i] = x[i]
 		}
 		return out
 	}
@@ -3175,7 +3214,9 @@ func validateGateDecision(path string, doc rawDoc, repoRoot string) []string {
 	}
 
 	verdict, _ := decision["verdict"].(string)
-	failedRefs := gdAsTableArray(decision["failed_constraint_refs"])
+	// Raw array: length and element types preserved so a non-table element
+	// counts toward INV01 and is reported by INV02 (Rust parity).
+	failedRefs := gdRawArray(decision["failed_constraint_refs"])
 
 	// INV01: verdict == "pass" iff failed_constraint_refs is empty.
 	isPass := verdict == "pass"
@@ -3187,7 +3228,13 @@ func validateGateDecision(path string, doc rawDoc, repoRoot string) []string {
 	}
 
 	// INV02.
-	for i, t := range failedRefs {
+	for i, e := range failedRefs {
+		t, ok := e.(map[string]any)
+		if !ok {
+			defects = append(defects, fmt.Sprintf(
+				"%s: INV02 violated: failed_constraint_refs[%d] is not a table", path, i))
+			continue
+		}
 		cid, _ := t["constraint_id"].(string)
 		if !gdAssertionRe.MatchString(cid) {
 			defects = append(defects, fmt.Sprintf(
@@ -3197,8 +3244,14 @@ func validateGateDecision(path string, doc rawDoc, repoRoot string) []string {
 	}
 
 	// INV03.
-	overrides := gdAsTableArray(decision["override_refs"])
-	for i, t := range overrides {
+	overrides := gdRawArray(decision["override_refs"])
+	for i, e := range overrides {
+		t, ok := e.(map[string]any)
+		if !ok {
+			defects = append(defects, fmt.Sprintf(
+				"%s: INV03 violated: override_refs[%d] is not a table", path, i))
+			continue
+		}
 		line, _ := t["observation_line"].(string)
 		if !gdObservedRe.MatchString(line) {
 			defects = append(defects, fmt.Sprintf(

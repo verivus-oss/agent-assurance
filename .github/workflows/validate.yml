@@ -659,6 +659,33 @@ jobs:
             examples/negative/abstraction-class-unknown-domain.toml \
             --repo-root .
 
+          # Gate-decision separation-of-duty boundary: a "pass" verdict
+          # carrying non-empty (string-typed) failed_constraint_refs must
+          # be rejected by all three. Pins the Rust/Go divergence fixed in
+          # docs/reviews/2026-05-30-wp1-falsification/.
+          check_rejects "rust gate-decision string-refs" \
+            "$rs" --repo-root . --mode gate-decision \
+            examples/negative/gate-decision-pass-with-string-refs.toml
+          check_rejects "go gate-decision string-refs" \
+            "$go_bin" --repo-root . --mode gate-decision \
+            examples/negative/gate-decision-pass-with-string-refs.toml
+          check_rejects "python gate-decision string-refs" \
+            python3 validators/validate_gate_decision.py \
+            examples/negative/gate-decision-pass-with-string-refs.toml \
+            --repo-root .
+
+      - name: Provenance source_path containment guard (SPEC §11)
+        # Behavioural guard: a static fixture cannot isolate the
+        # containment defect, so this constructs an out-of-repo file whose
+        # bytes match the declared digest and asserts every primary +
+        # reference validator rejects both the `..`-escape and the
+        # absolute-path vectors. See docs/reviews/2026-05-30-wp1-falsification/.
+        run: |
+          set -e
+          validators/check_provenance_containment.sh \
+            "${RUNNER_TEMP}/dagtoml-validate-rs" \
+            "${RUNNER_TEMP}/dagtoml-validate-go"
+
       - name: Validate skill packages (IJB + provenance)
         run: |
           set -e

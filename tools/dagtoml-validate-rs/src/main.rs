@@ -918,12 +918,64 @@ fn validate_provenance_binding(path: &Path, doc: &Value, repo_root: &Path) -> Ve
         ));
         return errors;
     };
-    let full = repo_root.join(source_path);
+    // SPEC §11: source_path MUST be relative and resolve to a file under
+    // repo root. Reject absolute paths and any path that escapes via `..`
+    // or a symlink — otherwise an attestation could bind its provenance
+    // digest to a file outside the repo (e.g. "../../etc/passwd") and the
+    // binding would be meaningless. The Python reference
+    // (validators/validate_provenance.py) enforces this; a *primary*
+    // validator MUST NOT be weaker than the cross-check.
+    if Path::new(source_path).is_absolute() {
+        errors.push(format!(
+            "{}: [provenance].source_path must be relative to repo root, got absolute path {source_path}",
+            path.display()
+        ));
+        return errors;
+    }
+    let canon_root = match std::fs::canonicalize(repo_root) {
+        Ok(p) => p,
+        Err(e) => {
+            errors.push(format!(
+                "{}: [provenance] cannot canonicalize repo root: {e}",
+                path.display()
+            ));
+            return errors;
+        }
+    };
+    // canonicalize() resolves `..` and follows symlinks, so a symlinked
+    // escape is caught by the starts_with check below; a non-existent path
+    // returns Err and is reported as "does not resolve".
+    let full = match std::fs::canonicalize(canon_root.join(source_path)) {
+        Ok(p) => p,
+        Err(e) => {
+            errors.push(format!(
+                "{}: [provenance].source_path does not resolve to a file under repo root ({source_path}): {e}",
+                path.display()
+            ));
+            return errors;
+        }
+    };
+    if !full.starts_with(&canon_root) {
+        errors.push(format!(
+            "{}: [provenance].source_path {source_path} resolves outside repo root ({} not under {}); SPEC §11 requires source_path to point to a file under repo root",
+            path.display(),
+            full.display(),
+            canon_root.display()
+        ));
+        return errors;
+    }
+    if !full.is_file() {
+        errors.push(format!(
+            "{}: [provenance].source_path does not resolve to a regular file under repo root ({source_path})",
+            path.display()
+        ));
+        return errors;
+    }
     let data = match std::fs::read(&full) {
         Ok(data) => data,
         Err(e) => {
             errors.push(format!(
-                "{}: [provenance].source_path does not resolve under repo root ({source_path}): {e}",
+                "{}: [provenance].source_path could not be read ({source_path}): {e}",
                 path.display()
             ));
             return errors;
