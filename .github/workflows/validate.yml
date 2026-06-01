@@ -350,6 +350,23 @@ jobs:
           python3 validators/validate_review_readiness.py \
             examples/minimal-review-readiness/evidence_matrix.toml
 
+      - name: Validate operational tools/ DAGs (structural; Python + Rust + Go)
+        # ISS-005: the structural implementation-dag validators must cover the
+        # operational DAGs under tools/, not just examples/ and skills/. Run all
+        # three validators (Python reference + safe-Rust/Go primaries) over every
+        # tools/*-dag.toml so an INV01-INV06 regression there fails CI.
+        run: |
+          set -e
+          rs="${RUNNER_TEMP}/dagtoml-validate-rs"
+          go_bin="${RUNNER_TEMP}/dagtoml-validate-go"
+          for f in tools/*-dag.toml; do
+            [ -e "$f" ] || continue
+            echo "--- $f ---"
+            python3 validators/validate_implementation_dag.py "$f"
+            "$rs" --repo-root . "$f"
+            "$go_bin" --repo-root . "$f"
+          done
+
       - name: Validate IJB conformance (ontologies + kind descriptors + canonical examples)
         run: |
           set -e

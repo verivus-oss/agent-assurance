@@ -255,7 +255,7 @@ layer          = 3
 tier           = 1
 status         = "pending"
 depends_on     = ["U03"]
-blocks         = ["U05"]
+blocks         = ["U05","U08"]
 estimated_loc  = 60
 files_modify   = [
   "docs/claim_analysis/__run__/source_reliability_grades.toml",
