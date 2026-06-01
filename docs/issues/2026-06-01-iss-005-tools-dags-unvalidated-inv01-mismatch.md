@@ -1,10 +1,12 @@
 ---
 id: ISS-005
 title: Operational `tools/*-dag.toml` DAGs are outside CI structural validation; `claim-analysis-agent-gated-dag.toml` violates INV01
-status: open
+status: closed
 severity: medium
 opened: 2026-06-01
 opened_in_commit: 91e050a
+closed: 2026-06-02
+closed_by: 4176bf9
 classification: §5 hard-invariant conformance / CI coverage gap
 ---
 
@@ -121,3 +123,26 @@ Safeguard B, otherwise the new step turns CI red on landing.
   so a future INV01–INV05 violation in a `tools/` DAG is caught on push.
 - `CONTRIBUTING.md` "Local Checks" names the `tools/` DAG validation
   discipline and links to this issue.
+
+## Closing note (2026-06-02)
+
+Closed by commit `4176bf9` on `fix/2026-05-29-five-weaknesses`.
+
+- **INV01 fix applied.** `tools/claim-analysis-agent-gated-dag.toml`
+  `[units.U04].blocks` is now `["U05","U08"]` (was `["U05"]`). All three
+  `tools/*-dag.toml` now pass the structural validator — verified locally
+  with Python (`validate_implementation_dag.py`), the Rust primary
+  (`dagtoml-validate-rs`), and the Go primary (`dagtoml-validate-go`); all
+  three exit 0 on all three DAGs.
+- **CI coverage added (Safeguard B).** `.github/workflows/validate.yml` gained
+  a "Validate operational tools/ DAGs" step that runs the structural
+  implementation-dag validator over every `tools/*-dag.toml` across Python +
+  Rust + Go. The coverage gap (validator previously ran only on `examples/`,
+  `examples/negative/`, and `skills/`) is closed; an INV01–INV06 regression in
+  a `tools/` DAG now fails CI.
+- **Discipline recorded (Safeguard A).** `CONTRIBUTING.md` "Local Checks" now
+  documents running `validate_implementation_dag.py` over `tools/*-dag.toml`
+  before commit, citing this issue.
+
+All three acceptance criteria are satisfied. The forward-looking criterion
+(future regressions caught) is now mechanically backed by the live CI gate.
