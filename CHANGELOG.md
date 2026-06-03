@@ -34,6 +34,10 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **Go validation toolchain updated to patched 1.26.4.** The CI Go
+  setup pin and the two Go reference modules that declare a patch-level
+  toolchain now agree on Go `1.26.4`, matching the OSV-reported fixed
+  stdlib version.
 - **`SECURITY.md` documents the full defensive posture.** Rewritten to
   describe secret scanning + push protection, Dependabot security
   updates, CodeQL advanced-setup over the four languages, the
