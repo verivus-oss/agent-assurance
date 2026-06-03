@@ -9,6 +9,9 @@
   Content-Type: text/markdown; charset=utf-8
   Link: <https://agent-assurance.dev/>; rel="canonical"; type="text/html"
 
+/assets/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
 /llms.txt
   Content-Type: text/markdown; charset=utf-8
 
