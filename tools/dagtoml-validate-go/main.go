@@ -1192,7 +1192,26 @@ func validateImplementationDag(path string, doc rawDoc) []string {
 	errs = append(errs, validateImplementationLayerOrdering(units, deps)...)
 	errs = append(errs, validateImplementationMeta(doc, units)...)
 	errs = append(errs, validateImplementationComputed(doc, units, deps, blocks)...)
+	errs = append(errs, validateImplementationPaths(units)...)
 	_ = path
+	return errs
+}
+
+// validateImplementationPaths mirrors the Python reference validator's
+// default placeholder policy: unresolved markers in unit file claims
+// are rejected.
+func validateImplementationPaths(units map[string]map[string]any) []string {
+	var errs []string
+	for uid, unit := range units {
+		for _, field := range []string{"files_create", "files_modify"} {
+			files, _ := stringSlice(unit[field])
+			for _, f := range files {
+				if hasPlaceholder(f) {
+					errs = append(errs, fmt.Sprintf("%s.%s: placeholder not allowed: `%s`", uid, field, f))
+				}
+			}
+		}
+	}
 	return errs
 }
 

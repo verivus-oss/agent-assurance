@@ -66,7 +66,7 @@ Current corpus: `implementation-dag` (2 valid, 18 invalid) covering
 required fields, status/tier vocabularies, self-dependencies, unknown
 references, the `blocks`/`depends_on` inverse invariant, dependency
 cycles, single-producer artifacts, consumed-but-never-produced
-artifacts, artifact id prefixes, layer ordering, `meta.total_units`
+artifacts, artifact id prefixes, unresolved placeholders in file claims, layer ordering, `meta.total_units`
 coherence, and the recomputed `[computed]` claims (entry points,
 max_parallel, critical-path sum, and critical-path-is-longest-path).
 
