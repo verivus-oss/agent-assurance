@@ -33,6 +33,11 @@ wording_variance = "primitives.md:7 'what was observed' vs README.md:14 'what wa
 pointer_hygiene  = "grok (minor): the parenthetical '(see the canonical grammar's Non-Goals)' could be a stricter file pointer 'see canonical-assertion-grammar.md Non-Goals'. Left as-is; both other reviewers approved the exact text."
 
 [provenance]
+source_path        = "docs/research/2026-05-31-ijb-six-primitive-usability.md"
+source_sha256      = "sha256:dbd8459b30e4509d9f2cc9127951d55047be3eeffe2a32b53e861f982d0843c7"
+source_bytes       = 34829
+captured_at        = "2026-06-04T12:30:00Z"
+extraction_method  = "manual-analysis"
 origin = "Sole actionable critique from the 3-0 round-2 BWW multi-model review."
 research_trail = "docs/research/2026-05-31-ijb-six-primitive-usability.md (ROUND-2 RESOLUTION)"
 raw_findings = ["raw_findings/codex.md", "raw_findings/grok.md", "raw_findings/mistral.md"]
