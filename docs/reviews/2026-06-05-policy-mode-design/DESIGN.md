@@ -64,8 +64,12 @@ conventional in this ecosystem:
 
 Contract 1 — `REG:NO-AI-ATTRIBUTION`: no AI/LLM attribution from ANY model or
 tool: `Co-authored-by:` trailers naming an AI or AI-vendor noreply address,
-"Generated with <tool>" footers. Patterns are line-anchored so prose that
-*discusses* a trailer does not match; only actual trailer/footer lines do.
+"Generated with <tool>" footers. Trailer patterns are line-anchored so prose
+that *discusses* a trailer does not match.  The generated-with pattern is
+phrase-scoped (not line-anchored) after round-2 review showed anchor
+windows miss title-tail stamps; the accepted trade-off is that quoting
+the literal phrase adjacent to a vendor name in a scanned stream rejects
+— cite the short SHA instead of quoting (fixtures pin both directions).
 
 ### 3a. Why tracked_files is out of scope for v1 (round-1 finding)
 
@@ -140,18 +144,26 @@ dagtoml-validate-rs --repo-root . --mode policy --policy policy/REPO_POLICY.toml
 
 For contracts with `match_mode = "structural"` and
 `applies_to = ["gate_decision_artifacts"]`, policy mode evaluates each
-`--scan-file` whose document has `template_kind = "gate-decision"`:
+`--scan-file` whose document has `template_kind = "review-gate-decision"`
+— the artifact class this repository actually persists as session gate
+decisions (round-2 grok finding corrected an earlier binding to fields
+that do not exist; see docs/reviews/2026-05-23-spec-12-closure-root/
+gate_decision.toml for a live instance):
 
-1. Read the artifact's reviewer identity fields (`[decision].reviewer` /
-   `[decision].reviewers`, per the gate-decision kind descriptor).
-2. If `--initiator` was supplied and every recorded reviewer equals the
-   initiator (case-insensitive login comparison), report
-   `REG:NO-INITIATOR-SELF-APPROVAL: FILE: initiator LOGIN is the sole
-   recorded reviewer` and exit 1.
-3. If the artifact records no reviewer identity at all, exit 1 (fail
-   closed: an unattributable approval is not evidence).
+1. Read `[roster].reviewers_completed` (array of reviewer identities).
+2. If the array is empty or absent, exit 1 (fail closed: an
+   unattributable approval is not evidence).
+3. If `--initiator` was supplied and every completed reviewer equals the
+   initiator (case-insensitive comparison), report
+   `REG:NO-INITIATOR-SELF-APPROVAL: FILE: initiator is the sole completed
+   reviewer` and exit 1.
 4. If `--initiator` is absent, structural contracts are skipped and a
    warning names them (local advisory runs); CI always supplies it.
+
+Deliberately out of scope for contract 2 v1: `terminal_decision.toml`
+working files and the `gate-decision` (INV06 provider-quartet) kind —
+one artifact class per contract; widening is a policy edit, not a code
+edit, once the kind vocabulary settles.
 
 ### 5b. Pattern-dialect interplay with the placeholder gate (round-1 catch)
 
@@ -168,7 +180,7 @@ guidance and in a conformance fixture.
 The gate never runs the PR's own validator or policy. CI checks out the PR's
 tree as the *subject*, and separately checks out `main`'s `tools/`,
 `validators/`, and `policy/` as the *law*; builds main's validators; scans the
-PR's commit-message range, PR body, and changed files with main's policy.
+PR's commit-message range, PR title, and PR body with main's policy.
 A PR may propose changes to the law; it is judged by the law already merged.
 Endgame variant (out of scope for v1): pin the law to the last release
 artifact instead of main.
@@ -182,7 +194,10 @@ existing gates plus this review process. PR-B, judged by PR-A's now-merged
 law via N−1, lands the CI shim and required-check wiring.  A stage-0 PR
 touching anything outside the capped scope, or weakening `exempt_paths` /
 `blacklist_regex` relative to this reviewed design, fails review by
-definition; reviewers compare against this document.
+definition; reviewers compare against this document.  The scope cap is
+also mechanical, not only review-borne: PR-A's CI includes a plain step
+asserting `git diff --name-only origin/main...HEAD` is a subset of the
+allowlisted paths, judged by the existing (pre-policy) gates.
 
 ## 7. The thin shim (UNASSESSABLE: future CI step; full text below is the spec)
 
@@ -205,10 +220,9 @@ git log --format=%B "$BASE..$HEAD" \
       --scan-stdin commit_messages --initiator "$PR_AUTHOR"
 gh pr view "$PR" --json body --jq .body \
   | ... --scan-stdin pr_body --initiator "$PR_AUTHOR"
+gh pr view "$PR" --json title --jq .title \
+  | ... --scan-stdin pr_title --initiator "$PR_AUTHOR"
 ```
-
-plus a third stream: `gh pr view "$PR" --json title --jq .title \
-  | ... --scan-stdin pr_title --initiator "$PR_AUTHOR"`.
 
 Wired as a REQUIRED status check in the ruleset: no green, no merge. The
 local mirror is `.githooks/commit-msg` invoking the Python reference
@@ -280,9 +294,12 @@ is the draft source for that section.
    the parity story testable and the YAML permanently dumb.
 3. Common-subset regex dialect, enforced fail-closed at exit 2.
 4. N−1 law selection from main, release-pinning deferred.
-5. The attribution ban covers ANY model/vendor, pattern-based, not a vendor list
-   alone: `co-authored-by` lines naming AI tools/vendors OR any *-noreply AI
-   vendor address; reviewers should stress-test the pattern list in §3 draft.
+5. Coverage is the pattern list itself, maintained in the policy file: a
+   vendor/tool alternation (identical across the trailer and generated-with
+   patterns), generic `ai`/`assistant` name tokens, an automation-shaped
+   e-mail local-part heuristic, and vendor noreply domains.  Extending
+   coverage is a policy edit, never a code edit.  Bare `agent`/`bot` name
+   tokens are excluded (human-name false positives, round-2 finding).
 
 ## 11. Out of scope for v1 (VERIFIABLE: scope statement, graded for completeness)
 

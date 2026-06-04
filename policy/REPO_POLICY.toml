@@ -36,10 +36,22 @@ applies_to = ["commit_messages", "pr_title", "pr_body"]
 match_mode = "regex"
 density_threshold = 0
 blacklist_regex = [
-  "(?im)^\\s*co-authored-by:.*\\b(claude|anthropic|gpt|chatgpt|openai|copilot|gemini|bard|codex|cursor|aider|devin|windsurf|llama|mistral|grok|qwen|deepseek|kimi|perplexity|codeium|tabnine|sourcegraph|cody|\\bai\\b|assistant|agent|bot)\\b",
+  # 1: co-author trailer naming an AI vendor/tool or generic AI name token.
+  #    Generic name tokens are limited to 'ai' and 'assistant' — bare
+  #    'agent'/'bot' false-positive on human names like 'Agent Smith'
+  #    (round-2 codex/grok finding; guarded by fixtures).
+  "(?im)^\\s*co-authored-by:.*\\b(claude|anthropic|gpt|chatgpt|openai|copilot|gemini|bard|codex|cursor|aider|devin|windsurf|llama|mistral|grok|qwen|deepseek|kimi|perplexity|codeium|tabnine|sourcegraph|cody|\\bai\\b|assistant)\\b",
+  # 2: co-author trailer with an AI-vendor noreply address.
   "(?im)^\\s*co-authored-by:.*\\bnoreply@(anthropic|openai|google|x)\\b",
-  "(?im)^\\s*co-authored-by:.*\\b(ai|bot|agent|assistant|llm)\\b[^@\\s]*@",
-  "(?im)^.{0,12}generated with\\b.*\\b(claude|copilot|gpt|chatgpt|gemini|codex|cursor|aider|devin|windsurf|ai)\\b",
+  # 3: co-author trailer whose e-mail local part is automation-shaped.
+  #    'agent' deliberately absent ('agent.smith@...' is a human shape).
+  "(?im)^\\s*co-authored-by:.*\\b(ai|bot|assistant|llm)\\b[^@\\s]*@",
+  # 4: 'generated with <ai tool>' anywhere in the line (round-2 findings:
+  #    the former 12-char anchor missed title-tail stamps; vendor list now
+  #    identical to pattern 1). Trade-off, documented in DESIGN.md §3:
+  #    quoting the literal phrase next to a vendor name in a commit
+  #    message rejects — cite the short SHA instead of quoting.
+  "(?im)\\bgenerated\\s+with\\b.{0,40}\\b(claude|anthropic|gpt|chatgpt|openai|copilot|gemini|bard|codex|cursor|aider|devin|windsurf|llama|mistral|grok|qwen|deepseek|kimi|perplexity|codeium|tabnine|sourcegraph|cody|\\bai\\b)\\b",
 ]
 exempt_paths = [
   "policy/REPO_POLICY.toml",

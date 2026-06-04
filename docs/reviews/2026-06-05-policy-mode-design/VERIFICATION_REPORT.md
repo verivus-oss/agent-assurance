@@ -1,38 +1,25 @@
-# Verification Report — session 2026-06-05-policy-mode-design (round 2)
+# Verification Report — session 2026-06-05-policy-mode-design (round 3)
 
-Generated 2026-06-04T16:39:44Z. Round-1 verdicts: codex REVISE (5 findings), grok REVISE (7 findings) — persisted as round1_codex_review.md / round1_grok_review.md. All round-1 findings addressed or rebutted below; gemini round 1 pending.
+Generated 2026-06-04T16:50:49Z. Verdict history: r1 codex REVISE(5)/grok REVISE(7)/gemini REVISE(5); r2 codex REVISE(2)/grok REVISE(6)/gemini MALFUNCTION (empty stream, retried). All r2 findings dispositioned below.
 
-## Round-1 finding dispositions
-- codex-1/grok-2 (tracked_files FPs): ACCEPTED — applies_to narrowed to commit_messages+pr_title+pr_body; DESIGN.md §3a; exempt_paths widened and documented inert.
-- codex-2 (ANY-vendor claim unimplemented): ACCEPTED — statement re-scoped to pattern-list-in-file; patterns generalised (+perplexity/codeium/tabnine/cody/ai/assistant/agent/bot + email-local heuristic); 12-case table below incl. the three reviewer counterexamples now matching and three new human-FP guards not matching.
-- codex-3 (squash surface): ACCEPTED — pr_title stream added; DESIGN.md §7a.
-- codex-4/grok-1 (§1 factual errors): ACCEPTED — §1 corrected: #23 OPEN; #21 carries initiator-authored wp1 bundle.
-- codex-5 (labels): ACCEPTED — §2/§10/§11/§12 labelled.
-- grok-3 (structural contract unspecified): ACCEPTED — §5a algorithm.
-- grok-4 (workflow coexistence): ACCEPTED — §7b three-stage migration.
-- grok-5 (runner redesign): ACCEPTED — §8 rewritten with case.toml schema + expected_exit.
-- grok-7 (stage-0 attack): ACCEPTED — §6 two-PR bootstrap with diff-scope cap.
-- grok-6 (reverts/pr_title/github-noreply): ACCEPTED — §8 revert fixture (documented REJECT); pr_title stream; noreply heuristic tested below.
-- NEW (self-caught in round 2): angle-bracket regex literals collide with the placeholder gate — pattern rewritten angle-free; DESIGN.md §5b; fixture added to §8 minimum set.
+## Round-2 finding dispositions
+- codex2-1 (generated-with vendor list narrower): ACCEPTED — pattern 4 now carries the IDENTICAL vendor alternation as pattern 1; fixtures extended (Perplexity/Codeium generated-with now reject).
+- codex2-2 / grok2-4 (Agent Smith FP): ACCEPTED — bare agent/bot dropped from name tokens (kept ai/assistant); agent dropped from email heuristic; 'Agent Smith <agent.smith@example.com>' now ACCEPTS (case 13).
+- grok2-1 (§5a nonexistent fields): ACCEPTED — §5a rebound to template_kind=review-gate-decision, [roster].reviewers_completed, with live-instance citation; terminal_decision/INV06-quartet explicitly out of scope v1.
+- grok2-2 (§6 stale changed-files): ACCEPTED — corrected to the three streams.
+- grok2-3 (title-tail gap): ACCEPTED — generated-with pattern un-anchored, phrase-scoped with 40-char window; trade-off documented in §3 with both-direction fixtures (cases 14 and 17).
+- grok2-5 (§10.5 ANY claim): ACCEPTED — decision rewritten to pattern-list-is-the-coverage.
+- grok2-6 (mechanical stage-0): ACCEPTED — §6 adds git diff --name-only subset assertion in PR-A CI.
+- grok note (shim block missing pr_title): ACCEPTED — pipe moved into the §7 code block.
 
-## Artifacts (changed vs origin/main e8e292c)
-```
- M docs/reviews/2026-06-05-policy-mode-design/DESIGN.md
- M docs/reviews/2026-06-05-policy-mode-design/VERIFICATION_REPORT.md
- M policy/REPO_POLICY.toml
-?? docs/reviews/2026-06-05-policy-mode-design/round1_codex_review.md
-?? docs/reviews/2026-06-05-policy-mode-design/round1_grok_review.md
-?? go-validator
-```
-## IMPLEMENTATION_DAG.toml
-### rs (exit 0): DAGTOML VALIDATION PASSED (rust primary)
-### go (exit 0): DAGTOML VALIDATION PASSED (go primary)
-### py (exit 0): IMPLEMENTATION DAG VALIDATION PASSED
-## policy/REPO_POLICY.toml
-### rs (exit 0): DAGTOML VALIDATION PASSED (rust primary)
-### go (exit 0): DAGTOML VALIDATION PASSED (go primary)
+## Validators (this commit)
+### DAG rs: PASS
+### DAG go: PASS
+### DAG py: PASS
+### policy rs: PASS
+### policy go: PASS
 
-## Pattern behaviour (12 cases incl. round-1 counterexamples)
+## Pattern behaviour — 17 cases (12 prior + 5 round-2-driven)
 PASS 'Co-Authored-By: Claude Opus <noreply@anthropic.com>' match = True
 PASS 'we removed the Co-Authored-By trailers from history' match = False
 PASS 'Generated with Claude Code' match = True
@@ -45,4 +32,11 @@ PASS 'Co-authored-by: Codeium <bot@codeium.com>' match = True
 PASS 'Co-authored-by: Bob <bob@users.noreply.github.com>' match = False
 PASS 'Co-authored-by: Botond Nagy <botond@example.com>' match = False
 PASS 'Co-authored-by: Aida Smith <aida@example.com>' match = False
-ALL 12 PASS
+PASS 'Co-authored-by: Agent Smith <agent.smith@example.com>' match = False
+PASS 'feat: tidy validators — Generated with Claude Code' match = True
+PASS 'Generated with Perplexity' match = True
+PASS 'Generated with Codeium' match = True
+PASS 'the footer said generated with claude code' match = True
+ALL 17 PASS
+
+Case 17 is the documented §3 trade-off: quoting the literal phrase adjacent to a vendor name in a SCANNED STREAM rejects by design; cite the short SHA instead.
