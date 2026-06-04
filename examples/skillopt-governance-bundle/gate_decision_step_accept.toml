@@ -1,0 +1,39 @@
+# Gate decision for a SINGLE accepted skill edit (epoch 3).
+# In SkillOpt the gate fires when a candidate skill's held-out selection score
+# is STRICTLY greater than the incumbent. That maps onto gate-decision exactly:
+# verdict = "pass" iff no failed constraint (INV01). Here selection rose 0.742 -> 0.789.
+#
+# subject_class = "self-modification": editing the skill IS modifying the agent's
+# own trainable state. INV06 then REQUIRES the deciding model to differ from the
+# proposing model in BOTH provider and family. Modeled here as the GOVERNED form:
+# optimizer (proposer) = openai/gpt; an INDEPENDENT verifier (decider) = anthropic/claude
+# re-scores the selection split. SkillOpt's published same-model optimizer would FAIL
+# this gate — that gap is the collaboration's value-add.
+
+# No [provenance]; bundle/constraint linkage is a profile-layer closure input not yet
+# pinned at schema 0.1.0, so the empty-closure sentinel applies (SPEC §12.1, §12.8).
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "gate-decision"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "public"
+license = "Apache-2.0"
+framework_profile = "agent-assurance"
+title = "Gate decision: skill-edit epoch3-step7 (accept)"
+created = "2026-06-04"
+
+[decision]
+verdict = "pass"
+evidence_root = "64f6467716d4f559d48dcb05e6048591e4418dc6d1c018e9f73a08111823ab62"
+evidence_root_algorithm = "sha256-merkle-sorted-leaves"
+decided_at = "2026-06-04T02:14:30Z"
+subject_class = "self-modification"
+proposing_provider_id = "openai"
+proposing_model_family_id = "gpt"
+deciding_provider_id = "anthropic"
+deciding_model_family_id = "claude"
+
+[[decision.cited_bundles]]
+bundle_ref = "runs/spreadsheetbench-gpt55/bundles/epoch3-step7-rollouts.toml"
