@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Protocol Comparison | DAG-TOML</title>
+  <meta name="description" content="How DAG-TOML relates to MCP, A2A, ACP, ANP, Agent Manifest, agent.json, and JSON Agents.">
+  <link rel="canonical" href="https://agent-assurance.dev/compare/">
+  <link rel="alternate" type="text/markdown" href="https://agent-assurance.dev/compare/index.md">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="icon" href="/assets/favicon.ico" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="agent-assurance.dev">
+  <meta property="og:title" content="Protocol Comparison | DAG-TOML">
+  <meta property="og:description" content="How DAG-TOML relates to MCP, A2A, ACP, ANP, Agent Manifest, agent.json, and JSON Agents.">
+  <meta property="og:url" content="https://agent-assurance.dev/compare/">
+  <meta property="og:image" content="https://agent-assurance.dev/assets/og-image.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="DAG-TOML evidence surface: implementation-dag, traceability, and review-readiness artifacts grounded by a hash-bound closure root.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Protocol Comparison | DAG-TOML">
+  <meta name="twitter:description" content="How DAG-TOML relates to MCP, A2A, ACP, ANP, Agent Manifest, agent.json, and JSON Agents.">
+  <meta name="twitter:image" content="https://agent-assurance.dev/assets/og-image.png">
+  <meta name="twitter:image:alt" content="DAG-TOML evidence surface: implementation-dag, traceability, and review-readiness artifacts grounded by a hash-bound closure root.">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/"><span class="brand-mark">DT</span><span>DAG-TOML</span></a>
+    <nav aria-label="Primary"><a href="/spec/">Spec</a><a href="/profiles/">Profiles</a><a href="/validators/">Validators</a><a aria-current="page" href="/compare/">Compare</a><a href="/agent-readiness/">Agents</a></nav>
+  </header>
+  <main class="page">
+    <p class="eyebrow">Protocol fit</p>
+    <h1>DAG-TOML is complementary to agent protocols</h1>
+    <p class="lead">Runtime and discovery protocols help agents call tools, delegate tasks, or advertise capabilities. DAG-TOML records the governed evidence shape of the work those systems produce.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Surface</th><th>Primary question</th><th>DAG-TOML relationship</th></tr>
+        </thead>
+        <tbody>
+          <tr><th>MCP</th><td>How does a model or agent access tools, resources, and context?</td><td>DAG-TOML can capture the plan, evidence, and review state around work performed through tools.</td></tr>
+          <tr><th>A2A</th><td>How do independent agents discover one another and delegate tasks?</td><td>DAG-TOML can describe task intent, dependencies, provenance, and readiness after delegation.</td></tr>
+          <tr><th>ACP</th><td>How do agents communicate through a general-purpose REST-style protocol?</td><td>DAG-TOML remains a portable evidence artifact outside the transport channel.</td></tr>
+          <tr><th>ANP</th><td>How do agents discover and collaborate across an open network identity layer?</td><td>DAG-TOML can bind claims to provenance and closure roots without defining identity itself.</td></tr>
+          <tr><th>Agent Manifest / agent.json / JSON Agents</th><td>What is this agent, what can it do, and what boundaries does it declare?</td><td>DAG-TOML describes what a particular work package did, depended on, and proved.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <section class="callout">
+      <h2>Short version</h2>
+      <p>MCP connects tools. A2A and ACP connect agents. Agent manifests describe actors. DAG-TOML describes governed work products and their evidence.</p>
+    </section>
+  </main>
+  <footer class="site-footer"><a href="/sitemap.md">sitemap.md</a><a href="/llms.txt">llms.txt</a></footer>
+</body>
+</html>

@@ -9,6 +9,10 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Static specification site.** Added the Cloudflare Pages static site
+  under `site/`, including human-readable pages, Markdown mirrors,
+  agent discovery metadata, a deploy workflow, favicon assets, and the
+  social share image used by Open Graph and Twitter cards.
 - **OSS readiness sweep.** Added public-repository metadata and ownership
   files, ignored local paper/research scratch files, added an OpenSSF
   Scorecard workflow and README badge, pinned CI to GitHub-hosted
@@ -30,6 +34,10 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **Go validation toolchain updated to patched 1.26.4.** The CI Go
+  setup pin and the two Go reference modules that declare a patch-level
+  toolchain now agree on Go `1.26.4`, matching the OSV-reported fixed
+  stdlib version.
 - **`SECURITY.md` documents the full defensive posture.** Rewritten to
   describe secret scanning + push protection, Dependabot security
   updates, CodeQL advanced-setup over the four languages, the

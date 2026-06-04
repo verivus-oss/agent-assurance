@@ -1,0 +1,88 @@
+# DAG-TOML / Agent Assurance Specification
+
+Canonical site: https://agent-assurance.dev/
+Repository: https://github.com/verivus-oss/agent-assurance
+Release: https://github.com/verivus-oss/agent-assurance/releases/tag/v0.1.0
+License: Apache-2.0
+Status: Draft Specification
+Schema version: 0.1.0
+Last updated: 2026-05-27
+
+## Purpose
+
+DAG-TOML is a TOML specification for declarative policy, workflow, traceability, evidence, closure roots, and review readiness in agent-driven software development.
+
+It is an evidence and governance format. It is not an execution runtime, message protocol, sandbox, model API, permission system, package registry, or identity layer.
+
+## Start Here
+
+- Human overview: https://agent-assurance.dev/
+- Spec overview: https://agent-assurance.dev/spec/
+- Profiles: https://agent-assurance.dev/profiles/
+- Validators: https://agent-assurance.dev/validators/
+- Protocol comparison: https://agent-assurance.dev/compare/
+- Agent readiness: https://agent-assurance.dev/agent-readiness/
+- Markdown sitemap: https://agent-assurance.dev/sitemap.md
+
+## Normative Repository Sources
+
+- Full specification: https://github.com/verivus-oss/agent-assurance/blob/main/spec.md
+- Core kind descriptors: https://github.com/verivus-oss/agent-assurance/tree/main/core
+- Agent Assurance Profile: https://github.com/verivus-oss/agent-assurance/tree/main/profiles/agent-assurance
+- Disclosure Profile: https://github.com/verivus-oss/agent-assurance/tree/main/profiles/disclosure
+- Cost Profile: https://github.com/verivus-oss/agent-assurance/tree/main/profiles/cost
+- Examples: https://github.com/verivus-oss/agent-assurance/tree/main/examples
+
+## Core Template Kinds
+
+- implementation-dag
+- traceability
+- readiness-gate
+- contract-declaration
+- evidence-matrix
+- kind-descriptor
+- profile-descriptor
+
+## Profile Template Kinds
+
+Agent Assurance:
+
+- spec-contract
+- threat-model
+- smoke-validation
+- rollback-plan
+- adapter-contract
+- assertion-bundle
+- gate-decision
+- assertion-log-record
+- adapter-registry-binding
+
+Disclosure:
+
+- disclosure-attestation
+- redaction-manifest
+- selective-disclosure-proof
+
+Cost:
+
+- cost-record
+
+## Validator Entry Points
+
+- Rust primary validator: tools/dagtoml-validate-rs/
+- Go primary validator: tools/dagtoml-validate-go/
+- Python reference validators: validators/
+- Local docs: https://agent-assurance.dev/validators/
+
+## Retrieval Guidance
+
+Prefer Markdown pages for context windows:
+
+- https://agent-assurance.dev/index.md
+- https://agent-assurance.dev/spec/index.md
+- https://agent-assurance.dev/profiles/index.md
+- https://agent-assurance.dev/validators/index.md
+- https://agent-assurance.dev/compare/index.md
+- https://agent-assurance.dev/agent-readiness/index.md
+
+Use GitHub source files for normative details until the site publishes a generated full spec mirror.
