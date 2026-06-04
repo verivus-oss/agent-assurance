@@ -1,0 +1,21 @@
+# DAG-TOML Sitemap
+
+- Home: https://agent-assurance.dev/
+- Home markdown: https://agent-assurance.dev/index.md
+- Spec: https://agent-assurance.dev/spec/
+- Spec markdown: https://agent-assurance.dev/spec/index.md
+- Profiles: https://agent-assurance.dev/profiles/
+- Profiles markdown: https://agent-assurance.dev/profiles/index.md
+- Validators: https://agent-assurance.dev/validators/
+- Validators markdown: https://agent-assurance.dev/validators/index.md
+- Protocol comparison: https://agent-assurance.dev/compare/
+- Protocol comparison markdown: https://agent-assurance.dev/compare/index.md
+- Agent readiness: https://agent-assurance.dev/agent-readiness/
+- Agent readiness markdown: https://agent-assurance.dev/agent-readiness/index.md
+- llms.txt: https://agent-assurance.dev/llms.txt
+- robots.txt: https://agent-assurance.dev/robots.txt
+- XML sitemap: https://agent-assurance.dev/sitemap.xml
+- Well-known agent metadata: https://agent-assurance.dev/.well-known/agent.json
+- Well-known agent skills: https://agent-assurance.dev/.well-known/agent-skills/index.json
+- Root agent metadata: https://agent-assurance.dev/agent.json
+- Root agent skills: https://agent-assurance.dev/agent-skills.json

@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="DAG-TOML evidence surface — agent-assurance.dev">
+  <rect width="1200" height="630" fill="#173d33"/>
+  <rect x="0" y="0" width="1200" height="630" fill="#0f2a23" opacity="0.0"/>
+  <defs>
+    <clipPath id="cardclip"><rect x="158.4" y="40.0" width="883.2" height="478.4" rx="18"/></clipPath>
+  </defs>
+  <rect x="158.4" y="46.0" width="883.2" height="478.4" rx="18" fill="#000000" opacity="0.22"/>
+  <g clip-path="url(#cardclip)">
+    <g transform="translate(158.4,40.0) scale(0.92)">
+      
+  <title id="title">DAG-TOML evidence surface</title>
+  <desc id="desc">A technical schematic showing implementation-dag, traceability, and review-readiness artifacts grounded by a hash-bound closure root and resolved into a review readiness gate.</desc>
+  <style>
+    
+
+    
+
+    .title { font: 800 24px Inter, Arial, sans-serif; fill: #14211d; }
+    .label { font: 750 19px Inter, Arial, sans-serif; fill: #14211d; }
+    .small { font: 500 13px Inter, Arial, sans-serif; fill: #5f6f68; }
+    .mono { font: 650 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: #5f6f68; }
+    .eyebrow { font: 800 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: #173d33; letter-spacing: 0.08em; }
+    .card { fill: #ffffff; stroke: #b9c5bd; stroke-width: 1.5; }
+    .soft { fill: #eef3ef; stroke: #b9c5bd; stroke-width: 1.5; }
+    .gate { fill: #173d33; stroke: #2f6b56; stroke-width: 1.5; }
+    .gate-text { fill: #ffffff; }
+    .wire { fill: none; stroke: #2f6b56; stroke-width: 2; vector-effect: non-scaling-stroke; }
+    .wire-muted { fill: none; stroke: #b9c5bd; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+    .wire-dashed { fill: none; stroke: #b9c5bd; stroke-width: 1.5; stroke-dasharray: 6 7; vector-effect: non-scaling-stroke; }
+  </style>
+  <defs>
+    <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M28 0H0V28" fill="none" stroke="#d8e1dc" stroke-width="1"/>
+    </pattern>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M1 1L9 5L1 9Z" fill="#2f6b56"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="520" fill="#f7f8f4"/>
+  <rect width="960" height="520" fill="url(#grid)" opacity="0.38"/>
+
+  <text x="60" y="56" class="eyebrow">DAG-TOML EVIDENCE SURFACE</text>
+  <text x="60" y="86" class="title">Declarative artifacts grounded by closure</text>
+  <text x="60" y="111" class="small">The format records governed work products. It does not execute, schedule, or grant access.</text>
+
+  <rect x="68" y="154" width="252" height="112" rx="8" class="card"/>
+  <text x="92" y="187" class="label">implementation-dag</text>
+  <text x="92" y="211" class="small">units, scope, dependencies</text>
+  <g fill="none" stroke="#2f6b56" stroke-width="1.6" vector-effect="non-scaling-stroke">
+    <circle cx="118" cy="238" r="6" fill="#2f6b56"/>
+    <circle cx="168" cy="226" r="6" fill="#2f6b56"/>
+    <circle cx="218" cy="249" r="6" fill="#2f6b56"/>
+    <circle cx="270" cy="236" r="6" fill="#2f6b56"/>
+    <path d="M124 237L162 228M174 228L212 247M224 248L264 238M174 228L264 238"/>
+  </g>
+
+  <rect x="354" y="154" width="252" height="112" rx="8" class="card"/>
+  <text x="378" y="187" class="label">traceability</text>
+  <text x="378" y="211" class="small">requirement to test to artifact</text>
+  <path d="M388 238H550" class="wire-muted"/>
+  <circle cx="388" cy="238" r="5" fill="#ffffff" stroke="#2f6b56" stroke-width="2"/>
+  <circle cx="470" cy="238" r="5" fill="#ffffff" stroke="#2f6b56" stroke-width="2"/>
+  <circle cx="550" cy="238" r="5" fill="#ffffff" stroke="#2f6b56" stroke-width="2"/>
+  <text x="378" y="256" class="mono">REQ:</text>
+  <text x="458" y="256" class="mono">TEST:</text>
+  <text x="536" y="256" class="mono">ART:</text>
+
+  <rect x="640" y="154" width="252" height="112" rx="8" class="card"/>
+  <text x="664" y="187" class="label">review-readiness</text>
+  <text x="664" y="211" class="small">gate, contract, evidence matrix</text>
+  <rect x="664" y="226" width="184" height="24" rx="5" class="soft"/>
+  <text x="676" y="243" class="mono">readiness-gate</text>
+  <rect x="664" y="254" width="184" height="24" rx="5" class="soft"/>
+  <text x="676" y="271" class="mono">contract-declaration</text>
+
+  <path d="M194 266V298" class="wire-dashed"/>
+  <path d="M480 266V298" class="wire-dashed"/>
+  <path d="M766 266V298" class="wire-dashed"/>
+  <path d="M194 298H766" class="wire-dashed"/>
+  <path d="M480 298V316" class="wire" marker-end="url(#arrow)"/>
+
+  <rect x="128" y="326" width="704" height="78" rx="8" class="soft"/>
+  <path d="M162 360H798" stroke="#8a5d18" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
+  <circle cx="162" cy="360" r="5" fill="#8a5d18"/>
+  <circle cx="798" cy="360" r="5" fill="#8a5d18"/>
+  <text x="178" y="352" class="label">closure_root</text>
+  <text x="178" y="379" class="mono">sha256(source hash closure)</text>
+  <text x="630" y="352" class="mono">source_sha256 = required</text>
+  <text x="630" y="379" class="mono">weak digests forbidden</text>
+
+  <path d="M480 404V428" class="wire" marker-end="url(#arrow)"/>
+  <rect x="328" y="438" width="304" height="54" rx="8" class="gate"/>
+  <text x="386" y="463" class="label gate-text">review readiness</text>
+  <text x="398" y="482" class="mono gate-text">reviewable, not executable</text>
+
+    </g>
+  </g>
+  <rect x="158.4" y="40.0" width="883.2" height="478.4" rx="18" fill="none" stroke="#ffffff" stroke-opacity="0.14" stroke-width="1.5"/>
+  <text x="158.4" y="578" font-family="Liberation Sans, Arial, sans-serif" font-weight="700" font-size="30" fill="#ecf3ee">agent-assurance.dev</text>
+  <text x="1041.6" y="578" text-anchor="end" font-family="Liberation Mono, monospace" font-size="17" fill="#a7e7cf">public draft specification</text>
+</svg>

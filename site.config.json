@@ -1,0 +1,11 @@
+{
+  "canonical_origin": "https://agent-assurance.dev",
+  "cloudflare_pages_project": "agent-assurance",
+  "cloudflare_zone_status": "confirmed via Cloudflare API MCP on 2026-05-27",
+  "notes": [
+    "Cloudflare API MCP is configured in the local Claude MCP user scope, not exposed as a direct Codex MCP namespace in this session.",
+    "Read-only Cloudflare API MCP inventory found active zones for agent-assurance.dev, agentassurance.dev, agent-assurance.io, and agentassurance.io.",
+    "Read-only Cloudflare API MCP inventory did not find a verivus.com zone or dag-toml.verivus.com record/custom domain in the accessible account.",
+    "Use agent-assurance.dev as canonical; reserve agentassurance.dev and the .io variants as redirects after deployment."
+  ]
+}
