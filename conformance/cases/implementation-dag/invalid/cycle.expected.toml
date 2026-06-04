@@ -1,0 +1,1 @@
+error_contains = ["cycle in depends_on"]

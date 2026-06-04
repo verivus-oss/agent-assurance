@@ -79,6 +79,20 @@ jobs:
           cd tools/dagtoml-validate-go
           go build -o "${RUNNER_TEMP}/dagtoml-validate-go" ./...
 
+      - name: DAG-TOML cross-implementation conformance corpus
+        # Every fixture under conformance/cases/ runs through all three
+        # validator implementations (Rust primary, Go primary, Python
+        # reference). Valid fixtures must be accepted by all three;
+        # invalid fixtures must be rejected by all three with the
+        # expected error text. Known, deliberately tolerated drift is
+        # listed in conformance/known-divergences.toml — same contract
+        # as TOML_CONFORMANCE_SKIPS: a baseline, not a green light.
+        run: |
+          set -e
+          python3 conformance/runner.py \
+            --rs "${RUNNER_TEMP}/dagtoml-validate-rs" \
+            --go "${RUNNER_TEMP}/dagtoml-validate-go"
+
       - name: Build dagtoml-rdf (required by manifest-drift gate)
         # validators/check_attribute_values.py invokes
         # tools/dagtoml-rdf/target/release/dagtoml-rdf to compute the

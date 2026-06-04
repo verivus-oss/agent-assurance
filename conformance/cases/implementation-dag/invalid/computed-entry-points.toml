@@ -1,0 +1,46 @@
+# Invalid: computed.entry_points names the wrong unit.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "implementation-dag"
+docs           = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "public"
+license        = "Apache-2.0"
+title          = "Conformance fixture"
+spec           = "docs/planning/01_spec.md"
+decomposition  = "docs/planning/03_IMPLEMENTATION_PLAN.md"
+created        = "2026-06-04"
+total_units    = 2
+tier1_units    = '[U01, U02]'
+tier2_units    = []
+tier3_units    = []
+
+[units.U01]
+name           = "a"
+summary        = "Conformance fixture unit U01."
+layer          = 0
+tier           = 1
+status         = "pending"
+depends_on     = []
+blocks         = ["U02"]
+estimated_loc  = 10
+files_modify   = ["src/a.rs"]
+produces       = []
+consumes       = []
+
+[units.U02]
+name           = "b"
+summary        = "Conformance fixture unit U02."
+layer          = 1
+tier           = 1
+status         = "pending"
+depends_on     = ["U01"]
+blocks         = []
+estimated_loc  = 10
+files_modify   = ["src/a.rs"]
+produces       = []
+consumes       = []
+
+[computed]
+entry_points = ["U02"]
