@@ -36,6 +36,11 @@ exclude_path = [
     # Reference seed SQL/RDF files may inline URIs as data (RDF schema
     # IRIs, namespace URIs) that aren't meant to be live endpoints.
     "reference/database/rdf",
+    # The static site intentionally contains root-relative links and
+    # canonical production URLs. Site structure is checked by
+    # `npm run site:check`; deployment liveness is checked separately
+    # by the Pages workflow and release process.
+    "site",
 ]
 
 # Accept these HTTP status codes as "the URL exists" even though the

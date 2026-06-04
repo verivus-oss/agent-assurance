@@ -1,0 +1,34 @@
+{
+  "schema_version": "0.1.0",
+  "canonical_url": "https://agent-assurance.dev/.well-known/agent-skills/index.json",
+  "skills": [
+    {
+      "id": "read-dag-toml-spec",
+      "name": "Read DAG-TOML specification",
+      "input": "A question about the DAG-TOML format, kind descriptors, profiles, or validators.",
+      "recommended_context": [
+        "https://agent-assurance.dev/llms.txt",
+        "https://agent-assurance.dev/spec/index.md",
+        "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+      ]
+    },
+    {
+      "id": "validate-dag-toml-file",
+      "name": "Validate a DAG-TOML file",
+      "input": "A local DAG-TOML file path and repository root.",
+      "recommended_context": [
+        "https://agent-assurance.dev/validators/index.md",
+        "https://github.com/verivus-oss/agent-assurance/tree/main/tools/dagtoml-validate-rs",
+        "https://github.com/verivus-oss/agent-assurance/tree/main/tools/dagtoml-validate-go"
+      ]
+    },
+    {
+      "id": "position-dag-toml",
+      "name": "Position DAG-TOML beside agent protocols",
+      "input": "A question comparing DAG-TOML with MCP, A2A, ACP, ANP, Agent Manifest, agent.json, or JSON Agents.",
+      "recommended_context": [
+        "https://agent-assurance.dev/compare/index.md"
+      ]
+    }
+  ]
+}
