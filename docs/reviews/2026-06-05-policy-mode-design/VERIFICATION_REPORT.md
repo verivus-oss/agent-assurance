@@ -1,10 +1,12 @@
-# Verification Report — session 2026-06-05-policy-mode-design (round 5)
+# Verification Report — session 2026-06-05-policy-mode-design (round 6)
 
 Generated 2026-06-04T17:07:02Z. Verdict history:
 r1: codex REVISE(5) / grok REVISE(7) / gemini REVISE(5)
 r2: codex REVISE(2) / grok REVISE(6) / gemini malfunction->retry REVISE(4)
 r3: codex APPROVE(9704747) / grok REVISE(2)
 r4: codex REVISE(1: tracked scratch debris) / grok APPROVE-UNCONDITIONAL(d443abf)
+r5: codex REVISE(1: stale-artifact presence bypass) / grok APPROVE HOLDS(009be2b) / gemini bare-verdict REJECTED by initiator (no evidence)
+r6 dispositions: codex5-1 ACCEPTED — scan-files bound to changed paths, validator refuses uncounted scan-files (defence in depth), stale-artifact and unbound-scan-file fixtures added; grok5 notes dispositioned (examples/conformance exclusion documented in 5a rule 6)
 
 ## Round-4 dispositions (this commit)
 - codex4-1 / grok4 note (scratch debris): ACCEPTED — reviewer probe scripts and the committed go-validator binary removed from tree and index.

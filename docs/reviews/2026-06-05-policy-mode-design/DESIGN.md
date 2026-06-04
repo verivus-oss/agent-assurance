@@ -159,14 +159,29 @@ gate_decision.toml for a live instance):
    reviewer` and exit 1.
 4. If `--initiator` is absent, structural contracts are skipped and a
    warning names them (local advisory runs); CI always supplies it.
-5. PRESENCE enforcement (round-4 gemini finding — without this the
-   contract is dead code): contract 2 carries
+5. PRESENCE enforcement (round-4 gemini finding; binding tightened by
+   round-5 codex finding): contract 2 carries
    `required_when_changed = [spec surfaces...]`.  The shim passes the
-   PR's changed paths via repeatable `--changed-file` flags.  If any
-   changed path matches `required_when_changed` and ZERO `--scan-file`
-   documents carry `template_kind = "review-gate-decision"`, exit 1:
-   a spec-surface change without persisted review evidence is itself
-   the violation.  Scanning zero files is a verdict, not a no-op.
+   PR's changed paths via repeatable `--changed-file` flags, and passes
+   as `--scan-file` EXACTLY the changed paths matching
+   `docs/reviews/**/gate_decision.toml` — never a directory sweep.  The
+   validator additionally enforces the binding itself (defence in
+   depth): a scan-file that is not also listed in `--changed-file`
+   does not count toward presence.  If any changed path matches
+   `required_when_changed` and zero COUNTED scan-files carry
+   `template_kind = "review-gate-decision"`, exit 1: a spec-surface
+   change without NEW persisted review evidence is itself the
+   violation.  Historical gate decisions from earlier sessions can
+   never satisfy presence for a new PR, and rosterless historical
+   artifacts can never fail an unrelated PR, because unchanged files
+   are simply not in scope.  Scanning zero files is a verdict, not a
+   no-op.
+6. Exclusion note (round-5 grok): `examples/**` and `conformance/**`
+   are deliberately absent from `required_when_changed` — they hold
+   illustrative and intentionally-invalid documents already guarded by
+   the structural validators and the conformance runner; presence of
+   review evidence is required only for normative surfaces.  Revisit
+   if CONTRIBUTING.md's scope statement changes.
 
 Deliberately out of scope for contract 2 v1: `terminal_decision.toml`
 working files and the `gate-decision` (INV06 provider-quartet) kind —
@@ -237,18 +252,20 @@ plus the structural invocation (round-4 gemini finding — contract 2 was
 dead code without it):
 
 ```sh
-gh pr view "$PR" --json files --jq '.files[].path' \
-  | xargs -I{} printf -- '--changed-file %s ' {} \
-  | xargs /tmp/law/.../dagtoml-validate-rs --repo-root . --law-root /tmp/law \
-      --mode policy --policy /tmp/law/policy/REPO_POLICY.toml \
-      --initiator "$PR_AUTHOR" \
-      $(find docs/reviews -name 'gate_decision.toml' -newer .git/FETCH_HEAD \
-        -printf ' --scan-file %p')
+CHANGED=$(gh pr view "$PR" --json files --jq '.files[].path')
+GATES=$(printf '%s\n' "$CHANGED" | grep -E '^docs/reviews/.+/gate_decision\.toml$' || true)
+/tmp/law/.../dagtoml-validate-rs --repo-root . --law-root /tmp/law \
+    --mode policy --policy /tmp/law/policy/REPO_POLICY.toml \
+    --initiator "$PR_AUTHOR" \
+    $(printf -- '--changed-file %s ' $CHANGED) \
+    $(printf -- '--scan-file %s ' $GATES)
 ```
 
-(Conceptual form; the implementation PR fixes the exact quoting.  The
-semantics are fixed here: changed paths in, the PR's gate-decision
-artifacts in, presence + roster checks per §5a.)
+(Conceptual form; the implementation PR fixes the exact quoting and
+portability.  The semantics are fixed here, per round-5 codex: scan-files
+are derived from the PR's changed-file list, never from directory or
+mtime sweeps, and the validator independently refuses to count any
+scan-file absent from --changed-file.)
 
 Every invocation carries `--law-root /tmp/law` (round-3 grok finding: the
 §5 rule is only as good as the shim that implements it; an invocation
@@ -302,6 +319,11 @@ exit-2-is-infrastructure convention.  Minimum set:
 - gate-decision artifact with no recorded reviewer → reject (fail closed)
 - changed file matching required_when_changed with ZERO gate-decision
   scan-files → reject (presence enforcement; the dead-code finding)
+- spec-surface change while HISTORICAL (unchanged) gate decisions exist
+  in the tree but none is in --changed-file → reject (round-5 codex:
+  stale artifacts can never satisfy presence)
+- scan-file passed but absent from --changed-file → not counted
+  (defence-in-depth binding)
 - dependabot[bot]/github-actions[bot] co-author trailers → accept
 - angle-bracket regex literal in policy → rejected by contract validators
   (the placeholder-gate interplay of §5b)
