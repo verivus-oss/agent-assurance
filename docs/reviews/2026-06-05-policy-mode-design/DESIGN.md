@@ -159,6 +159,14 @@ gate_decision.toml for a live instance):
    reviewer` and exit 1.
 4. If `--initiator` is absent, structural contracts are skipped and a
    warning names them (local advisory runs); CI always supplies it.
+5. PRESENCE enforcement (round-4 gemini finding — without this the
+   contract is dead code): contract 2 carries
+   `required_when_changed = [spec surfaces...]`.  The shim passes the
+   PR's changed paths via repeatable `--changed-file` flags.  If any
+   changed path matches `required_when_changed` and ZERO `--scan-file`
+   documents carry `template_kind = "review-gate-decision"`, exit 1:
+   a spec-surface change without persisted review evidence is itself
+   the violation.  Scanning zero files is a verdict, not a no-op.
 
 Deliberately out of scope for contract 2 v1: `terminal_decision.toml`
 working files and the `gate-decision` (INV06 provider-quartet) kind —
@@ -225,6 +233,23 @@ gh pr view "$PR" --json title --jq .title \
   | ... --law-root /tmp/law --scan-stdin pr_title --initiator "$PR_AUTHOR"
 ```
 
+plus the structural invocation (round-4 gemini finding — contract 2 was
+dead code without it):
+
+```sh
+gh pr view "$PR" --json files --jq '.files[].path' \
+  | xargs -I{} printf -- '--changed-file %s ' {} \
+  | xargs /tmp/law/.../dagtoml-validate-rs --repo-root . --law-root /tmp/law \
+      --mode policy --policy /tmp/law/policy/REPO_POLICY.toml \
+      --initiator "$PR_AUTHOR" \
+      $(find docs/reviews -name 'gate_decision.toml' -newer .git/FETCH_HEAD \
+        -printf ' --scan-file %p')
+```
+
+(Conceptual form; the implementation PR fixes the exact quoting.  The
+semantics are fixed here: changed paths in, the PR's gate-decision
+artifacts in, presence + roster checks per §5a.)
+
 Every invocation carries `--law-root /tmp/law` (round-3 grok finding: the
 §5 rule is only as good as the shim that implements it; an invocation
 without --law-root resolves law-referenced files from the subject tree,
@@ -275,6 +300,9 @@ exit-2-is-infrastructure convention.  Minimum set:
 - exempt path containing banned string → accept
 - gate-decision artifact with reviewer == initiator → reject (REG contract 2)
 - gate-decision artifact with no recorded reviewer → reject (fail closed)
+- changed file matching required_when_changed with ZERO gate-decision
+  scan-files → reject (presence enforcement; the dead-code finding)
+- dependabot[bot]/github-actions[bot] co-author trailers → accept
 - angle-bracket regex literal in policy → rejected by contract validators
   (the placeholder-gate interplay of §5b)
 - revert commit quoting a stamped message → REJECT, documented as intended:
@@ -323,3 +351,10 @@ is the draft source for that section.
 - R3: stage-0 window (§6 bootstrap note) — one PR judged by the old gates.
 - R4: `--initiator` is shim-supplied and therefore spoofable locally; the
   authoritative value comes from CI context, and local runs are advisory.
+- R5 (round-4, gemini + grok): vendor tokens embedded in legal human names
+  false-positive: 'Jean-Claude Van Damme', 'Devin Townsend', 'Gemini
+  Smith' all reject under the vendor alternation.  Accepted v1 trade-off:
+  these names are orders of magnitude rarer in co-author trailers than
+  the stamps are; the appeal path is rewording the trailer (initials,
+  email-only form).  Guarded by matrix cases as documented REJECTs;
+  revisit only with evidence of real-world friction.

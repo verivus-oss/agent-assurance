@@ -47,14 +47,17 @@ blacklist_regex = [
   # 2: co-author trailer with an AI-vendor noreply address.
   "(?im)^\\s*co-authored-by:.*\\bnoreply@(anthropic|openai|google|x)\\b",
   # 3: co-author trailer whose e-mail local part is automation-shaped.
-  #    'agent' deliberately absent ('agent.smith@...' is a human shape).
-  "(?im)^\\s*co-authored-by:.*\\b(ai|bot|assistant|llm)\\b[^@\\s]*@",
+  #    'agent' deliberately absent ('agent.smith@...' is a human shape);
+#    'bot' deliberately absent (round-4 gemini finding: GitHub automation
+#    like dependabot[bot]@ and github-actions[bot]@ are not AI authorship
+#    and must not reject).
+  "(?im)^\\s*co-authored-by:.*\\b(ai|assistant|llm)\\b[^@\\s]*@",
   # 4: 'generated with <ai tool>' anywhere in the line (round-2 findings:
   #    the former 12-char anchor missed title-tail stamps; vendor list now
   #    identical to pattern 1). Trade-off, documented in DESIGN.md §3:
   #    quoting the literal phrase next to a vendor name in a commit
   #    message rejects — cite the short SHA instead of quoting.
-  "(?im)\\bgenerated\\s+with\\b.{0,40}\\b(claude|anthropic|gpt|chatgpt|openai|copilot|gemini|bard|codex|cursor|aider|devin|windsurf|llama|mistral|grok|qwen|deepseek|kimi|perplexity|codeium|tabnine|sourcegraph|\\bai\\b|assistant)\\b",
+  "(?im)\\bgenerated\\s+with\\b.{0,12}\\b(claude|anthropic|gpt|chatgpt|openai|copilot|gemini|bard|codex|cursor|aider|devin|windsurf|llama|mistral|grok|qwen|deepseek|kimi|perplexity|codeium|tabnine|sourcegraph|\\bai\\b|assistant)\\b",
 ]
 exempt_paths = [
   "policy/REPO_POLICY.toml",
@@ -80,6 +83,18 @@ plan-compliance claims."""
 applies_to = ["gate_decision_artifacts"]
 match_mode = "structural"
 density_threshold = 0
+# Presence enforcement (DESIGN.md section 5a rule 5): when a changed file
+# matches one of these globs, at least one scanned document with
+# template_kind review-gate-decision must exist, else exit 1.
+required_when_changed = [
+  "spec.md",
+  "core/**",
+  "profiles/**",
+  "validators/**",
+  "tools/**",
+  "policy/**",
+  ".github/workflows/**",
+]
 depends_on = ["REG:NO-AI-ATTRIBUTION"]
 verified_by = [
   "validator --mode policy --initiator with the PR author login (DESIGN.md sections 5 and 7)",
