@@ -3,7 +3,7 @@ name = "dagtoml-validate-rs"
 version = "0.1.0"
 edition = "2024"
 publish = false
-description = "Safe-Rust primary validator for the DAG-TOML profile-descriptor kind, the disclosure profile, and the SPEC §11.1 [provenance.encryption] sub-table. Python validators under validators/ are retained as cross-check references."
+description = "Safe-Rust primary validator for DAG-TOML canonical examples, profiles, ontologies, kind descriptors, and semantic invariants. Python validators under validators/ are retained as cross-check references."
 license = "Apache-2.0"
 rust-version = "1.85"
 

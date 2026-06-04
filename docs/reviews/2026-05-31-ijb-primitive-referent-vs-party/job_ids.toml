@@ -1,0 +1,29 @@
+# Async review job IDs — dispatched via llm-gateway 2026-05-31.
+# Poll with llm_job_status / collect with llm_job_result.
+
+[[jobs]]
+model         = "codex"
+job_id        = "a4017287-57c9-4da8-83c7-1bfd1cae76f7"   # r3 (r1/r2 failed: gateway emitted --ask-for-approval / --search, unsupported by this codex build)
+session_id    = "a9079db2-4d90-43c5-8d6e-9b6155b9479e"
+correlationId = "referent-vs-party-codex-r3"
+findings_path = "raw_findings/codex.md"
+
+[[jobs]]
+model         = "grok"
+job_id        = "c91de0c4-dee3-4afd-8b1c-91b727286d85"   # r2 (r1 failed: grok-build rejects reasoningEffort; dropped effort)
+session_id    = "gw-b2c7d174-1a78-4aab-9c93-4464477cbba6"
+correlationId = "referent-vs-party-grok-r2"
+findings_path = "raw_findings/grok.md"
+
+[[jobs]]
+model         = "gemini"
+job_id        = "7e4dc805-7bdc-4f7b-8b1b-f0dca4ad6e2d"
+session_id    = ""
+correlationId = "referent-vs-party-gemini"
+findings_path = "raw_findings/gemini.md"
+
+[dispatch]
+initiator   = "claude-opus-4-8"
+dispatched  = "2026-05-31T02:13Z"
+prompt      = "docs/reviews/2026-05-31-ijb-primitive-referent-vs-party/review_prompt.md"
+terminal_states = ["adopt_referent", "adopt_party", "concrete_unresolvable_blocker"]

@@ -1,0 +1,28 @@
+# Reviewer roster — per tools/review-request-dag.toml [policy.roles] (unit U02).
+
+[initiator]
+model  = "claude-opus-4-8"
+role   = "authored 07-drafts-for-referent.md and assembled this bundle"
+# Excluded as a STANDARD reviewer (policy.roles.initiator_excluded_as_standard_reviewer).
+# MAY be invoked only as a fresh, clean-context reviewer (not this session).
+excluded_as_standard_reviewer = true
+
+[[reviewers]]
+model = "codex"
+# Codex independently recommended `party` in the prior round (corpus file 05) and
+# `entity` earlier (file 02). Fresh-context here; must re-derive from bytes.
+status = "queued"
+
+[[reviewers]]
+model = "gemini"
+status = "queued"
+
+[[reviewers]]
+model = "grok"
+status = "queued"
+
+[notes]
+mistral = "include if available on host; prior rounds noted the CLI sometimes absent"
+fresh_context_required = true
+verify_against_bytes   = true
+terminal_states = ["adopt_referent", "adopt_party", "concrete_unresolvable_blocker"]

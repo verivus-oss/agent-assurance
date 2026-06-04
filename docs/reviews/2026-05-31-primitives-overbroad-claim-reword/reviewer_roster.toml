@@ -1,0 +1,24 @@
+# Reviewer roster — per tools/review-request-dag.toml [policy.roles].
+
+[initiator]
+model = "claude-opus-4-8"
+role  = "authored the reword (primitives.md:7 + README.md:14) and assembled this bundle"
+excluded_as_standard_reviewer = true   # MAY only review in a fresh clean-context session
+
+[[reviewers]]
+model = "codex"
+status = "queued"
+note = "participated in the BWW review rounds; fresh context here — re-derive from bytes"
+
+[[reviewers]]
+model = "grok"
+status = "queued"
+
+[[reviewers]]
+model = "mistral"
+status = "queued"
+
+[notes]
+fresh_context_required = true
+verify_against_bytes   = true
+terminal_states = ["approve", "approve_with_revisions", "reject"]

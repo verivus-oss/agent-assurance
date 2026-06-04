@@ -1,0 +1,27 @@
+# Negative fixture: a cost-record dimension uses a category outside the cost ontology.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "cost-record"
+framework_profile = "cost"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/profiles/cost/PROFILE.toml"
+confidentiality = "public"
+license = "Apache-2.0"
+title = "Negative cost record dimension"
+
+[record]
+action_id = "EVMTX:negative-cost"
+incurred_at = "2026-05-22T14:32:11Z"
+citing_kind = "smoke-validation"
+citing_ref = "sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef#section.checks[3]"
+decider_class = "llm_consensus"
+producer_id = "did:example:runtime-ci-worker-12"
+hash_algorithm = "sha256"
+canonical_form = "rfc8785-jcs"
+
+[[record.dimensions]]
+category = "made_up_dimension"
+quantity = 1
+unit_label = "invalid-unit"

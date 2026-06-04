@@ -173,9 +173,10 @@ eventually bump under the policy in [spec.md §8](../spec.md).
 ## 5. The IJB substrate layer
 
 DAG-TOML sits on top of the IJB ("It's Just Business") substrate. IJB
-is the framework that says every business reality reduces to exactly
-six primitives — `thing`, `scope`, `path`, `observed`, `constraint`,
-`time` — and forbids any other categorisation at the substrate level.
+is the framework that says every projectable business fact in its
+scope reduces to exactly six primitives — `thing`, `scope`, `path`,
+`observed`, `constraint`, `time` — and forbids any other
+categorisation at the substrate level.
 The full primitive reference lives at
 [foundations/ijb/primitives.md](../foundations/ijb/primitives.md);
 the canonical assertion grammar IJB itself uses lives at

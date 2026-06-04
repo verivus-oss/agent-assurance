@@ -76,4 +76,6 @@ reference/database/duckdb/*.duckdb
 # Local-only working files: style guides, scratch, personal config — never published
 .local/
 tools/werner-style-policy.toml
+
+# Cloudflare Wrangler local state/build artifacts — regenerated, not a deliverable.
 .wrangler/

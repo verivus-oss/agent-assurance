@@ -1,0 +1,25 @@
+# Negative fixture: capability_envelope declares a sub-table outside the closed domain set.
+
+[kind]
+name = "negative-abstraction"
+
+[kind.abstraction_class]
+id = "negative-abstraction.v1"
+description = "A minimal abstraction class declaration used only as a negative fixture."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms = 1
+max_cpu_percent = 1
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1
+
+[kind.capability_envelope.unlisted_domain]
+denied = true

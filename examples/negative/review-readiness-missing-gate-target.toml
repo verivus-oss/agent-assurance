@@ -1,0 +1,22 @@
+# Negative fixture: a readiness gate references an undeclared artifact class.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "readiness-gate"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "public"
+license = "Apache-2.0"
+title = "Negative readiness gate target"
+
+[[artifact_classes]]
+id = "A01"
+name = "planning_pack"
+description = "Planning documents for the change."
+
+[[gates]]
+id = "G01"
+artifact_class = "A99"
+name = "Planning pack gate"
+summary = "This gate intentionally references a missing artifact class."
