@@ -11,7 +11,7 @@ rust-version = "1.85"
 # `toml` ships its own deny-list policy and is the de-facto TOML parser
 # for Rust. `serde` is used only for Deserialize derives.
 [dependencies]
-toml  = { version = "0.8", default-features = false, features = ["parse"] }
+toml  = { version = "1.1", default-features = false, features = ["parse"] }
 serde = { version = "1",   default-features = false, features = ["derive", "alloc"] }
 sha2  = { version = "0.10", default-features = false }
 
