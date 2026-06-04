@@ -29,7 +29,7 @@ jobs:
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v5
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
         with:
           # Wipe the auth token from .git/config after checkout so it
           # cannot be picked up by later steps (zizmor artipacked).
@@ -765,7 +765,7 @@ jobs:
 
       - name: Source-code spellcheck (typos)
         continue-on-error: false
-        uses: crate-ci/typos@7b04f660f4ee4f048d18fd341887cf28dfbedfe2  # v1.46.3
+        uses: crate-ci/typos@37bb98842b0d8c4ffebdb75301a13db0267cef89  # v1.47.2
 
       # --- Language-specific deep checks ---
 
@@ -924,7 +924,7 @@ jobs:
         # banned-crate enforcement, and source allowlist (only crates.io
         # — no arbitrary git deps). Each tools/*-rs crate is scanned
         # against the policy in deny.toml at the repo root.
-        uses: EmbarkStudios/cargo-deny-action@a531616d8ce3b9177443e48a1159bc945a099823  # v2.0.19
+        uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe  # v2.0.20
         with:
           # Default `command: check` runs advisories + bans + licenses
           # + sources against every Cargo.lock found.
@@ -937,21 +937,21 @@ jobs:
 
       - name: Rust license + ban (toml-test-decode-rs)
         continue-on-error: false
-        uses: EmbarkStudios/cargo-deny-action@a531616d8ce3b9177443e48a1159bc945a099823  # v2.0.19
+        uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe  # v2.0.20
         with:
           command: check advisories bans licenses sources
           manifest-path: tools/toml-test-decode-rs/Cargo.toml
 
       - name: Rust license + ban (dagtoml-duckdb)
         continue-on-error: false
-        uses: EmbarkStudios/cargo-deny-action@a531616d8ce3b9177443e48a1159bc945a099823  # v2.0.19
+        uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe  # v2.0.20
         with:
           command: check advisories bans licenses sources
           manifest-path: tools/dagtoml-duckdb/Cargo.toml
 
       - name: Rust license + ban (dagtoml-rdf)
         continue-on-error: false
-        uses: EmbarkStudios/cargo-deny-action@a531616d8ce3b9177443e48a1159bc945a099823  # v2.0.19
+        uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe  # v2.0.20
         with:
           command: check advisories bans licenses sources
           manifest-path: tools/dagtoml-rdf/Cargo.toml
