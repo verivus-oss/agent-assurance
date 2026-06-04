@@ -1,0 +1,190 @@
+# Design-phase implementation DAG for the validator policy-mode work.
+# Session: 2026-06-05-policy-mode-design.  This DAG governs the DESIGN
+# deliverables only; the implementation DAG for the code change is itself
+# a deliverable of U06's approved successor and will be authored after
+# this design passes independent multi-LLM review.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "implementation-dag"
+docs           = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "public"
+license        = "Apache-2.0"
+title          = "Declarative repo policy enforced by validators — design phase"
+spec           = "docs/reviews/2026-06-05-policy-mode-design/DESIGN.md"
+decomposition  = "docs/reviews/2026-06-05-policy-mode-design/IMPLEMENTATION_DAG.toml"
+created        = "2026-06-05"
+total_units    = 6
+tier1_units    = ["U01", "U02", "U03", "U04", "U05", "U06"]
+tier2_units    = []
+tier3_units    = []
+
+[units.U01]
+name           = "policy-schema-profile"
+summary        = "Define which contract-declaration fields policy mode consumes (applies_to, blacklist_regex, match_mode, density_threshold, exempt_paths) and the cross-implementation regex dialect."
+layer          = 0
+tier           = 1
+status         = "done"
+depends_on     = []
+blocks         = ["U02", "U03"]
+estimated_loc  = 120
+files_create   = ["docs/reviews/2026-06-05-policy-mode-design/DESIGN.md"]
+produces       = ["ART:policy-schema-profile"]
+consumes       = []
+acceptance     = [
+  "DESIGN.md §3 and §4 name every field policy mode reads and the permitted regex subset, with the forbidden constructs listed explicitly.",
+]
+critical_decisions = [
+  "Reuse the existing contract-declaration kind rather than minting a new policy kind (zero spec-surface change for v1).",
+  "Common-subset regex dialect across Rust regex / Go RE2 / Python re, fail-closed (exit 2) on forbidden constructs.",
+]
+constraints    = [
+  "No spec.md normative changes in the design phase.",
+]
+failure_modes  = [
+  "If the dialect subset is wrong about any engine, validator verdicts will diverge and the conformance corpus will catch it late instead of the design catching it now.",
+]
+
+[units.U02]
+name           = "repo-policy-draft"
+summary        = "Author policy/REPO_POLICY.toml: NO-AI-ATTRIBUTION (any model, any vendor) and NO-INITIATOR-SELF-APPROVAL contracts with scannable patterns and explicit exemptions."
+layer          = 1
+tier           = 1
+status         = "done"
+depends_on     = ["U01"]
+blocks         = ["U06"]
+estimated_loc  = 90
+files_create   = ["policy/REPO_POLICY.toml"]
+produces       = ["ART:repo-policy-draft"]
+consumes       = ["ART:policy-schema-profile"]
+acceptance     = [
+  "Draft parses as TOML and validates as a contract-declaration instance with the repository's own validators.",
+  "Attribution patterns are line-anchored so prose discussing a trailer does not match.",
+  "Exemptions are listed in the policy file itself, never hard-coded in validators.",
+]
+critical_decisions = [
+  "Ban covers ANY AI model or vendor by pattern, not a closed vendor list alone.",
+]
+constraints    = [
+  "Patterns restricted to the U01 dialect subset.",
+]
+failure_modes  = [
+  "Over-broad patterns reject legitimate human co-author trailers; under-anchored patterns miss real stamps folded into squash merges.",
+]
+
+[units.U03]
+name           = "validator-mode-contract"
+summary        = "Specify the --mode policy CLI contract for all three implementations: inputs, stream labels, exit codes, purity boundary, parity requirement."
+layer          = 1
+tier           = 1
+status         = "done"
+depends_on     = ["U01"]
+blocks         = ["U04", "U05"]
+estimated_loc  = 220
+files_modify   = ["docs/reviews/2026-06-05-policy-mode-design/DESIGN.md"]
+produces       = ["ART:validator-mode-contract"]
+consumes       = ["ART:policy-schema-profile"]
+acceptance     = [
+  "DESIGN.md §5 fixes flags, stdin stream semantics, the three exit codes, and the no-git/no-network purity rule.",
+]
+critical_decisions = [
+  "Validator stays a pure function of (policy, streams, files, flags); the CI shim feeds it everything environmental.",
+]
+constraints    = [
+  "Contract must be implementable identically in Rust, Go, and stdlib-only Python.",
+]
+failure_modes  = [
+  "If any environmental dependency leaks into the validator, local and CI verdicts diverge and the parity guarantee dies.",
+]
+
+[units.U04]
+name           = "self-hosting-gate-design"
+summary        = "Design the N-1 law-selection rule, the fixed CI shim, required-status-check wiring, and the local hook mirror."
+layer          = 2
+tier           = 1
+status         = "done"
+depends_on     = ["U03"]
+blocks         = ["U06"]
+estimated_loc  = 180
+files_modify   = ["docs/reviews/2026-06-05-policy-mode-design/DESIGN.md"]
+produces       = ["ART:self-hosting-gate-design"]
+consumes       = ["ART:validator-mode-contract"]
+acceptance     = [
+  "DESIGN.md §6 and §7 specify law checkout from main, the full shim text, the stage-0 bootstrap exception, and the hook reuse path.",
+]
+critical_decisions = [
+  "A PR is never judged by the validator or policy version it itself proposes.",
+]
+constraints    = [
+  "The shim must be rule-free: adding a policy rule must require editing only policy/REPO_POLICY.toml.",
+]
+failure_modes  = [
+  "If the gate builds the PR's validator instead of main's, a PR can weaken the law that judges it.",
+]
+
+[units.U05]
+name           = "conformance-policy-plan"
+summary        = "Plan the conformance/cases/policy/ fixture set and runner extension proving rs/go/py agree on every policy verdict."
+layer          = 2
+tier           = 1
+status         = "done"
+depends_on     = ["U03"]
+blocks         = ["U06"]
+estimated_loc  = 140
+files_modify   = ["docs/reviews/2026-06-05-policy-mode-design/DESIGN.md"]
+produces       = ["ART:conformance-policy-plan"]
+consumes       = ["ART:validator-mode-contract"]
+acceptance     = [
+  "DESIGN.md §8 lists the minimum fixture set including the accept-cases (prose discussing a trailer; exempt paths) and the exit-2 dialect case.",
+]
+critical_decisions = [
+  "Fixtures must include accept-cases, not only reject-cases, to pin the false-positive boundary.",
+]
+constraints    = [
+  "Reuses the existing conformance runner architecture from conformance/runner.py.",
+]
+failure_modes  = [
+  "A reject-only fixture set lets an over-eager implementation pass while flagging legitimate content.",
+]
+
+[units.U06]
+name           = "independent-design-review"
+summary        = "Multi-LLM adversarial review of this design with full repo access; reviewers verify against artifacts, evidence-based iteration to unconditional approval or concrete blocker."
+layer          = 3
+tier           = 1
+status         = "in_progress"
+depends_on     = ["U02", "U04", "U05"]
+blocks         = []
+estimated_loc  = 60
+files_create   = ["docs/reviews/2026-06-05-policy-mode-design/VERIFICATION_REPORT.md"]
+produces       = ["OUT:reviewed-policy-mode-design"]
+consumes       = ["ART:repo-policy-draft", "ART:self-hosting-gate-design", "ART:conformance-policy-plan"]
+acceptance     = [
+  "Each reviewer verdict is grounded in inspected artifacts (file paths cited), not the author's summary.",
+  "Disagreements are settled with code or doc evidence; terminal verdict is unconditional approval or a named unresolvable blocker.",
+  "Review evidence is persisted under docs/reviews/2026-06-05-policy-mode-design/.",
+]
+critical_decisions = [
+  "Reviewers are external models via the gateway, not the authoring agent and not a second account of the initiator.",
+]
+constraints    = [
+  "Approval bases restricted per tools/review-request-dag.toml [policy.approval]: no intent, no plan-compliance claims, no should-be-fixed language.",
+]
+failure_modes  = [
+  "If reviewers grade the author's narrative instead of the artifacts, this unit reproduces the approval theater it exists to end.",
+]
+
+[computed]
+entry_points      = ["U01"]
+leaf_nodes        = ["U06"]
+critical_path     = ["U01", "U03", "U04", "U06"]
+critical_path_loc = 580
+loc_totals        = { tier1 = 810 }
+
+[computed.max_parallel]
+layer0 = 1
+layer1 = 2
+layer2 = 2
+layer3 = 1

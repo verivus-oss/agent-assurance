@@ -1,0 +1,63 @@
+# Repository policy for verivus-oss/agent-assurance, declared as DAG-TOML.
+# DRAFT — design phase (session 2026-06-05-policy-mode-design). Not yet
+# enforced; the validator policy mode that consumes this file is specified
+# in docs/reviews/2026-06-05-policy-mode-design/DESIGN.md §5.
+#
+# Patterns use the cross-implementation regex common subset (DESIGN.md §4):
+# no lookaround, no backreferences, leading (?im) flags only.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "contract-declaration"
+docs           = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "public"
+license        = "Apache-2.0"
+title          = "Repository policy: authorship and approval controls"
+created        = "2026-06-05"
+status         = "draft"
+review_subject = "verivus-oss/agent-assurance repository conduct, enforced by validator policy mode"
+
+[[contracts]]
+id = "REG:NO-AI-ATTRIBUTION"
+domain = "authorship"
+statement = """No AI or LLM attribution of any kind, from ANY model, vendor,
+or tool: no Co-authored-by trailers naming an AI or an AI vendor noreply
+address, and no 'Generated with' tool footers, in commit messages, pull
+request bodies, or tracked files.  Work in this repository is published under
+its human author's name; attribution decisions belong to the author, not to
+a tool's default settings."""
+applies_to = ["commit_messages", "pr_body", "tracked_files"]
+match_mode = "regex"
+density_threshold = 0
+blacklist_regex = [
+  "(?im)^\\s*co-authored-by:.*\\b(claude|anthropic|gpt|chatgpt|openai|copilot|gemini|bard|codex|cursor|aider|devin|windsurf|llama|mistral|grok|qwen|deepseek|kimi)\\b",
+  "(?im)^\\s*co-authored-by:.*noreply@(anthropic|openai|google|github)\\b",
+  "(?im)^.{0,12}generated with\\b.*\\b(claude|copilot|gpt|chatgpt|gemini|codex|cursor|aider|devin|windsurf|ai)\\b",
+]
+exempt_paths = [
+  "policy/REPO_POLICY.toml",
+  "conformance/cases/policy/**",
+]
+verified_by = [
+  "validator --mode policy (DESIGN.md §5; conformance/cases/policy/ fixtures §8)",
+]
+
+[[contracts]]
+id = "REG:NO-INITIATOR-SELF-APPROVAL"
+domain = "review"
+statement = """A terminal gate-decision artifact for a spec-surface change
+must record at least one reviewer identity distinct from the initiator
+identity supplied at scan time.  Approval bases are constrained by
+[policy.approval] in tools/review-request-dag.toml: persisted review
+evidence under docs/reviews/ (one directory per review session), not stated intent or
+plan-compliance claims."""
+applies_to = ["gate_decision_artifacts"]
+match_mode = "structural"
+density_threshold = 0
+depends_on = ["REG:NO-AI-ATTRIBUTION"]
+verified_by = [
+  "validator --mode policy --initiator with the PR author login (DESIGN.md sections 5 and 7)",
+  "tools/review-request-dag.toml [policy.approval]",
+]
