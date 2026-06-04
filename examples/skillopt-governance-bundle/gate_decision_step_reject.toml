@@ -1,0 +1,34 @@
+# Gate decision for a SINGLE rejected skill edit (epoch 3).
+# The candidate's selection score did NOT strictly improve (0.789 -> 0.781), so the
+# strict-improvement constraint failed and verdict = "fail" (INV01). The rejected edit
+# and its score drop go to SkillOpt's rejected-edit buffer as negative feedback — which
+# is precisely the kind of audit trail the evidence layer should carry.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "gate-decision"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "public"
+license = "Apache-2.0"
+framework_profile = "agent-assurance"
+title = "Gate decision: skill-edit epoch3-step9 (reject)"
+created = "2026-06-04"
+
+[decision]
+verdict = "fail"
+evidence_root = "5a21e9fe2f4c381baaaacecf8e4676cbc515a0e6444f9fb1d5e2fbb77b51684a"
+evidence_root_algorithm = "sha256-merkle-sorted-leaves"
+decided_at = "2026-06-04T02:31:05Z"
+subject_class = "self-modification"
+proposing_provider_id = "openai"
+proposing_model_family_id = "gpt"
+deciding_provider_id = "anthropic"
+deciding_model_family_id = "claude"
+
+[[decision.cited_bundles]]
+bundle_ref = "runs/spreadsheetbench-gpt55/bundles/epoch3-step9-rollouts.toml"
+
+[[decision.failed_constraint_refs]]
+constraint_id = "A-gate-strict-improvement-001"

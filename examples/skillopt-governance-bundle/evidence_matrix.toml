@@ -1,0 +1,120 @@
+# Evidence matrix: links the claims a SkillOpt run makes to the concrete artifacts
+# that prove them. The [provenance] block pins the exact skill bytes this attestation
+# certifies; re-training the skill flips source_sha256, which flips closure_root, which
+# breaks any signature over this file (SPEC §12.2 cascade-break) — the property you want.
+
+closure_root = "sha256:9faf62ae33d90001d9a54eda60c681f8bb8947fe72319d1abdca92933d5fc6c1"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "evidence-matrix"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "public"
+license = "Apache-2.0"
+title = "Evidence matrix: SkillOpt SpreadsheetBench / GPT-5.5"
+status = "draft"
+created = "2026-06-04"
+review_subject = "skillopt-spreadsheetbench-gpt55"
+
+[provenance]
+source_path = "examples/skillopt-governance-bundle/skills/spreadsheetbench/best_skill.md"
+source_sha256 = "sha256:8c50a5aa19e00e6efa275a52a40a129e54b9fa795457a432595f15df39535590"
+source_bytes = 849
+captured_at = "2026-06-04T02:40:00Z"
+extraction_method = "agent-conversion"
+source_description = "Deployed best_skill.md exported by the SkillOpt run."
+
+[[claims]]
+id = "E01"
+claim = "skill_optimization_improved_held_out_test"
+scope_covered = [
+  "SpreadsheetBench held-out test rose 40.4 to 78.9 on GPT-5.5",
+  "selection split disjoint from test split (split_seed=42)",
+]
+known_exclusions = [
+  "single benchmark, model, and harness; not a cross-domain claim",
+]
+status = "draft"
+
+[[claims]]
+id = "E02"
+claim = "every_shipped_edit_was_validation_gated"
+scope_covered = [
+  "each accepted edit strictly improved the selection score",
+  "rejected edits are excluded from the deployed artifact",
+]
+known_exclusions = [
+  "the gate is an automatic scalar score, not a human review judgment",
+]
+status = "draft"
+
+[[claims]]
+id = "E03"
+claim = "learned_skill_is_procedural_not_instance_specific"
+scope_covered = [
+  "no shipped rule names a specific cell, file, or question",
+]
+known_exclusions = [
+  "rules may encode heuristics tied to the training distribution",
+]
+status = "draft"
+
+[[evidence]]
+id = "EV01"
+artifact_path = "gate_decision_step_accept.toml"
+summary = "Accepted-edit gate decision (selection 0.742 to 0.789)."
+
+[[evidence]]
+id = "EV02"
+artifact_path = "gate_decision_step_reject.toml"
+summary = "Rejected-edit gate decision; demonstrates the gate doing real work."
+
+[[evidence]]
+id = "EV03"
+artifact_path = "skills/spreadsheetbench/best_skill.md"
+summary = "Deployed skill artifact; procedural rules only, no instance specifics."
+
+[[evidence]]
+id = "EV04"
+artifact_path = "runs/spreadsheetbench-gpt55/test_split_score.json"
+summary = "Held-out test score before and after optimization."
+
+[[evidence]]
+id = "EV05"
+artifact_path = "runs/spreadsheetbench-gpt55/edit_apply_report.json"
+summary = "Per-edit accept/skip log across all four epochs."
+
+[[matrix]]
+id = "M01"
+claim_id = "E01"
+evidence_id = "EV04"
+scope_covered = "held-out test rose 40.4 to 78.9"
+known_exclusions = ["single benchmark, model, and harness"]
+
+[[matrix]]
+id = "M02"
+claim_id = "E02"
+evidence_id = "EV01"
+scope_covered = "accepted edit strictly improved selection score"
+known_exclusions = ["gate is an automatic scalar, not human review"]
+
+[[matrix]]
+id = "M03"
+claim_id = "E02"
+evidence_id = "EV02"
+scope_covered = "non-improving edit was rejected, not shipped"
+known_exclusions = ["gate is an automatic scalar, not human review"]
+
+[[matrix]]
+id = "M04"
+claim_id = "E02"
+evidence_id = "EV05"
+scope_covered = "full per-edit accept/skip log is recoverable"
+known_exclusions = ["does not attest the scorer itself was correct"]
+
+[[matrix]]
+id = "M05"
+claim_id = "E03"
+evidence_id = "EV03"
+scope_covered = "shipped rules name no specific cell, file, or question"
+known_exclusions = ["heuristics may be tied to the training distribution"]
