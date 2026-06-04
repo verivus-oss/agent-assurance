@@ -62,8 +62,8 @@ conventional in this ecosystem:
   `conformance/cases/**` fixtures, which must be allowed to contain the
   banned strings in order to test them.
 
-Contract 1 — `REG:NO-AI-ATTRIBUTION`: no AI/LLM attribution from ANY model or
-tool: `Co-authored-by:` trailers naming an AI or AI-vendor noreply address,
+Contract 1 — `REG:NO-AI-ATTRIBUTION`: no AI/LLM attribution within the
+maintained pattern list (the list IS the coverage, per §10.5): `Co-authored-by:` trailers naming an AI or AI-vendor noreply address,
 "Generated with <tool>" footers. Trailer patterns are line-anchored so prose
 that *discusses* a trailer does not match.  The generated-with pattern is
 phrase-scoped (not line-anchored) after round-2 review showed anchor
@@ -216,13 +216,19 @@ git worktree add /tmp/law origin/main
 (cd /tmp/law && cargo build --release --manifest-path tools/dagtoml-validate-rs/Cargo.toml)
 git log --format=%B "$BASE..$HEAD" \
   | /tmp/law/tools/dagtoml-validate-rs/target/release/dagtoml-validate-rs \
-      --repo-root . --mode policy --policy /tmp/law/policy/REPO_POLICY.toml \
+      --repo-root . --law-root /tmp/law --mode policy \
+      --policy /tmp/law/policy/REPO_POLICY.toml \
       --scan-stdin commit_messages --initiator "$PR_AUTHOR"
 gh pr view "$PR" --json body --jq .body \
-  | ... --scan-stdin pr_body --initiator "$PR_AUTHOR"
+  | ... --law-root /tmp/law --scan-stdin pr_body --initiator "$PR_AUTHOR"
 gh pr view "$PR" --json title --jq .title \
-  | ... --scan-stdin pr_title --initiator "$PR_AUTHOR"
+  | ... --law-root /tmp/law --scan-stdin pr_title --initiator "$PR_AUTHOR"
 ```
+
+Every invocation carries `--law-root /tmp/law` (round-3 grok finding: the
+§5 rule is only as good as the shim that implements it; an invocation
+without --law-root resolves law-referenced files from the subject tree,
+re-opening the bypass).
 
 Wired as a REQUIRED status check in the ruleset: no green, no merge. The
 local mirror is `.githooks/commit-msg` invoking the Python reference
@@ -296,7 +302,7 @@ is the draft source for that section.
 4. N−1 law selection from main, release-pinning deferred.
 5. Coverage is the pattern list itself, maintained in the policy file: a
    vendor/tool alternation (identical across the trailer and generated-with
-   patterns), generic `ai`/`assistant` name tokens, an automation-shaped
+   patterns, enforced by a conformance fixture comparing the two groups), generic `ai`/`assistant` name tokens, an automation-shaped
    e-mail local-part heuristic, and vendor noreply domains.  Extending
    coverage is a policy edit, never a code edit.  Bare `agent`/`bot` name
    tokens are excluded (human-name false positives, round-2 finding).
