@@ -97,7 +97,13 @@ conformance fixtures:
   none), Unicode property classes (dialect-divergent).
 
 A policy file using a forbidden construct must FAIL validation in policy mode
-(fail-closed on undecidable rules), in all three implementations.
+(fail-closed on undecidable rules), in all three implementations.  Note
+(round-1 gemini finding): Rust and Go reject lookaround/backreferences at
+compile time, but Python's `re` accepts them natively — the Python reference
+validator must therefore implement the dialect restriction as an explicit
+syntax check, and the §8 lookbehind fixture exists precisely to prove all
+three implementations exit 2 on the same input, not just the two whose
+engines refuse it.
 
 UNASSESSABLE: enforcement of the dialect restriction is future code. The
 restriction itself is checkable now against the three engines' documented
@@ -116,6 +122,12 @@ dagtoml-validate-rs --repo-root . --mode policy --policy policy/REPO_POLICY.toml
 - `--scan-stdin commit_messages` scans stdin as the named stream; the caller
   pipes `git log --format=%B <range>`. The validator runs no git commands and
   no network: pure function of (policy, streams, files, flags).
+- `--law-root DIR` (round-1 gemini finding): every law document — the policy
+  file itself and ANY file the policy references (e.g. the gate-decision kind
+  descriptor, tools/review-request-dag.toml named in verified_by) — resolves
+  against --law-root, NEVER against --repo-root.  --repo-root scopes only the
+  SUBJECT inputs being scanned.  Without this separation a PR could weaken a
+  law-referenced document in its own tree and be judged by its own weakening.
 - Each contract applies only to streams/paths matching its `applies_to` and
   not matching `exempt_paths`.
 - Exit 0 = no violation; exit 1 = violation (each reported as
@@ -174,7 +186,15 @@ definition; reviewers compare against this document.
 
 ## 7. The thin shim (UNASSESSABLE: future CI step; full text below is the spec)
 
-The only YAML is a fixed invoker, expected to never change as rules evolve:
+The only YAML is a fixed invoker, expected to never change as rules evolve.
+Trigger (round-1 gemini finding): the workflow MUST run on
+`pull_request_target`, not `pull_request` — `pull_request` executes the PR
+branch's copy of the workflow file, letting a PR rewrite the gate to exit 0;
+`pull_request_target` executes main's definition.  Under
+`pull_request_target` the PR tree is checked out AS DATA ONLY (scanned,
+never executed, never built); the only code built or run is main's law
+(validators + policy), which is exactly the N−1 rule expressed in CI
+permissions.  The shim:
 
 ```sh
 git worktree add /tmp/law origin/main
