@@ -18,7 +18,7 @@ currently-known drift, not a green light. Revisit every entry whenever a
 validator changes; if a run newly agrees, remove the entry.
 
 Exit codes: 0 all agree (modulo known divergences), 1 disagreement,
-2 infrastructure error (missing binary, unparseable fixture).
+2 infrastructure error (missing binary, unparsable fixture).
 """
 
 from __future__ import annotations
