@@ -22,24 +22,33 @@ review_subject = "verivus-oss/agent-assurance repository conduct, enforced by va
 [[contracts]]
 id = "REG:NO-AI-ATTRIBUTION"
 domain = "authorship"
-statement = """No AI or LLM attribution of any kind, from ANY model, vendor,
-or tool: no Co-authored-by trailers naming an AI or an AI vendor noreply
-address, and no 'Generated with' tool footers, in commit messages, pull
-request bodies, or tracked files.  Work in this repository is published under
-its human author's name; attribution decisions belong to the author, not to
-a tool's default settings."""
-applies_to = ["commit_messages", "pr_body", "tracked_files"]
+statement = """No AI or LLM attribution: no Co-authored-by trailers naming
+an AI tool, assistant, or AI-vendor address, and no 'Generated with' tool
+footers, in commit messages, pull request titles, or pull request bodies.
+Coverage is pattern-based over a vendor/term list maintained IN THIS FILE;
+the list is expected to grow as tools emerge, and extending it requires
+editing only this document, never validator code.  Tracked-file scanning is
+deliberately out of scope for v1 (see DESIGN.md section 3a) because review
+bundles and conformance fixtures legitimately quote banned strings.  Work in
+this repository is published under its human author's name; attribution
+decisions belong to the author, not to a tool's default settings."""
+applies_to = ["commit_messages", "pr_title", "pr_body"]
 match_mode = "regex"
 density_threshold = 0
 blacklist_regex = [
-  "(?im)^\\s*co-authored-by:.*\\b(claude|anthropic|gpt|chatgpt|openai|copilot|gemini|bard|codex|cursor|aider|devin|windsurf|llama|mistral|grok|qwen|deepseek|kimi)\\b",
-  "(?im)^\\s*co-authored-by:.*noreply@(anthropic|openai|google|github)\\b",
+  "(?im)^\\s*co-authored-by:.*\\b(claude|anthropic|gpt|chatgpt|openai|copilot|gemini|bard|codex|cursor|aider|devin|windsurf|llama|mistral|grok|qwen|deepseek|kimi|perplexity|codeium|tabnine|sourcegraph|cody|\\bai\\b|assistant|agent|bot)\\b",
+  "(?im)^\\s*co-authored-by:.*\\bnoreply@(anthropic|openai|google|x)\\b",
+  "(?im)^\\s*co-authored-by:.*\\b(ai|bot|agent|assistant|llm)\\b[^@\\s]*@",
   "(?im)^.{0,12}generated with\\b.*\\b(claude|copilot|gpt|chatgpt|gemini|codex|cursor|aider|devin|windsurf|ai)\\b",
 ]
 exempt_paths = [
   "policy/REPO_POLICY.toml",
   "conformance/cases/policy/**",
+  "docs/reviews/**",
 ]
+# exempt_paths is inert while applies_to excludes tracked_files; retained so a
+# future tracked_files revival cannot forget the quoting surfaces (review
+# bundles, fixtures) that round-1 review proved would false-positive.
 verified_by = [
   "validator --mode policy (DESIGN.md §5; conformance/cases/policy/ fixtures §8)",
 ]
