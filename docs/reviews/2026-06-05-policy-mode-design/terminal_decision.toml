@@ -1,0 +1,36 @@
+# Terminal decision for design session 2026-06-05-policy-mode-design.
+# Closes ART:terminal-decision / OUT:reviewed-policy-mode-design (U06 of
+# the session IMPLEMENTATION_DAG.toml).
+
+# SPEC §12.8 source-hash closure over the [provenance] inputs below.
+closure_root = "sha256:9843c4a7f29a2ec9b9e1528c8f1793a3785aba839a1c6a870105c6713835134d"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-gate-decision"
+created        = "2026-06-05"
+review_session = "2026-06-05-policy-mode-design"
+commit_under_review = "9683ecb"
+role = "terminal-decision"
+
+[decision]
+verdict = "approved"
+basis = "see gate_decision.toml in this directory; this terminal record binds the decision to the reviewed design document"
+next_step = "Implementation phase under the section-6 two-PR stage-0 bootstrap: PR-A (policy + validator policy mode + conformance fixtures, diff-scope capped), then PR-B (CI shim on pull_request_target + required check). Each implementation PR carries its own review bundle per CONTRIBUTING.md."
+
+[roster]
+reviewers_dispatched = ["codex", "gemini", "grok"]
+reviewers_completed  = ["codex", "gemini", "grok"]
+
+[verdicts]
+codex  = "unconditional_approval_design_phase"
+gemini = "unconditional_approval_design_phase"
+grok   = "unconditional_approval_design_phase"
+
+[provenance]
+source_path        = "docs/reviews/2026-06-05-policy-mode-design/DESIGN.md"
+source_sha256      = "sha256:510ab5e44fdeb2579a1b95816c65dfa80063d0af79aff9e8927ee0fd77dd8ba8"
+source_bytes       = 21490
+captured_at        = "2026-06-05T03:25:00+10:00"
+extraction_method  = "manual-analysis"
+source_description = "The reviewed design document at commit 9683ecb whose approval this terminal decision records."

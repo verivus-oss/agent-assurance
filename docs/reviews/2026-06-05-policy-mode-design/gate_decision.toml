@@ -1,0 +1,60 @@
+# Final gate decision closing the multi-reviewer design session
+# 2026-06-05-policy-mode-design, per tools/review-request-dag.toml
+# [policy.completion] and CONTRIBUTING.md "Review Discipline": approval
+# basis is persisted, inspected evidence — never initiator assertion.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-gate-decision"
+created        = "2026-06-05"
+review_session = "2026-06-05-policy-mode-design"
+commit_under_review = "9683ecb"
+
+[decision]
+verdict  = "approved"
+basis    = "unconditional_design_phase_approval_by_all_three_reviewers_on_same_commit_with_inspection_evidence"
+binding_evidence = "docs/reviews/2026-06-05-policy-mode-design/round6_codex_review.md, round6_grok_review.md, round4_gemini_review.md"
+binding_verbatim = "codex: 'No findings ... VERDICT: APPROVE-UNCONDITIONAL (design phase)'; grok: 'Round-5 unconditional approval holds on 9683ecb ... VERDICT: APPROVE-UNCONDITIONAL (design phase)'; gemini: 'All 24 cases matched the expected booleans successfully (ALL 24 PASS). VERDICT: APPROVE-UNCONDITIONAL (design phase)'"
+scope_note = "Design-phase approval only. Sections of DESIGN.md labelled UNASSESSABLE (validator policy mode code, CI step, fixtures, spec chapter) are approved as implementable specifications, not as behaviour. Implementation proceeds under the two-PR stage-0 bootstrap of DESIGN.md section 6."
+
+[roster]
+reviewers_dispatched = ["codex", "gemini", "grok"]
+reviewers_completed  = ["codex", "gemini", "grok"]
+reviewers_skipped    = ["mistral"]
+mistral_skip_reason  = "vibe CLI not installed locally; gateway has no install pathway (same constraint recorded in the 2026-05-23 sessions)."
+initiator = "claude-opus-4-8 session for werner@verivus.com (verivus-open)"
+initiator_excluded_from_verdicts = true
+
+[verdicts]
+codex  = "unconditional_approval_design_phase"
+gemini = "unconditional_approval_design_phase"
+grok   = "unconditional_approval_design_phase"
+
+[verdicts.detail]
+codex_final_round  = 6
+codex_job          = "1e3f3c5f-8fb8-4de0-95e4-541c86d596e0"
+gemini_final_round = 4
+gemini_job         = "ec42eae7-8fa7-4411-9a2f-5554e10c9738"
+gemini_note        = "Round-3 bare verdict REJECTED by initiator for lacking inspection evidence; round-4 re-review supplied citations and was accepted."
+grok_final_round   = 6
+grok_job           = "1b17939d-8121-425a-802d-222369e08e19"
+grok_note          = "Rounds dispatched in a fresh session after two empty runs; context restored from persisted round1-5 review files."
+
+[acceptance]
+all_reviewers_same_commit = true
+evidence_based_approvals_only = true
+findings_total = 36
+findings_resolved = 36
+rounds = 6
+review_artifacts = [
+  "round1_codex_review.md", "round1_grok_review.md", "round1_gemini_review.md",
+  "round2_codex_review.md", "round2_grok_review.md", "round2_gemini_review.md",
+  "round3_codex_review.md", "round3_grok_review.md", "round3_gemini_review.md",
+  "round4_codex_review.md", "round4_grok_review.md", "round4_gemini_review.md",
+  "round5_codex_review.md", "round5_grok_review.md",
+  "round6_codex_review.md", "round6_grok_review.md",
+  "VERIFICATION_REPORT.md", "IMPLEMENTATION_DAG.toml", "DESIGN.md",
+]
