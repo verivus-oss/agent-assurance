@@ -553,8 +553,12 @@ jobs:
           set -e
           # Every TOML with a [provenance] table must bind to its
           # source artifact (SHA-256 + byte length recompute).
+          # examples/negative/ holds deliberately-broken fixtures that
+          # MUST fail this validator; they are excluded from the
+          # positive sweep and asserted to fail explicitly below.
           mapfile -t prov_files < <(grep -rl "^\[provenance\]" \
-            --include="*.toml" . | grep -v "^\./\." | sort)
+            --include="*.toml" . | grep -v "^\./\." \
+            | grep -v "examples/negative/" | sort)
           if [ "${#prov_files[@]}" -eq 0 ]; then
             echo "no [provenance] tables found; skipping"
           else
@@ -563,6 +567,17 @@ jobs:
             python3 validators/validate_provenance.py "${prov_files[@]}" \
               --repo-root .
           fi
+          # Expected-failure assertions: each negative fixture must be
+          # REJECTED. A pass here means the gate has stopped guarding.
+          for neg in ./examples/negative/*.toml; do
+            grep -q "^\[provenance\]" "$neg" || continue
+            if python3 validators/validate_provenance.py "$neg" \
+                --repo-root . >/dev/null 2>&1; then
+              echo "ERROR: negative fixture unexpectedly PASSED: $neg"
+              exit 1
+            fi
+            echo "negative fixture correctly rejected: $neg"
+          done
 
       - name: Negative fixtures — primary/reference agreement
         run: |
