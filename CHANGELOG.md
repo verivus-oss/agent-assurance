@@ -34,6 +34,22 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **Primary validator coverage promoted to Rust + Go.** Ported the
+  remaining CI-enforced semantic surfaces from Python-only reference
+  checks into both primary validators: implementation-dag,
+  traceability, review-readiness, kind-descriptor structure, IJB
+  conformance, `[provenance]` source binding, cost-record,
+  rollback-plan trigger-kind closure, and SPEC §13
+  abstraction/capability-envelope checks. CI now runs Rust and Go over
+  ontologies, every kind descriptor, every canonical example, every
+  tier file, and every profile descriptor, and includes negative
+  fixtures proving Rust, Go, and Python all reject malformed files.
+- **Root scratch artifacts moved local-only.** Verified the loose paper
+  scratch files (`all_links.txt`, `bib_keys.txt`, `cited_keys.txt`,
+  `labels.txt`, `find_matches.py`, `find_matches_v2.py`) are untracked
+  and unused by CI, Makefile, docs, examples, or tools; moved the local
+  copies under `.local/scratch/`. Existing root-only `.gitignore` rules
+  keep them from being accidentally committed.
 - **Go validation toolchain updated to patched 1.26.4.** The CI Go
   setup pin and the two Go reference modules that declare a patch-level
   toolchain now agree on Go `1.26.4`, matching the OSV-reported fixed

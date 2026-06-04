@@ -184,6 +184,14 @@ jobs:
             profiles/agent-assurance/PROFILE.toml
             profiles/disclosure/PROFILE.toml
             profiles/cost/PROFILE.toml
+            core/ontology.toml
+            profiles/agent-assurance/ontology.toml
+            profiles/disclosure/ontology.toml
+            profiles/cost/ontology.toml
+            core/*-kind.toml
+            profiles/agent-assurance/*-kind.toml
+            profiles/disclosure/*-kind.toml
+            profiles/cost/*-kind.toml
             examples/minimal-disclosure-attestation.toml
             examples/minimal-redaction-manifest.toml
             examples/minimal-selective-disclosure-proof.toml
@@ -340,6 +348,23 @@ jobs:
             examples/minimal-review-readiness/contract_declaration.toml
           python3 validators/validate_review_readiness.py \
             examples/minimal-review-readiness/evidence_matrix.toml
+
+      - name: Validate operational tools/ DAGs (structural; Python + Rust + Go)
+        # ISS-005: the structural implementation-dag validators must cover the
+        # operational DAGs under tools/, not just examples/ and skills/. Run all
+        # three validators (Python reference + safe-Rust/Go primaries) over every
+        # tools/*-dag.toml so an INV01-INV06 regression there fails CI.
+        run: |
+          set -e
+          rs="${RUNNER_TEMP}/dagtoml-validate-rs"
+          go_bin="${RUNNER_TEMP}/dagtoml-validate-go"
+          for f in tools/*-dag.toml; do
+            [ -e "$f" ] || continue
+            echo "--- $f ---"
+            python3 validators/validate_implementation_dag.py "$f"
+            "$rs" --repo-root . "$f"
+            "$go_bin" --repo-root . "$f"
+          done
 
       - name: Validate IJB conformance (ontologies + kind descriptors + canonical examples)
         run: |
@@ -527,8 +552,12 @@ jobs:
           set -e
           # Every TOML with a [provenance] table must bind to its
           # source artifact (SHA-256 + byte length recompute).
+          # examples/negative/ holds deliberately-broken fixtures that
+          # MUST fail this validator; they are excluded from the
+          # positive sweep and asserted to fail explicitly below.
           mapfile -t prov_files < <(grep -rl "^\[provenance\]" \
-            --include="*.toml" . | grep -v "^\./\." | sort)
+            --include="*.toml" . | grep -v "^\./\." \
+            | grep -v "examples/negative/" | sort)
           if [ "${#prov_files[@]}" -eq 0 ]; then
             echo "no [provenance] tables found; skipping"
           else
@@ -537,6 +566,156 @@ jobs:
             python3 validators/validate_provenance.py "${prov_files[@]}" \
               --repo-root .
           fi
+          # Expected-failure assertions: each negative fixture must be
+          # REJECTED. A pass here means the gate has stopped guarding.
+          for neg in ./examples/negative/*.toml; do
+            grep -q "^\[provenance\]" "$neg" || continue
+            if python3 validators/validate_provenance.py "$neg" \
+                --repo-root . >/dev/null 2>&1; then
+              echo "ERROR: negative fixture unexpectedly PASSED: $neg"
+              exit 1
+            fi
+            echo "negative fixture correctly rejected: $neg"
+          done
+
+      - name: Negative fixtures — primary/reference agreement
+        run: |
+          set -e
+          rs="${RUNNER_TEMP}/dagtoml-validate-rs"
+          go_bin="${RUNNER_TEMP}/dagtoml-validate-go"
+
+          check_rejects() {
+            label="$1"
+            shift
+            echo "--- NEGATIVE: ${label} (expect FAIL) ---"
+            if "$@"; then
+              echo "REGRESSION: ${label} unexpectedly passed"
+              exit 1
+            fi
+            echo "  ok: ${label} rejected"
+          }
+
+          check_rejects "rust kind-descriptor" \
+            "$rs" --repo-root . --mode kind-descriptor \
+            examples/negative/kind-descriptor-name-mismatch.toml
+          check_rejects "go kind-descriptor" \
+            "$go_bin" --repo-root . --mode kind-descriptor \
+            examples/negative/kind-descriptor-name-mismatch.toml
+          check_rejects "python kind-descriptor" \
+            python3 validators/validate_kind_descriptor.py \
+            --repo-root . --check-references-exist \
+            examples/negative/kind-descriptor-name-mismatch.toml
+
+          check_rejects "rust IJB" \
+            "$rs" --repo-root . --mode ijb \
+            examples/negative/ontology-wrong-ijb-primitive.toml
+          check_rejects "go IJB" \
+            "$go_bin" --repo-root . --mode ijb \
+            examples/negative/ontology-wrong-ijb-primitive.toml
+          check_rejects "python IJB" \
+            python3 validators/validate_ijb_conformance.py \
+            examples/negative/ontology-wrong-ijb-primitive.toml
+
+          check_rejects "rust provenance binding" \
+            "$rs" --repo-root . --mode provenance-binding \
+            examples/negative/provenance-wrong-source-sha.toml
+          check_rejects "go provenance binding" \
+            "$go_bin" --repo-root . --mode provenance-binding \
+            examples/negative/provenance-wrong-source-sha.toml
+          check_rejects "python provenance binding" \
+            python3 validators/validate_provenance.py \
+            examples/negative/provenance-wrong-source-sha.toml \
+            --repo-root .
+
+          check_rejects "rust implementation-dag" \
+            "$rs" --repo-root . --mode implementation-dag \
+            examples/negative/implementation-dag-bad-critical-path.toml
+          check_rejects "go implementation-dag" \
+            "$go_bin" --repo-root . --mode implementation-dag \
+            examples/negative/implementation-dag-bad-critical-path.toml
+          check_rejects "python implementation-dag" \
+            python3 validators/validate_implementation_dag.py \
+            examples/negative/implementation-dag-bad-critical-path.toml
+
+          check_rejects "rust traceability" \
+            "$rs" --repo-root . --mode traceability \
+            examples/negative/traceability-missing-requirement-target.toml
+          check_rejects "go traceability" \
+            "$go_bin" --repo-root . --mode traceability \
+            examples/negative/traceability-missing-requirement-target.toml
+          check_rejects "python traceability" \
+            python3 validators/validate_traceability.py \
+            examples/negative/traceability-missing-requirement-target.toml
+
+          check_rejects "rust review-readiness" \
+            "$rs" --repo-root . --mode review-readiness \
+            examples/negative/review-readiness-missing-gate-target.toml
+          check_rejects "go review-readiness" \
+            "$go_bin" --repo-root . --mode review-readiness \
+            examples/negative/review-readiness-missing-gate-target.toml
+          check_rejects "python review-readiness" \
+            python3 validators/validate_review_readiness.py \
+            examples/negative/review-readiness-missing-gate-target.toml
+
+          check_rejects "rust cost-record" \
+            "$rs" --repo-root . --mode cost-record \
+            examples/negative/cost-record-bad-dimension.toml
+          check_rejects "go cost-record" \
+            "$go_bin" --repo-root . --mode cost-record \
+            examples/negative/cost-record-bad-dimension.toml
+          check_rejects "python cost-record" \
+            python3 validators/validate_cost.py \
+            examples/negative/cost-record-bad-dimension.toml \
+            --repo-root .
+
+          check_rejects "rust rollback-plan" \
+            "$rs" --repo-root . --mode rollback-plan \
+            examples/negative/rollback-plan-bad-trigger-kind.toml
+          check_rejects "go rollback-plan" \
+            "$go_bin" --repo-root . --mode rollback-plan \
+            examples/negative/rollback-plan-bad-trigger-kind.toml
+          check_rejects "python rollback-plan" \
+            python3 validators/validate_rollback_plan.py \
+            examples/negative/rollback-plan-bad-trigger-kind.toml \
+            --repo-root .
+
+          check_rejects "rust abstraction-class" \
+            "$rs" --repo-root . --mode abstraction-class \
+            examples/negative/abstraction-class-unknown-domain.toml
+          check_rejects "go abstraction-class" \
+            "$go_bin" --repo-root . --mode abstraction-class \
+            examples/negative/abstraction-class-unknown-domain.toml
+          check_rejects "python abstraction-class" \
+            python3 validators/validate_abstraction_class.py \
+            examples/negative/abstraction-class-unknown-domain.toml \
+            --repo-root .
+
+          # Gate-decision separation-of-duty boundary: a "pass" verdict
+          # carrying non-empty (string-typed) failed_constraint_refs must
+          # be rejected by all three. Pins the Rust/Go divergence fixed in
+          # docs/reviews/2026-05-30-wp1-falsification/.
+          check_rejects "rust gate-decision string-refs" \
+            "$rs" --repo-root . --mode gate-decision \
+            examples/negative/gate-decision-pass-with-string-refs.toml
+          check_rejects "go gate-decision string-refs" \
+            "$go_bin" --repo-root . --mode gate-decision \
+            examples/negative/gate-decision-pass-with-string-refs.toml
+          check_rejects "python gate-decision string-refs" \
+            python3 validators/validate_gate_decision.py \
+            examples/negative/gate-decision-pass-with-string-refs.toml \
+            --repo-root .
+
+      - name: Provenance source_path containment guard (SPEC §11)
+        # Behavioural guard: a static fixture cannot isolate the
+        # containment defect, so this constructs an out-of-repo file whose
+        # bytes match the declared digest and asserts every primary +
+        # reference validator rejects both the `..`-escape and the
+        # absolute-path vectors. See docs/reviews/2026-05-30-wp1-falsification/.
+        run: |
+          set -e
+          validators/check_provenance_containment.sh \
+            "${RUNNER_TEMP}/dagtoml-validate-rs" \
+            "${RUNNER_TEMP}/dagtoml-validate-go"
 
       - name: Validate skill packages (IJB + provenance)
         run: |

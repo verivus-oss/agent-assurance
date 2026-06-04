@@ -1,0 +1,63 @@
+# Review bundle — IJB primitive #1 naming decision: referent vs party.
+# Instantiation of tools/review-request-dag.toml for a SPEC-level naming
+# decision (not a code diff). Assembled per units U01/U02; [policy.instance]
+# below is filled by the initiator.
+
+[meta]
+session_label = "2026-05-31-ijb-primitive-referent-vs-party"
+kind          = "decision-review"
+subject       = "Name of the first IJB primitive: `referent` (challenger) vs `party` (standing recommendation)"
+created       = "2026-05-31"
+note          = "Decision review, not a completeness review. Terminal states are adapted: adopt_referent | adopt_party | concrete_unresolvable_blocker."
+
+[policy.instance]
+initiator_model       = "claude-opus-4-8"   # this authoring session — excluded as a standard reviewer
+reviewer_models       = ["codex", "gemini", "grok"]
+verification_report   = ""                  # n/a — no corrective program; this is a naming decision
+implementation_plan   = ""                  # n/a
+dag_paths             = []                  # n/a — no implementation-dag under review
+commit_or_diff_ref    = ""                  # n/a — drafts are not yet committed upstream
+review_session_label  = "2026-05-31-ijb-primitive-referent-vs-party"
+
+# Files under review (the two competing adoption drafts).
+changed_files = [
+  "/srv/repos/external/kasselman/ijb-primitive-naming-review/07-drafts-for-referent.md",
+  "/srv/repos/external/kasselman/ijb-primitive-naming-review/06-drafts-for-party.md",
+]
+
+[bundle]
+prompt              = "docs/reviews/2026-05-31-ijb-primitive-referent-vs-party/review_prompt.md"
+decision_corpus_dir = "/srv/repos/external/kasselman/ijb-primitive-naming-review/"
+upstream_repo       = "/srv/repos/external/verivus-oss/agent-assurance/"
+
+# The bytes reviewers must verify against (not trust the summary).
+ground_truth_files = [
+  "foundations/ijb/primitives.md",                       # §1 — "objects that exist"
+  "foundations/ijb/canonical-assertion-grammar.md",      # replay templates; "dereference referenced assertion IDs"
+  "foundations/ijb/why-this-matters.md",                 # plain-spoken / anti-abstraction brand
+  "profiles/agent-assurance/tiers/enterprise.toml",      # the one awkward `party` contract phrase
+  "validators/validate_ijb_conformance.py",              # ijb_primitive mapping surface
+]
+
+[bundle.eliminated]
+# Do not relitigate these.
+thing     = "dehumanizing for named people"
+subject   = "GDPR data-subject term-of-art collision + internal overload + subject/object priming"
+entity    = "[[entities]] saturation (306/212 hits)"
+matter    = "matter=Priya-Nair reads as 'she is a problem'; 'in the matter of' proceedings idiom"
+principal = "agency/identity/security overload + implies importance"
+
+[scan.baseline]
+# Whole-word, case-insensitive, across .md/.toml/.py/.rs/.go/.sql/.cypher,
+# run by initiator 2026-05-31. Reviewers MUST re-run, not trust.
+referent   = 0
+referents  = 0
+party      = 102
+parties    = 43
+matter     = 23
+subject    = 103
+entity     = 306
+entities   = 212
+reference  = 757
+references = 376
+referenced = 113

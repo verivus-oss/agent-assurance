@@ -4,7 +4,7 @@ Quick reference for the foundational elements of It's Just Business.
 
 ## Overview
 
-All business reality can be described using six primitives. These are never visual artifacts themselves - they are facts that get projected into spatial representations.
+All business reality that IJB projects — what exists and what was observed — can be described using six primitives. These are never visual artifacts themselves; they are facts that get projected into spatial representations. IJB describes facts, not intent, causality, interpretation, or hypothetical futures (see the canonical grammar's Non-Goals).
 
 ## The Primitives
 

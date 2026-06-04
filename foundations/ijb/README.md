@@ -11,7 +11,7 @@ This is not a modeling tool. This is not a diagramming system. This is a project
 
 ## The Six Primitives
 
-All business reality can be described using six primitives:
+All business reality that IJB projects — the observable facts about what exists, how it moves, and what was witnessed — can be described using six primitives:
 
 1. **Things** - Objects that exist
 2. **Scopes** - Contexts in which things exist

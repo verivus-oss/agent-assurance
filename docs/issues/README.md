@@ -15,6 +15,7 @@ artefacts.
 | [ISS-002](2026-05-23-iss-002-graph-cypher-seed-incomplete.md) | `graph/schema.cypher` UNWIND data missing disclosure + cost + profile-descriptor | open | medium |
 | [ISS-003](2026-05-23-iss-003-duckdb-hardcoded-counts-duplication.md) | `dagtoml-duckdb{,-go}` `EXPECTED_COUNTS` mirrors duplicate MANIFEST | open | low |
 | [ISS-004](2026-05-24-iss-004-spec-reserved-kind-files-must-land-with-closure-root.md) | Spec-reserved-kind files MUST land with `closure_root` in the same commit | closed (79fe0aa) | medium |
+| [ISS-005](2026-06-01-iss-005-tools-dags-unvalidated-inv01-mismatch.md) | Operational `tools/*-dag.toml` DAGs outside CI structural validation; gated-dag violates INV01 | closed (4176bf9) | medium |
 
 ## Conventions
 

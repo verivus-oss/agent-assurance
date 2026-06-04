@@ -90,18 +90,19 @@ containing three files (`review_readiness.toml`, `contract_declaration.toml`,
 `evidence_matrix.toml`) — not a single file. All other minimal examples are
 flat TOML files at the top of `examples/`.
 
-Profile examples beyond the original four (`adapter-contract`,
-`adapter-registry-binding`, `assertion-bundle`, `assertion-log-record`,
-`gate-decision`) currently have no dedicated semantic validator. CI parses
-them as TOML and runs `validate_ijb_conformance.py` against them, but
-the validator's instance-file rules only inspect strings under an `id =`
-key or under a key matching a declared ontology predicate (see
-`validate_instance.walk`); for these files today that's a small surface
-(roughly one `id` field). The conformance pass is therefore mostly a
-structural-shape lock: any future content that introduces a
-`PREFIX:slug`-shaped token under a validated key, or a non-conforming
-`units.<id>` table key, will fail CI. The kind descriptors for these
-five kinds get the full IJB validator pass under the KD1–KD3 rules.
+Runtime-facing profile examples beyond `gate-decision` (`adapter-contract`,
+`adapter-registry-binding`, `assertion-bundle`, `assertion-log-record`)
+currently have no dedicated semantic validator. CI parses them as TOML,
+runs the primary Rust and Go validators for shared meta/provenance/IJB
+surface, and runs `validate_ijb_conformance.py` as a Python cross-check.
+For these files today the instance IJB surface is intentionally small
+(roughly one `id` field plus any declared ontology-predicate values).
+The conformance pass is therefore mostly a structural-shape lock: any
+future content that introduces a `PREFIX:slug`-shaped token under a
+validated key, or a non-conforming `units.<id>` table key, will fail CI.
+Their kind descriptors get the full kind-descriptor, §13
+abstraction/capability-envelope, and IJB validator passes in Rust, Go,
+and Python.
 
 CI also enforces:
 - No bare `kind = ...` field in `examples/` (must use role-specific names —
