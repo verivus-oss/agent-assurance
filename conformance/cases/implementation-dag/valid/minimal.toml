@@ -1,0 +1,57 @@
+# Minimal implementation DAG — two units, one artifact.
+# Demonstrates the root [meta] table, unit shape, and computed section.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "implementation-dag"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+title          = "Add tax line to checkout receipt"
+spec           = "docs/planning/01_spec.md"
+decomposition  = "docs/planning/03_IMPLEMENTATION_PLAN.md"
+created        = "2026-05-19"
+total_units    = 2
+tier1_units    = ["U01", "U02"]
+tier2_units    = []
+tier3_units    = []
+
+[units.U01]
+name           = "introduce-tax-engine-wrapper"
+summary        = "Wrap the upstream tax engine in a thin internal module."
+layer          = 0
+tier           = 1
+status         = "pending"
+depends_on     = []
+blocks         = ["U02"]
+estimated_loc  = 120
+files_modify   = ["src/checkout/tax.rs"]
+produces       = ["ART:tax-engine-wrapper"]
+consumes       = []
+
+[units.U02]
+name           = "render-tax-line-on-receipt"
+summary        = "Render the computed tax line on the receipt template."
+layer          = 1
+tier           = 1
+status         = "pending"
+depends_on     = ["U01"]
+blocks         = []
+estimated_loc  = 80
+files_modify   = ["src/checkout/receipt.rs"]
+produces       = ["OUT:receipt-with-tax-line"]
+consumes       = ["ART:tax-engine-wrapper"]
+
+[computed]
+entry_points      = ["U01"]
+leaf_nodes        = ["U02"]
+critical_path     = ["U01", "U02"]
+critical_path_loc = 200
+loc_totals        = { tier1 = 200 }
+
+[computed.max_parallel]
+layer0 = 1
+layer1 = 1

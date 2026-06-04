@@ -56,7 +56,7 @@ TOML_CONFORMANCE_SKIPS := \
 # the BurntSushi/toml conformance check above.
 RS_DECODER_BIN := tools/toml-test-decode-rs/target/release/toml-test-decode-rs
 
-.PHONY: help toml-conformance toml-conformance-install toml-conformance-rs toml-conformance-all
+.PHONY: help toml-conformance toml-conformance-install toml-conformance-rs toml-conformance-all dagtoml-conformance
 
 help: ## Show available targets.
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[1m%-32s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -83,3 +83,12 @@ toml-conformance-rs: ## Run TOML 1.0 spec-conformance suite against the `toml` c
 	$(GOBIN)/toml-test "$(abspath $(RS_DECODER_BIN))"
 
 toml-conformance-all: toml-conformance toml-conformance-rs ## Run both Go-parser and Rust-parser conformance suites.
+
+dagtoml-conformance: ## Run the cross-implementation DAG-TOML semantic conformance corpus (conformance/).
+	cargo build --release --locked --manifest-path tools/dagtoml-validate-rs/Cargo.toml \
+	  || cargo build --release --manifest-path tools/dagtoml-validate-rs/Cargo.toml
+	cd tools/dagtoml-validate-go && go build -o "$(CURDIR)/dagtoml-validate-go.conformance" .
+	python3 conformance/runner.py \
+	  --rs tools/dagtoml-validate-rs/target/release/dagtoml-validate-rs \
+	  --go "$(CURDIR)/dagtoml-validate-go.conformance"
+	rm -f "$(CURDIR)/dagtoml-validate-go.conformance"
