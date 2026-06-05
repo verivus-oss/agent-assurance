@@ -1,0 +1,43 @@
+# llm-cli-gateway async job IDs for this review session.
+# Initiator: claude-opus-4-7
+# Dispatched: 2026-05-27T13:06:09Z .. 2026-05-27T13:06:27Z (UTC)
+
+[jobs]
+codex   = "778edd78-c8db-4b3c-9c02-7e97ca173440"
+gemini  = "8f931c70-987c-421f-9c9e-8649a48ad029"
+grok    = "14ba5c8e-b486-4eea-83fb-188bfab1a03e"
+mistral = "6375d64c-083e-43b5-aac9-7277e77545ef"
+
+[correlation_ids]
+codex   = "agentskills-pitch-2026-05-27-codex"
+gemini  = "agentskills-pitch-2026-05-27-gemini"
+grok    = "agentskills-pitch-2026-05-27-grok"
+mistral = "agentskills-pitch-2026-05-27-mistral"
+
+[sessions]
+# Gateway-internal session IDs (informational; non-resumable for gemini/grok/mistral).
+codex   = "a9079db2-4d90-43c5-8d6e-9b6155b9479e"
+gemini  = ""
+grok    = "gw-0047601c-7dca-42fb-8547-c73d508f62f4"
+mistral = "gw-ba52c6a9-227c-496f-940c-375b4833acbe"
+
+# ============================================================================
+# Iteration r2 — re-dispatch after fixes applied per rebuttal_record.md.
+# Dispatched 2026-05-27T13:30:26Z .. 2026-05-27T13:30:44Z (UTC).
+# Gemini omitted — quota exhausted, ~9h to reset.
+# ============================================================================
+
+[jobs_r2]
+codex   = "4646a9f6-f001-48c4-866b-ae68c342b49f"
+grok    = "81aa64fb-9963-4f35-890e-f22c8cb77cce"
+mistral = "08e3ff46-9741-4ad2-9a6f-a3b1a8c5f4ed"
+
+[correlation_ids_r2]
+codex   = "agentskills-pitch-2026-05-27-codex-r2"
+grok    = "agentskills-pitch-2026-05-27-grok-r2"
+mistral = "agentskills-pitch-2026-05-27-mistral-r2"
+
+[sessions_r2]
+codex   = "a9079db2-4d90-43c5-8d6e-9b6155b9479e"
+grok    = "gw-fc91ec3e-7320-4f90-9648-ef5c83f6db6e"
+mistral = "gw-6fb5ea16-2eff-4f69-a17e-1cbc1a1fa979"
