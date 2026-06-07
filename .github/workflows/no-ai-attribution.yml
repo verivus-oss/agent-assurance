@@ -16,6 +16,7 @@ jobs:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd  # v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Reject AI attribution stamps
         env:
           EVENT: ${{ github.event_name }}
@@ -26,17 +27,19 @@ jobs:
         run: |
           set -eu
           NULLSHA=0000000000000000000000000000000000000000
+          # ARGS is an array: the fallback form is multi-word (-n 1 <sha>),
+          # so a plain quoted string would not work (SC2086).
           if [ "$EVENT" = "pull_request" ]; then
-            ARGS="$BASE..$HEAD_SHA"
+            ARGS=("$BASE..$HEAD_SHA")
           elif [ -n "${BEFORE:-}" ] && [ "$BEFORE" != "$NULLSHA" ] && git cat-file -e "$BEFORE" 2>/dev/null; then
-            ARGS="$BEFORE..$AFTER"
+            ARGS=("$BEFORE..$AFTER")
           else
-            ARGS="-n 1 $AFTER"
+            ARGS=(-n 1 "$AFTER")
           fi
           PATTERN='co-authored-by:.*(claude|anthropic)|generated with.*claude'
-          if git log --format='%h %s%n%b' $ARGS | grep -qiE "$PATTERN"; then
-            echo "::error::AI attribution stamp found in commit message(s) in range: $ARGS"
-            git log --format='--- %h %s%n%b' $ARGS | grep -iE "$PATTERN" -B3 || true
+          if git log --format='%h %s%n%b' "${ARGS[@]}" | grep -qiE "$PATTERN"; then
+            echo "::error::AI attribution stamp found in commit message(s) in range: ${ARGS[*]}"
+            git log --format='--- %h %s%n%b' "${ARGS[@]}" | grep -iE "$PATTERN" -B3 || true
             exit 1
           fi
-          echo "OK: no attribution stamps in: $ARGS"
+          echo "OK: no attribution stamps in: ${ARGS[*]}"

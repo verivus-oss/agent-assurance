@@ -1,0 +1,103 @@
+# Terminal decision — 2026-05-27-agentskills-profile-pitch
+#
+# Per tools/review-request-dag.toml unit U09 (iterate until terminal)
+# and U10 (final gate decision). Terminal state per
+# [policy.approval].terminal_states reached on r2.
+
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "terminal-decision"
+created        = "2026-05-28"
+review_session = "2026-05-27-agentskills-profile-pitch"
+
+[outcome]
+state                = "unconditional_approval"
+units_under_review   = ["P01", "P02"]
+sub_claims_total     = 8                  # P01-C1..C4, P02-C1..C4
+sub_claims_complete  = 8
+sub_claims_blocking  = 0
+
+[iterations]
+total = 2
+
+[[iterations.r1]]
+dispatched_at = "2026-05-27T13:06:09Z"
+panel         = ["codex", "gemini", "grok", "mistral"]
+results = """
+- grok: unconditional_approval; one advisory finding (P01:120 "safe C" overclaim).
+- mistral: unconditional_approval; all complete.
+- codex: concrete_unresolvable_blocker — P02-C1 (non-verbatim quote, "in-production" overclaim) AND P02-C2 (gate-decision example used non-descriptor field names, out-of-vocabulary subject_class, fabricated fresh_session rule, fabricated [disclaimer] table).
+- gemini: UNAVAILABLE — TerminalQuotaError (~9h to reset).
+"""
+disposition = """
+P01 advisory addressed pre-rebuttal at initiator request (safe C
+removed; safe Rust and safe Go only).
+P02 codex findings: agreed in full per docs/reviews/2026-05-27-agentskills-profile-pitch/rebuttal_record.md
+— substantive rewrite of the gate-decision TOML example to use
+real descriptor fields, fabricated rule and table removed, quote
+restored byte-verbatim, "in-production" softened to "working".
+Per [policy.evidence] each disposition cites file:line evidence.
+"""
+
+[[iterations.r2]]
+dispatched_at = "2026-05-27T13:30:26Z"
+panel         = ["codex", "grok", "mistral"]
+panel_note    = """
+Gemini omitted; quota still exhausted at r2 dispatch time. Three-
+reviewer panel matches the project's earlier convention (see
+docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal/).
+"""
+results = """
+- codex-r2: unconditional_approval; all 8 sub-claims complete (specifically
+  verified the gate-decision TOML now uses descriptor fields and that the
+  fabricated fresh_session rule is removed).
+- grok-r2: unconditional_approval; all 8 sub-claims complete; explicitly
+  confirmed the rebuttal's characterization of grok-r1's P02-C2 leniency
+  is fair against pre-fix bytes.
+- mistral-r2: unconditional_approval; all 8 sub-claims complete; confirmed
+  each of the six listed rebuttal fixes landed.
+"""
+disposition = "convergent unconditional_approval across the three-reviewer panel; no remaining findings; no further iteration required."
+
+[panel_diversity]
+# Cross-provider review per the profile's own INV06 spirit. Three of
+# four distinct providers (anthropic ineligible as initiator; google
+# unavailable due to quota); rule satisfied because the drafts under
+# review are NOT a self-modification gate decision — they are an
+# outbound communication. INV06 itself does not apply; the project's
+# review-DAG convention does, and is satisfied.
+initiator_provider     = "anthropic"
+initiator_excluded     = true
+reviewer_providers     = ["openai", "xai", "mistral"]
+gemini_omission_reason = "TerminalQuotaError 2026-05-27T13:06; ~9h to reset; second iteration could not wait."
+
+[outputs]
+raw_findings_r1 = [
+  "raw_findings/codex.md",
+  "raw_findings/grok.md",
+  "raw_findings/mistral.md",
+]
+raw_findings_r2 = [
+  "raw_findings/codex-r2.md",
+  "raw_findings/grok-r2.md",
+  "raw_findings/mistral-r2.md",
+]
+rebuttal_record = "rebuttal_record.md"
+job_ids         = "job_ids.toml"
+
+[approved_artifacts]
+# Drafts cleared for posting to the agentskills/agentskills public
+# Discussions board.
+p01 = "docs/posts/2026-05-27-agentskills-profile-proposal-draft.md"
+p02 = "docs/posts/2026-05-27-skills-corpus-before-after-pairing-draft.md"
+
+[next_actions]
+# Per [policy.completion]: no DAG unit complete without reviewer
+# evidence or queued status. Both units have reviewer evidence; both
+# transition to "complete" on the initiator side. Publication is an
+# initiator decision, not a review-DAG decision.
+publication = "initiator-authorized"
+post_to     = "https://github.com/agentskills/agentskills/discussions"
+sequencing  = "P01 first, then P02 as a comment or linked follow-up"
