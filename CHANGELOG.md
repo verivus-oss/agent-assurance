@@ -9,6 +9,26 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **TOML 1.0 → 1.1 migration: scoping pack + parity go/no-go (GO).** Added
+  the self-validating DAG-TOML governance pack under
+  [`docs/planning/toml-1.1-migration/`](docs/planning/toml-1.1-migration/)
+  scoping the deliberate migration of the validator/conformance stack from
+  TOML 1.0 to TOML 1.1 (spec, implementation plan, 8-unit implementation
+  DAG with a hard parity gate, contracts C01–C04, readiness gates G01/G02,
+  evidence matrix, rollback plan). Completed the parity spike (U01,
+  `research/01-parser-availability-survey.md`) and recorded the go/no-go
+  decision (U02, `research/02-parity-decision.md`): **GO** — TOML 1.1.0 is
+  a finalized released spec (toml-lang/toml `1.1.0` tag dated 2025-12-24;
+  spec page dated 12/18/2025) and a released, default-1.1,
+  no-`unsafe` parser exists for all three primaries (Rust `toml`
+  `1.1.2+spec-1.1.0`; Go `BurntSushi/toml` v1.6.0, already required by the
+  Go validator's `go.mod`; Python `tomli` 2.4.0+, the PEP 680 upstream of
+  stdlib `tomllib`). The survey documents that the Go and Rust-RDF sides
+  already moved to 1.1-default parsers via dependency bumps (#5, #1),
+  leaving the repo latently split across TOML versions — the divergence
+  this migration resolves deliberately. No parser has been bumped in this
+  change; it lands the pack and the recorded decision only.
+
 - **Static specification site.** Added the Cloudflare Pages static site
   under `site/`, including human-readable pages, Markdown mirrors,
   agent discovery metadata, a deploy workflow, favicon assets, and the

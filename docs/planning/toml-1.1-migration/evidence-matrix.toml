@@ -1,0 +1,107 @@
+# Evidence matrix — TOML 1.0 → 1.1 migration. Links the migration's
+# claims to the pack documents and (prospective) test/conformance
+# evidence. Claims about post-migration behaviour are scoped as
+# prospective until the corresponding units complete.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "evidence-matrix"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+title          = "Evidence matrix: TOML 1.0 → 1.1 migration"
+status         = "draft"
+created        = "2026-06-08"
+review_subject = "toml-1.1-migration"
+
+[[claims]]
+id    = "E01"
+claim = "scope_is_complete_and_validated"
+scope_covered    = [
+  "the implementation DAG decomposes the migration into 8 units with a parity gate",
+  "contracts declare the cross-implementation parity invariant",
+]
+known_exclusions = [
+  "does not prove the migration is feasible — that is the parity decision (U02)",
+]
+status = "draft"
+
+[[claims]]
+id    = "E02"
+claim = "parity_feasibility_is_decided_before_any_parser_bump"
+scope_covered    = [
+  "the readiness gate G02 blocks parser bumps until parity is proven",
+]
+known_exclusions = [
+  "the go/no-go decision itself is prospective until U01/U02 complete",
+]
+status = "draft"
+
+[[claims]]
+id    = "E03"
+claim = "post_migration_cross_impl_conformance_at_1.1"
+scope_covered    = [
+  "the final verification unit requires rs/go/py to agree on the 1.1 corpus",
+]
+known_exclusions = [
+  "prospective: holds only once U08 completes; not yet evidenced",
+]
+status = "draft"
+
+[[evidence]]
+id            = "EV01"
+artifact_path = "docs/planning/toml-1.1-migration/implementation-dag.toml"
+summary       = "The 8-unit migration DAG with the parity spike (U01) and go/no-go gate (U02) upstream of every parser bump."
+
+[[evidence]]
+id            = "EV02"
+artifact_path = "docs/planning/toml-1.1-migration/contract-declaration.toml"
+summary       = "Contracts C01–C04: cross-implementation parity, backward compatibility, spec disposition of 1.1 features, and the gate-precedes-bump rule."
+
+[[evidence]]
+id            = "EV03"
+artifact_path = "docs/planning/toml-1.1-migration/readiness-gate.toml"
+summary       = "Readiness gates G01 (planning pack) and G02 (parity go/no-go), the latter blocking any parser bump until parity is proven."
+
+[[evidence]]
+id            = "EV04"
+artifact_path = "docs/planning/toml-1.1-migration/research/02-parity-decision.md"
+summary       = "Prospective: the recorded go/no-go decision produced by implementation-dag unit U02."
+
+[[matrix]]
+id              = "M01"
+claim_id        = "E01"
+evidence_id     = "EV01"
+scope_covered   = "the implementation DAG decomposes the migration with a parity gate"
+known_exclusions = ["does not prove migration feasibility"]
+
+[[matrix]]
+id              = "M02"
+claim_id        = "E01"
+evidence_id     = "EV02"
+scope_covered   = "contracts declare the cross-implementation parity invariant"
+known_exclusions = ["contracts are declared, not yet verified"]
+
+[[matrix]]
+id              = "M03"
+claim_id        = "E02"
+evidence_id     = "EV03"
+scope_covered   = "gate G02 blocks parser bumps until parity is proven"
+known_exclusions = ["gate is authored; its pass condition is prospective"]
+
+[[matrix]]
+id              = "M04"
+claim_id        = "E02"
+evidence_id     = "EV04"
+scope_covered   = "the go/no-go decision records parity feasibility"
+known_exclusions = ["prospective: produced by U02, not yet recorded"]
+
+[[matrix]]
+id              = "M05"
+claim_id        = "E03"
+evidence_id     = "EV01"
+scope_covered   = "unit U08 requires rs/go/py agreement on the 1.1 corpus"
+known_exclusions = ["prospective: holds only once U08 completes"]
