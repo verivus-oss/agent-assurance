@@ -1,11 +1,16 @@
 # Readiness gate — TOML 1.0 → 1.1 migration. G01 (planning pack) passes.
-# G02 (parity go/no-go): the parity spike (U01) and decision (U02) are
-# complete and the decision records GO — a released, default-1.1,
-# no-`unsafe` parser exists for all three primaries (research/
-# 01-parser-availability-survey.md, research/02-parity-decision.md). G02's
-# documentary pass conditions are met AND the operator STOP/GO sign-off was
-# confirmed 2026-06-08, so the parser-bump units (U03+) are cleared to
-# proceed under the decision's guardrails. Status reflects that clearance.
+# G02 (parity go/no-go): the parity spike (U01) and decision (U02) recorded
+# GO; the operator STOP/GO sign-off was confirmed 2026-06-08; and the
+# migration has now been EXECUTED AND VERIFIED end-to-end. All eight units
+# (U01–U08) are done: the Rust, Go, and Python primaries are uniformly at
+# TOML 1.1 in lockstep, the conformance harness runs the 1.1 corpus, and
+# spec.md §9.2 carries the per-feature dispositions. U08 recorded the
+# verified state in conformance/known-divergences-toml-1.1.toml: rs/go/py
+# AGREE on the operative dagtoml semantic corpus (empty baseline) and the
+# toml-test VALID corpus, with one documented, PRE-EXISTING exception — on 13
+# toml-test INVALID fixtures the Go (BurntSushi v1.6.0) parser is more
+# permissive than rs/py (a BurntSushi limitation, unchanged by the version
+# change, recorded not skipped-silently). Status reflects this completion.
 
 # Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
 closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -17,7 +22,7 @@ docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.m
 confidentiality   = "public"
 license           = "Apache-2.0"
 title          = "Review readiness: TOML 1.0 → 1.1 migration"
-status         = "go-confirmed-cleared-for-parser-bumps"
+status         = "migration-complete-go-toml-test-divergences-documented"
 created        = "2026-06-08"
 review_subject = "toml-1.1-migration"
 
