@@ -70,6 +70,15 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   the per-tool role descriptions and listing the thirteen-tool sequence
   in the same order as `validate.yml`.
 
+### Fixed
+
+- **`sha2` 0.11 digest encoding (#28).** Bumped `sha2` to 0.11 in
+  `tools/dagtoml-validate-rs`; its digest output (`hybrid_array::Array`)
+  no longer implements `LowerHex`, so `format!("{:x}", …)` stopped
+  compiling. Hex-encode digest bytes directly in `digest_hex` and route
+  the `[provenance].source_sha256` check through the same helper. Output
+  is byte-identical to the previous encoding (conformance 21/21).
+
 ## [v0.1.0] - 2026-05-27
 
 ### Added
