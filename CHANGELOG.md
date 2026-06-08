@@ -31,11 +31,15 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   unscanned. Advanced-setup restores Rust coverage. All actions are
   SHA-pinned to the same versions used elsewhere in the workflow
   directory.
-- **Archived multi-LLM review session (#26).** Added the non-normative
-  process records under
+- **Archived multi-LLM review session + no-ai-attribution gate fixes
+  (#26).** Added the non-normative process records under
   `docs/reviews/2026-05-27-agentskills-profile-pitch/` for an outbound
   pitch that was reviewed, approved, and then withdrawn unpublished;
-  retained for traceability per the `docs/reviews/` convention.
+  retained for traceability per the `docs/reviews/` convention. The same
+  squash-merged commit also hardened
+  [`.github/workflows/no-ai-attribution.yml`](.github/workflows/no-ai-attribution.yml):
+  `persist-credentials: false` on the checkout step (zizmor) and an
+  `SC2086` fix converting the commit-range `ARGS` to a bash array.
 
 ### Changed
 
