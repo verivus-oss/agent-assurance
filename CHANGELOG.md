@@ -31,9 +31,29 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   unscanned. Advanced-setup restores Rust coverage. All actions are
   SHA-pinned to the same versions used elsewhere in the workflow
   directory.
+- **Archived multi-LLM review session + no-ai-attribution gate fixes
+  (#26).** Added the non-normative process records under
+  `docs/reviews/2026-05-27-agentskills-profile-pitch/` for an outbound
+  pitch that was reviewed, approved, and then withdrawn unpublished;
+  retained for traceability per the `docs/reviews/` convention. The same
+  squash-merged commit also hardened
+  [`.github/workflows/no-ai-attribution.yml`](.github/workflows/no-ai-attribution.yml):
+  `persist-credentials: false` on the checkout step (zizmor) and an
+  `SC2086` fix converting the commit-range `ARGS` to a bash array.
 
 ### Changed
 
+- **Implementation-dag placeholder parity in primary validators (#27).**
+  Wired the unresolved-placeholder check (`<…>` markers in
+  `files_create`/`files_modify`) into the Rust and Go implementation-dag
+  paths, matching the Python reference, and removed the corresponding
+  `conformance/known-divergences.toml` entry. The Go predicate uses an
+  implementation-dag-specific marker set (`<`, `>` only) distinct from
+  the broader kind-descriptor set; a `date-literal-path.toml` fixture
+  pins the split. Conformance 21/21 across rs/go/py.
+- **Dependency bumps.** `toml` 0.9→1.1.2+spec-1.1.0 in `tools/dagtoml-rdf`
+  (#1); `github.com/BurntSushi/toml` 1.4→1.6 in `tools/dagtoml-validate-go`
+  (#5); the GitHub Actions workflow dependency group (4 updates, #20).
 - **Primary validator coverage promoted to Rust + Go.** Ported the
   remaining CI-enforced semantic surfaces from Python-only reference
   checks into both primary validators: implementation-dag,
