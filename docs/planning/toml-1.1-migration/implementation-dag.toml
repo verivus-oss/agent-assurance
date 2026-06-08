@@ -77,15 +77,15 @@ consumes       = ["ART:parity-decision"]
 
 [units.U04]
 name           = "go-primary-toml-1.1"
-summary        = "Move the Go primary validator to a TOML 1.1-capable parser (BurntSushi/toml at the release identified in U01, or a documented alternative), preserving the safe-tools no-unsafe policy."
+summary        = "Move the Go primary validator to a TOML 1.1-capable parser (BurntSushi/toml at the release identified in U01, or a documented alternative), preserving the safe-tools no-unsafe policy. DONE (no code change required): U01 found tools/dagtoml-validate-go/go.mod ALREADY requires BurntSushi/toml v1.6.0 — the latest release and 1.1-by-default — landed via #5 before this migration. v1.6.0 is verified pure Go (no unsafe/cgo; check_safe_tools.sh passes the Go side) and the validator builds + vets clean. The Go runtime is therefore already at the 1.1 target; this unit records and verifies it. The Go *conformance evidence* (the toml-test decoder, still pinned v1.4.0 in the Makefile) moves to 1.1 in U06 — that is the harness's job, not a parser bump. No go.mod/go.sum change is made here."
 layer          = 2
 tier           = 2
-status         = "pending"
+status         = "done"
 depends_on     = ["U02"]
 blocks         = ["U06"]
 estimated_loc  = 140
 files_create   = []
-files_modify   = ["tools/dagtoml-validate-go/go.mod", "tools/dagtoml-validate-go/go.sum"]
+files_modify   = []
 produces       = ["ART:go-primary-1.1"]
 consumes       = ["ART:parity-decision"]
 
