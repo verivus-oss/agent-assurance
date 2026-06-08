@@ -124,15 +124,15 @@ consumes       = ["ART:parity-decision"]
 
 [units.U06]
 name           = "conformance-harness-1.1"
-summary        = "Flip the conformance harness to the TOML 1.1 corpus (toml-test `-toml 1.1.0`), update the toml-test-decode-rs shim and the CI step name/comment, and confirm rs/go/py agree on the full 1.1 valid+invalid corpus with zero skips."
+summary        = "Flip the conformance harness to the TOML 1.1 corpus (toml-test `-toml 1.1.0`), update the toml-test-decode-rs shim and the CI step name/comment. DONE: bumped the rs decoder shim toml 0.8->1.1 (added the `serde` feature; it already parses via toml::from_str); bumped TOML_TEST_DECODER_VERSION v1.4.0->v1.6.0 (matching the Go validator's go.mod) and added `-toml 1.1.0` to both toml-test recipes; retitled the two CI steps 1.0->1.1. Results under `-toml 1.1.0`: rs shim 189/189 valid + 362/362 invalid, ZERO skips; Go BurntSushi v1.6.0 189/189 valid + 349/362 invalid with the SAME 13 dotted-key/inline-table permissiveness skips as before (BurntSushi-specific, unchanged by the 1.0->1.1.0 flip — NOT zero-skip on the Go side, contrary to this unit's original aspiration). The dagtoml SEMANTIC corpus (the rs/go/py cross-impl check) stays CONFORMANCE PASSED with an empty known-divergences baseline; the empty-baseline + full cross-impl agreement is finalized in U08."
 layer          = 3
 tier           = 2
-status         = "pending"
+status         = "done"
 depends_on     = ["U03", "U04", "U05"]
 blocks         = ["U07"]
 estimated_loc  = 90
 files_create   = []
-files_modify   = ["Makefile", ".github/workflows/validate.yml", "tools/toml-test-decode-rs/Cargo.toml"]
+files_modify   = ["Makefile", ".github/workflows/validate.yml", "tools/toml-test-decode-rs/Cargo.toml", "tools/toml-test-decode-rs/Cargo.lock"]
 produces       = ["ART:conformance-harness-1.1"]
 consumes       = ["ART:rust-primary-1.1", "ART:go-primary-1.1", "ART:python-reference-1.1"]
 

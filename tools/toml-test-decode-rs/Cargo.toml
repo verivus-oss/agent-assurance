@@ -3,12 +3,16 @@ name = "toml-test-decode-rs"
 version = "0.1.0"
 edition = "2024"
 publish = false
-description = "toml-test decoder shim using the `toml` 0.8 crate — the same parser dagtoml-validate-rs depends on. Reads TOML on stdin, emits toml-test tagged-JSON on stdout, exits non-zero on parse error. Symmetric with the Go-side BurntSushi/toml decoder wired into CI; together they prove that BOTH primary validator parsers (Rust + Go) round-trip the TOML 1.0 spec corpus correctly."
+description = "toml-test decoder shim using the `toml` 1.1 crate — the same parser dagtoml-validate-rs depends on. Reads TOML on stdin, emits toml-test tagged-JSON on stdout, exits non-zero on parse error. Symmetric with the Go-side BurntSushi/toml decoder wired into CI; together they prove that BOTH primary validator parsers (Rust + Go) round-trip the TOML 1.1 spec corpus correctly."
 license = "Apache-2.0"
 rust-version = "1.85"
 
 [dependencies]
-toml       = { version = "0.8", default-features = false, features = ["parse"] }
+# TOML 1.1 (`toml` 1.1.x+spec-1.1.0), matching the dagtoml-validate-rs primary
+# this shim mirrors. The 1.1 line gates `toml::Value` behind the `serde`
+# feature, so enable `serde` in addition to `parse`; the decoder already
+# parses documents via `toml::from_str`, so no call-site change is needed.
+toml       = { version = "1.1", default-features = false, features = ["parse", "serde"] }
 serde_json = "1"
 
 [[bin]]

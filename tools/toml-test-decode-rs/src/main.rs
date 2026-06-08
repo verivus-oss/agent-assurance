@@ -1,4 +1,4 @@
-//! toml-test decoder shim for the `toml` 0.8 crate.
+//! toml-test decoder shim for the `toml` 1.1 crate.
 //!
 //! Reads a TOML document on stdin, parses it with the same `toml`
 //! crate that `tools/dagtoml-validate-rs` depends on, walks the
