@@ -50,7 +50,7 @@ import argparse
 import pathlib
 import re
 import sys
-import tomllib
+import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
 
 
 IJB_PRIMITIVES = ("thing", "scope", "path", "observed", "constraint", "time")

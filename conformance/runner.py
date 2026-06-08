@@ -27,7 +27,12 @@ import argparse
 import pathlib
 import subprocess
 import sys
-import tomllib
+
+# Parse TOML with the same TOML 1.1 reference shim the validators use
+# (validators/_toml11.py wraps `tomli` >= 2.4.0; stdlib tomllib is 1.0-only).
+# The runner lives outside validators/, so put that directory on the path.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "validators"))
+import _toml11 as tomllib  # noqa: E402  (path set up immediately above)
 
 # Maps a case-directory kind to the Python reference validator.
 PY_VALIDATORS = {

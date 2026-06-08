@@ -26,7 +26,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import pathlib
-import tomllib
+import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
 
 
 HEX_PREFIX = "sha256:"

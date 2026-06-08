@@ -16,7 +16,7 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
-import tomllib
+import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
 
 
 REQUIRED_META_FIELDS = ("schema_version", "template_kind", "describes_kind", "title")

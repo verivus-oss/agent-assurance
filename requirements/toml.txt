@@ -1,0 +1,19 @@
+# TOML 1.1 parser for the Python reference validators (migration unit U05).
+#
+# The Python reference MUST parse TOML 1.1 to stay byte-for-byte in lockstep
+# with the Rust (`toml` 1.1) and Go (BurntSushi/toml v1.6.0) primaries — the
+# cross-implementation parity invariant (SPEC; contract C01). stdlib
+# `tomllib` is TOML 1.0 only, so we pin `tomli` >= 2.4.0, the 1.1-capable
+# upstream of `tomllib` (PEP 680, same author).
+#
+# Install with `--no-binary tomli` so the pure-Python `py3-none-any` build is
+# used (not the optional mypyc-compiled wheels), keeping the reference
+# auditable — the parity decision's safe-tools guardrail. The sdist hash
+# below is what `--no-binary` verifies and builds from; the wheel hash is
+# kept for environments that install the published pure-Python wheel directly.
+#
+# Hash-pinned per OpenSSF Scorecard's Pinned-Dependencies check. Bump
+# deliberately; see CHANGELOG.
+tomli==2.4.1 \
+    --hash=sha256:0d85819802132122da43cb86656f8d1f8c6587d54ae7dcaf30e90533028b49fe \
+    --hash=sha256:7c7e1a961a0b2f2472c1ac5b69affa0ae1132c39adcb67aba98568702b9cc23f

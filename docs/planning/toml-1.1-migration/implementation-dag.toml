@@ -91,15 +91,34 @@ consumes       = ["ART:parity-decision"]
 
 [units.U05]
 name           = "python-reference-toml-1.1"
-summary        = "Replace the stdlib tomllib (TOML 1.0) dependency in the Python reference validators with a 1.1-capable, hash-pinned parser, keeping the reference behaviour authoritative for the conformance corpus."
+summary        = "Replace the stdlib tomllib (TOML 1.0) dependency in the Python reference validators with a 1.1-capable, hash-pinned parser, keeping the reference behaviour authoritative for the conformance corpus. DONE: added a hash-pinned `tomli`==2.4.1 (PEP 680 upstream of tomllib, 1.1-capable) in requirements/toml.txt, installed pure-Python via `--no-binary tomli` (auditable; not the mypyc wheels); added validators/_toml11.py, a guarded shim that re-exports tomli's load/loads/TOMLDecodeError and FAILS LOUD if tomli is missing or < 2.4.0 (no silent TOML-1.0 fallback); swapped `import tomllib` -> `import _toml11 as tomllib` across all 15 validators + conformance/runner.py AND the three inline TOML-parsing scripts in .github/workflows/validate.yml AND the AGENTS.md contributor parse-the-repo command (so no stdlib TOML-1.0 parser remains in any operative surface; only prose/changelog and immutable docs/reviews/ archives still mention the word `tomllib`); wired the CI install. make dagtoml-conformance keeps rs/go/py in agreement (21 cases); ruff (S,F) + bandit clean."
 layer          = 2
 tier           = 2
-status         = "pending"
+status         = "done"
 depends_on     = ["U02"]
 blocks         = ["U06"]
 estimated_loc  = 130
-files_create   = ["requirements/toml.txt"]
-files_modify   = ["validators/validate_implementation_dag.py"]
+files_create   = ["requirements/toml.txt", "validators/_toml11.py"]
+files_modify   = [
+  "validators/validate_implementation_dag.py",
+  "validators/validate_closure_root.py",
+  "validators/validate_review_readiness.py",
+  "validators/validate_rollback_plan.py",
+  "validators/validate_kind_descriptor.py",
+  "validators/validate_profile_descriptor.py",
+  "validators/validate_disclosure.py",
+  "validators/validate_provenance.py",
+  "validators/validate_gate_decision.py",
+  "validators/validate_cost.py",
+  "validators/validate_code_symbols.py",
+  "validators/validate_traceability.py",
+  "validators/validate_abstraction_class.py",
+  "validators/validate_ijb_conformance.py",
+  "validators/check_attribute_values.py",
+  "conformance/runner.py",
+  ".github/workflows/validate.yml",
+  "AGENTS.md",
+]
 produces       = ["ART:python-reference-1.1"]
 consumes       = ["ART:parity-decision"]
 
