@@ -1,0 +1,67 @@
+# Rollback plan — TOML 1.0 → 1.1 migration, Agent Assurance Profile.
+# The migration is unusual in that its "production" surface is the spec's
+# conforming-document set: a bad 1.1 cutover does not page an oncall, it
+# silently changes which documents are valid. The triggers below are
+# therefore tooling-outcome triggers (validator_failure, determinism_
+# regression, data_corruption) plus an operator manual_override.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "rollback-plan"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+framework_profile = "agent-assurance"
+title             = "Rollback plan: TOML 1.0 → 1.1 migration"
+created           = "2026-06-08"
+
+[plan]
+summary          = "Revert the parser bumps, flip the conformance harness back to TOML 1.0, and restore the empty known-divergences baseline if the 1.1 cutover produces any cross-implementation divergence or invalidates an existing conforming document."
+owner            = "spec-maintainers"
+estimated_ttr    = "PT30M"
+previous_release = "main@pre-toml-1.1-migration"
+
+[[triggers]]
+id           = "TRIG:cross-impl-divergence"
+trigger_kind = "validator_failure"
+metric       = "conformance.toml_test_1_1.rs_go_py_disagreements"
+threshold    = 1
+window       = "PT0S"
+action       = "halt cutover; open incident; begin rollback procedure"
+
+[[triggers]]
+id           = "TRIG:nondeterministic-parse"
+trigger_kind = "determinism_regression"
+metric       = "conformance.parse.nondeterministic_outputs"
+threshold    = 1
+window       = "PT0S"
+action       = "halt cutover; begin rollback procedure"
+
+[[triggers]]
+id           = "TRIG:existing-doc-invalidated"
+trigger_kind = "data_corruption"
+metric       = "validate.existing_conforming_docs.newly_rejected"
+threshold    = 1
+window       = "PT0S"
+action       = "halt cutover; identify the undocumented breaking change; begin rollback procedure"
+
+[[triggers]]
+id           = "TRIG:operator-abort"
+trigger_kind = "manual_override"
+metric       = "operator.abort_signal"
+threshold    = 1
+window       = "PT0S"
+action       = "begin rollback procedure on maintainer instruction"
+
+[procedure]
+steps = [
+  "Revert the parser-bump commits: restore the Rust toml pin (U03), the Go BurntSushi pin (U04), and the Python parser dependency (U05) to their pre-migration versions.",
+  "Flip the conformance harness back to TOML 1.0: restore the Makefile target and the validate.yml step to the 1.0 toml-test invocation, and revert the toml-test-decode-rs shim.",
+  "Restore conformance/known-divergences.toml to its pre-migration (empty) baseline and delete any 1.1-specific divergences file.",
+  "Revert the spec.md 1.1-feature dispositions (U07) so the normative conforming surface returns to TOML 1.0.",
+  "Run `make dagtoml-conformance` and the full validator sweep; confirm rs/go/py agree on the restored 1.0 corpus with zero divergences.",
+  "Record the rollback and the specific divergence/invalidation that triggered it in research/02-parity-decision.md, and re-open the go/no-go decision (U02).",
+]
