@@ -133,28 +133,29 @@ jobs:
       - name: Taplo lint (TOML syntax + duplicate-key checks)
         run: taplo lint
 
-      - name: TOML 1.0 spec conformance (BurntSushi parser used by Go validator)
-        # Runs the toml-lang/toml-test suite against the BurntSushi/toml
-        # decoder shim. That decoder is shipped by the same module the
-        # Go validator (tools/dagtoml-validate-go) depends on, so a
-        # conformance pass here is evidence about the parser the Go
-        # validator actually uses at runtime. The 13 known-tolerated
-        # invalid-test misses (BurntSushi v1.4 vs current TOML 1.1
-        # tightening) are listed in the Makefile skiplist with
-        # rationale; bumping the pinned decoder version means
-        # revisiting that list.
+      - name: TOML 1.1 spec conformance (BurntSushi parser used by Go validator)
+        # Runs the toml-lang/toml-test suite (`-toml 1.1.0`) against the
+        # BurntSushi/toml decoder shim. That decoder is pinned to v1.6.0
+        # to match the module the Go validator (tools/dagtoml-validate-go)
+        # depends on, so a conformance pass here is evidence about the
+        # 1.1 parser the Go validator actually uses at runtime. The 13
+        # known-tolerated invalid-test misses (BurntSushi's persistent
+        # dotted-key/inline-table-redefinition permissiveness, unchanged
+        # across the 1.0->1.1.0 corpus flip) are listed in the Makefile
+        # skiplist with rationale; bumping the pinned decoder version
+        # means revisiting that list.
         run: |
           set -e
           make toml-conformance-install
           make toml-conformance
 
-      - name: TOML 1.0 spec conformance (`toml` crate used by Rust validator)
+      - name: TOML 1.1 spec conformance (`toml` crate used by Rust validator)
         # Symmetric to the BurntSushi check above. Builds the in-repo
-        # tools/toml-test-decode-rs/ shim against the same `toml` 0.8
+        # tools/toml-test-decode-rs/ shim against the same `toml` 1.1
         # crate dagtoml-validate-rs depends on, then runs the
-        # toml-lang/toml-test suite. The Rust crate is strictly more
-        # conformant than BurntSushi v1.4: it currently passes
-        # 185/185 valid + 371/371 invalid with NO skiplist. If a future
+        # toml-lang/toml-test suite (`-toml 1.1.0`). The Rust crate is
+        # strictly more conformant than the BurntSushi decoder: it passes
+        # 189/189 valid + 362/362 invalid with NO skiplist. If a future
         # crate bump regresses, add a TOML_CONFORMANCE_RS_SKIPS variable
         # in the Makefile mirroring the existing TOML_CONFORMANCE_SKIPS
         # pattern, with the same bump-discipline rationale.
