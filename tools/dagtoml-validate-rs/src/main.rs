@@ -6,9 +6,11 @@
 //! as a cross-check; CI runs Rust + Go first and treats divergence
 //! as a build break.
 //!
-//! Safety posture: `#![forbid(unsafe_code)]`. No FFI, no
-//! third-party `unsafe`-using deps beyond the `toml` and `serde`
-//! crates which are widely vetted.
+//! Safety posture: this crate sets `#![forbid(unsafe_code)]` and has no
+//! FFI (enforced by `validators/check_safe_tools.sh`). Transitive parser
+//! dependencies — the widely-vetted `toml`/`toml_parser`/`winnow` and
+//! `serde` crates — may use `unsafe` internally; that is out of scope of
+//! the safe-tools policy, which governs the code WE write, not our deps.
 
 #![forbid(unsafe_code)]
 #![deny(clippy::all)]

@@ -14,8 +14,13 @@ rust-version = "1.85"
 # TOML 1.1 (`toml` 1.1.x+spec-1.1.0, mirroring tools/dagtoml-rdf). The 1.1
 # line gates the `toml::Value` / `toml::value` API behind the `serde`
 # feature (it was reachable under `parse` alone in 0.8), so we enable
-# `serde` in addition to `parse`. Both are pure-Rust; the no-`unsafe`
-# safe-tools posture is preserved.
+# `serde` in addition to `parse`. Safe-tools posture is preserved: THIS
+# crate keeps `#![forbid(unsafe_code)]` (checked by
+# validators/check_safe_tools.sh). Per that policy, transitive parser
+# crates may use `unsafe` internally and are out of scope — e.g. `winnow`
+# (bumped 0.7→1.0 by the 1.1 line) already carried internal `unsafe`
+# under the 0.8 `toml_edit` stack, so no new dependency `unsafe` surface
+# is introduced here.
 [dependencies]
 toml  = { version = "1.1", default-features = false, features = ["parse", "serde"] }
 serde = { version = "1",   default-features = false, features = ["derive", "alloc"] }
