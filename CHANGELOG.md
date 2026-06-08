@@ -46,6 +46,17 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   verdict changes vs. the 0.8 baseline (TOML 1.1 is a superset of 1.0),
   and `make dagtoml-conformance` keeps rs/go/py in agreement.
 
+- **TOML 1.1 migration U04 — Go primary validator confirmed at TOML 1.1.**
+  No code change: `tools/dagtoml-validate-go/go.mod` already requires
+  `github.com/BurntSushi/toml` v1.6.0 (the latest release, which enables
+  TOML 1.1 by default), landed via #5 before this migration. U04 records
+  and verifies that the Go runtime is already at the 1.1 target — v1.6.0
+  is pure Go with no `unsafe`/cgo (`validators/check_safe_tools.sh` passes
+  the Go side) and the validator builds and vets clean. The Go
+  *conformance evidence* (the `toml-test` decoder, still pinned v1.4.0 in
+  the `Makefile`) is flipped to 1.1 in U06; that is the harness's job, not
+  a parser bump.
+
 - **Static specification site.** Added the Cloudflare Pages static site
   under `site/`, including human-readable pages, Markdown mirrors,
   agent discovery metadata, a deploy workflow, favicon assets, and the
