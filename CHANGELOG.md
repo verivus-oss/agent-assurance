@@ -34,6 +34,9 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **`ruff` bumped to 0.15.15 (#29).** Updated the hash-pinned
+  `requirements/ruff.txt` from 0.14.5; the `--select S,F` lint over
+  `validators/` passes with no new violations.
 - **Primary validator coverage promoted to Rust + Go.** Ported the
   remaining CI-enforced semantic surfaces from Python-only reference
   checks into both primary validators: implementation-dag,
