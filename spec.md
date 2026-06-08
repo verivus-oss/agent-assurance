@@ -568,6 +568,57 @@ preserves a single source of truth. The generator does not exist
 today; see [schemas/README.md](schemas/README.md) for the rationale
 and the work plan.
 
+### 9.2 TOML language version and 1.1 feature disposition
+
+**Parser conformance version: TOML 1.1.0.** The primary normative
+implementations parse TOML **1.1.0** (Rust `toml` 1.1, Go
+`BurntSushi/toml` v1.6.0, Python `tomli` ≥ 2.4.0). This is a
+*cross-implementation parity* decision, not an authoring-surface
+expansion: pinning all three parsers to the same released TOML version is
+what lets them agree byte-for-byte on every fixture (the foundational
+invariant; see §9 and the conformance suite). It does **not** by itself
+license any TOML 1.1 syntax in conforming documents.
+
+**Conforming-document syntax surface: TOML 1.0.** A feature does **not**
+enter the conforming surface merely because the parser accepts it. Every
+syntactic feature that TOML 1.1.0 adds over 1.0.0 is enumerated below
+with an explicit disposition. All are **forbidden**: the conforming
+DAG-TOML document surface is the TOML **1.0** syntax. The rationale is the
+same one that motivates the closure-root rule (§12): a DAG-TOML document
+is a SHA-256-bound, audit-grade artifact, and a tight canonical surface —
+one obvious way to write a given value — keeps a document's bytes (and so
+its hash) meaningful and its content reviewable without decoding.
+
+| TOML 1.1.0 feature (over 1.0.0) | Disposition | Rationale |
+|---|---|---|
+| Seconds-optional times (`17:45`, also in local/offset date-times) | **Forbidden** | Drops explicit precision and admits two byte-forms of a moment; a SHA-bound artifact requires the full `HH:MM:SS` form. (Also moot: DAG-TOML carries dates/times as quoted strings, e.g. `created = "YYYY-MM-DD"`, never as native TOML date/time values.) |
+| `\xHH` hex string escapes (`"\x41"`) | **Forbidden** | A redundant second encoding of characters already writable as literals or `\uXXXX`; redundant encodings weaken canonical form and force a reviewer to decode bytes to see content. |
+| `\e` escape (ESC, U+001B) | **Forbidden** | A C0 control character has no legitimate place in a governance document and is a terminal-injection / obfuscation vector. (The existing string rules already discourage control characters; this makes the 1.1 affordance explicitly off-limits.) |
+| Newlines (multi-line layout) inside inline tables | **Forbidden** | Multiple valid layouts for the same fragment widen the canonical surface; nested structure is expressed with standard tables / arrays-of-tables, which the kind descriptors already require. |
+| Trailing commas inside inline tables | **Forbidden** | A second valid byte-representation of the same inline table; forbidden for the same canonical-form reason. |
+
+**Default-forbid catch-all.** Any TOML 1.1.0 (or later) syntactic
+addition **not** explicitly permitted by a row above is **forbidden** in
+conforming documents. No feature may enter the conforming surface by
+parser default alone; admitting one is a deliberate, reviewed change to
+this section.
+
+**Enforcement and backward compatibility.** Several of the forbidden
+forms have no place to land in a conforming document in the first place:
+no descriptor declares a field whose type is a native TOML date/time, so
+the seconds-optional-time form cannot occur (dates and times are carried
+as quoted strings, e.g. `created = "YYYY-MM-DD"`). The remaining forbids
+are on *syntactic variants* of constructs the documents do use — inline
+tables appear (in their TOML 1.0 single-line form), and §9.2 forbids only
+their 1.1 multi-line / trailing-comma spellings; basic strings appear, and
+§9.2 forbids only the new `\xHH` and `\e` escapes within them. For those,
+the forbid is a genuine normative constraint this section adds, made
+explicit rather than left to parser default (satisfying the requirement
+that dispositions be declared, not inherited). Because no existing
+conforming document uses any TOML 1.1-only feature, this disposition
+invalidates nothing: every document valid before the 1.1 parser adoption
+remains valid after it.
+
 ---
 
 ## 10. Foundation: IJB

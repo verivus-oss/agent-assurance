@@ -93,6 +93,22 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   inline tables) now pass. The cross-implementation semantic corpus stays
   in agreement (`make dagtoml-conformance` → CONFORMANCE PASSED).
 
+- **TOML 1.1 migration U07 — spec.md 1.1-feature disposition (§9.2).** Added
+  normative [`spec.md`](spec.md) §9.2 "TOML language version and 1.1 feature
+  disposition" (R4 / contract C03). It separates the *parser* conformance
+  version (TOML 1.1.0, for cross-implementation parity) from the conforming-
+  *document* syntax surface, which **remains TOML 1.0**. Every syntactic
+  feature TOML 1.1.0 adds over 1.0.0 — seconds-optional times, `\xHH` hex
+  escapes, the `\e` (ESC) escape, newlines in inline tables, and trailing
+  commas in inline tables — is **forbidden**, each with a rationale grounded
+  in the canonical-form / SHA-binding ethos (§12), plus a default-forbid
+  catch-all so no future 1.1+ addition enters the conforming surface by
+  parser default alone. No existing conforming document uses any 1.1-only
+  feature (all dates are quoted strings — no native TOML date/time values
+  appear — and the inline tables documents do use are all the TOML 1.0
+  single-line form, not the forbidden 1.1 multi-line / trailing-comma
+  variants), so the disposition invalidates nothing.
+
 - **Static specification site.** Added the Cloudflare Pages static site
   under `site/`, including human-readable pages, Markdown mirrors,
   agent discovery metadata, a deploy workflow, favicon assets, and the
