@@ -1,0 +1,50 @@
+# Valid implementation DAG — guards the per-kind placeholder marker split.
+#
+# A file claim containing the literal `YYYY-MM-DD` (a dated migration file)
+# is NOT a placeholder for implementation-dag: PLACEHOLDER_MARKERS in
+# validators/validate_implementation_dag.py is ("<", ">") only. The
+# kind-descriptor validator deliberately uses the broader ("<", ">",
+# "YYYY-MM-DD") set; implementation-dag does not. This fixture pins that
+# difference so the Go/Rust primaries cannot silently re-broaden the
+# implementation-dag predicate and diverge from the Python reference.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "implementation-dag"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+title          = "Add dated migration for tax column"
+spec           = "docs/planning/01_spec.md"
+decomposition  = "docs/planning/03_IMPLEMENTATION_PLAN.md"
+created        = "2026-05-19"
+total_units    = 1
+tier1_units    = ["U01"]
+tier2_units    = []
+tier3_units    = []
+
+[units.U01]
+name           = "add-tax-column-migration"
+summary        = "Add a dated SQL migration creating the tax column."
+layer          = 0
+tier           = 1
+status         = "pending"
+depends_on     = []
+blocks         = []
+estimated_loc  = 40
+files_create   = ["db/migrations/YYYY-MM-DD_add_tax_column.sql"]
+produces       = ["OUT:tax-column-migration"]
+consumes       = []
+
+[computed]
+entry_points      = ["U01"]
+leaf_nodes        = ["U01"]
+critical_path     = ["U01"]
+critical_path_loc = 40
+loc_totals        = { tier1 = 40 }
+
+[computed.max_parallel]
+layer0 = 1

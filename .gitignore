@@ -79,3 +79,6 @@ tools/werner-style-policy.toml
 
 # Cloudflare Wrangler local state/build artifacts — regenerated, not a deliverable.
 .wrangler/
+
+# Compiled Go validator binary built at the repo root (e.g. `go build -o go-validator`).
+/go-validator

@@ -1513,6 +1513,26 @@ mod implementation_dag {
         errors
     }
 
+    fn validate_paths(units: &UnitMap<'_>) -> Vec<String> {
+        // Mirrors the Python reference validator's default placeholder
+        // policy: unresolved markers in unit file claims are rejected.
+        let mut errors = Vec::new();
+        for (uid, unit) in units {
+            for field in ["files_create", "files_modify"] {
+                if let Some(files) = str_vec(unit.get(field)) {
+                    for file in files {
+                        if has_placeholder(&file) {
+                            errors.push(format!(
+                                "{uid}.{field}: placeholder not allowed: `{file}`"
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        errors
+    }
+
     #[allow(clippy::type_complexity)]
     pub fn validate(_path: &Path, doc: &Value) -> Vec<String> {
         let (mut errors, units) = validate_units(doc);
@@ -1526,7 +1546,7 @@ mod implementation_dag {
         errors.extend(validate_layer_ordering(&units, &deps));
         errors.extend(validate_meta(doc, &units));
         errors.extend(validate_computed(doc, &units, &deps, &blocks));
-        let _ = has_placeholder;
+        errors.extend(validate_paths(&units));
         errors
     }
 }

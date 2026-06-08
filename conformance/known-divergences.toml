@@ -7,15 +7,4 @@
 # not listed here, treat that as a regression and fix the validator
 # rather than extending this file.
 
-[[divergence]]
-case = "implementation-dag/invalid/placeholder-path.toml"
-implementations = ["rs", "go"]
-reason = """\
-The Python reference validator rejects unresolved placeholders (e.g. \
-`<files-from-triage>`) in files_create/files_modify by default. The Rust \
-implementation defines the same check but never wires it into the \
-implementation-dag path (see `let _ = has_placeholder;` in \
-tools/dagtoml-validate-rs/src/main.rs), and the Go implementation only \
-applies placeholder checks to kind-descriptor documents. Until both \
-primaries implement the check (or the spec declares placeholder policy \
-per kind), this fixture documents the gap."""
+# (no entries — all implementations currently agree on the full corpus)
