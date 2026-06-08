@@ -10,8 +10,14 @@ rust-version = "1.85"
 # Dependencies are pure-Rust, no `unsafe`-using code in our crate.
 # `toml` ships its own deny-list policy and is the de-facto TOML parser
 # for Rust. `serde` is used only for Deserialize derives.
+#
+# TOML 1.1 (`toml` 1.1.x+spec-1.1.0, mirroring tools/dagtoml-rdf). The 1.1
+# line gates the `toml::Value` / `toml::value` API behind the `serde`
+# feature (it was reachable under `parse` alone in 0.8), so we enable
+# `serde` in addition to `parse`. Both are pure-Rust; the no-`unsafe`
+# safe-tools posture is preserved.
 [dependencies]
-toml  = { version = "0.8", default-features = false, features = ["parse"] }
+toml  = { version = "1.1", default-features = false, features = ["parse", "serde"] }
 serde = { version = "1",   default-features = false, features = ["derive", "alloc"] }
 sha2  = { version = "0.11", default-features = false }
 

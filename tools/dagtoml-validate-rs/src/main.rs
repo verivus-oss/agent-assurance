@@ -143,7 +143,12 @@ mod cli {
 fn load(path: &Path) -> Result<Value, String> {
     let raw = std::fs::read_to_string(path)
         .map_err(|e| format!("{}: read failed: {}", path.display(), e))?;
-    raw.parse::<Value>()
+    // toml 1.1: `str::parse::<Value>()` parses a single *value* expression,
+    // not a whole document (it routes through `ValueDeserializer`). Document
+    // parsing is `toml::from_str`, which deserializes the full table. (In
+    // toml 0.8 `FromStr for Value` parsed a document; the 1.1 line split the
+    // two, so this call site shifts.)
+    toml::from_str::<Value>(&raw)
         .map_err(|e| format!("{}: TOML parse failed: {}", path.display(), e))
 }
 
@@ -814,7 +819,7 @@ mod ijb {
         let core_path = repo_root.join("core/ontology.toml");
         match std::fs::read_to_string(&core_path)
             .ok()
-            .and_then(|raw| raw.parse::<Value>().ok())
+            .and_then(|raw| toml::from_str::<Value>(&raw).ok())
         {
             Some(core) => {
                 errors.extend(validate_ontology(&core_path, &core));
@@ -836,7 +841,7 @@ mod ijb {
                 .join("ontology.toml");
             match std::fs::read_to_string(&profile_path)
                 .ok()
-                .and_then(|raw| raw.parse::<Value>().ok())
+                .and_then(|raw| toml::from_str::<Value>(&raw).ok())
             {
                 Some(profile_doc) => {
                     errors.extend(validate_ontology(&profile_path, &profile_doc));
