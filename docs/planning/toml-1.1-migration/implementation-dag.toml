@@ -138,10 +138,10 @@ consumes       = ["ART:rust-primary-1.1", "ART:go-primary-1.1", "ART:python-refe
 
 [units.U07]
 name           = "spec-document-1.1-audit"
-summary        = "Audit spec.md and every canonical example/kind/profile document for TOML 1.1 features that newly become valid (hex `\\x` escapes, seconds-less local times, etc.), and decide per feature whether the spec permits or forbids it. Update spec.md normatively."
+summary        = "Audit spec.md and every canonical example/kind/profile document for TOML 1.1 features that newly become valid (hex `\\x` escapes, seconds-less local times, etc.), and decide per feature whether the spec permits or forbids it. Update spec.md normatively. DONE: enumerated the complete set of TOML 1.1.0 syntactic additions from the toml-test version.go delta (FIVE: seconds-optional times; `\\xHH` hex escapes; `\\e` ESC escape; newlines in inline tables; trailing commas in inline tables) and added normative spec.md §9.2: parsers conform to TOML 1.1.0 (for cross-impl parity) but the conforming-DOCUMENT surface stays TOML 1.0 syntax — all five features FORBIDDEN, with per-feature rationale grounded in the canonical-form/SHA-binding ethos (§12), plus a default-forbid catch-all so no future feature enters by parser default alone (R4/C03). Verified no existing repo document uses any 1.1-only feature (all dates are quoted strings — no native TOML date/time values — and inline tables appear only in the TOML 1.0 single-line form, not the forbidden 1.1 multi-line/trailing-comma variants), so the disposition invalidates nothing (R3/C02)."
 layer          = 4
 tier           = 3
-status         = "pending"
+status         = "done"
 depends_on     = ["U06"]
 blocks         = ["U08"]
 estimated_loc  = 110
