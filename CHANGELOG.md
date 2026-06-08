@@ -29,6 +29,23 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   this migration resolves deliberately. No parser has been bumped in this
   change; it lands the pack and the recorded decision only.
 
+- **TOML 1.1 migration U03 — Rust primary validator → `toml` 1.1.** Bumped
+  `tools/dagtoml-validate-rs` from `toml` 0.8 to `1.1.2+spec-1.1.0` (the
+  line already used by `tools/dagtoml-rdf`). The 1.1 crate gates the
+  `toml::Value` API behind its `serde` feature and narrows
+  `str::parse::<Value>()` to single-value parsing, so the dependency now
+  enables `["parse", "serde"]` and document parsing uses
+  `toml::from_str::<Value>()`. The safe-tools policy (R5) is preserved:
+  `dagtoml-validate-rs` keeps `#![forbid(unsafe_code)]` and
+  `validators/check_safe_tools.sh` passes; per that policy transitive
+  parser crates may use `unsafe` internally and are out of scope (e.g.
+  `winnow`, which the 1.1 stack bumps 0.7→1.0, already carried internal
+  `unsafe` under the 0.8 `toml_edit` stack — no new dependency-level
+  `unsafe` surface is introduced by this bump). A differential check over
+  all repo `*.toml` files (239 at this commit) shows zero accept/reject
+  verdict changes vs. the 0.8 baseline (TOML 1.1 is a superset of 1.0),
+  and `make dagtoml-conformance` keeps rs/go/py in agreement.
+
 - **Static specification site.** Added the Cloudflare Pages static site
   under `site/`, including human-readable pages, Markdown mirrors,
   agent discovery metadata, a deploy workflow, favicon assets, and the

@@ -63,15 +63,15 @@ consumes       = ["ART:parser-availability-survey"]
 
 [units.U03]
 name           = "rust-primary-toml-1.1"
-summary        = "Bump the Rust primary validator to the TOML 1.1 `toml` line (1.1.x+spec-1.1.0), mirroring the parser already used by tools/dagtoml-rdf, and adjust the parse-only call sites."
+summary        = "Bump the Rust primary validator to the TOML 1.1 `toml` line (1.1.x+spec-1.1.0), mirroring the parser already used by tools/dagtoml-rdf, and adjust the parse-only call sites. DONE: resolved toml 1.1.2+spec-1.1.0; enabled the `serde` feature (the 1.1 line gates `toml::Value` behind it) and moved document parsing from `str::parse::<Value>` (now a single-value parser) to `toml::from_str::<Value>` at all three load sites; differential vs the 0.8 baseline over all repo TOMLs (239 at this commit) = 0 verdict changes; safe-tools preserved (crate keeps forbid(unsafe_code), check_safe_tools.sh passes; transitive `unsafe` in `winnow` predates this bump and is out of scope); cargo-deny bans+licenses ok."
 layer          = 2
 tier           = 2
-status         = "pending"
+status         = "done"
 depends_on     = ["U02"]
 blocks         = ["U06"]
 estimated_loc  = 120
 files_create   = []
-files_modify   = ["tools/dagtoml-validate-rs/Cargo.toml", "tools/dagtoml-validate-rs/Cargo.lock"]
+files_modify   = ["tools/dagtoml-validate-rs/Cargo.toml", "tools/dagtoml-validate-rs/Cargo.lock", "tools/dagtoml-validate-rs/src/main.rs"]
 produces       = ["ART:rust-primary-1.1"]
 consumes       = ["ART:parity-decision"]
 
