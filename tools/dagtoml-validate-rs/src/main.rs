@@ -998,7 +998,7 @@ fn validate_provenance_binding(path: &Path, doc: &Value, repo_root: &Path) -> Ve
             data.len()
         ));
     }
-    let actual = format!("sha256:{:x}", Sha256::digest(&data));
+    let actual = format!("sha256:{}", digest_hex("sha256", &data));
     if actual != source_sha {
         errors.push(format!(
             "{}: [provenance].source_sha256 = {source_sha} but actual digest is {actual}",
@@ -3994,12 +3994,16 @@ fn source_hash_records(path: &Path, doc: &Value) -> Result<Vec<String>, Vec<Stri
 }
 
 fn digest_hex(algo: &str, bytes: &[u8]) -> String {
-    match algo {
-        "sha256" => format!("{:x}", Sha256::digest(bytes)),
-        "sha384" => format!("{:x}", Sha384::digest(bytes)),
-        "sha512" => format!("{:x}", Sha512::digest(bytes)),
+    // sha2 0.11 returns a `hybrid_array::Array` that no longer implements
+    // `LowerHex`, so `format!("{:x}", ...)` no longer compiles. Hex-encode
+    // the digest bytes directly (the output derefs to `[u8]`).
+    let digest: Vec<u8> = match algo {
+        "sha256" => Sha256::digest(bytes).to_vec(),
+        "sha384" => Sha384::digest(bytes).to_vec(),
+        "sha512" => Sha512::digest(bytes).to_vec(),
         _ => unreachable!("algorithm checked before digest"),
-    }
+    };
+    digest.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 fn expected_closure_root(algo: &str, records: &[String]) -> String {
