@@ -53,7 +53,9 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   pins the split. Conformance 21/21 across rs/go/py.
 - **Dependency bumps.** `toml` 0.9→1.1.2+spec-1.1.0 in `tools/dagtoml-rdf`
   (#1); `github.com/BurntSushi/toml` 1.4→1.6 in `tools/dagtoml-validate-go`
-  (#5); the GitHub Actions workflow dependency group (4 updates, #20).
+  (#5); the GitHub Actions workflow dependency group (4 updates, #20);
+  `ruff` 0.14.5→0.15.15 in `requirements/ruff.txt` (#29, hash-pinned; the
+  `--select S,F` lint over `validators/` passes with no new violations).
 - **Primary validator coverage promoted to Rust + Go.** Ported the
   remaining CI-enforced semantic surfaces from Python-only reference
   checks into both primary validators: implementation-dag,
