@@ -57,6 +57,25 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   the `Makefile`) is flipped to 1.1 in U06; that is the harness's job, not
   a parser bump.
 
+- **TOML 1.1 migration U05 — Python reference validators → `tomli` 1.1.**
+  Replaced stdlib `tomllib` (TOML 1.0 only) with hash-pinned `tomli`==2.4.1
+  (the PEP 680 upstream of `tomllib`, 1.1-capable) so the Python reference
+  parses TOML 1.1 in lockstep with the Rust/Go primaries (parity invariant
+  C01). Added `requirements/toml.txt` (installed pure-Python via
+  `--no-binary tomli` so the auditable `py3-none-any` build is used, not
+  the optional mypyc wheels) and `validators/_toml11.py`, a shim that
+  re-exports the `tomllib`-compatible surface and **fails loud** if `tomli`
+  is absent or `< 2.4.0` — no silent fall back to TOML 1.0, which would
+  reintroduce the cross-implementation divergence this migration removes.
+  Swapped `import tomllib` → `import _toml11 as tomllib` across all 15
+  validators, `conformance/runner.py`, the three inline TOML-parsing
+  scripts in `.github/workflows/validate.yml`, and the `AGENTS.md`
+  parse-the-repo command, so no stdlib TOML-1.0 parser remains in any
+  operative surface, and wired the CI install. The
+  reference stays authoritative: `make dagtoml-conformance` keeps rs/go/py
+  agreeing on the corpus (21 cases), and the swap is verdict-preserving on
+  existing documents (TOML 1.1 ⊇ 1.0). ruff (S,F) + bandit clean.
+
 - **Static specification site.** Added the Cloudflare Pages static site
   under `site/`, including human-readable pages, Markdown mirrors,
   agent discovery metadata, a deploy workflow, favicon assets, and the

@@ -46,7 +46,16 @@ jobs:
         # compliance). The ubuntu-24.04 runner ships pip 24.x which is
         # new enough; we deliberately do NOT --upgrade pip here because
         # `pip install --upgrade pip` is itself an unpinned install.
-        run: python3 -m pip install --require-hashes -r requirements.txt
+        #
+        # requirements/toml.txt pins `tomli` >= 2.4.0 — the TOML 1.1 parser
+        # the Python reference validators use (stdlib tomllib is 1.0-only);
+        # see validators/_toml11.py. `--no-binary tomli` forces the pure-Python
+        # build (not the optional mypyc wheels) so the reference stays
+        # auditable; the flag is scoped to tomli, so networkx still uses its
+        # wheel.
+        run: >-
+          python3 -m pip install --require-hashes --no-binary tomli
+          -r requirements.txt -r requirements/toml.txt
 
       - name: Set up Go (primary validator toolchain)
         # Track the current patched Go release. Per repo policy
@@ -165,7 +174,12 @@ jobs:
       - name: Parse all TOML
         run: |
           python3 - <<'PY'
-          import sys, pathlib, tomllib
+          import sys, pathlib
+          # Parse with the TOML 1.1 reference shim (validators/_toml11.py wraps
+          # tomli >= 2.4.0) — stdlib tomllib is 1.0-only and would reject valid
+          # 1.1 content, reintroducing a cross-implementation split (C01).
+          sys.path.insert(0, "validators")
+          import _toml11 as tomllib
           fails = []
           for p in sorted(pathlib.Path(".").rglob("*.toml")):
               if any(part.startswith(".") for part in p.parts):
@@ -293,7 +307,10 @@ jobs:
         run: |
           set -e
           python3 - <<'PY' > "${RUNNER_TEMP}/conforming-dagtoml-files.txt"
-          import pathlib, tomllib
+          import sys, pathlib
+          # TOML 1.1 reference shim (tomli >= 2.4.0); stdlib tomllib is 1.0-only.
+          sys.path.insert(0, "validators")
+          import _toml11 as tomllib
 
           root = pathlib.Path(".")
           spec_reserved = {"kind-descriptor", "ontology"}
@@ -420,7 +437,9 @@ jobs:
           done
           # Profile examples have no dedicated validator yet; just parse.
           python3 -c '
-          import tomllib, pathlib
+          import sys, pathlib
+          sys.path.insert(0, "validators")  # TOML 1.1 reference shim
+          import _toml11 as tomllib
           for name in [
               "minimal-spec-contract.toml",
               "minimal-threat-model.toml",
