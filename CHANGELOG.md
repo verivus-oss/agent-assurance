@@ -109,6 +109,28 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   single-line form, not the forbidden 1.1 multi-line / trailing-comma
   variants), so the disposition invalidates nothing.
 
+- **TOML 1.1 migration U08 — cross-implementation verification (complete).**
+  Ran the full cross-implementation verification at TOML 1.1 and recorded the
+  result in [`conformance/known-divergences-toml-1.1.toml`](conformance/known-divergences-toml-1.1.toml)
+  (additive to the operative `conformance/known-divergences.toml`). Verified
+  state: the dagtoml semantic corpus — the operative parity surface — has
+  rs/go/py in full agreement (21 cases, CONFORMANCE PASSED, empty baseline),
+  as does the toml-test 1.1 *valid* corpus (all three accept all 189). On
+  the toml-test 1.1 *invalid* corpus the Rust decoder rejects all 362 (zero
+  skips), but the Go `BurntSushi/toml` v1.6.0 decoder accepts **13** that
+  Rust and Python reject — a genuine, but **pre-existing**, cross-impl
+  divergence from BurntSushi's permissiveness on dotted-key / inline-table
+  redefinition (identical 13 under TOML 1.0; *not* introduced by this
+  migration). Those 13 are recorded — named, not silently skipped — in the
+  baseline file; bringing the Go primary to the same strictness as Rust and
+  Python (contract C01's `block, not skip` aim) needs a stricter Go parser
+  and is out of scope for the version migration. Parsers are uniformly TOML
+  1.1 (Rust `toml` 1.1.2+spec-1.1.0, Go `BurntSushi/toml` v1.6.0, Python
+  `tomli` 2.4.1); closure-root validates 97 files. **This completes the TOML
+  1.0 → 1.1 version migration**: all three primaries are at 1.1 in lockstep,
+  the operative dagtoml parity baseline is empty, and full toml-test parity
+  remains bounded by the documented pre-existing BurntSushi gap.
+
 - **Static specification site.** Added the Cloudflare Pages static site
   under `site/`, including human-readable pages, Markdown mirrors,
   agent discovery metadata, a deploy workflow, favicon assets, and the

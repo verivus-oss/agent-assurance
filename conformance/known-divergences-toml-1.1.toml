@@ -1,0 +1,85 @@
+# TOML 1.1 cross-implementation verification record (migration unit U08).
+#
+# This file records the OUTCOME of the TOML 1.0 -> 1.1 migration: the
+# cross-implementation verdict of the three primary parsers at TOML 1.1,
+# across both corpora the parity contract (C01) names — the dagtoml
+# semantic corpus and the toml-test spec corpus. It is additive to
+# conformance/known-divergences.toml (the operative baseline the dagtoml
+# conformance runner reads). The rollback plan deletes THIS file and
+# restores that one on a revert.
+#
+# Same contract as conformance/known-divergences.toml and the Makefile
+# TOML_CONFORMANCE_SKIPS: a baseline of currently-known drift, NOT a green
+# light. If a future run newly disagrees on something not listed here,
+# treat it as a regression and fix the validator rather than extend it.
+#
+# --- Verified state (U08, 2026-06-08) -------------------------------------
+# Parsers, all TOML 1.1.0:
+#   rs validator + rs decoder shim : `toml` 1.1.2+spec-1.1.0
+#   go validator + go decoder      : BurntSushi/toml v1.6.0 (1.1 by default)
+#   py reference validators        : tomli 2.4.1 (PEP 680 upstream of tomllib)
+#
+# WHERE rs/go/py AGREE (clean):
+#   * dagtoml semantic corpus (conformance/cases/, rs vs go vs py via
+#     conformance/runner.py): 21 cases, ALL AGREE, CONFORMANCE PASSED,
+#     with conformance/known-divergences.toml empty. This is the operative
+#     parity surface — every document the repo actually validates gets an
+#     identical rs/go/py verdict. EMPTY divergence baseline here.
+#   * toml-test 1.1 VALID corpus (`-toml 1.1.0`): all three accept the full
+#     189-case valid set, including the 1.1 additions (seconds-less times,
+#     \xHH, \e, multi-line / trailing-comma inline tables).
+#   * toml-test 1.1 INVALID corpus: rs and py reject all 362 invalid cases.
+#
+# WHERE THEY DIVERGE (the honest baseline — NOT empty):
+#   On 13 fixtures in the toml-test 1.1 INVALID corpus, the Go parser
+#   (BurntSushi/toml v1.6.0) ACCEPTS inputs that the Rust (`toml` 1.1) and
+#   Python (tomli) parsers correctly REJECT. These are a genuine
+#   cross-implementation divergence (go=accept, rs=reject, py=reject), so the
+#   harness's `make toml-conformance` tolerates exactly these 13 via the
+#   Makefile TOML_CONFORMANCE_SKIPS list (the Go side runs 349/362 invalid +
+#   13 skipped; the Rust side runs 362/362 invalid with ZERO skips).
+#
+#   IMPORTANT: this divergence is PRE-EXISTING and ORTHOGONAL to the version
+#   migration. BurntSushi/toml is permissive on these dotted-key /
+#   inline-table redefinition cases independent of TOML version: the same 13
+#   failed under the old v1.4.0 decoder on the TOML 1.0 corpus. The 1.0 -> 1.1
+#   migration neither introduced nor resolved them; it left the divergence
+#   profile unchanged while moving all three parsers to 1.1 in lockstep.
+#   Eliminating them (so the Go primary is as strict as Rust/Python, which
+#   contract C01's "block, not skip" stance ultimately wants) requires a
+#   stricter Go parser or a custom post-parse strictness check on the Go
+#   side, and is out of scope for this version migration. It is recorded
+#   here so the gap is visible, not silently skipped.
+
+# The 13 toml-test 1.1 invalid fixtures where go=accept while rs=reject and
+# py=reject (BurntSushi/toml v1.6.0 permissiveness; also TOML_CONFORMANCE_SKIPS
+# in the Makefile). go is the lone divergent implementation on each.
+[[toml_test_go_permissiveness]]
+fixture = "invalid/array/extend-defined-aot"
+[[toml_test_go_permissiveness]]
+fixture = "invalid/inline-table/duplicate-key-3"
+[[toml_test_go_permissiveness]]
+fixture = "invalid/inline-table/overwrite-02"
+[[toml_test_go_permissiveness]]
+fixture = "invalid/inline-table/overwrite-08"
+[[toml_test_go_permissiveness]]
+fixture = "invalid/spec/inline-table-2-0"
+[[toml_test_go_permissiveness]]
+fixture = "invalid/spec/table-9-1"
+[[toml_test_go_permissiveness]]
+fixture = "invalid/table/append-to-array-with-dotted-keys"
+[[toml_test_go_permissiveness]]
+fixture = "invalid/table/append-with-dotted-keys-1"
+[[toml_test_go_permissiveness]]
+fixture = "invalid/table/append-with-dotted-keys-2"
+[[toml_test_go_permissiveness]]
+fixture = "invalid/table/duplicate-key-dotted-table"
+[[toml_test_go_permissiveness]]
+fixture = "invalid/table/duplicate-key-dotted-table2"
+[[toml_test_go_permissiveness]]
+fixture = "invalid/table/redefine-2"
+[[toml_test_go_permissiveness]]
+fixture = "invalid/table/redefine-3"
+
+# dagtoml semantic corpus (the operative parity surface): no divergences.
+# dagtoml_divergences = []   # (rs/go/py agree on every conformance/cases fixture)

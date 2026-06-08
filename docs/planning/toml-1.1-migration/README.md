@@ -4,16 +4,22 @@ A complete, self-validating DAG-TOML governance pack scoping the
 deliberate migration of the validator/conformance stack from TOML 1.0 to
 TOML 1.1.
 
-**Status: GO confirmed — cleared for U03+.** The pack is authored and
-validates. The parity spike (U01) and go/no-go decision (U02) are
-complete: the decision records **GO** — a released, default-1.1,
-no-`unsafe` parser exists for all three primaries (Rust `toml`
-`1.1.2+spec-1.1.0`, Go `BurntSushi/toml` v1.6.0 already in `go.mod`,
-Python `tomli` 2.4.0+). The operator STOP/GO sign-off was **confirmed
-2026-06-08**. See [`research/02-parity-decision.md`](research/02-parity-decision.md).
-The parser-bump units (U03–U08) are now cleared to proceed, subject to the
-decision's guardrails (lockstep cutover, safe-tools, explicit per-feature
-spec disposition, empty divergence baseline).
+**Status: migration complete — verified, with one documented divergence.**
+All eight units (U01–U08) are done. The parity spike (U01) and go/no-go
+decision (U02) recorded **GO** (operator sign-off confirmed 2026-06-08),
+and the migration was executed and verified end-to-end: the Rust (`toml`
+1.1.2+spec-1.1.0), Go (`BurntSushi/toml` v1.6.0), and Python (`tomli`
+2.4.1) primaries are uniformly TOML 1.1 in lockstep; the conformance
+harness runs the 1.1 corpus (`-toml 1.1.0`); and `spec.md` §9.2 carries the
+per-feature 1.1 dispositions. U08 recorded the verified state in
+[`conformance/known-divergences-toml-1.1.toml`](../../../conformance/known-divergences-toml-1.1.toml):
+rs/go/py **agree** on the operative dagtoml semantic corpus (empty
+baseline) and the toml-test *valid* corpus, with one **pre-existing,
+documented** exception — on 13 toml-test *invalid* fixtures the Go
+(BurntSushi v1.6.0) parser is more permissive than Rust/Python (a
+BurntSushi limitation, identical at TOML 1.0, *not* introduced by this
+migration; named rather than silently skipped). The migration landed as
+stacked per-unit PRs in dependency order.
 
 ## Why this pack exists
 
@@ -37,7 +43,7 @@ that parity across all three is proven *before* the harness flips and
 | [`03_implementation_plan.md`](03_implementation_plan.md) | plan (markdown) | Decomposition rationale; risks |
 | [`implementation-dag.toml`](implementation-dag.toml) | `implementation-dag` | 8-unit work DAG; parity gate (U02) upstream of every parser bump |
 | [`contract-declaration.toml`](contract-declaration.toml) | `contract-declaration` | Contracts C01–C04; C01 = cross-implementation parity |
-| [`readiness-gate.toml`](readiness-gate.toml) | `readiness-gate` | Gates G01 (planning pack) + G02 (parity go/no-go); status `go-confirmed-cleared-for-parser-bumps` |
+| [`readiness-gate.toml`](readiness-gate.toml) | `readiness-gate` | Gates G01 (planning pack) + G02 (parity go/no-go); status `migration-complete-go-toml-test-divergences-documented` |
 | [`evidence-matrix.toml`](evidence-matrix.toml) | `evidence-matrix` | Claims ↔ pack documents; prospective claims marked |
 | [`rollback-plan.toml`](rollback-plan.toml) | `rollback-plan` | Revert procedure + tooling-outcome triggers |
 | [`research/01-parser-availability-survey.md`](research/01-parser-availability-survey.md) | — | U01 deliverable — parser survey (complete) |
@@ -76,7 +82,14 @@ confirm a 1.1-capable parser exists for **all three** primaries. If any
 does not, the migration halts with the blocker recorded and the repo
 stays uniformly TOML 1.0.
 
-**Outcome:** G02 passed. U01/U02 are complete, the decision records
-**GO** (a released, default-1.1, no-`unsafe` parser for all three
-primaries), and the operator sign-off was confirmed 2026-06-08 — so the
-gate is cleared and U03+ may proceed. The NO-GO branch above did not fire.
+**Outcome:** G02 passed and the migration is now **complete**. U01/U02
+recorded **GO** (a released, default-1.1, no-`unsafe` parser for all three
+primaries), the operator sign-off was confirmed 2026-06-08, and U03–U08
+then executed: all three primaries are uniformly TOML 1.1 in lockstep, the
+harness runs the 1.1 corpus, `spec.md` §9.2 holds the feature dispositions,
+and U08 recorded the verified state — rs/go/py agree on the operative
+dagtoml corpus (empty baseline) and the toml-test valid corpus, with 13
+pre-existing, documented Go (BurntSushi) permissiveness divergences on the
+toml-test invalid corpus (see
+[`conformance/known-divergences-toml-1.1.toml`](../../../conformance/known-divergences-toml-1.1.toml)).
+The NO-GO branch above did not fire.
