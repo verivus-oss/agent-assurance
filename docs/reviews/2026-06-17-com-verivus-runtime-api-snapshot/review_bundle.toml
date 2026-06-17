@@ -1,0 +1,43 @@
+schema_version = "1.0"
+review_id = "2026-06-17-com-verivus-runtime-api-snapshot"
+base_commit = "4f2861f6a6331c23d1ef00fb631121947f4a4c8d"
+reviewed_files = [
+  "profiles/com.verivus.runtime/PROFILE.toml",
+  "profiles/com.verivus.runtime/ontology.toml",
+  "profiles/com.verivus.runtime/api-snapshot-kind.toml",
+  "examples/minimal-api-snapshot.toml",
+  "examples/captures/2026-06-17T091402Z-usd-aud.capture",
+  "examples/captures/2026-06-17T091402Z-usd-aud.attestation",
+  "examples/negative/api-snapshot-bad-closure.toml",
+  "examples/negative/com.verivus.runtime-ontology-bad-ijb.toml",
+  "examples/negative/api-snapshot-inlined-secret.toml",
+  "examples/negative/api-snapshot-witness-incomplete.toml",
+  "validators/validate_api_snapshot.py",
+  "docs/profiles/com.verivus.runtime/request-descriptor-canonicalization.md",
+  "docs/reviews/2026-06-17-com-verivus-runtime-api-snapshot/design-record.md",
+  ".github/workflows/validate.yml",
+]
+
+[diff]
+command = "git status --porcelain -- profiles/com.verivus.runtime examples/minimal-api-snapshot.toml examples/captures examples/negative/api-snapshot-bad-closure.toml examples/negative/com.verivus.runtime-ontology-bad-ijb.toml examples/negative/api-snapshot-inlined-secret.toml examples/negative/api-snapshot-witness-incomplete.toml validators/validate_api_snapshot.py docs .github/workflows/validate.yml"
+primary_normative_files = [
+  "profiles/com.verivus.runtime/api-snapshot-kind.toml",
+  "validators/validate_api_snapshot.py",
+  ".github/workflows/validate.yml",
+]
+
+[evidence]
+design_record = "docs/reviews/2026-06-17-com-verivus-runtime-api-snapshot/design-record.md"
+local_validation = "docs/reviews/2026-06-17-com-verivus-runtime-api-snapshot/local_validation.md"
+digest_builder = "docs/reviews/2026-06-17-com-verivus-runtime-api-snapshot/build_api_snapshot_digests.py"
+terminal_decision = "docs/reviews/2026-06-17-com-verivus-runtime-api-snapshot/terminal_decision.toml"
+validation_commands = [
+  "taplo lint profiles/com.verivus.runtime/*.toml examples/minimal-api-snapshot.toml",
+  "python3 validators/validate_kind_descriptor.py profiles/com.verivus.runtime/api-snapshot-kind.toml --repo-root . --check-references-exist",
+  "python3 validators/validate_ijb_conformance.py profiles/com.verivus.runtime/ontology.toml",
+  "python3 validators/validate_abstraction_class.py profiles/com.verivus.runtime/api-snapshot-kind.toml --repo-root .",
+  "python3 validators/validate_profile_descriptor.py --repo-root . profiles/com.verivus.runtime/PROFILE.toml",
+  "python3 validators/validate_provenance.py examples/minimal-api-snapshot.toml --repo-root .",
+  "python3 validators/validate_api_snapshot.py examples/minimal-api-snapshot.toml",
+  "python3 validators/validate_closure_root.py --discover .  # (with examples/negative excluded)",
+]

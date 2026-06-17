@@ -1,0 +1,42 @@
+# NEGATIVE (defect: IJB). The witness_scheme vocabulary block illegally declares
+# `ijb_class` — constraints carry no class field per SPEC §10.2, so
+# validate_ijb_conformance.py MUST reject this file. Its closure_root is the
+# correct empty sentinel (a self-contained ontology), so the defect is isolated
+# to IJB.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "ontology"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+ontology_version = 1
+framework_profile = "com.verivus.runtime"
+title = "Bad ontology"
+extends = "../agent-assurance/ontology.toml"
+authoritative_in = "./PROFILE.toml"
+confidentiality = "public"
+license = "Apache-2.0"
+
+[meta.ijb_field_primitives]
+framework_profile = { ijb_primitive = "scope", ijb_class = "structural" }
+template_kind = { ijb_primitive = "scope", ijb_class = "structural" }
+schema_version = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+ontology_version = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+confidentiality = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+license = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+
+[[attribute_vocabularies]]
+attribute = "witness_scheme"
+applies_to = "api-snapshot"
+values = ["tls-notary", "provider-signature", "tee-quote"]
+extensible = false
+ijb_primitive = "constraint"
+ijb_class = "structural"
+ijb_constraint_type = "structural"
+
+[extension_rules]
+entity_kinds = "closed_within_profile"
+relation_predicates = "must_be_namespaced_as_com.verivus.runtime:"
+version_bump_rule = "x"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
