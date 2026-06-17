@@ -1,0 +1,28 @@
+# NEGATIVE (defect: RKV02). A raw significant-header value (`accept`) is inlined
+# under [snapshot.request] instead of being pinned via descriptor_sha256. The
+# value is non-secret, but RKV02 forbids ANY raw header value — the document
+# carries only digests — so validate_api_snapshot.py MUST reject it. No
+# [provenance] table, so the closure_root is the empty sentinel and the
+# provenance sweep skips this file.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "api-snapshot"
+framework_profile = "com.verivus.runtime"
+confidentiality = "restricted"
+
+[snapshot]
+captured_at = "2026-06-17T09:14:02.481Z"
+source_id = "https://api.exchange.example/v1/quotes/USD-AUD"
+
+[snapshot.request]
+method = "GET"
+url = "https://api.exchange.example/v1/quotes/USD-AUD?asof=2026-06-17T09:14:00Z&pair=USD-AUD"
+significant_headers = ["accept"]
+descriptor_sha256 = "sha256:1e84dff27040181e39a0eedd71497241ae153efb65ec93e4b97303a8cb041869"
+accept = "application/json"
+
+[snapshot.response]
+status = 200
+body_sha256 = "sha256:569cc4222c936a5c39184bc0e17048c3f80bed44d457f0327db1bd58faecfebd"

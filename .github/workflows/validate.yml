@@ -213,14 +213,17 @@ jobs:
             profiles/agent-assurance/PROFILE.toml
             profiles/disclosure/PROFILE.toml
             profiles/cost/PROFILE.toml
+            profiles/com.verivus.runtime/PROFILE.toml
             core/ontology.toml
             profiles/agent-assurance/ontology.toml
             profiles/disclosure/ontology.toml
             profiles/cost/ontology.toml
+            profiles/com.verivus.runtime/ontology.toml
             core/*-kind.toml
             profiles/agent-assurance/*-kind.toml
             profiles/disclosure/*-kind.toml
             profiles/cost/*-kind.toml
+            profiles/com.verivus.runtime/*-kind.toml
             examples/minimal-disclosure-attestation.toml
             examples/minimal-redaction-manifest.toml
             examples/minimal-selective-disclosure-proof.toml
@@ -236,6 +239,7 @@ jobs:
             examples/minimal-assertion-bundle.toml
             examples/minimal-assertion-log-record.toml
             examples/minimal-gate-decision.toml
+            examples/minimal-api-snapshot.toml
             examples/minimal-review-readiness/review_readiness.toml
             examples/minimal-review-readiness/contract_declaration.toml
             examples/minimal-review-readiness/evidence_matrix.toml
@@ -257,7 +261,10 @@ jobs:
             --repo-root . \
             profiles/agent-assurance/PROFILE.toml \
             profiles/disclosure/PROFILE.toml \
-            profiles/cost/PROFILE.toml
+            profiles/cost/PROFILE.toml \
+            profiles/com.verivus.runtime/PROFILE.toml
+          python3 validators/validate_api_snapshot.py \
+            --repo-root . examples/minimal-api-snapshot.toml
           python3 validators/validate_disclosure.py \
             --repo-root . \
             examples/minimal-disclosure-attestation.toml \
@@ -283,7 +290,8 @@ jobs:
             core/*-kind.toml \
             profiles/agent-assurance/*-kind.toml \
             profiles/disclosure/*-kind.toml \
-            profiles/cost/*-kind.toml
+            profiles/cost/*-kind.toml \
+            profiles/com.verivus.runtime/*-kind.toml
 
       - name: Validate closure_root (SPEC §12) on every conforming DAG-TOML document
         # Every conforming DAG-TOML document MUST carry a root-level
@@ -360,7 +368,7 @@ jobs:
       - name: Validate kind descriptors
         run: |
           set -e
-          for f in core/*-kind.toml profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml profiles/cost/*-kind.toml; do
+          for f in core/*-kind.toml profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml profiles/cost/*-kind.toml profiles/com.verivus.runtime/*-kind.toml; do
             [ -e "$f" ] || continue
             echo "--- $f ---"
             python3 validators/validate_kind_descriptor.py "$f" \
@@ -408,11 +416,13 @@ jobs:
             profiles/disclosure/ontology.toml
           python3 validators/validate_ijb_conformance.py \
             profiles/cost/ontology.toml
-          for f in core/*-kind.toml profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml profiles/cost/*-kind.toml; do
+          python3 validators/validate_ijb_conformance.py \
+            profiles/com.verivus.runtime/ontology.toml
+          for f in core/*-kind.toml profiles/agent-assurance/*-kind.toml profiles/disclosure/*-kind.toml profiles/cost/*-kind.toml profiles/com.verivus.runtime/*-kind.toml; do
             [ -e "$f" ] || continue
             python3 validators/validate_ijb_conformance.py "$f"
           done
-          for f in profiles/agent-assurance/PROFILE.toml profiles/disclosure/PROFILE.toml profiles/cost/PROFILE.toml; do
+          for f in profiles/agent-assurance/PROFILE.toml profiles/disclosure/PROFILE.toml profiles/cost/PROFILE.toml profiles/com.verivus.runtime/PROFILE.toml; do
             python3 validators/validate_ijb_conformance.py "$f"
           done
           for f in examples/minimal-implementation-dag.toml \
@@ -426,6 +436,7 @@ jobs:
                    examples/minimal-assertion-bundle.toml \
                    examples/minimal-assertion-log-record.toml \
                    examples/minimal-gate-decision.toml \
+                   examples/minimal-api-snapshot.toml \
                    examples/minimal-review-readiness/review_readiness.toml \
                    examples/minimal-review-readiness/contract_declaration.toml \
                    examples/minimal-review-readiness/evidence_matrix.toml \
@@ -738,6 +749,46 @@ jobs:
             python3 validators/validate_gate_decision.py \
             examples/negative/gate-decision-pass-with-string-refs.toml \
             --repo-root .
+
+          # com.verivus.runtime api-snapshot negatives.
+          # bad-closure: carries the profile-proposed four-input closure value;
+          # the shipped source-only SPEC §12.8 fold rejects it in all three.
+          check_rejects "rust api-snapshot bad-closure" \
+            "$rs" --repo-root . --mode provenance \
+            examples/negative/api-snapshot-bad-closure.toml
+          check_rejects "go api-snapshot bad-closure" \
+            "$go_bin" --repo-root . --mode provenance \
+            examples/negative/api-snapshot-bad-closure.toml
+          check_rejects "python api-snapshot bad-closure" \
+            python3 validators/validate_closure_root.py \
+            examples/negative/api-snapshot-bad-closure.toml
+
+          # bad-ijb: an ontology vocab block illegally declares ijb_class.
+          check_rejects "rust api-snapshot bad-ijb" \
+            "$rs" --repo-root . --mode ijb \
+            examples/negative/com.verivus.runtime-ontology-bad-ijb.toml
+          check_rejects "go api-snapshot bad-ijb" \
+            "$go_bin" --repo-root . --mode ijb \
+            examples/negative/com.verivus.runtime-ontology-bad-ijb.toml
+          check_rejects "python api-snapshot bad-ijb" \
+            python3 validators/validate_ijb_conformance.py \
+            examples/negative/com.verivus.runtime-ontology-bad-ijb.toml
+
+          # RKV02 / RKV03 are com.verivus.runtime profile producer obligations,
+          # enforced by the Python validate_api_snapshot.py (the threat-model
+          # precedent for a profile-layer validator without a primary).
+          check_rejects "python api-snapshot inlined-secret (RKV02)" \
+            python3 validators/validate_api_snapshot.py --repo-root . \
+            examples/negative/api-snapshot-inlined-secret.toml
+          check_rejects "python api-snapshot raw-header (RKV02)" \
+            python3 validators/validate_api_snapshot.py --repo-root . \
+            examples/negative/api-snapshot-raw-header.toml
+          check_rejects "python api-snapshot witness-incomplete (RKV03)" \
+            python3 validators/validate_api_snapshot.py --repo-root . \
+            examples/negative/api-snapshot-witness-incomplete.toml
+          check_rejects "python api-snapshot bad-subpart-digest (RKV01)" \
+            python3 validators/validate_api_snapshot.py --repo-root . \
+            examples/negative/api-snapshot-bad-subpart-digest.toml
 
       - name: Provenance source_path containment guard (SPEC §11)
         # Behavioural guard: a static fixture cannot isolate the

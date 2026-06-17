@@ -1,0 +1,94 @@
+schema_version = "1.0"
+review_id = "2026-06-17-com-verivus-runtime-api-snapshot"
+base_commit = "4f2861f6a6331c23d1ef00fb631121947f4a4c8d"
+terminal_state = "unconditional_approval"
+decision = "approved_for_publication"
+
+[scope]
+change = "Land the com.verivus.runtime profile with one kind, api-snapshot."
+diff_command = "git status --porcelain -- profiles/com.verivus.runtime examples/minimal-api-snapshot.toml examples/captures examples/negative/api-snapshot-bad-closure.toml examples/negative/com.verivus.runtime-ontology-bad-ijb.toml examples/negative/api-snapshot-inlined-secret.toml examples/negative/api-snapshot-raw-header.toml examples/negative/api-snapshot-witness-incomplete.toml examples/negative/api-snapshot-bad-subpart-digest.toml validators/validate_api_snapshot.py docs .github/workflows/validate.yml"
+design_record = "docs/reviews/2026-06-17-com-verivus-runtime-api-snapshot/design-record.md"
+dynamic_evidence_excluded_from_pre_dispatch_scope = [
+  "docs/reviews/2026-06-17-com-verivus-runtime-api-snapshot/raw_findings/*.md",
+  "docs/reviews/2026-06-17-com-verivus-runtime-api-snapshot/terminal_decision.toml",
+]
+
+# Cross-LLM review gate (gtwy validate_with_models). Reviewers were instructed
+# to verify against actual code/docs and re-run validators, not to accept the
+# author's summary. Two iterations; convergent fixes applied to Codex blockers.
+
+[[approval]]
+reviewer = "grok"
+model = "grok 0.2.51 (f4f85a649)"
+iteration = 1
+job_id = "66afffd9-ab81-485b-9f45-91ce0d69ff31"
+raw_finding = "docs/reviews/2026-06-17-com-verivus-runtime-api-snapshot/raw_findings/grok-r1.md"
+terminal_state = "unconditional_approval"
+note = "Verified all 7 claims by recomputing digests and building+running the Rust/Go primaries. The iteration-2 hardening (closed key-sets + sub-part recomputation) is purely additive and does not alter any closure/IJB/abstraction/profile/provenance result Grok verified."
+
+[[approval]]
+reviewer = "codex"
+model = "codex-cli 0.140.0 (gpt-5.5)"
+iteration = 1
+job_id = "6d936510-7f43-4126-99a3-6b7835fe3689"
+raw_finding = "docs/reviews/2026-06-17-com-verivus-runtime-api-snapshot/raw_findings/codex-r1.md"
+terminal_state = "concrete_blockers"
+note = "Two blockers: (1) RKV02 accepted a raw non-secret significant-header value; (2) RKV01 sub-part consistency was claimed but not enforced. Both reproduced and fixed."
+
+[[approval]]
+reviewer = "codex"
+model = "codex-cli 0.140.0 (gpt-5.5)"
+iteration = 2
+job_id = "77be605a-f326-47ea-a20a-228a496a8637"
+raw_finding = "docs/reviews/2026-06-17-com-verivus-runtime-api-snapshot/raw_findings/codex-r2.md"
+terminal_state = "unconditional_approval"
+note = "Re-ran both probes (now RC=1 with RKV02/RKV01 errors), positive passes, both new negatives reject. Non-DAGTOML-API-CAPTURE/1 skip judged a documented RUNTIME-SPEC boundary, not a hole."
+
+[[approval]]
+reviewer = "grok"
+model = "grok 0.2.51 (f4f85a649)"
+iteration = 3
+job_id = "8f015119-806e-46f1-af9e-4e4f96167ffa"
+raw_finding = "docs/reviews/2026-06-17-com-verivus-runtime-api-snapshot/raw_findings/grok-r2.md"
+terminal_state = "unconditional_approval"
+note = "Final state. Verified the bad-closure scoping against spec.md §12.1 (unblessed template_kind is the spec's own out-of-scope mechanism). --discover . = 100 files RC=0; bad-closure rejected by all three for the fold mismatch; all other negatives still rejected."
+
+[[approval]]
+reviewer = "codex"
+model = "codex-cli 0.140.0 (gpt-5.5)"
+iteration = 3
+job_id = "31cee3fb-04a5-485f-9a3e-ab9bc5d3839c"
+raw_finding = "docs/reviews/2026-06-17-com-verivus-runtime-api-snapshot/raw_findings/codex-r3.md"
+terminal_state = "unconditional_approval"
+note = "Final state. --discover . PASSED (100 files, RC=0); bad-closure rejected by rust/go/python for the source-only §12.8 mismatch (not unknown-kind), RC=1; provenance byte mismatch; no regression. Spec grounding sound (spec.md:947). No concrete blocker."
+
+[convergent_fixes]
+summary = "Codex iteration-1 blockers resolved by strengthening validators/validate_api_snapshot.py: closed key-sets per [snapshot.*] table (rejects any raw header/payload field, RKV02) and SHA-256 recomputation of the request-descriptor / response-body sub-parts from a DAGTOML-API-CAPTURE/1 capture (RKV01). Added negatives api-snapshot-raw-header.toml and api-snapshot-bad-subpart-digest.toml, wired into the negative-agreement gate. Updated the kind descriptor RKV01/RKV02 wording and the canonicalization addendum (capture format). Final iteration: the bad-closure fixture was moved out of §12 conformance scope via an unblessed template_kind (`api-snapshot-bad-closure`) per spec.md §12.1, and the interim closure-sweep CI exclusion was reverted — so bare `validate_closure_root.py --discover .` passes natively while the negative-agreement gate still rejects the fixture in all three implementations."
+
+[[validation]]
+command = "python3 validators/validate_kind_descriptor.py profiles/com.verivus.runtime/api-snapshot-kind.toml --repo-root . --check-references-exist"
+exit_code = 0
+[[validation]]
+command = "python3 validators/validate_ijb_conformance.py (ontology, kind descriptor, instance, PROFILE)"
+exit_code = 0
+[[validation]]
+command = "python3 validators/validate_abstraction_class.py profiles/com.verivus.runtime/api-snapshot-kind.toml --repo-root ."
+exit_code = 0
+[[validation]]
+command = "python3 validators/validate_profile_descriptor.py --repo-root . profiles/com.verivus.runtime/PROFILE.toml"
+exit_code = 0
+[[validation]]
+command = "python3 validators/validate_provenance.py examples/minimal-api-snapshot.toml --repo-root ."
+exit_code = 0
+[[validation]]
+command = "python3 validators/validate_api_snapshot.py --repo-root . examples/minimal-api-snapshot.toml"
+exit_code = 0
+[[validation]]
+command = "closure step (Rust + Go + Python) over discovered set excluding examples/negative (86 files)"
+exit_code = 0
+[[validation]]
+command = "taplo lint over all new TOML files"
+exit_code = 0
+[[validation]]
+command = "negatives (bad-closure, bad-ijb, inlined-secret, raw-header, witness-incomplete, bad-subpart-digest) — all rejected by their target validators (Rust+Go+Python where cross-kind)"
+exit_code = 1
