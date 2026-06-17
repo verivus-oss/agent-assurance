@@ -789,6 +789,11 @@ jobs:
           check_rejects "python api-snapshot bad-subpart-digest (RKV01)" \
             python3 validators/validate_api_snapshot.py --repo-root . \
             examples/negative/api-snapshot-bad-subpart-digest.toml
+          # magic present but section markers absent: RKV01 must fail closed
+          # (cannot recompute sub-parts) rather than skip the check.
+          check_rejects "python api-snapshot magic-no-markers (RKV01 fail-closed)" \
+            python3 validators/validate_api_snapshot.py --repo-root . \
+            examples/negative/api-snapshot-magic-no-markers.toml
 
       - name: Provenance source_path containment guard (SPEC §11)
         # Behavioural guard: a static fixture cannot isolate the

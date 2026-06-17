@@ -133,8 +133,20 @@ def verify_subparts(doc: dict, repo_root: pathlib.Path, toml_path, errors: list[
     req = snap.get("request", {}) if isinstance(snap, dict) else {}
     resp = snap.get("response", {}) if isinstance(snap, dict) else {}
 
-    dmark, smark = b"request-descriptor:\n", b"response-status:"
-    if dmark in data and smark in data:
+    # The capture declares the profile's own DAGTOML-API-CAPTURE/1 form (magic
+    # matched above), so its section markers MUST be present. If they are not,
+    # the sub-part digests cannot be recomputed and the capture is malformed:
+    # fail CLOSED rather than skip — a magic header with missing markers must
+    # never let an arbitrary descriptor_sha256/body_sha256 pass RKV01.
+    dmark, smark, bmark = b"request-descriptor:\n", b"response-status:", b"response-body:\n"
+    if dmark not in data or smark not in data:
+        errors.append(
+            f"{toml_path}: capture {sp!r} carries the DAGTOML-API-CAPTURE/1 magic "
+            f"but lacks the 'request-descriptor:' / 'response-status:' section "
+            f"markers; snapshot.request.descriptor_sha256 cannot be verified "
+            f"(malformed capture) (RKV01 sub-part consistency)"
+        )
+    else:
         desc_bytes = data.split(dmark, 1)[1].split(smark, 1)[0]
         actual = _sha256_digest(desc_bytes)
         declared = req.get("descriptor_sha256")
@@ -144,8 +156,14 @@ def verify_subparts(doc: dict, repo_root: pathlib.Path, toml_path, errors: list[
                 f"not equal the SHA-256 of the request-descriptor sub-part of the "
                 f"capture ({actual}) (RKV01 sub-part consistency)"
             )
-    bmark = b"response-body:\n"
-    if bmark in data:
+    if bmark not in data:
+        errors.append(
+            f"{toml_path}: capture {sp!r} carries the DAGTOML-API-CAPTURE/1 magic "
+            f"but lacks the 'response-body:' section marker; "
+            f"snapshot.response.body_sha256 cannot be verified (malformed capture) "
+            f"(RKV01 sub-part consistency)"
+        )
+    else:
         body_bytes = data.split(bmark, 1)[1]
         actual = _sha256_digest(body_bytes)
         declared = resp.get("body_sha256")

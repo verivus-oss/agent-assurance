@@ -2,6 +2,8 @@
 
 FINAL run. Reviewer iterations: Grok r1 (approved), Codex r1 (2 blockers), Codex r2 (approved after fix). Bad-closure marked out of conformance scope via unblessed template_kind so bare `--discover .` passes. RS=release Rust primary; GO=fresh Go build; Python=system python3 (tomli 2.4.1).
 
+> **2026-06-18 second-pass cross-LLM review addendum** — see §"Second-pass review" at the bottom of this file. One RKV01 enforcement gap was fixed (magic-present-but-markers-absent now fails closed) with a new negative fixture; one finding on `attestation_sha256` was rebutted against design-record D1/D4 (documented RUNTIME-SPEC boundary).
+
 ```
 ## ACCEPTANCE — POSITIVES (expect exit 0)
 
@@ -165,3 +167,68 @@ API-SNAPSHOT VALIDATION FAILED
 exit=1
 
 ```
+
+## Second-pass review (2026-06-18, stdio gtwy: Codex gpt-5.5 + Grok)
+
+Both reviewers ran with full filesystem access against worktree `/tmp/apisnap-review`,
+recomputed every digest, and ran the battery themselves.
+
+**Grok — BLOCKER (fixed).** `validate_api_snapshot.py` recomputed RKV01 sub-parts
+only inside `if dmark in data and smark in data:` / `if bmark in data:`. A capture
+that *starts with* the `DAGTOML-API-CAPTURE/1` magic (so it IS the profile's own
+form) but lacks the section markers, paired with bogus
+`descriptor_sha256`/`body_sha256`, passed the api validator (recompute silently
+skipped) while closure + provenance held. This is the profile's own capture form,
+so D4 requires the recompute. **Fix:** once the magic matches, the markers MUST be
+present — absent markers now fail closed (`validate_api_snapshot.py:136-167`). New
+regression fixture `examples/negative/api-snapshot-magic-no-markers.toml` (+ capture
+`examples/negative/captures/magic-no-markers.capture`) wired into CI
+(`validate.yml` "Negative fixtures" step). Verified:
+
+```
+$ python3 validators/validate_api_snapshot.py --repo-root . examples/negative/api-snapshot-magic-no-markers.toml
+API-SNAPSHOT VALIDATION FAILED  (RKV01: magic present, section markers absent)
+exit=1
+$ python3 validators/validate_provenance.py examples/negative/api-snapshot-magic-no-markers.toml --repo-root .
+PROVENANCE VALIDATION FAILED  (source_bytes 181 != 180; per examples/negative/ convention)
+exit=1
+$ python3 validators/validate_closure_root.py examples/negative/api-snapshot-magic-no-markers.toml
+CLOSURE-ROOT VALIDATION PASSED   (source-only fold correct)
+exit=0
+$ python3 validators/validate_closure_root.py --discover .
+CLOSURE-ROOT VALIDATION PASSED   (positive sweep still green)
+exit=0
+```
+Positive `examples/minimal-api-snapshot.toml` unchanged (markers present → recompute → PASS).
+
+**Codex — finding REBUTTED with design evidence (not a defect).** Codex reported
+`snapshot.witness.attestation_sha256` is type-checked but never recomputed against
+the shipped `.attestation`, so a wrong attestation digest passes. This is the
+documented design boundary, not a gap:
+- design-record **D1**: "`attestation_sha256` pins a **separate** witness artefact …
+  none of the three [descriptor/body/attestation] are folded at 0.1.0" — deferred
+  per `spec.md §12.8`.
+- **D4**'s RKV01 covers only the capture's request-descriptor and response-body
+  sub-parts; the attestation is a separate artefact, not a capture sub-part.
+- `validate_api_snapshot.py` docstring (L42-43): "It does NOT re-fetch the URL,
+  **verify the witness**, or resolve the attester — those are RUNTIME-SPEC." Pinning
+  (not recomputing/verifying) `attestation_sha256` is the same RUNTIME-SPEC boundary
+  as not re-fetching the URL.
+Recomputing it would override a documented 0.1.0 scope decision; flagged for Werner's
+manual review rather than changed unilaterally.
+
+**Outcome — both reviewers UNCONDITIONAL APPROVAL at HEAD 5bc28d5.** Grok reproduced
+its r1 exploit (shipped fixture + a fresh magic-no-markers capture) and confirmed both
+now fail closed on RKV01, the positive is unchanged, and the full battery + taplo are
+green. Codex independently verified the RKV01 fix and the attestation citations
+(design-record D1:19 / D4:83, validator docstring:42, api-snapshot-kind.toml:86/95,
+spec.md §12.8:1161/1180) and agreed the attestation behavior is a documented 0.1.0
+boundary, not a blocker.
+
+**Non-blocking observation (Grok), for a future schema_version:** `verify_subparts`
+locates the capture sub-parts by raw first-occurrence substring split, so a producer
+that *smuggles* the section markers into the header area with chosen bytes could make
+the recompute extract attacker-positioned slices. This is pre-existing (identical to
+the pre-fix recompute branch), orthogonal to this fix, and not exploitable for the
+shipped artefacts; hardening the capture parser to anchor the markers is a candidate
+follow-up, not a 0.1.0 blocker.
