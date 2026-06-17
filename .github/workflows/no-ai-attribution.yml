@@ -1,9 +1,18 @@
 name: no-ai-attribution
-# Server-side gate: reject any commit whose message carries AI
-# attribution stamps (Co-authored-by Claude/Anthropic trailers or
-# "Generated with Claude Code" footers). Only the commits introduced
-# by the push or pull request are examined; pre-gate history is not
-# retroactively checked.
+# Server-side gate: reject any commit introduced by the push or pull request
+# that carries AI attribution, via either of two vectors:
+#   (a) commit MESSAGE — Co-authored-by Claude/Anthropic trailers or
+#       "Generated with Claude Code" footers; or
+#   (b) commit IDENTITY — author or committer name/email tied to
+#       Anthropic/Claude (e.g. noreply@anthropic.com).
+# Only the commits introduced by the push/PR are examined; pre-gate history is
+# not retroactively checked.
+#
+# SCOPE: this gate inspects commit messages and author/committer identities
+# ONLY — never file content. The specification legitimately discusses
+# "anthropic" and "claude" as AI-provenance domain terms (e.g.
+# proposing_provider_id = "anthropic" in validate.yml), so any content-based
+# scan would false-positive on the spec itself.
 on: [push, pull_request]
 
 permissions:
@@ -24,22 +33,59 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BEFORE: ${{ github.event.before }}
           AFTER: ${{ github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -eu
           NULLSHA=0000000000000000000000000000000000000000
-          # ARGS is an array: the fallback form is multi-word (-n 1 <sha>),
-          # so a plain quoted string would not work (SC2086).
+          # ARGS is an array (the range forms are single elements; SC2086).
           if [ "$EVENT" = "pull_request" ]; then
             ARGS=("$BASE..$HEAD_SHA")
           elif [ -n "${BEFORE:-}" ] && [ "$BEFORE" != "$NULLSHA" ] && git cat-file -e "$BEFORE" 2>/dev/null; then
             ARGS=("$BEFORE..$AFTER")
           else
-            ARGS=(-n 1 "$AFTER")
+            # No usable BEFORE (new-branch push, or BEFORE missing, e.g. a
+            # force-push whose old tip is gone). Do NOT scan only the tip
+            # ("-n 1 $AFTER") — that misses AI attribution in EARLIER introduced
+            # commits (a fail-open vector). Scan commits introduced relative to
+            # the default branch, but trust ONLY the authoritative remote-
+            # tracking ref (refs/remotes/origin/$DEF): a *local* branch of the
+            # same name can be stale or divergent and would silently exclude
+            # introduced commits. If that ref is unavailable, fail CLOSED by
+            # scanning all commits reachable from AFTER (over-scan, never
+            # under-scan).
+            DEF="${DEFAULT_BRANCH:-main}"
+            if git rev-parse --verify --quiet "refs/remotes/origin/$DEF^{commit}" >/dev/null; then
+              ARGS=("refs/remotes/origin/$DEF..$AFTER")
+            else
+              ARGS=("$AFTER")
+            fi
           fi
-          PATTERN='co-authored-by:.*(claude|anthropic)|generated with.*claude'
-          if git log --format='%h %s%n%b' "${ARGS[@]}" | grep -qiE "$PATTERN"; then
+
+          rc=0
+
+          # (a) MESSAGE: Co-authored-by Claude/Anthropic trailers, or
+          #     "Generated with Claude Code" footers. Catches the trailer that
+          #     GitHub auto-appends into a squash-merge commit body.
+          MSG_PATTERN='co-authored-by:.*(claude|anthropic)|generated with.*claude'
+          if git log --format='%h %s%n%b' "${ARGS[@]}" | grep -qiE "$MSG_PATTERN"; then
             echo "::error::AI attribution stamp found in commit message(s) in range: ${ARGS[*]}"
-            git log --format='--- %h %s%n%b' "${ARGS[@]}" | grep -iE "$PATTERN" -B3 || true
+            git log --format='--- %h %s%n%b' "${ARGS[@]}" | grep -iE "$MSG_PATTERN" -B3 || true
+            rc=1
+          fi
+
+          # (b) IDENTITY: author or committer name/email tied to Anthropic/Claude.
+          #     One record per commit: "<short-sha>|<an>|<ae>|<cn>|<ce>".
+          #     A human legitimately named/emailed "claude"/"anthropic" would
+          #     need an allowlist exception here (accepted trade-off: no such
+          #     contributor exists in this org).
+          ID_PATTERN='anthropic|claude'
+          if git log --format='%h|%an|%ae|%cn|%ce' "${ARGS[@]}" | grep -qiE "$ID_PATTERN"; then
+            echo "::error::AI attribution found in commit author/committer identity in range: ${ARGS[*]}"
+            git log --format='%h|%an|%ae|%cn|%ce' "${ARGS[@]}" | grep -iE "$ID_PATTERN" || true
+            rc=1
+          fi
+
+          if [ "$rc" -ne 0 ]; then
             exit 1
           fi
-          echo "OK: no attribution stamps in: ${ARGS[*]}"
+          echo "OK: no attribution stamps or identities in: ${ARGS[*]}"
