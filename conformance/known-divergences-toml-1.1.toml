@@ -13,10 +13,11 @@
 # light. If a future run newly disagrees on something not listed here,
 # treat it as a regression and fix the validator rather than extend it.
 #
-# --- Verified state (U08, 2026-06-08) -------------------------------------
+# --- Verified state (issue #38, 2026-06-18) -------------------------------
 # Parsers, all TOML 1.1.0:
 #   rs validator + rs decoder shim : `toml` 1.1.2+spec-1.1.0
-#   go validator + go decoder      : BurntSushi/toml v1.6.0 (1.1 by default)
+#   go validator + go decoder shim : pelletier/go-toml/v2 v2.4.0 strict gate
+#                                    in front of BurntSushi/toml v1.6.0 decode
 #   py reference validators        : tomli 2.4.1 (PEP 680 upstream of tomllib)
 #
 # WHERE rs/go/py AGREE (clean):
@@ -28,58 +29,43 @@
 #   * toml-test 1.1 VALID corpus (`-toml 1.1.0`): all three accept the full
 #     189-case valid set, including the 1.1 additions (seconds-less times,
 #     \xHH, \e, multi-line / trailing-comma inline tables).
-#   * toml-test 1.1 INVALID corpus: rs and py reject all 362 invalid cases.
+#   * toml-test 1.1 INVALID corpus: rs, py, AND go (via the pelletier strict
+#     gate, issue #38) now reject all 362 invalid cases — zero skips.
 #
-# WHERE THEY DIVERGE (the honest baseline — NOT empty):
+# WHERE THEY ONCE DIVERGED — NOW CLOSED (issue #38, contract C01):
 #   On 13 fixtures in the toml-test 1.1 INVALID corpus, the Go parser
-#   (BurntSushi/toml v1.6.0) ACCEPTS inputs that the Rust (`toml` 1.1) and
-#   Python (tomli) parsers correctly REJECT. These are a genuine
-#   cross-implementation divergence (go=accept, rs=reject, py=reject), so the
-#   harness's `make toml-conformance` tolerates exactly these 13 via the
-#   Makefile TOML_CONFORMANCE_SKIPS list (the Go side runs 349/362 invalid +
-#   13 skipped; the Rust side runs 362/362 invalid with ZERO skips).
+#   (BurntSushi/toml v1.6.0) USED TO ACCEPT inputs that the Rust (`toml` 1.1)
+#   and Python (tomli) parsers correctly REJECT — all dotted-key / inline-table
+#   redefinition cases. `make toml-conformance` tolerated exactly these 13 via
+#   the Makefile TOML_CONFORMANCE_SKIPS list.
 #
-#   IMPORTANT: this divergence is PRE-EXISTING and ORTHOGONAL to the version
-#   migration. BurntSushi/toml is permissive on these dotted-key /
-#   inline-table redefinition cases independent of TOML version: the same 13
-#   failed under the old v1.4.0 decoder on the TOML 1.0 corpus. The 1.0 -> 1.1
-#   migration neither introduced nor resolved them; it left the divergence
-#   profile unchanged while moving all three parsers to 1.1 in lockstep.
-#   Eliminating them (so the Go primary is as strict as Rust/Python, which
-#   contract C01's "block, not skip" stance ultimately wants) requires a
-#   stricter Go parser or a custom post-parse strictness check on the Go
-#   side, and is out of scope for this version migration. It is recorded
-#   here so the gap is visible, not silently skipped.
+#   That gap is now CLOSED. The Go side runs a strict pelletier/go-toml/v2
+#   gate in front of BurntSushi:
+#     * tools/dagtoml-validate-go (the Go primary validator) parses every
+#       document with pelletier/go-toml/v2 first; a pelletier parse error is
+#       a rejection, and only then does BurntSushi do the structural decode.
+#     * tools/toml-test-decode-go (the in-repo conformance shim, replacing the
+#       stock BurntSushi cmd/toml-test-decoder) applies the same pelletier gate
+#       before emitting BurntSushi tagged JSON.
+#   pelletier/go-toml/v2 v2.4.0 rejects all 13 fixtures AND accepts the full
+#   189-case TOML 1.1 valid corpus, so `make toml-conformance` now runs with
+#   ZERO skips: 189/189 valid + 362/362 invalid, matching the Rust and Python
+#   primaries. TOML_CONFORMANCE_SKIPS is empty and the permissiveness record
+#   below is empty.
+#
+#   IMPORTANT: the original divergence was PRE-EXISTING and ORTHOGONAL to the
+#   1.0 -> 1.1 version migration (BurntSushi was permissive on these cases
+#   independent of TOML version — the same 13 failed under the old v1.4.0
+#   decoder on the 1.0 corpus). It was eliminated by adding the pelletier
+#   strictness gate on the Go side, exactly the "stricter Go parser / custom
+#   strictness check" path contract C01's "block, not skip" stance wanted.
 
-# The 13 toml-test 1.1 invalid fixtures where go=accept while rs=reject and
-# py=reject (BurntSushi/toml v1.6.0 permissiveness; also TOML_CONFORMANCE_SKIPS
-# in the Makefile). go is the lone divergent implementation on each.
-[[toml_test_go_permissiveness]]
-fixture = "invalid/array/extend-defined-aot"
-[[toml_test_go_permissiveness]]
-fixture = "invalid/inline-table/duplicate-key-3"
-[[toml_test_go_permissiveness]]
-fixture = "invalid/inline-table/overwrite-02"
-[[toml_test_go_permissiveness]]
-fixture = "invalid/inline-table/overwrite-08"
-[[toml_test_go_permissiveness]]
-fixture = "invalid/spec/inline-table-2-0"
-[[toml_test_go_permissiveness]]
-fixture = "invalid/spec/table-9-1"
-[[toml_test_go_permissiveness]]
-fixture = "invalid/table/append-to-array-with-dotted-keys"
-[[toml_test_go_permissiveness]]
-fixture = "invalid/table/append-with-dotted-keys-1"
-[[toml_test_go_permissiveness]]
-fixture = "invalid/table/append-with-dotted-keys-2"
-[[toml_test_go_permissiveness]]
-fixture = "invalid/table/duplicate-key-dotted-table"
-[[toml_test_go_permissiveness]]
-fixture = "invalid/table/duplicate-key-dotted-table2"
-[[toml_test_go_permissiveness]]
-fixture = "invalid/table/redefine-2"
-[[toml_test_go_permissiveness]]
-fixture = "invalid/table/redefine-3"
+# The toml-test 1.1 invalid fixtures where go=accept while rs=reject and
+# py=reject: NONE. The Go pelletier strict gate closed the gap — all three
+# primaries now reject the full 362-case invalid corpus with zero skips.
+# (Empty array kept so a future regression is parked here deliberately, with
+# a recorded rationale, rather than silently re-skipped.)
+# toml_test_go_permissiveness = []   # (was 13 BurntSushi-permissiveness fixtures; now zero)
 
 # dagtoml semantic corpus (the operative parity surface): no divergences.
 # dagtoml_divergences = []   # (rs/go/py agree on every conformance/cases fixture)
