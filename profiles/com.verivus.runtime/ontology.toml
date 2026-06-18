@@ -1,0 +1,102 @@
+# Verivus runtime profile — ontology extension.
+#
+# Declares the attribute vocabularies the api-snapshot kind adds on top
+# of the agent-assurance profile and the core DAG-TOML ontology. Carries
+# its own `ontology_version` tracking ONLY this profile's vocabulary.
+#
+# MODELLING NOTE. An api-snapshot is a flat, single-subject observation
+# record: one `[snapshot]` table describing one captured request/response
+# interaction. That is the same shape as `gate-decision`, whose shipped
+# kind descriptor declares `entities_introduced = []`. This profile
+# follows that precedent: it introduces NO id-prefixed entities (no
+# SNAP/SRC/WIT/ATT) and NO namespaced relations. The closure binding uses
+# the CORE `cites_upstream` relation; the digest-algorithm set is the CORE
+# `closure_root.digest_algorithm` vocabulary; the only thing this profile
+# adds is two closed witness vocabularies. Verified against the graph/RDF
+# (tools/dagtoml-rdf) and DuckDB (tools/dagtoml-duckdb) consumers: a flat
+# record with zero entity prefixes maps to a single document-level
+# node/row exactly as gate-decision does, so first-class snapshot nodes
+# are unnecessary. If a deployment later wants snapshots to be first-class
+# graph nodes, that is a separate, ontology_version-bumping design.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "ontology"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+ontology_version = 1
+framework_profile = "com.verivus.runtime"
+title = "Verivus runtime profile ontology extension"
+extends = "../agent-assurance/ontology.toml"
+authoritative_in = "./PROFILE.toml"
+confidentiality = "public"
+license = "Apache-2.0"
+
+# Per-field IJB primitive annotations for this [meta] table (SPEC §10.2).
+# Required by validate_ijb_conformance.py: every annotation key must be a
+# known §10.2 meta-field, and every classifiable [meta] field present here
+# must carry one.
+[meta.ijb_field_primitives]
+framework_profile = { ijb_primitive = "scope", ijb_class = "structural" }
+template_kind = { ijb_primitive = "scope", ijb_class = "structural" }
+schema_version = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+ontology_version = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+confidentiality = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+license = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+
+# ============================================================================
+# PROFILE-DEFINED ENTITIES
+# ============================================================================
+#
+# None. An api-snapshot is a flat single-subject observation record (see the
+# modelling note above); like gate-decision it introduces no id-prefixed
+# entities. The captured artefact, source endpoint, witness, and attester are
+# fields on the single `[snapshot]` subject, not separately-identified graph
+# nodes at the SPEC layer.
+
+# ============================================================================
+# PROFILE-DEFINED RELATIONS
+# ============================================================================
+#
+# None. The downstream-to-snapshot binding uses the CORE `cites_upstream`
+# relation (core/ontology.toml), which is typed `unconstrained_label` on both
+# sides precisely so the closure-root rule fires uniformly across profile kinds.
+# A downstream document folds the snapshot's `provenance.source_sha256` (the
+# captured-artefact digest) into its own `closure_root` per SPEC §12. This
+# profile introduces no namespaced predicate; adding one later bumps
+# ontology_version.
+
+# ============================================================================
+# PROFILE-DEFINED ATTRIBUTE VOCABULARIES
+# ============================================================================
+
+[[attribute_vocabularies]]
+attribute = "witness_scheme"
+applies_to = "api-snapshot"
+values = ["tls-notary", "provider-signature", "tee-quote"]
+extensible = false
+notes = "Closed set on the [snapshot.witness].scheme field of an api-snapshot. `tls-notary` binds origin and content; `provider-signature` binds content and provider identity; `tee-quote` binds the measured capture environment. The SPEC layer records the choice only; signature/quote verification, key resolution, and freshness are RUNTIME-SPEC. `applies_to` names the schema (template_kind) rather than an id-prefix because the value lives on a singleton sub-table, mirroring how the core `closure_root.digest_algorithm` vocabulary applies to `document_root` and the agent-assurance `smoke.decision` vocabulary applies to the `smoke-validation` schema."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute = "attester_observed"
+applies_to = "api-snapshot"
+values = ["request", "response", "both"]
+extensible = false
+notes = "Closed set on the [snapshot.witness].observed field. Bounds what a witnessed snapshot proves: an attester that saw only the response cannot witness the request descriptor, so `response` MUST NOT be read as covering request integrity. Applies only when [snapshot.witness].present is true."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# EXTENSION RULES (profile-scoped)
+# ============================================================================
+
+[extension_rules]
+entity_kinds = "closed_within_profile"
+relation_predicates = "must_be_namespaced_as_com.verivus.runtime:"
+version_bump_rule = "After the first public release, adding a profile entity or attribute value bumps this file's ontology_version. The core and agent-assurance ontology_versions are unaffected. Pre-publication, ontology_version stays at 1 while drafts are revised in place. A new digest algorithm is NOT a change here: digest formats are governed by the core `closure_root.digest_algorithm` vocabulary and the kind descriptor's digest field type, not by this profile."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"

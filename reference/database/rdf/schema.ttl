@@ -34,7 +34,7 @@ ijb:Time a rdfs:Class ;
     rdfs:label "time" .
 
 ###
-### Template kinds (20 = core + every profile + 1 meta)
+### Template kinds (21 = core + every profile + 1 meta)
 ###
 
 dagtoml:KindDescriptor a rdfs:Class ;
@@ -121,6 +121,11 @@ dagtoml:ThreatModelKind a dagtoml:KindDescriptor ;
     dagtoml:templateKind   "threat-model" ;
     dagtoml:layer          "profile:agent-assurance" ;
     dagtoml:descriptorPath "profiles/agent-assurance/threat-model-kind.toml" .
+
+dagtoml:ApiSnapshotKind a dagtoml:KindDescriptor ;
+    dagtoml:templateKind   "api-snapshot" ;
+    dagtoml:layer          "profile:com.verivus.runtime" ;
+    dagtoml:descriptorPath "profiles/com.verivus.runtime/api-snapshot-kind.toml" .
 
 dagtoml:CostRecordKind a dagtoml:KindDescriptor ;
     dagtoml:templateKind   "cost-record" ;
@@ -606,7 +611,7 @@ dagtoml:cites_upstream a rdf:Property ;
     rdfs:comment "Cross-kind marker that a field in a `*-kind.toml` descriptor carries an upstream artifact reference (SHA-256 digest, document URI, signed-envelope pointer) that MUST flow into the document's root-level `closure_root` digest per SPEC §12.1. Kind descriptors apply this label via `[[kind.required_fields]].ontology_mapping = \"cites_upstream\"` (or the analogous mapping inside `[[kind.required_sections]]`). The relation is intentionally typed against `unconstrained_label` on both sides — concrete artifact entity kinds are profile-defined, but the closure-root rule fires uniformly across every conforming kind." .
 
 ###
-### Attribute vocabularies (46)
+### Attribute vocabularies (48)
 ###
 
 dagtoml:requirement_kind a rdf:Property ;
@@ -667,7 +672,7 @@ dagtoml:framework_profile_namespace a rdf:Property ;
     dagtoml:extensible false ;
     rdfs:domain dagtoml:Meta ;
     rdfs:range [ a rdfs:Datatype ; owl:oneOf ( "spec-reserved" "reverse-dns" ) ] ;
-    rdfs:comment "Closed partition per SPEC §2.5. `spec-reserved` covers unprefixed kebab-case names blessed by this spec; `reverse-dns` covers everything else (third-party / private). The value sits in the `profile-descriptor` `[profile].namespace` field, not in instance file metadata directly." .
+    rdfs:comment "Closed partition per SPEC §2.5. `spec-reserved` covers unprefixed kebab-case names spec-reserved by this spec; `reverse-dns` covers everything else (third-party / private). The value sits in the `profile-descriptor` `[profile].namespace` field, not in instance file metadata directly." .
 
 dagtoml:provenance_encryption_hash_is_over a rdf:Property ;
     rdfs:label "provenance.encryption.hash_is_over" ;
@@ -914,6 +919,22 @@ dagtoml:model_family_id a rdf:Property ;
     rdfs:range [ a rdfs:Datatype ; owl:oneOf ( "claude" "gpt" "gemini" "grok" "mistral" "llama" "deepseek" "qwen" "human" "other" ) ] ;
     rdfs:comment "Closed-but-extensible identifier of the underlying model family. Distinct from `provider_id` because one provider can ship multiple unrelated families (e.g., a vendor reselling another lab's weights) and one family can be served by multiple providers (e.g., open-weights deployed at several inference hosts). INV06 requires `deciding_model_family_id` to differ from `proposing_model_family_id`; this prevents two same-family models served by different providers from satisfying the cross-provider rule when they share the same training-data blind spots." .
 
+dagtoml:witness_scheme a rdf:Property ;
+    rdfs:label "witness_scheme" ;
+    dagtoml:layer "profile:com.verivus.runtime" ;
+    dagtoml:extensible false ;
+    dagtoml:appliesToKind dagtoml:ApiSnapshotKind ;
+    rdfs:range [ a rdfs:Datatype ; owl:oneOf ( "tls-notary" "provider-signature" "tee-quote" ) ] ;
+    rdfs:comment "Closed set on the [snapshot.witness].scheme field of an api-snapshot. `tls-notary` binds origin and content; `provider-signature` binds content and provider identity; `tee-quote` binds the measured capture environment. The SPEC layer records the choice only; signature/quote verification, key resolution, and freshness are RUNTIME-SPEC. `applies_to` names the schema (template_kind) rather than an id-prefix because the value lives on a singleton sub-table, mirroring how the core `closure_root.digest_algorithm` vocabulary applies to `document_root` and the agent-assurance `smoke.decision` vocabulary applies to the `smoke-validation` schema." .
+
+dagtoml:attester_observed a rdf:Property ;
+    rdfs:label "attester_observed" ;
+    dagtoml:layer "profile:com.verivus.runtime" ;
+    dagtoml:extensible false ;
+    dagtoml:appliesToKind dagtoml:ApiSnapshotKind ;
+    rdfs:range [ a rdfs:Datatype ; owl:oneOf ( "request" "response" "both" ) ] ;
+    rdfs:comment "Closed set on the [snapshot.witness].observed field. Bounds what a witnessed snapshot proves: an attester that saw only the response cannot witness the request descriptor, so `response` MUST NOT be read as covering request integrity. Applies only when [snapshot.witness].present is true." .
+
 dagtoml:cost_dimension_category a rdf:Property ;
     rdfs:label "cost_dimension_category" ;
     dagtoml:layer "profile:cost" ;
@@ -971,5 +992,5 @@ dagtoml:proof_scheme a rdf:Property ;
     rdfs:comment "Family of selective-disclosure proof scheme. The SPEC layer names the family only; the wire shape of the proof is RUNTIME-SPEC. Algorithm agility per ontology rules — additions bump THIS profile's ontology_version." .
 
 ###
-### Counts at generation: 20 template kinds, 27 entity kinds, 31 relation predicates, 46 attribute vocabularies.
+### Counts at generation: 21 template kinds, 27 entity kinds, 31 relation predicates, 48 attribute vocabularies.
 ###

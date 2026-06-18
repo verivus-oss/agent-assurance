@@ -7,11 +7,11 @@
 --   * Booleans are 0/1 integers (no native bool in SQLite).
 --
 -- Counts (CI-gated by validators/check_attribute_values.py; drift fails):
---   20 template kinds       (6 core + 9 agent-assurance + 3 disclosure + 1 cost + 1 meta)
+--   21 template kinds       (6 core + 9 agent-assurance + 3 disclosure + 1 cost + 1 com.verivus.runtime + 1 meta)
 --   27 entity kinds         (17 core + 6 agent-assurance + 3 disclosure + 1 cost)
 --   31 relation rows        (26 core + 5 contract-namespaced variants)
 --   41 attribute vocabs     (10 core + 24 agent-assurance + 4 disclosure + 3 cost)
---  138 attribute_value_allowed rows (union of every closed-and-extensible vocab's values
+--  144 attribute_value_allowed rows (union of every closed-and-extensible vocab's values
 --                                    minus a small set held as native CHECK constraints)
 
 PRAGMA foreign_keys = ON;
@@ -39,7 +39,8 @@ INSERT INTO dagtoml_kind_descriptor (template_kind, layer, descriptor_path, requ
     ('disclosure-attestation',    'profile:disclosure',      'profiles/disclosure/disclosure-attestation-kind.toml',         'disclosure'),
     ('redaction-manifest',        'profile:disclosure',      'profiles/disclosure/redaction-manifest-kind.toml',             'disclosure'),
     ('selective-disclosure-proof','profile:disclosure',      'profiles/disclosure/selective-disclosure-proof-kind.toml',     'disclosure'),
-    ('cost-record',               'profile:cost',            'profiles/cost/cost-record-kind.toml',                          'cost');
+    ('cost-record',               'profile:cost',            'profiles/cost/cost-record-kind.toml',                          'cost'),
+    ('api-snapshot',              'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/api-snapshot-kind.toml',       'com.verivus.runtime');
 
 -- ============================================================
 -- entity_kind_descriptor (24 rows; +1 cost = COST)
@@ -166,7 +167,10 @@ INSERT INTO dagtoml_attribute_vocabulary (attribute, applies_to_entity, applies_
     ('abstraction_class.id_pattern', NULL, NULL, 'structural', 0, NULL, 'core', NULL),
     ('subject_class',       NULL, json_array('gate-decision'), 'structural', 1, NULL, 'profile:agent-assurance', NULL),
     ('provider_id',         NULL, json_array('gate-decision'), 'structural', 1, NULL, 'profile:agent-assurance', NULL),
-    ('model_family_id',     NULL, json_array('gate-decision'), 'structural', 1, NULL, 'profile:agent-assurance', NULL);
+    ('model_family_id',     NULL, json_array('gate-decision'), 'structural', 1, NULL, 'profile:agent-assurance', NULL),
+    -- Profile: com.verivus.runtime (2) — api-snapshot closed witness vocabularies.
+    ('witness_scheme',      NULL, json_array('api-snapshot'), 'structural', 0, NULL, 'profile:com.verivus.runtime', NULL),
+    ('attester_observed',   NULL, json_array('api-snapshot'), 'structural', 0, NULL, 'profile:com.verivus.runtime', NULL);
 
 -- attribute_value_allowed: 54 rows, same content as the PG seed.
 INSERT INTO dagtoml_attribute_value_allowed (attribute, value) VALUES
@@ -311,4 +315,11 @@ INSERT INTO dagtoml_attribute_value_allowed (attribute, value) VALUES
     ('model_family_id', 'deepseek'),
     ('model_family_id', 'qwen'),
     ('model_family_id', 'human'),
-    ('model_family_id', 'other');
+    ('model_family_id', 'other'),
+    -- Profile: com.verivus.runtime witness vocabularies (6).
+    ('witness_scheme', 'tls-notary'),
+    ('witness_scheme', 'provider-signature'),
+    ('witness_scheme', 'tee-quote'),
+    ('attester_observed', 'request'),
+    ('attester_observed', 'response'),
+    ('attester_observed', 'both');
