@@ -47,6 +47,7 @@ Out of scope for v0.1.0 (see SPEC §10.4):
 from __future__ import annotations
 
 import argparse
+import contextlib
 import pathlib
 import re
 import sys
@@ -506,10 +507,10 @@ def build_resolver(ontologies: list[tuple[str, dict]]) -> tuple[dict, list, dict
                 id_prefixes[prefix] = (block, source)
             pattern = block.get("id_pattern")
             if isinstance(pattern, str) and pattern:
-                try:
+                # An un-compilable id_pattern is skipped here; pattern
+                # validity is reported by the dedicated checks (py/empty-except).
+                with contextlib.suppress(re.error):
                     id_patterns.append((re.compile(f"^{pattern}$"), block, source))
-                except re.error:
-                    pass
         for block in doc.get("relations", []):
             predicate = block.get("predicate")
             if isinstance(predicate, str) and predicate:
