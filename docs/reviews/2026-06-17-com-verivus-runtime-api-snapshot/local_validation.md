@@ -313,3 +313,18 @@ deferral.
   `check_attribute_values.py` compares `expected_node_counts` to the ontology, not
   to the UNWIND rows. api-snapshot joins that existing deferral; completing it
   would require seeding unrelated disclosure/cost kinds.
+
+## Fifth pass — SQLite per-table layer CHECK (Codex r2 BLOCKER — fixed)
+
+Codex re-reviewed by loading SQLite through Python's stdlib `sqlite3` (the CLI is
+not installed) and caught that the fourth-pass fix updated only the
+`kind_descriptor.layer` CHECK. Unlike postgres/duckdb — where a single
+`spec_layer` ENUM backs every `layer` column — SQLite repeats the allowlist as a
+**per-table inline CHECK** (4 tables). The `dagtoml_attribute_vocabulary.layer`
+CHECK still omitted `profile:com.verivus.runtime`, so the runtime vocab seed rows
+failed: `IntegrityError: CHECK constraint failed: layer IN (... 'profile:cost')`.
+Fix: add `profile:com.verivus.runtime` to all four SQLite layer CHECKs (kind /
+entity / relation / attribute_vocabulary), matching the single-enum semantics of
+postgres/duckdb. Verified by re-loading via Python `sqlite3`:
+`LOAD OK; kind/vocab/value = (21, 48, 144)`, `api-snapshot | profile:com.verivus.runtime`,
+6 runtime values. DuckDB still loads (exit 0); drift gate + ruff still green.

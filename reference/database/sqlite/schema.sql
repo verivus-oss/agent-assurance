@@ -46,7 +46,7 @@ CREATE TABLE dagtoml_kind_descriptor (
 CREATE TABLE dagtoml_entity_kind_descriptor (
     entity_kind        TEXT PRIMARY KEY,
     id_prefix_pattern  TEXT NOT NULL,
-    layer              TEXT NOT NULL CHECK (layer IN ('core', 'profile:agent-assurance', 'profile:disclosure', 'profile:cost')),
+    layer              TEXT NOT NULL CHECK (layer IN ('core', 'profile:agent-assurance', 'profile:disclosure', 'profile:cost', 'profile:com.verivus.runtime')),
     defining_kind      TEXT NOT NULL REFERENCES dagtoml_kind_descriptor(template_kind),
     ijb_primitive      TEXT NOT NULL CHECK (ijb_primitive IN ('thing','scope','path','observed','constraint','time')),
     ijb_class          TEXT NOT NULL CHECK (ijb_class IN ('structural','instance')),
@@ -65,7 +65,7 @@ CREATE TABLE dagtoml_relation_descriptor (
     target_freeform INTEGER NOT NULL DEFAULT 0 CHECK (target_freeform IN (0,1)),
     ijb_primitive   TEXT NOT NULL CHECK (ijb_primitive IN ('thing','scope','path','observed','constraint','time')),
     ijb_class       TEXT NOT NULL CHECK (ijb_class IN ('structural','instance')),
-    layer           TEXT NOT NULL CHECK (layer IN ('core', 'profile:agent-assurance', 'profile:disclosure', 'profile:cost')),
+    layer           TEXT NOT NULL CHECK (layer IN ('core', 'profile:agent-assurance', 'profile:disclosure', 'profile:cost', 'profile:com.verivus.runtime')),
     namespace       TEXT,
     notes           TEXT
 ) STRICT;
@@ -77,7 +77,7 @@ CREATE TABLE dagtoml_attribute_vocabulary (
     ijb_constraint_type    TEXT NOT NULL CHECK (ijb_constraint_type IN ('structural','policy','observed')),
     extensible             INTEGER NOT NULL CHECK (extensible IN (0,1)),
     default_value          TEXT,
-    layer                  TEXT NOT NULL CHECK (layer IN ('core', 'profile:agent-assurance', 'profile:disclosure', 'profile:cost')),
+    layer                  TEXT NOT NULL CHECK (layer IN ('core', 'profile:agent-assurance', 'profile:disclosure', 'profile:cost', 'profile:com.verivus.runtime')),
     -- backing_check_constraint names the schema-level CHECK list that
     -- enforces the closed value set (SQLite-side analogue of PG's
     -- backing_enum_type). NULL = extensible vocab, checked via
