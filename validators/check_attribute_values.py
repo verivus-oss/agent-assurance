@@ -35,6 +35,7 @@ Exit 0 on full agreement; 1 on any drift.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import pathlib
 import re
 import sys
@@ -159,7 +160,9 @@ def derive_rdf_counts(repo_root: pathlib.Path) -> dict[str, int | None]:
     if not rdf_bin.exists():
         return out
     for label, path in [("schema", schema), ("shapes", shapes)]:
-        try:
+        # Best-effort triple count: a missing/old binary or a timeout leaves
+        # this label unset rather than failing the gate (py/empty-except).
+        with contextlib.suppress(OSError, subprocess.TimeoutExpired):
             # Safe: fixed local binary path, list-args invocation, no
             # shell, no user-controlled input.
             res = subprocess.run(  # nosec B603  # noqa: S603
@@ -171,8 +174,6 @@ def derive_rdf_counts(repo_root: pathlib.Path) -> dict[str, int | None]:
             m = re.search(r"parsed\s+(\d+)\s+triples", res.stdout + res.stderr)
             if m:
                 out[label] = int(m.group(1))
-        except (OSError, subprocess.TimeoutExpired):
-            pass
     return out
 
 
