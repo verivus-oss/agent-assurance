@@ -8,7 +8,7 @@
 -- schema never drifts. Treat hand-edits here as a smell.
 --
 -- Counts (verified against ontology files; matches MANIFEST.toml):
---   * 20 template kinds        (6 core + 9 agent-assurance + 3 disclosure + 1 cost + 1 meta `kind-descriptor`)
+--   * 21 template kinds        (6 core + 9 agent-assurance + 3 disclosure + 1 cost + 1 com.verivus.runtime + 1 meta `kind-descriptor`)
 --   * 27 entity kinds          (17 core + 6 agent-assurance + 3 disclosure + 1 cost)
 --   * 31 relation rows         (26 core + 5 contract-namespaced variants)
 --                              The ontology declares 31 [[relations]] blocks,
@@ -23,7 +23,7 @@
 --                              them as separate [[relations]] entries.
 --                              The 31st row is the cross-document
 --                              `cites_upstream` marker added by SPEC §12.
---   * 41 attribute vocabularies (10 core + 24 agent-assurance + 4 disclosure + 3 cost)
+--   * 48 attribute vocabularies (12 core + 27 agent-assurance + 4 disclosure + 3 cost + 2 com.verivus.runtime)
 
 SET search_path TO dagtoml, public;
 

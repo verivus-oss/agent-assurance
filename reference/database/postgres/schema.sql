@@ -67,7 +67,8 @@ CREATE TYPE spec_layer AS ENUM (
     'core',
     'profile:agent-assurance',
     'profile:disclosure',
-    'profile:cost'
+    'profile:cost',
+    'profile:com.verivus.runtime'
 );
 
 

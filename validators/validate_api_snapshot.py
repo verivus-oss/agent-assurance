@@ -50,6 +50,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import pathlib
 import re
@@ -286,13 +287,11 @@ def main(argv: list[str]) -> int:
     for raw in args.files:
         path = pathlib.Path(raw)
         checked += 1
-        try:
+        with contextlib.suppress(Exception):
             with path.open("rb") as h:
                 d = tomllib.load(h)
             if isinstance(d.get("meta"), dict) and d["meta"].get("template_kind") == "api-snapshot":
                 snapshots += 1
-        except Exception:
-            pass
         all_errors.extend(validate_one(path, repo_root))
 
     if all_errors:

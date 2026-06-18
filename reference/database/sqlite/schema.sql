@@ -37,7 +37,7 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE dagtoml_kind_descriptor (
     template_kind     TEXT PRIMARY KEY,
-    layer             TEXT NOT NULL CHECK (layer IN ('core', 'profile:agent-assurance', 'profile:disclosure', 'profile:cost')),
+    layer             TEXT NOT NULL CHECK (layer IN ('core', 'profile:agent-assurance', 'profile:disclosure', 'profile:cost', 'profile:com.verivus.runtime')),
     descriptor_path   TEXT NOT NULL,
     requires_profile  TEXT,
     notes             TEXT

@@ -5,8 +5,8 @@
 -- instead of PG's `ARRAY['a','b']` form.
 --
 -- Counts (CI-gated by validators/check_attribute_values.py):
---   20 kind_descriptor / 27 entity_kind_descriptor / 31 relation_descriptor /
---   46 attribute_vocabulary / 138 attribute_value_allowed
+--   21 kind_descriptor / 27 entity_kind_descriptor / 31 relation_descriptor /
+--   48 attribute_vocabulary / 144 attribute_value_allowed
 
 SET search_path = dagtoml;
 

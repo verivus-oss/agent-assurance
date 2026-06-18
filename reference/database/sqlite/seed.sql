@@ -7,11 +7,11 @@
 --   * Booleans are 0/1 integers (no native bool in SQLite).
 --
 -- Counts (CI-gated by validators/check_attribute_values.py; drift fails):
---   20 template kinds       (6 core + 9 agent-assurance + 3 disclosure + 1 cost + 1 meta)
+--   21 template kinds       (6 core + 9 agent-assurance + 3 disclosure + 1 cost + 1 com.verivus.runtime + 1 meta)
 --   27 entity kinds         (17 core + 6 agent-assurance + 3 disclosure + 1 cost)
 --   31 relation rows        (26 core + 5 contract-namespaced variants)
 --   41 attribute vocabs     (10 core + 24 agent-assurance + 4 disclosure + 3 cost)
---  138 attribute_value_allowed rows (union of every closed-and-extensible vocab's values
+--  144 attribute_value_allowed rows (union of every closed-and-extensible vocab's values
 --                                    minus a small set held as native CHECK constraints)
 
 PRAGMA foreign_keys = ON;

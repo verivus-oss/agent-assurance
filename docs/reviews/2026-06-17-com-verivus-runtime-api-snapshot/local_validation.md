@@ -270,3 +270,46 @@ exit=0
 `entity_kinds`/`relation_predicates` unchanged (D2 entity-light: `entities_introduced
 = []`, no namespaced relations). Positive example + closure `--discover .` + taplo
 remain green; the api-snapshot RKV01/02/03 battery is unaffected.
+
+## Fourth pass — schema enum + ruff (CI surfaced two more, post-propagation)
+
+With manifest-drift fixed, CI's `validate` job advanced and surfaced two further
+issues; the cross-LLM board (Codex) independently caught the first by *loading the
+DuckDB seed* rather than only running the count gate.
+
+1. **Schema rejects the new profile layer (Codex BLOCKER — fixed).** The
+   `kind_descriptor.layer` allowlist (`spec_layer` enum in postgres/duckdb,
+   `CHECK` in sqlite) stopped at `profile:cost`, so the seed rows for
+   `api-snapshot` (`layer = 'profile:com.verivus.runtime'`) failed to load:
+   `Conversion Error: Could not convert string 'profile:com.verivus.runtime' to
+   UINT8`. The count gate doesn't load the DB, so it passed while the seed was
+   broken. Fix: add `profile:com.verivus.runtime` to the enum/CHECK in all three
+   schemas. **Verified by actually loading it** — `dagtoml-duckdb` build + verify:
+   `OK — counts match expected (21 / 27 / 31 / 48 / 144)`; a raw `duckdb` load of
+   `schema.sql`+`seed.sql` exits 0 with the api-snapshot kind, both vocabs, and 6
+   value rows present.
+2. **ruff S110 (`try`-`except`-`pass`) — fixed.** Pre-existing in
+   `validate_api_snapshot.py:main()` (the snapshot-counter), masked until CI got
+   past manifest-drift. Replaced with `contextlib.suppress(Exception)` (identical
+   behaviour, lint-clean). `ruff check --select S,F --ignore S404 --line-length 120
+   validators/` → "All checks passed!".
+
+Stale count comments in the three touched `seed.sql` headers and the
+`graph/schema.cypher` note were refreshed to 21/48/144 and to record that
+`api-snapshot` joins the existing **documented** disclosure/cost graph-seed
+deferral.
+
+**Rebutted, with evidence (not defects in this change):**
+- *`instance_file.framework_profile` CHECK (`IN ('agent-assurance','AGDF')`).*
+  Not exercised by the seed (which inserts ontology metadata, not instance
+  documents — the DuckDB load + tool-verify pass without it), and pre-existing
+  incomplete for **disclosure and cost** as well, not just com.verivus.runtime.
+  Whether the reference DB should ingest non-agent-assurance *instances* is a
+  separate, profile-agnostic reference-DB scope decision, not part of landing this
+  profile. Flagged for Werner.
+- *`graph/schema.cypher` lists 15 KindDescriptor nodes, not 21.* Documented
+  intentional partial (cypher header NOTE: disclosure/cost/profile-descriptor
+  kinds "tracked as a follow-up"); the property-graph seed is illustrative and
+  `check_attribute_values.py` compares `expected_node_counts` to the ontology, not
+  to the UNWIND rows. api-snapshot joins that existing deferral; completing it
+  would require seeding unrelated disclosure/cost kinds.
