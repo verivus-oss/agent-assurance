@@ -26,11 +26,11 @@ use std::{
 // drift here vs MANIFEST or vs the actual seed file rows is a CI
 // failure.
 const EXPECTED_COUNTS: &[(&str, i64)] = &[
-    ("kind_descriptor", 20),
+    ("kind_descriptor", 21),
     ("entity_kind_descriptor", 27),
     ("relation_descriptor", 31),
-    ("attribute_vocabulary", 46),
-    ("attribute_value_allowed", 138),
+    ("attribute_vocabulary", 48),
+    ("attribute_value_allowed", 144),
 ];
 
 fn die(msg: impl std::fmt::Display) -> ExitCode {

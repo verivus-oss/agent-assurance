@@ -31,7 +31,8 @@ INSERT INTO dagtoml.kind_descriptor (template_kind, layer, descriptor_path, requ
     ('disclosure-attestation',    'profile:disclosure',      'profiles/disclosure/disclosure-attestation-kind.toml',         'disclosure'),
     ('redaction-manifest',        'profile:disclosure',      'profiles/disclosure/redaction-manifest-kind.toml',             'disclosure'),
     ('selective-disclosure-proof','profile:disclosure',      'profiles/disclosure/selective-disclosure-proof-kind.toml',     'disclosure'),
-    ('cost-record',               'profile:cost',            'profiles/cost/cost-record-kind.toml',                          'cost');
+    ('cost-record',               'profile:cost',            'profiles/cost/cost-record-kind.toml',                          'cost'),
+    ('api-snapshot',              'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/api-snapshot-kind.toml',       'com.verivus.runtime');
 
 -- entity_kind_descriptor (24; +1 cost = COST)
 INSERT INTO dagtoml.entity_kind_descriptor (entity_kind, id_prefix_pattern, layer, defining_kind, ijb_primitive, ijb_class, description) VALUES
@@ -150,7 +151,10 @@ INSERT INTO dagtoml.attribute_vocabulary (attribute, applies_to_entity, applies_
     ('abstraction_class.id_pattern', NULL, NULL, 'structural', FALSE, NULL, 'core', NULL),
     ('subject_class',       NULL, ['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL),
     ('provider_id',         NULL, ['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL),
-    ('model_family_id',     NULL, ['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL);
+    ('model_family_id',     NULL, ['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL),
+    -- Profile: com.verivus.runtime (2) — api-snapshot closed witness vocabularies.
+    ('witness_scheme',      NULL, ['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
+    ('attester_observed',   NULL, ['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL);
 
 -- attribute_value_allowed (54) — identical to postgres/seed.sql.
 INSERT INTO dagtoml.attribute_value_allowed (attribute, value) VALUES
@@ -295,4 +299,11 @@ INSERT INTO dagtoml.attribute_value_allowed (attribute, value) VALUES
     ('model_family_id', 'deepseek'),
     ('model_family_id', 'qwen'),
     ('model_family_id', 'human'),
-    ('model_family_id', 'other');
+    ('model_family_id', 'other'),
+    -- Profile: com.verivus.runtime witness vocabularies (6).
+    ('witness_scheme', 'tls-notary'),
+    ('witness_scheme', 'provider-signature'),
+    ('witness_scheme', 'tee-quote'),
+    ('attester_observed', 'request'),
+    ('attester_observed', 'response'),
+    ('attester_observed', 'both');
