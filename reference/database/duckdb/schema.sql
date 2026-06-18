@@ -38,7 +38,7 @@ CREATE TYPE ijb_primitive AS ENUM (
 );
 CREATE TYPE ijb_class      AS ENUM ('structural', 'instance');
 CREATE TYPE ijb_constraint_type AS ENUM ('structural', 'policy', 'observed');
-CREATE TYPE spec_layer     AS ENUM ('core', 'profile:agent-assurance', 'profile:disclosure', 'profile:cost');
+CREATE TYPE spec_layer     AS ENUM ('core', 'profile:agent-assurance', 'profile:disclosure', 'profile:cost', 'profile:com.verivus.runtime');
 
 
 -- ============================================================

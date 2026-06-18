@@ -1,0 +1,48 @@
+# Terminal decision — reword the overbroad "all business reality" primitive claim.
+# Synthesized by the initiator from the three verbatim reviews in raw_findings/.
+# Per tools/review-request-dag.toml [policy.persistence], raw findings are source of truth.
+
+[decision]
+terminal_state = "approve"   # after the one required revision (codex) was applied
+date           = "2026-05-31"
+summary        = "All three reviewers approve the foundations reword (primitives.md:7 + README.md:14). Codex returned approve_with_revisions on one completeness ground: a third stale site at docs/architecture.md:175 carried the same overbroad claim. Initiator independently verified that site against bytes and applied the minimal scoping fix. Net: the (now three-file) change set is review-approved with no semantic/normative change."
+
+[votes]
+grok    = "approve"
+mistral = "approve"
+codex   = "approve_with_revisions"   # required revision applied; codex's stated condition ('the two files can land unchanged once the stale architecture sentence is scoped too') is now met
+
+[required_revision]
+finding   = "docs/architecture.md:175-178 repeated the overbroad claim: 'every business reality reduces to exactly six primitives'."
+raised_by = "codex"
+severity  = "major"
+verified  = "Confirmed against bytes by initiator (docs/architecture.md:175-176)."
+action    = "Applied minimal scoping fix: 'every business reality reduces to' -> 'every projectable business fact in its scope reduces to' (kept the primitive list + 'forbids any other categorisation' intact). Consistent with the foundations reword."
+
+[files_changed]
+# All non-normative prose; no primitive added/removed/renamed; no grammar/ontology/validator/closure_root impact (confirmed by all three reviewers).
+list = [
+  "foundations/ijb/primitives.md (line 7 — scoped + bounding sentence)",
+  "foundations/ijb/README.md (line 14 — scoped, kept parallel)",
+  "docs/architecture.md (line 175 — scoped, required revision)",
+]
+
+[non_blocking_notes]
+# Recorded, not actioned — two reviewers rated these trivial/minor; approved text left intact to honor the review.
+wording_variance = "primitives.md:7 'what was observed' vs README.md:14 'what was witnessed' — trivial synonym variance, no semantic drift (grok+mistral: minor/none)."
+pointer_hygiene  = "grok (minor): the parenthetical '(see the canonical grammar's Non-Goals)' could be a stricter file pointer 'see canonical-assertion-grammar.md Non-Goals'. Left as-is; both other reviewers approved the exact text."
+
+[provenance]
+source_path        = "docs/research/2026-05-31-ijb-six-primitive-usability.md"
+source_sha256      = "sha256:dbd8459b30e4509d9f2cc9127951d55047be3eeffe2a32b53e861f982d0843c7"
+source_bytes       = 34829
+captured_at        = "2026-06-04T12:30:00Z"
+extraction_method  = "manual-analysis"
+origin = "Sole actionable critique from the 3-0 round-2 BWW multi-model review."
+research_trail = "docs/research/2026-05-31-ijb-six-primitive-usability.md (ROUND-2 RESOLUTION)"
+raw_findings = ["raw_findings/codex.md", "raw_findings/grok.md", "raw_findings/mistral.md"]
+initiator_excluded_as_standard_reviewer = true
+
+[status]
+committed = false
+note = "Change is review-approved but UNCOMMITTED in the working tree on branch fix/2026-05-29-five-weaknesses. Awaiting explicit go-ahead to commit."

@@ -1,0 +1,33 @@
+schema_version = "0.1.0"
+review_id = "2026-05-29-wp1-validator-ports"
+date_utc = "2026-05-29"
+work_package = "WP1 validator coverage gap"
+terminal_verdict = "pass"
+
+reviewers = [
+  "Gemini 2.5 Pro / Google via Gemini CLI direct read-only fallback",
+  "Grok 4.3 / xAI via Grok CLI direct read-only fallback",
+  "Gemini 2.5 Pro / Google via strict Gemini CLI re-review",
+]
+
+gateway_attempts_recorded = true
+gateway_dispatch_record = "docs/reviews/2026-05-29-wp1-validator-ports/gateway-dispatch.md"
+strict_review_round_record = "docs/reviews/2026-05-29-wp1-validator-ports/strict-review-round.md"
+
+blocking_issues = []
+
+non_blocking_issues = [
+  "Negative fixture checks are explicit and repetitive in validate.yml.",
+  "Additional future negative fixtures could cover implementation-dag cycles and malformed values inside legal capability-envelope domains.",
+]
+
+evidence = [
+  "docs/reviews/2026-05-29-wp1-validator-ports/review_prompt.md",
+  "docs/reviews/2026-05-29-wp1-validator-ports/verification_report.md",
+  "docs/reviews/2026-05-29-wp1-validator-ports/gemini-review.md",
+  "docs/reviews/2026-05-29-wp1-validator-ports/grok-review.md",
+  "docs/reviews/2026-05-29-wp1-validator-ports/gateway-dispatch.md",
+  "docs/reviews/2026-05-29-wp1-validator-ports/strict-review-round.md",
+  "docs/reviews/2026-05-29-wp1-validator-ports/gemini-strict-review.md",
+  "docs/reviews/2026-05-29-wp1-validator-ports/grok-strict-review.md",
+]

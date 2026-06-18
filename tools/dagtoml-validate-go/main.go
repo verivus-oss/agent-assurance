@@ -1,16 +1,6 @@
-// dagtoml-validate-go is the Go primary validator for the DAG-TOML
-// artifacts introduced by the draft layering work:
-//
-//   - template_kind = "profile-descriptor" (spec.md §6.1)
-//   - the disclosure profile kinds (disclosure-attestation,
-//     redaction-manifest, selective-disclosure-proof)
-//   - [provenance.encryption] sub-table (spec.md §11.1)
-//   - SPEC §2.7 cross-field rules (confidentiality / license /
-//     embargo_until)
-//   - SPEC §2.5 namespacing partition
-//   - SPEC §2.6 docs URL shape
-//   - SPEC §2.2 / §8 version pin shapes: schema_version is semver;
-//     ontology_version, when present, is a positive integer snapshot
+// dagtoml-validate-go is the Go primary validator for DAG-TOML
+// canonical examples, profiles, ontologies, kind descriptors, and
+// semantic invariants.
 //
 // It runs in CI alongside the safe-Rust validator
 // (tools/dagtoml-validate-rs/). Both are primary; the Python
@@ -27,7 +17,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -105,6 +97,15 @@ const (
 	modeProvenance
 	modeMeta
 	modeGateDecision
+	modeKindDescriptor
+	modeIJB
+	modeProvenanceBinding
+	modeImplementationDag
+	modeTraceability
+	modeReviewReadiness
+	modeCostRecord
+	modeRollbackPlan
+	modeAbstractionClass
 )
 
 func parseMode(s string) (mode, error) {
@@ -121,8 +122,2095 @@ func parseMode(s string) (mode, error) {
 		return modeMeta, nil
 	case "gate-decision":
 		return modeGateDecision, nil
+	case "kind-descriptor":
+		return modeKindDescriptor, nil
+	case "ijb":
+		return modeIJB, nil
+	case "provenance-binding":
+		return modeProvenanceBinding, nil
+	case "implementation-dag":
+		return modeImplementationDag, nil
+	case "traceability":
+		return modeTraceability, nil
+	case "review-readiness":
+		return modeReviewReadiness, nil
+	case "cost-record":
+		return modeCostRecord, nil
+	case "rollback-plan":
+		return modeRollbackPlan, nil
+	case "abstraction-class":
+		return modeAbstractionClass, nil
 	}
-	return modeAuto, fmt.Errorf("invalid mode %q (want auto|profile|disclosure|provenance|meta|gate-decision)", s)
+	return modeAuto, fmt.Errorf("invalid mode %q (want auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class)", s)
+}
+
+// ----------------------------------------------------------------------------
+// kind-descriptor structural validation
+// ----------------------------------------------------------------------------
+
+var kdPlaceholderMarkers = []string{"<", ">", "YYYY-MM-DD"}
+
+func hasPlaceholder(s string) bool {
+	for _, marker := range kdPlaceholderMarkers {
+		if strings.Contains(s, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func isProseField(path string) bool {
+	return path == "kind.prose" ||
+		path == "kind.summary" ||
+		strings.HasSuffix(path, ".inline") ||
+		strings.HasSuffix(path, ".inline_summary") ||
+		strings.HasSuffix(path, ".description") ||
+		strings.HasSuffix(path, ".statement") ||
+		strings.HasSuffix(path, ".notes") ||
+		strings.HasSuffix(path, ".note")
+}
+
+func iterStrings(node any, prefix string, out *[][2]string) {
+	switch x := node.(type) {
+	case string:
+		*out = append(*out, [2]string{prefix, x})
+	case map[string]any:
+		for k, v := range x {
+			sub := k
+			if prefix != "" {
+				sub = prefix + "." + k
+			}
+			iterStrings(v, sub, out)
+		}
+	case []any:
+		for i, v := range x {
+			iterStrings(v, fmt.Sprintf("%s[%d]", prefix, i), out)
+		}
+	case []map[string]any:
+		for i, v := range x {
+			iterStrings(v, fmt.Sprintf("%s[%d]", prefix, i), out)
+		}
+	}
+}
+
+func validateKindDescriptor(path string, doc rawDoc, repoRoot string, checkRefs bool) []string {
+	var errs []string
+	meta, ok := doc["meta"].(map[string]any)
+	if !ok {
+		return []string{"missing required `[meta]` table"}
+	}
+	for _, field := range []string{"schema_version", "template_kind", "describes_kind", "title"} {
+		if _, present := meta[field]; !present {
+			errs = append(errs, fmt.Sprintf("meta: missing required field `%s`", field))
+		}
+	}
+	if tk, _ := meta["template_kind"].(string); tk != "kind-descriptor" {
+		errs = append(errs, fmt.Sprintf("meta.template_kind: expected \"kind-descriptor\", got %q", tk))
+	}
+	describes, describesOK := meta["describes_kind"].(string)
+	if _, present := meta["describes_kind"]; present && !describesOK {
+		errs = append(errs, "meta.describes_kind: must be a string")
+	}
+	kind, ok := doc["kind"].(map[string]any)
+	if !ok {
+		errs = append(errs, "missing required `[kind]` table")
+		return errs
+	}
+	for _, field := range []string{"name", "summary", "prose"} {
+		if _, present := kind[field]; !present {
+			errs = append(errs, fmt.Sprintf("kind: missing required field `%s`", field))
+		}
+	}
+	if name, ok := kind["name"].(string); ok && describesOK && name != describes {
+		errs = append(errs, fmt.Sprintf("kind.name `%s` does not match meta.describes_kind `%s`", name, describes))
+	}
+	if summary, ok := kind["summary"].(string); ok && len(strings.TrimSpace(summary)) < 10 {
+		errs = append(errs, "kind.summary: must be at least 10 characters")
+	}
+	if prose, ok := kind["prose"].(string); ok && len(strings.TrimSpace(prose)) < 50 {
+		errs = append(errs, "kind.prose: must be at least 50 characters")
+	}
+	var stringsFound [][2]string
+	iterStrings(doc, "", &stringsFound)
+	for _, pair := range stringsFound {
+		if !isProseField(pair[0]) && hasPlaceholder(pair[1]) {
+			errs = append(errs, fmt.Sprintf("%s: placeholder value not allowed", pair[0]))
+		}
+	}
+	if checkRefs {
+		if examples, ok := asArray(kind["example"]); ok {
+			for _, raw := range examples {
+				entry, ok := raw.(map[string]any)
+				if !ok {
+					continue
+				}
+				file, ok := entry["file"].(string)
+				if !ok || file == "" {
+					continue
+				}
+				if hasPlaceholder(file) {
+					errs = append(errs, fmt.Sprintf("kind.example.file: placeholder path not allowed: %s", file))
+					continue
+				}
+				if _, err := os.Stat(filepath.Join(repoRoot, file)); err != nil {
+					errs = append(errs, fmt.Sprintf("kind.example.file: path does not exist under repo root: %s", file))
+				}
+			}
+		}
+		if invs, ok := asArray(kind["hard_invariants"]); ok {
+			for _, raw := range invs {
+				entry, ok := raw.(map[string]any)
+				if !ok {
+					continue
+				}
+				enforcedBy, ok := entry["enforced_by"].(string)
+				if !ok || enforcedBy == "" {
+					continue
+				}
+				lowered := strings.ToLower(enforcedBy)
+				if strings.Contains(lowered, "(planned)") || strings.Contains(lowered, "(tbd)") || strings.Contains(lowered, "prose review") {
+					continue
+				}
+				looksPath := (strings.Contains(enforcedBy, "/") || strings.HasSuffix(enforcedBy, ".py") || strings.HasSuffix(enforcedBy, ".toml") || strings.HasSuffix(enforcedBy, ".json")) &&
+					!strings.Contains(enforcedBy, " ") && !strings.Contains(enforcedBy, "(")
+				if looksPath {
+					if _, err := os.Stat(filepath.Join(repoRoot, enforcedBy)); err != nil {
+						errs = append(errs, fmt.Sprintf("kind.hard_invariants.enforced_by: path does not exist under repo root: %s", enforcedBy))
+					}
+				}
+			}
+		}
+		if refs, ok := asArray(kind["references"]); ok {
+			for _, raw := range refs {
+				ref, ok := raw.(string)
+				if !ok {
+					continue
+				}
+				bare := strings.TrimSpace(strings.SplitN(ref, "#", 2)[0])
+				if bare == "" || hasPlaceholder(bare) {
+					continue
+				}
+				if _, err := os.Stat(filepath.Join(repoRoot, bare)); err != nil {
+					errs = append(errs, fmt.Sprintf("kind.references: path does not exist under repo root: %s", bare))
+				}
+			}
+		}
+	}
+	_ = path
+	return errs
+}
+
+// ----------------------------------------------------------------------------
+// IJB conformance
+// ----------------------------------------------------------------------------
+
+var (
+	ijbPrimitives       = []string{"thing", "scope", "path", "observed", "constraint", "time"}
+	ijbClasses          = []string{"structural", "instance"}
+	ijbConstraintTypes  = []string{"structural", "policy", "observed"}
+	ijbMetaFieldMapping = map[string]struct {
+		primitive      string
+		class          string
+		constraintType string
+	}{
+		"framework_profile": {"scope", "structural", ""},
+		"template_kind":     {"scope", "structural", ""},
+		"schema_version":    {"constraint", "", "structural"},
+		"ontology_version":  {"constraint", "", "structural"},
+		"confidentiality":   {"constraint", "", "policy"},
+		"license":           {"constraint", "", "policy"},
+		"embargo_until":     {"time", "", ""},
+	}
+)
+
+func validatePrimitiveClass(block map[string]any, loc, expectedPrimitive, expectedClass, expectedConstraintType string) []string {
+	var errs []string
+	prim, _ := block["ijb_primitive"].(string)
+	switch {
+	case prim == "":
+		errs = append(errs, fmt.Sprintf("%s: missing required `ijb_primitive`", loc))
+	case !stringIn(prim, ijbPrimitives):
+		errs = append(errs, fmt.Sprintf("%s: `ijb_primitive = %q` is not one of %v", loc, prim, ijbPrimitives))
+	case prim != expectedPrimitive:
+		errs = append(errs, fmt.Sprintf("%s: `ijb_primitive = %q` does not match the SPEC §10.2 mapping (expected %q)", loc, prim, expectedPrimitive))
+	}
+	if expectedClass != "" {
+		cls, _ := block["ijb_class"].(string)
+		switch {
+		case cls == "":
+			errs = append(errs, fmt.Sprintf("%s: missing required `ijb_class`", loc))
+		case !stringIn(cls, ijbClasses):
+			errs = append(errs, fmt.Sprintf("%s: `ijb_class = %q` is not one of %v", loc, cls, ijbClasses))
+		case cls != expectedClass:
+			errs = append(errs, fmt.Sprintf("%s: `ijb_class = %q` does not match the SPEC §10.2 mapping (expected %q)", loc, cls, expectedClass))
+		}
+	} else if _, present := block["ijb_class"]; present {
+		errs = append(errs, fmt.Sprintf("%s: `ijb_class` is not permitted on this block per SPEC §10.2", loc))
+	}
+	if expectedConstraintType != "" {
+		ct, _ := block["ijb_constraint_type"].(string)
+		switch {
+		case ct == "":
+			errs = append(errs, fmt.Sprintf("%s: missing required `ijb_constraint_type`", loc))
+		case !stringIn(ct, ijbConstraintTypes):
+			errs = append(errs, fmt.Sprintf("%s: `ijb_constraint_type = %q` is not one of %v", loc, ct, ijbConstraintTypes))
+		case ct != expectedConstraintType:
+			errs = append(errs, fmt.Sprintf("%s: `ijb_constraint_type = %q` does not match the SPEC §10.2 mapping (expected %q)", loc, ct, expectedConstraintType))
+		}
+	} else if _, present := block["ijb_constraint_type"]; present {
+		errs = append(errs, fmt.Sprintf("%s: `ijb_constraint_type` is not permitted on this block per SPEC §10.2", loc))
+	}
+	return errs
+}
+
+func validateIJBOntology(path string, doc rawDoc) []string {
+	var errs []string
+	if entities, ok := asArray(doc["entities"]); ok {
+		for i, raw := range entities {
+			if block, ok := raw.(map[string]any); ok {
+				label, _ := block["id_prefix"].(string)
+				if label == "" {
+					label, _ = block["id_pattern"].(string)
+				}
+				errs = append(errs, validatePrimitiveClass(block, fmt.Sprintf("%s:entities[%d] (%s)", path, i, label), "thing", "structural", "")...)
+			}
+		}
+	}
+	if relations, ok := asArray(doc["relations"]); ok {
+		for i, raw := range relations {
+			if block, ok := raw.(map[string]any); ok {
+				label, _ := block["predicate"].(string)
+				errs = append(errs, validatePrimitiveClass(block, fmt.Sprintf("%s:relations[%d] (predicate=%s)", path, i, label), "path", "structural", "")...)
+			}
+		}
+	}
+	if vocabs, ok := asArray(doc["attribute_vocabularies"]); ok {
+		for i, raw := range vocabs {
+			block, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			label, _ := block["attribute"].(string)
+			loc := fmt.Sprintf("%s:attribute_vocabularies[%d] (attribute=%s)", path, i, label)
+			prim, _ := block["ijb_primitive"].(string)
+			switch {
+			case prim == "":
+				errs = append(errs, fmt.Sprintf("%s: missing required `ijb_primitive`", loc))
+			case !stringIn(prim, ijbPrimitives):
+				errs = append(errs, fmt.Sprintf("%s: `ijb_primitive = %q` is not one of %v", loc, prim, ijbPrimitives))
+			case prim != "constraint":
+				errs = append(errs, fmt.Sprintf("%s: `ijb_primitive = %q` does not match the SPEC §10.2 mapping (expected \"constraint\")", loc, prim))
+			}
+			if _, present := block["ijb_class"]; present {
+				errs = append(errs, fmt.Sprintf("%s: `ijb_class` is not permitted on attribute_vocabularies blocks", loc))
+			}
+			ct, _ := block["ijb_constraint_type"].(string)
+			switch {
+			case ct == "":
+				errs = append(errs, fmt.Sprintf("%s: missing required `ijb_constraint_type`", loc))
+			case !stringIn(ct, ijbConstraintTypes):
+				errs = append(errs, fmt.Sprintf("%s: `ijb_constraint_type = %q` is not one of %v", loc, ct, ijbConstraintTypes))
+			}
+		}
+	}
+	if ext, ok := doc["extension_rules"].(map[string]any); ok {
+		errs = append(errs, validatePrimitiveClass(ext, path+":[extension_rules]", "constraint", "", "structural")...)
+	} else {
+		errs = append(errs, fmt.Sprintf("%s: missing required `[extension_rules]` table (SPEC §10.2 row)", path))
+	}
+	meta, _ := doc["meta"].(map[string]any)
+	fieldPrims, ok := meta["ijb_field_primitives"].(map[string]any)
+	if !ok {
+		errs = append(errs, fmt.Sprintf("%s: missing required `[meta.ijb_field_primitives]` table", path))
+		return errs
+	}
+	for field, expected := range ijbMetaFieldMapping {
+		raw, hasAnnotation := fieldPrims[field]
+		if !hasAnnotation {
+			if _, present := meta[field]; present {
+				errs = append(errs, fmt.Sprintf("%s:[meta.ijb_field_primitives].%s: missing required inline annotation table", path, field))
+			}
+			continue
+		}
+		block, ok := raw.(map[string]any)
+		if !ok {
+			errs = append(errs, fmt.Sprintf("%s:[meta.ijb_field_primitives].%s: must be an inline annotation table", path, field))
+			continue
+		}
+		errs = append(errs, validatePrimitiveClass(block, fmt.Sprintf("%s:[meta.ijb_field_primitives].%s", path, field), expected.primitive, expected.class, expected.constraintType)...)
+	}
+	for field := range fieldPrims {
+		if _, ok := ijbMetaFieldMapping[field]; !ok {
+			errs = append(errs, fmt.Sprintf("%s:[meta.ijb_field_primitives].%s: unknown meta-field annotation key", path, field))
+		}
+	}
+	return errs
+}
+
+func validateIJBKindDescriptor(path string, doc rawDoc) []string {
+	kind, ok := doc["kind"].(map[string]any)
+	if !ok {
+		return []string{fmt.Sprintf("%s: kind-descriptor missing required `[kind]` table", path)}
+	}
+	var errs []string
+	errs = append(errs, validatePrimitiveClass(kind, path+":[kind]", "thing", "structural", "")...)
+	for _, key := range []string{"required_fields", "required_sections", "hard_invariants"} {
+		if arr, ok := asArray(kind[key]); ok {
+			for i, raw := range arr {
+				if block, ok := raw.(map[string]any); ok {
+					errs = append(errs, validatePrimitiveClass(block, fmt.Sprintf("%s:[[kind.%s]][%d]", path, key, i), "constraint", "", "structural")...)
+				}
+			}
+		}
+	}
+	if examples, ok := asArray(kind["example"]); ok {
+		for i, raw := range examples {
+			if block, ok := raw.(map[string]any); ok {
+				errs = append(errs, validatePrimitiveClass(block, fmt.Sprintf("%s:[[kind.example]][%d]", path, i), "observed", "", "")...)
+			}
+		}
+	}
+	if rto, ok := kind["relation_to_ontology"].(map[string]any); ok {
+		errs = append(errs, validatePrimitiveClass(rto, path+":[kind.relation_to_ontology]", "constraint", "", "structural")...)
+	}
+	return errs
+}
+
+func validateIJBProfileDescriptor(path string, doc rawDoc) []string {
+	profile, ok := doc["profile"].(map[string]any)
+	if !ok {
+		return []string{fmt.Sprintf("%s: profile-descriptor missing required `[profile]` table", path)}
+	}
+	return validatePrimitiveClass(profile, path+":[profile]", "thing", "structural", "")
+}
+
+func matchesIDPattern(pattern, value string) bool {
+	parts := strings.Split(pattern, `\d+`)
+	if len(parts) != 2 || !strings.HasPrefix(value, parts[0]) {
+		return value == pattern
+	}
+	suffix := value[len(parts[0]):]
+	if suffix == "" {
+		return false
+	}
+	i := 0
+	for i < len(suffix) && suffix[i] >= '0' && suffix[i] <= '9' {
+		i++
+	}
+	if i == 0 {
+		return false
+	}
+	rest := suffix[i:]
+	switch parts[1] {
+	case "":
+		return rest == ""
+	case "[a-z]?":
+		return rest == "" || (len(rest) == 1 && rest[0] >= 'a' && rest[0] <= 'z')
+	default:
+		return false
+	}
+}
+
+func looksUpperPrefix(prefix string) bool {
+	if prefix == "" || prefix[0] < 'A' || prefix[0] > 'Z' {
+		return false
+	}
+	for _, r := range prefix[1:] {
+		if !(r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_') {
+			return false
+		}
+	}
+	return true
+}
+
+func loadOntology(path string) (rawDoc, error) {
+	return loadDoc(path)
+}
+
+func buildIJBResolver(ontologies []rawDoc) (map[string]bool, []string, map[string]bool) {
+	prefixes := map[string]bool{}
+	var patterns []string
+	predicates := map[string]bool{}
+	for _, doc := range ontologies {
+		if entities, ok := asArray(doc["entities"]); ok {
+			for _, raw := range entities {
+				if block, ok := raw.(map[string]any); ok {
+					if prefix, ok := block["id_prefix"].(string); ok && prefix != "" {
+						prefixes[prefix] = true
+					}
+					if pattern, ok := block["id_pattern"].(string); ok && pattern != "" {
+						patterns = append(patterns, pattern)
+					}
+				}
+			}
+		}
+		if relations, ok := asArray(doc["relations"]); ok {
+			for _, raw := range relations {
+				if block, ok := raw.(map[string]any); ok {
+					if pred, ok := block["predicate"].(string); ok && pred != "" {
+						predicates[pred] = true
+					}
+				}
+			}
+		}
+	}
+	return prefixes, patterns, predicates
+}
+
+func checkEntityRef(token string, prefixes map[string]bool, patterns []string) string {
+	if parts := strings.SplitN(token, ":", 2); len(parts) == 2 {
+		prefix := parts[0]
+		if !looksUpperPrefix(prefix) {
+			return ""
+		}
+		if prefixes[prefix] {
+			return ""
+		}
+		return fmt.Sprintf("entity prefix `%s` in `%s` does not resolve to a declared `[[entities]].id_prefix` in the loaded ontologies", prefix, token)
+	}
+	for _, pattern := range patterns {
+		if matchesIDPattern(pattern, token) {
+			return ""
+		}
+	}
+	return ""
+}
+
+func walkIJBInstance(node any, parentKey, path string, prefixes map[string]bool, patterns []string, predicates map[string]bool, errs *[]string) {
+	switch x := node.(type) {
+	case string:
+		if parentKey == "id" || predicates[parentKey] {
+			if err := checkEntityRef(x, prefixes, patterns); err != "" {
+				*errs = append(*errs, fmt.Sprintf("%s: %s", path, err))
+			}
+		}
+	case map[string]any:
+		for k, v := range x {
+			sub := k
+			if path != "" {
+				sub = path + "." + k
+			}
+			walkIJBInstance(v, k, sub, prefixes, patterns, predicates, errs)
+		}
+	case []any:
+		for i, v := range x {
+			walkIJBInstance(v, parentKey, fmt.Sprintf("%s[%d]", path, i), prefixes, patterns, predicates, errs)
+		}
+	case []map[string]any:
+		for i, v := range x {
+			walkIJBInstance(v, parentKey, fmt.Sprintf("%s[%d]", path, i), prefixes, patterns, predicates, errs)
+		}
+	}
+}
+
+func validateIJBInstance(path string, doc rawDoc, repoRoot string) []string {
+	var errs []string
+	var ontologies []rawDoc
+	corePath := filepath.Join(repoRoot, "core", "ontology.toml")
+	coreDoc, err := loadOntology(corePath)
+	if err != nil {
+		errs = append(errs, fmt.Sprintf("core ontology not found or unparsable at %s", corePath))
+	} else {
+		errs = append(errs, validateIJBOntology(corePath, coreDoc)...)
+		ontologies = append(ontologies, coreDoc)
+	}
+	if meta, ok := doc["meta"].(map[string]any); ok {
+		if fp, ok := meta["framework_profile"].(string); ok && fp != "" {
+			profile := fp
+			if profile == "AGDF" {
+				profile = "agent-assurance"
+			}
+			profilePath := filepath.Join(repoRoot, "profiles", profile, "ontology.toml")
+			profileDoc, err := loadOntology(profilePath)
+			if err != nil {
+				errs = append(errs, fmt.Sprintf("framework_profile = %q but profile ontology not found or unparsable at %s", fp, profilePath))
+			} else {
+				errs = append(errs, validateIJBOntology(profilePath, profileDoc)...)
+				ontologies = append(ontologies, profileDoc)
+			}
+		}
+	}
+	if len(errs) > 0 {
+		return errs
+	}
+	prefixes, patterns, predicates := buildIJBResolver(ontologies)
+	walkIJBInstance(doc, "", "", prefixes, patterns, predicates, &errs)
+	if units, ok := doc["units"].(map[string]any); ok {
+		for unitID := range units {
+			matched := false
+			for _, pattern := range patterns {
+				if matchesIDPattern(pattern, unitID) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				errs = append(errs, fmt.Sprintf("units.%s: identifier does not match any declared entity `id_pattern` in the loaded ontologies", unitID))
+			}
+		}
+	}
+	_ = path
+	return errs
+}
+
+func validateIJB(path string, doc rawDoc, repoRoot string) []string {
+	tk, _ := stringOf(doc["meta"], "template_kind")
+	switch tk {
+	case "ontology":
+		return validateIJBOntology(path, doc)
+	case "kind-descriptor":
+		return validateIJBKindDescriptor(path, doc)
+	case "profile-descriptor":
+		return validateIJBProfileDescriptor(path, doc)
+	default:
+		return validateIJBInstance(path, doc, repoRoot)
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Full [provenance] source binding validation
+// ----------------------------------------------------------------------------
+
+func validateProvenanceBinding(path string, doc rawDoc, repoRoot string) []string {
+	var errs []string
+	prov, ok := doc["provenance"].(map[string]any)
+	if !ok {
+		return errs
+	}
+	sourcePath, ok := prov["source_path"].(string)
+	if !ok || sourcePath == "" {
+		return []string{fmt.Sprintf("%s: [provenance].source_path is required", path)}
+	}
+	sourceSHA, ok := prov["source_sha256"].(string)
+	if !ok || sourceSHA == "" {
+		return []string{fmt.Sprintf("%s: [provenance].source_sha256 is required", path)}
+	}
+	sourceBytes, ok := int64Of(prov["source_bytes"])
+	if !ok {
+		return []string{fmt.Sprintf("%s: [provenance].source_bytes is required and must be an integer", path)}
+	}
+	// SPEC §11: source_path MUST be relative and resolve to a file under
+	// repo root. Reject absolute paths and any `..`/symlink escape so an
+	// attestation cannot bind its provenance digest to a file outside the
+	// repo (e.g. "../../etc/passwd"). Mirrors
+	// validators/validate_provenance.py; a primary validator must not be
+	// weaker than the cross-check.
+	if filepath.IsAbs(sourcePath) {
+		return []string{fmt.Sprintf(
+			"%s: [provenance].source_path must be relative to repo root, got absolute path %s", path, sourcePath)}
+	}
+	canonRoot, err := filepath.EvalSymlinks(repoRoot)
+	if err != nil {
+		return []string{fmt.Sprintf("%s: [provenance] cannot canonicalize repo root: %v", path, err)}
+	}
+	// EvalSymlinks resolves `..` and follows symlinks (so a symlinked escape
+	// is caught by the containment check below) and returns an error for a
+	// non-existent path.
+	full, err := filepath.EvalSymlinks(filepath.Join(canonRoot, sourcePath))
+	if err != nil {
+		return []string{fmt.Sprintf("%s: [provenance].source_path does not resolve to a file under repo root (%s): %v", path, sourcePath, err)}
+	}
+	rel, err := filepath.Rel(canonRoot, full)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return []string{fmt.Sprintf("%s: [provenance].source_path %s resolves outside repo root (%s not under %s); SPEC §11 requires source_path to point to a file under repo root", path, sourcePath, full, canonRoot)}
+	}
+	if info, statErr := os.Stat(full); statErr != nil || !info.Mode().IsRegular() {
+		return []string{fmt.Sprintf("%s: [provenance].source_path does not resolve to a regular file under repo root (%s)", path, sourcePath)}
+	}
+	data, err := os.ReadFile(full)
+	if err != nil {
+		return []string{fmt.Sprintf("%s: [provenance].source_path could not be read (%s): %v", path, sourcePath, err)}
+	}
+	if enc, ok := prov["encryption"].(map[string]any); ok {
+		if hashOver, _ := enc["hash_is_over"].(string); hashOver == "plaintext" {
+			return errs
+		}
+	}
+	if sourceBytes < 0 || int64(len(data)) != sourceBytes {
+		errs = append(errs, fmt.Sprintf("%s: [provenance].source_bytes = %d but actual byte length is %d", path, sourceBytes, len(data)))
+	}
+	sum := sha256.Sum256(data)
+	actual := fmt.Sprintf("sha256:%x", sum)
+	if actual != sourceSHA {
+		errs = append(errs, fmt.Sprintf("%s: [provenance].source_sha256 = %s but actual digest is %s", path, sourceSHA, actual))
+	}
+	return errs
+}
+
+func int64Of(v any) (int64, bool) {
+	switch n := v.(type) {
+	case int64:
+		return n, true
+	case int:
+		return int64(n), true
+	case int32:
+		return int64(n), true
+	default:
+		return 0, false
+	}
+}
+
+// ----------------------------------------------------------------------------
+// Core implementation-dag validation
+// ----------------------------------------------------------------------------
+
+var implementationValidStatus = []string{"pending", "in_progress", "done", "blocked", "deferred"}
+
+func stringSlice(v any) ([]string, bool) {
+	arr, ok := asArray(v)
+	if !ok {
+		return nil, false
+	}
+	out := make([]string, 0, len(arr))
+	for _, raw := range arr {
+		s, ok := raw.(string)
+		if !ok {
+			return nil, false
+		}
+		out = append(out, s)
+	}
+	return out, true
+}
+
+func validateImplementationUnits(doc rawDoc) ([]string, map[string]map[string]any) {
+	var errs []string
+	units, ok := doc["units"].(map[string]any)
+	if !ok || len(units) == 0 {
+		return []string{"no `units` table found"}, nil
+	}
+	out := map[string]map[string]any{}
+	for uid, raw := range units {
+		unit, ok := raw.(map[string]any)
+		if !ok {
+			errs = append(errs, fmt.Sprintf("%s: unit entry must be a table", uid))
+			continue
+		}
+		out[uid] = unit
+		for _, field := range []string{"name", "summary", "layer", "tier", "status", "depends_on", "blocks", "estimated_loc"} {
+			if _, present := unit[field]; !present {
+				errs = append(errs, fmt.Sprintf("%s: missing required field `%s`", uid, field))
+			}
+		}
+		if status, ok := unit["status"].(string); ok && !stringIn(status, implementationValidStatus) {
+			errs = append(errs, fmt.Sprintf("%s: invalid status `%s`", uid, status))
+		}
+		if tier, ok := int64Of(unit["tier"]); ok && (tier < 1 || tier > 3) {
+			errs = append(errs, fmt.Sprintf("%s: invalid tier `%d` (must be 1, 2, or 3)", uid, tier))
+		}
+		if layer, ok := int64Of(unit["layer"]); ok && layer < 0 {
+			errs = append(errs, fmt.Sprintf("%s: layer must be a non-negative integer", uid))
+		}
+		if loc, ok := int64Of(unit["estimated_loc"]); ok && loc < 0 {
+			errs = append(errs, fmt.Sprintf("%s: estimated_loc must be a non-negative integer", uid))
+		}
+	}
+	return errs, out
+}
+
+func duplicates(xs []string) []string {
+	seen := map[string]bool{}
+	dupes := map[string]bool{}
+	for _, x := range xs {
+		if seen[x] {
+			dupes[x] = true
+		}
+		seen[x] = true
+	}
+	out := make([]string, 0, len(dupes))
+	for x := range dupes {
+		out = append(out, x)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func setFromSlice(xs []string) map[string]bool {
+	out := map[string]bool{}
+	for _, x := range xs {
+		out[x] = true
+	}
+	return out
+}
+
+func validateImplementationEdges(units map[string]map[string]any) ([]string, map[string]map[string]bool, map[string]map[string]bool) {
+	var errs []string
+	uids := map[string]bool{}
+	for uid := range units {
+		uids[uid] = true
+	}
+	deps := map[string]map[string]bool{}
+	blocks := map[string]map[string]bool{}
+	for uid, unit := range units {
+		depList, _ := stringSlice(unit["depends_on"])
+		blockList, _ := stringSlice(unit["blocks"])
+		for _, r := range depList {
+			switch {
+			case r == uid:
+				errs = append(errs, fmt.Sprintf("%s: depends_on includes self", uid))
+			case !uids[r]:
+				errs = append(errs, fmt.Sprintf("%s: depends_on references unknown unit `%s`", uid, r))
+			}
+		}
+		for _, r := range duplicates(depList) {
+			errs = append(errs, fmt.Sprintf("%s: depends_on has duplicate entry `%s`", uid, r))
+		}
+		for _, r := range blockList {
+			switch {
+			case r == uid:
+				errs = append(errs, fmt.Sprintf("%s: blocks includes self", uid))
+			case !uids[r]:
+				errs = append(errs, fmt.Sprintf("%s: blocks references unknown unit `%s`", uid, r))
+			}
+		}
+		for _, r := range duplicates(blockList) {
+			errs = append(errs, fmt.Sprintf("%s: blocks has duplicate entry `%s`", uid, r))
+		}
+		deps[uid] = setFromSlice(depList)
+		blocks[uid] = setFromSlice(blockList)
+	}
+	for a, bs := range blocks {
+		for b := range bs {
+			if uids[b] && !deps[b][a] {
+				errs = append(errs, fmt.Sprintf("inverse mismatch: %s.blocks contains `%s` but %s.depends_on is missing `%s`", a, b, b, a))
+			}
+		}
+	}
+	for b, ds := range deps {
+		for a := range ds {
+			if uids[a] && !blocks[a][b] {
+				errs = append(errs, fmt.Sprintf("inverse mismatch: %s.depends_on contains `%s` but %s.blocks is missing `%s`", b, a, a, b))
+			}
+		}
+	}
+	return errs, deps, blocks
+}
+
+func detectImplementationCycles(deps map[string]map[string]bool) []string {
+	var errs []string
+	seen := map[string]bool{}
+	var visit func(string, []string)
+	visit = func(node string, stack []string) {
+		for i, s := range stack {
+			if s == node {
+				cycle := append(append([]string{}, stack[i:]...), node)
+				errs = append(errs, fmt.Sprintf("cycle in depends_on: %s", strings.Join(cycle, " -> ")))
+				return
+			}
+		}
+		if seen[node] {
+			return
+		}
+		seen[node] = true
+		stack = append(stack, node)
+		keys := make([]string, 0, len(deps[node]))
+		for dep := range deps[node] {
+			keys = append(keys, dep)
+		}
+		sort.Strings(keys)
+		for _, dep := range keys {
+			visit(dep, stack)
+		}
+	}
+	keys := make([]string, 0, len(deps))
+	for uid := range deps {
+		keys = append(keys, uid)
+	}
+	sort.Strings(keys)
+	for _, uid := range keys {
+		visit(uid, nil)
+	}
+	return errs
+}
+
+func validateImplementationArtifacts(units map[string]map[string]any) []string {
+	var errs []string
+	producers := map[string][]string{}
+	for uid, unit := range units {
+		produces, _ := stringSlice(unit["produces"])
+		for _, art := range produces {
+			producers[art] = append(producers[art], uid)
+		}
+	}
+	for art, ps := range producers {
+		if !strings.HasPrefix(art, "ART:") && !strings.HasPrefix(art, "OUT:") {
+			errs = append(errs, fmt.Sprintf("%s: produces `%s` has unrecognized prefix (expected ART: or OUT:)", ps[0], art))
+		}
+		if len(ps) > 1 {
+			sort.Strings(ps)
+			errs = append(errs, fmt.Sprintf("artifact `%s` has multiple producers: %v", art, ps))
+		}
+	}
+	for uid, unit := range units {
+		consumes, _ := stringSlice(unit["consumes"])
+		for _, art := range consumes {
+			switch {
+			case !strings.HasPrefix(art, "ART:") && !strings.HasPrefix(art, "OUT:"):
+				errs = append(errs, fmt.Sprintf("%s: consumes `%s` has unrecognized prefix (expected ART: or OUT:)", uid, art))
+			case producers[art] == nil:
+				errs = append(errs, fmt.Sprintf("%s: consumes `%s` which is not produced by any unit in the DAG", uid, art))
+			}
+		}
+	}
+	return errs
+}
+
+func validateImplementationLayerOrdering(units map[string]map[string]any, deps map[string]map[string]bool) []string {
+	var errs []string
+	for u, ds := range deps {
+		ul, ok := int64Of(units[u]["layer"])
+		if !ok {
+			continue
+		}
+		for d := range ds {
+			dl, ok := int64Of(units[d]["layer"])
+			if ok && ul <= dl {
+				errs = append(errs, fmt.Sprintf("layer ordering: %s (layer=%d) depends_on %s (layer=%d) — a depender must be in a strictly higher layer", u, ul, d, dl))
+			}
+		}
+	}
+	return errs
+}
+
+func validateImplementationMeta(doc rawDoc, units map[string]map[string]any) []string {
+	var errs []string
+	meta, _ := doc["meta"].(map[string]any)
+	if total, ok := int64Of(meta["total_units"]); ok && total != int64(len(units)) {
+		errs = append(errs, fmt.Sprintf("meta.total_units=%d but units table has %d entries", total, len(units)))
+	}
+	byTier := map[int64]map[string]bool{1: {}, 2: {}, 3: {}}
+	for uid, unit := range units {
+		if tier, ok := int64Of(unit["tier"]); ok && tier >= 1 && tier <= 3 {
+			byTier[tier][uid] = true
+		}
+	}
+	for tier := int64(1); tier <= 3; tier++ {
+		key := fmt.Sprintf("tier%d_units", tier)
+		declaredList, ok := stringSlice(meta[key])
+		if !ok {
+			continue
+		}
+		declared := setFromSlice(declaredList)
+		for extra := range declared {
+			if !byTier[tier][extra] {
+				errs = append(errs, fmt.Sprintf("meta.%s lists `%s` but that unit does not have tier=%d", key, extra, tier))
+			}
+		}
+		for missing := range byTier[tier] {
+			if !declared[missing] {
+				errs = append(errs, fmt.Sprintf("meta.%s is missing `%s` (unit has tier=%d)", key, missing, tier))
+			}
+		}
+	}
+	return errs
+}
+
+func longestImplementationPath(units map[string]map[string]any, blocks map[string]map[string]bool) (int64, bool) {
+	memo := map[string]int64{}
+	visiting := map[string]bool{}
+	var dfs func(string) (int64, bool)
+	dfs = func(node string) (int64, bool) {
+		if v, ok := memo[node]; ok {
+			return v, true
+		}
+		if visiting[node] {
+			return 0, false
+		}
+		visiting[node] = true
+		own, _ := int64Of(units[node]["estimated_loc"])
+		var bestTail int64
+		for next := range blocks[node] {
+			if _, ok := units[next]; ok {
+				score, ok := dfs(next)
+				if !ok {
+					return 0, false
+				}
+				if score > bestTail {
+					bestTail = score
+				}
+			}
+		}
+		visiting[node] = false
+		total := own + bestTail
+		memo[node] = total
+		return total, true
+	}
+	var best int64
+	for uid := range units {
+		score, ok := dfs(uid)
+		if !ok {
+			return 0, false
+		}
+		if score > best {
+			best = score
+		}
+	}
+	return best, true
+}
+
+func validateImplementationComputed(doc rawDoc, units map[string]map[string]any, deps, blocks map[string]map[string]bool) []string {
+	var errs []string
+	computed, ok := doc["computed"].(map[string]any)
+	if !ok {
+		return errs
+	}
+	actualEntry := map[string]bool{}
+	actualLeaf := map[string]bool{}
+	actualLayers := map[int64]int64{}
+	actualTierLoc := map[int64]int64{}
+	var actualAll int64
+	for uid, unit := range units {
+		if len(deps[uid]) == 0 {
+			actualEntry[uid] = true
+		}
+		if len(blocks[uid]) == 0 {
+			actualLeaf[uid] = true
+		}
+		if layer, ok := int64Of(unit["layer"]); ok {
+			actualLayers[layer]++
+		}
+		loc, _ := int64Of(unit["estimated_loc"])
+		actualAll += loc
+		if tier, ok := int64Of(unit["tier"]); ok && tier >= 1 && tier <= 3 {
+			actualTierLoc[tier] += loc
+		}
+	}
+	if declaredList, ok := stringSlice(computed["entry_points"]); ok {
+		declared := setFromSlice(declaredList)
+		for extra := range declared {
+			if !actualEntry[extra] {
+				errs = append(errs, fmt.Sprintf("computed.entry_points lists `%s` but its depends_on is non-empty", extra))
+			}
+		}
+		for missing := range actualEntry {
+			if !declared[missing] {
+				errs = append(errs, fmt.Sprintf("computed.entry_points is missing `%s` (has empty depends_on)", missing))
+			}
+		}
+	}
+	if declaredList, ok := stringSlice(computed["leaf_nodes"]); ok {
+		declared := setFromSlice(declaredList)
+		for extra := range declared {
+			if !actualLeaf[extra] {
+				errs = append(errs, fmt.Sprintf("computed.leaf_nodes lists `%s` but its blocks is non-empty", extra))
+			}
+		}
+		for missing := range actualLeaf {
+			if !declared[missing] {
+				errs = append(errs, fmt.Sprintf("computed.leaf_nodes is missing `%s` (has empty blocks)", missing))
+			}
+		}
+	}
+	if mp, ok := computed["max_parallel"].(map[string]any); ok {
+		for layer, count := range actualLayers {
+			key := fmt.Sprintf("layer%d", layer)
+			got, ok := int64Of(mp[key])
+			switch {
+			case !ok:
+				errs = append(errs, fmt.Sprintf("computed.max_parallel is missing `%s` (actual count=%d)", key, count))
+			case got != count:
+				errs = append(errs, fmt.Sprintf("computed.max_parallel.%s=%d but %d unit(s) actually in layer %d", key, got, count, layer))
+			}
+		}
+		for key, raw := range mp {
+			if !strings.HasPrefix(key, "layer") {
+				continue
+			}
+			layer, err := strconv.ParseInt(strings.TrimPrefix(key, "layer"), 10, 64)
+			if err != nil {
+				errs = append(errs, fmt.Sprintf("computed.max_parallel has malformed key `%s`", key))
+				continue
+			}
+			if _, ok := actualLayers[layer]; !ok {
+				got, _ := int64Of(raw)
+				errs = append(errs, fmt.Sprintf("computed.max_parallel.%s=%d but no units are in layer %d", key, got, layer))
+			}
+		}
+	}
+	if loc, ok := computed["loc_totals"].(map[string]any); ok {
+		if all, ok := int64Of(loc["all"]); ok && all != actualAll {
+			errs = append(errs, fmt.Sprintf("computed.loc_totals.all=%d but sum of estimated_loc=%d", all, actualAll))
+		}
+		for tier := int64(1); tier <= 3; tier++ {
+			key := fmt.Sprintf("tier%d", tier)
+			if got, ok := int64Of(loc[key]); ok && got != actualTierLoc[tier] {
+				errs = append(errs, fmt.Sprintf("computed.loc_totals.%s=%d but actual sum for tier-%d units=%d", key, got, tier, actualTierLoc[tier]))
+			}
+		}
+	}
+	cp, _ := stringSlice(computed["critical_path"])
+	cpLoc, hasCPLoc := int64Of(computed["critical_path_loc"])
+	if len(cp) == 0 {
+		if hasCPLoc {
+			errs = append(errs, fmt.Sprintf("computed.critical_path_loc=%d but critical_path is empty or missing", cpLoc))
+		}
+		return errs
+	}
+	badRef := false
+	for i, uid := range cp {
+		if _, ok := units[uid]; !ok {
+			errs = append(errs, fmt.Sprintf("computed.critical_path[%d]=`%s` references unknown unit", i, uid))
+			badRef = true
+		}
+	}
+	if badRef {
+		return errs
+	}
+	for i := 0; i+1 < len(cp); i++ {
+		if !blocks[cp[i]][cp[i+1]] {
+			errs = append(errs, fmt.Sprintf("computed.critical_path: %s -> %s is not a direct dependency edge", cp[i], cp[i+1]))
+		}
+	}
+	if len(deps[cp[0]]) != 0 {
+		errs = append(errs, fmt.Sprintf("computed.critical_path starts at `%s` which is not an entry point", cp[0]))
+	}
+	if len(blocks[cp[len(cp)-1]]) != 0 {
+		errs = append(errs, fmt.Sprintf("computed.critical_path ends at `%s` which is not a leaf", cp[len(cp)-1]))
+	}
+	var cpActual int64
+	for _, uid := range cp {
+		loc, _ := int64Of(units[uid]["estimated_loc"])
+		cpActual += loc
+	}
+	if hasCPLoc && cpLoc != cpActual {
+		errs = append(errs, fmt.Sprintf("computed.critical_path_loc=%d but sum along path=%d", cpLoc, cpActual))
+	}
+	if longest, ok := longestImplementationPath(units, blocks); ok && cpActual < longest {
+		errs = append(errs, fmt.Sprintf("computed.critical_path LOC=%d but a longer path exists with LOC=%d", cpActual, longest))
+	}
+	return errs
+}
+
+func validateImplementationDag(path string, doc rawDoc) []string {
+	errs, units := validateImplementationUnits(doc)
+	if len(units) == 0 {
+		return errs
+	}
+	edgeErrs, deps, blocks := validateImplementationEdges(units)
+	errs = append(errs, edgeErrs...)
+	errs = append(errs, detectImplementationCycles(deps)...)
+	errs = append(errs, validateImplementationArtifacts(units)...)
+	errs = append(errs, validateImplementationLayerOrdering(units, deps)...)
+	errs = append(errs, validateImplementationMeta(doc, units)...)
+	errs = append(errs, validateImplementationComputed(doc, units, deps, blocks)...)
+	errs = append(errs, validateImplementationPaths(units)...)
+	_ = path
+	return errs
+}
+
+// implPlaceholderMarkers mirrors PLACEHOLDER_MARKERS in
+// validators/validate_implementation_dag.py: implementation-dag file
+// claims treat only the angle-bracket markers as placeholders. This is
+// deliberately narrower than kdPlaceholderMarkers (which also rejects
+// `YYYY-MM-DD`), matching the per-kind policy split in the Python reference.
+var implPlaceholderMarkers = []string{"<", ">"}
+
+func hasImplPlaceholder(s string) bool {
+	for _, marker := range implPlaceholderMarkers {
+		if strings.Contains(s, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// validateImplementationPaths mirrors the Python reference validator's
+// default placeholder policy: unresolved markers in unit file claims
+// are rejected.
+func validateImplementationPaths(units map[string]map[string]any) []string {
+	var errs []string
+	for uid, unit := range units {
+		for _, field := range []string{"files_create", "files_modify"} {
+			files, _ := stringSlice(unit[field])
+			for _, f := range files {
+				if hasImplPlaceholder(f) {
+					errs = append(errs, fmt.Sprintf("%s.%s: placeholder not allowed: `%s`", uid, field, f))
+				}
+			}
+		}
+	}
+	return errs
+}
+
+// ----------------------------------------------------------------------------
+// Core traceability validation
+// ----------------------------------------------------------------------------
+
+var traceabilitySections = []string{
+	"intents", "features", "requirements", "regulations", "decisions",
+	"implementations", "code", "tests", "outputs",
+}
+
+func traceabilityLinkFields(section string) []string {
+	switch section {
+	case "intents":
+		return []string{"derived_from", "realized_by"}
+	case "features":
+		return []string{"realizes", "constrained_by", "implemented_by", "produces"}
+	case "requirements", "regulations":
+		return []string{"constrains", "verified_by"}
+	case "decisions":
+		return []string{"addresses", "shapes", "supersedes"}
+	case "implementations":
+		return []string{"implements", "guided_by", "code", "tests", "downstream_outputs"}
+	case "code":
+		return []string{"realizes"}
+	case "tests":
+		return []string{"verifies"}
+	case "outputs":
+		return []string{"realizes"}
+	}
+	return nil
+}
+
+func traceabilityDownstreamFields(section string) []string {
+	switch section {
+	case "intents":
+		return []string{"realized_by"}
+	case "features":
+		return []string{"implemented_by", "produces"}
+	case "requirements", "regulations":
+		return []string{"verified_by", "constrains"}
+	case "decisions":
+		return []string{"shapes"}
+	case "implementations":
+		return []string{"code", "tests", "downstream_outputs"}
+	case "code":
+		return []string{"realizes"}
+	case "tests":
+		return []string{"verifies"}
+	case "outputs":
+		return []string{"realizes"}
+	}
+	return nil
+}
+
+func traceabilityGatherEntities(doc rawDoc) (map[string]map[string]any, []string) {
+	entities := map[string]map[string]any{}
+	var errs []string
+	for _, section := range traceabilitySections {
+		entries, _ := asArray(doc[section])
+		for _, raw := range entries {
+			entry, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			id, ok := entry["id"].(string)
+			if !ok || id == "" {
+				errs = append(errs, fmt.Sprintf("%s: missing required `id` field", section))
+				continue
+			}
+			if _, exists := entities[id]; exists {
+				errs = append(errs, fmt.Sprintf("duplicate id: %s", id))
+				continue
+			}
+			entities[id] = entry
+		}
+	}
+	return entities, errs
+}
+
+func traceabilityHasPlaceholder(s string) bool {
+	return strings.Contains(s, "<") || strings.Contains(s, ">") || strings.Contains(s, "YYYY-MM-DD")
+}
+
+func validateTraceabilityLinks(doc rawDoc, entities map[string]map[string]any) []string {
+	var errs []string
+	for _, section := range traceabilitySections {
+		entries, _ := asArray(doc[section])
+		for _, raw := range entries {
+			entry, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			id, _ := entry["id"].(string)
+			if id == "" {
+				id = section + ":<missing-id>"
+			}
+			for _, field := range traceabilityLinkFields(section) {
+				targets, _ := stringSlice(entry[field])
+				for _, target := range targets {
+					if entities[target] == nil {
+						errs = append(errs, fmt.Sprintf("%s: `%s` target missing: %s", id, field, target))
+					}
+				}
+			}
+		}
+	}
+	relations, _ := asArray(doc["relations"])
+	for _, raw := range relations {
+		rel, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		source, _ := rel["from"].(string)
+		target, _ := rel["to"].(string)
+		typ, _ := rel["type"].(string)
+		if typ == "" {
+			typ = "<missing-type>"
+		}
+		if entities[source] == nil {
+			errs = append(errs, fmt.Sprintf("relation `%s` missing `from` target: %s", typ, source))
+		}
+		if entities[target] == nil {
+			errs = append(errs, fmt.Sprintf("relation `%s` missing `to` target: %s", typ, target))
+		}
+	}
+	return errs
+}
+
+func traceabilityForwardGraph(doc rawDoc) map[string]map[string]bool {
+	graph := map[string]map[string]bool{}
+	for _, section := range traceabilitySections {
+		entries, _ := asArray(doc[section])
+		for _, raw := range entries {
+			entry, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			id, _ := entry["id"].(string)
+			if id == "" {
+				continue
+			}
+			for _, field := range traceabilityDownstreamFields(section) {
+				targets, _ := stringSlice(entry[field])
+				for _, target := range targets {
+					if graph[id] == nil {
+						graph[id] = map[string]bool{}
+					}
+					graph[id][target] = true
+				}
+			}
+		}
+	}
+	return graph
+}
+
+func traceabilityReachable(graph map[string]map[string]bool, start string, prefixes []string) bool {
+	stack := []string{start}
+	seen := map[string]bool{}
+	for len(stack) > 0 {
+		current := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		if seen[current] {
+			continue
+		}
+		seen[current] = true
+		if current != start {
+			for _, prefix := range prefixes {
+				if strings.HasPrefix(current, prefix) {
+					return true
+				}
+			}
+		}
+		for next := range graph[current] {
+			stack = append(stack, next)
+		}
+	}
+	return false
+}
+
+func validateTraceabilityCycles(doc rawDoc) []string {
+	var errs []string
+	for _, pair := range [][2]string{{"intents", "derived_from"}, {"decisions", "supersedes"}} {
+		section, field := pair[0], pair[1]
+		graph := map[string]map[string]bool{}
+		entries, _ := asArray(doc[section])
+		for _, raw := range entries {
+			entry, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			id, _ := entry["id"].(string)
+			if id == "" {
+				continue
+			}
+			targets, _ := stringSlice(entry[field])
+			for _, target := range targets {
+				if graph[id] == nil {
+					graph[id] = map[string]bool{}
+				}
+				graph[id][target] = true
+			}
+		}
+		visiting, visited := map[string]bool{}, map[string]bool{}
+		var visit func(string) bool
+		visit = func(node string) bool {
+			if visited[node] {
+				return false
+			}
+			if visiting[node] {
+				return true
+			}
+			visiting[node] = true
+			for next := range graph[node] {
+				if visit(next) {
+					return true
+				}
+			}
+			visiting[node] = false
+			visited[node] = true
+			return false
+		}
+		keys := make([]string, 0, len(graph))
+		for node := range graph {
+			keys = append(keys, node)
+		}
+		sort.Strings(keys)
+		for _, node := range keys {
+			if visit(node) {
+				errs = append(errs, fmt.Sprintf("%s: `%s` contains a cycle involving %s", section, field, node))
+				break
+			}
+		}
+	}
+	return errs
+}
+
+func validateTraceabilityDownstream(doc rawDoc) []string {
+	var errs []string
+	graph := traceabilityForwardGraph(doc)
+	for _, section := range []string{"requirements", "regulations"} {
+		entries, _ := asArray(doc[section])
+		for _, raw := range entries {
+			entry, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			id, _ := entry["id"].(string)
+			if id != "" && !traceabilityReachable(graph, id, []string{"CODE:", "TEST:", "OUT:", "IMP:"}) {
+				errs = append(errs, fmt.Sprintf("%s: no downstream realization path to implementation, code, tests, or outputs", id))
+			}
+		}
+	}
+	return errs
+}
+
+func validateTraceabilityPaths(doc rawDoc) []string {
+	var errs []string
+	for _, section := range []string{"code", "tests"} {
+		entries, _ := asArray(doc[section])
+		for _, raw := range entries {
+			entry, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			id, _ := entry["id"].(string)
+			if id == "" {
+				id = section + ":<missing-id>"
+			}
+			path, _ := entry["path"].(string)
+			switch {
+			case path == "":
+				errs = append(errs, fmt.Sprintf("%s: missing `path`", id))
+			case traceabilityHasPlaceholder(path):
+				errs = append(errs, fmt.Sprintf("%s: placeholder path not allowed: %s", id, path))
+			}
+		}
+	}
+	return errs
+}
+
+func validateTraceabilityPlaceholders(doc rawDoc) []string {
+	var errs []string
+	for _, section := range traceabilitySections {
+		entries, _ := asArray(doc[section])
+		for _, raw := range entries {
+			entry, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			if id, _ := entry["id"].(string); id != "" && traceabilityHasPlaceholder(id) {
+				errs = append(errs, fmt.Sprintf("%s: placeholder id not allowed: %s", section, id))
+			}
+		}
+	}
+	return errs
+}
+
+func validateTraceabilityComputed(doc rawDoc, entities map[string]map[string]any) []string {
+	var errs []string
+	computed, ok := doc["computed"].(map[string]any)
+	if !ok {
+		return errs
+	}
+	for _, field := range []string{"root_intents", "terminal_outputs", "unverified_requirements", "unmapped_code", "coverage_gaps"} {
+		targets, _ := stringSlice(computed[field])
+		for _, target := range targets {
+			if target != "" && field != "coverage_gaps" && entities[target] == nil {
+				errs = append(errs, fmt.Sprintf("computed `%s` target missing: %s", field, target))
+			}
+		}
+	}
+	return errs
+}
+
+func validateTraceability(path string, doc rawDoc) []string {
+	entities, errs := traceabilityGatherEntities(doc)
+	errs = append(errs, validateTraceabilityPlaceholders(doc)...)
+	errs = append(errs, validateTraceabilityLinks(doc, entities)...)
+	errs = append(errs, validateTraceabilityCycles(doc)...)
+	errs = append(errs, validateTraceabilityDownstream(doc)...)
+	errs = append(errs, validateTraceabilityPaths(doc)...)
+	errs = append(errs, validateTraceabilityComputed(doc, entities)...)
+	_ = path
+	return errs
+}
+
+// ----------------------------------------------------------------------------
+// Review-readiness validation
+// ----------------------------------------------------------------------------
+
+func reviewNormalizeKind(value string) string {
+	value = strings.ReplaceAll(strings.ToLower(strings.TrimSpace(value)), "_", "-")
+	switch value {
+	case "readiness-gate", "readiness", "gate-readiness":
+		return "readiness-gate"
+	case "contract-declaration", "contract", "contracts":
+		return "contract-declaration"
+	case "evidence-matrix", "evidence", "matrix":
+		return "evidence-matrix"
+	}
+	return ""
+}
+
+func reviewSectionAliases(kind string) map[string][]string {
+	switch kind {
+	case "readiness-gate":
+		return map[string][]string{
+			"artifact_classes": {"artifact_classes", "artifacts", "readiness.artifact_classes"},
+			"gates":            {"gates", "readiness_gates", "readiness.gates"},
+		}
+	case "contract-declaration":
+		return map[string][]string{"contracts": {"contracts", "declarations", "contract_declarations"}}
+	case "evidence-matrix":
+		return map[string][]string{
+			"claims":   {"claims", "assertions"},
+			"evidence": {"evidence", "artifacts", "evidence_artifacts"},
+			"matrix":   {"matrix", "rows", "evidence_matrix"},
+		}
+	}
+	return nil
+}
+
+func reviewRequiredFields(kind, section string) [][]string {
+	switch kind + "/" + section {
+	case "readiness-gate/artifact_classes":
+		return [][]string{{"id"}}
+	case "readiness-gate/gates":
+		return [][]string{{"id"}, {"artifact_class"}, {"checks", "required_documents", "criteria", "summary"}}
+	case "contract-declaration/contracts":
+		return [][]string{{"id"}, {"statement", "contract", "summary"}, {"applies_to", "depends_on", "supersedes", "verified_by"}}
+	case "evidence-matrix/claims":
+		return [][]string{{"id"}, {"claim", "statement", "assertion"}}
+	case "evidence-matrix/evidence":
+		return [][]string{{"id"}, {"path", "artifact_path", "evidence_path", "file_path"}}
+	case "evidence-matrix/matrix":
+		return [][]string{{"id"}, {"claim", "claim_id"}, {"evidence", "evidence_id"}, {"scope_covered", "scope"}, {"known_exclusions", "exclusions", "limitations"}}
+	}
+	return nil
+}
+
+func reviewLinkFields(kind, section string) map[string]string {
+	switch kind + "/" + section {
+	case "readiness-gate/gates":
+		return map[string]string{"artifact_class": "artifact_classes"}
+	case "contract-declaration/contracts":
+		return map[string]string{"depends_on": "contracts", "supersedes": "contracts", "related_to": "contracts", "verified_by": "", "applies_to": ""}
+	case "evidence-matrix/matrix":
+		return map[string]string{"claim": "claims", "claim_id": "claims", "evidence": "evidence", "evidence_id": "evidence"}
+	}
+	return nil
+}
+
+func dottedValue(doc rawDoc, dotted string) (any, bool) {
+	var cur any = doc
+	for _, part := range strings.Split(dotted, ".") {
+		m, ok := cur.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		cur, ok = m[part]
+		if !ok {
+			return nil, false
+		}
+	}
+	return cur, true
+}
+
+func reviewEntries(value any) []map[string]any {
+	switch v := value.(type) {
+	case map[string]any:
+		return []map[string]any{v}
+	case []map[string]any:
+		return v
+	case []any:
+		out := make([]map[string]any, 0, len(v))
+		for _, raw := range v {
+			if entry, ok := raw.(map[string]any); ok {
+				out = append(out, entry)
+			}
+		}
+		return out
+	}
+	return nil
+}
+
+func reviewTargets(value any) []string {
+	if s, ok := value.(string); ok {
+		return []string{s}
+	}
+	xs, _ := stringSlice(value)
+	return xs
+}
+
+func reviewDetectKind(doc rawDoc) string {
+	if meta, ok := doc["meta"].(map[string]any); ok {
+		for _, key := range []string{"template_kind", "kind", "control_kind", "template"} {
+			if raw, _ := meta[key].(string); raw != "" {
+				if kind := reviewNormalizeKind(raw); kind != "" {
+					return kind
+				}
+			}
+		}
+	}
+	if _, ok := doc["contracts"]; ok {
+		return "contract-declaration"
+	}
+	if _, ok := doc["declarations"]; ok {
+		return "contract-declaration"
+	}
+	if _, ok := doc["contract_declarations"]; ok {
+		return "contract-declaration"
+	}
+	if _, hasGates := doc["gates"]; hasGates {
+		if _, hasClasses := doc["artifact_classes"]; hasClasses {
+			return "readiness-gate"
+		}
+	}
+	if _, hasClaims := doc["claims"]; hasClaims {
+		if _, hasEvidence := doc["evidence"]; hasEvidence {
+			return "evidence-matrix"
+		}
+	}
+	return ""
+}
+
+func reviewValuePresent(entry map[string]any, field string) bool {
+	v, ok := entry[field]
+	if !ok {
+		return false
+	}
+	switch x := v.(type) {
+	case string:
+		return x != ""
+	case []any:
+		return len(x) > 0
+	case []string:
+		return len(x) > 0
+	case map[string]any:
+		return len(x) > 0
+	default:
+		return true
+	}
+}
+
+func collectReviewPlaceholders(value any, prefix string, errs *[]string) {
+	switch x := value.(type) {
+	case string:
+		if traceabilityHasPlaceholder(x) {
+			*errs = append(*errs, fmt.Sprintf("placeholder value not allowed at %s", prefix))
+		}
+	case map[string]any:
+		for k, v := range x {
+			sub := k
+			if prefix != "" {
+				sub = prefix + "." + k
+			}
+			collectReviewPlaceholders(v, sub, errs)
+		}
+	case []any:
+		for i, v := range x {
+			collectReviewPlaceholders(v, fmt.Sprintf("%s[%d]", prefix, i), errs)
+		}
+	case []map[string]any:
+		for i, v := range x {
+			collectReviewPlaceholders(v, fmt.Sprintf("%s[%d]", prefix, i), errs)
+		}
+	}
+}
+
+func validateReviewReadiness(path string, doc rawDoc) []string {
+	var errs []string
+	kind := reviewDetectKind(doc)
+	if kind == "" {
+		return []string{"unable to detect template kind from TOML content"}
+	}
+	if meta, ok := doc["meta"].(map[string]any); ok {
+		if rv, _ := meta["release_version"].(string); rv != "" && rv != "0.1.0" {
+			errs = append(errs, fmt.Sprintf("meta.release_version (%s) does not match expected 0.1.0", rv))
+		}
+	} else {
+		errs = append(errs, "missing required `meta` section")
+	}
+	resolved := map[string][]map[string]any{}
+	aliases := reviewSectionAliases(kind)
+	for canonical, names := range aliases {
+		var raw any
+		var foundAlias string
+		found := false
+		for _, alias := range names {
+			if v, ok := dottedValue(doc, alias); ok {
+				raw, foundAlias, found = v, alias, true
+				break
+			}
+		}
+		if !found {
+			errs = append(errs, fmt.Sprintf("missing required `%s` section", canonical))
+			continue
+		}
+		switch raw.(type) {
+		case map[string]any, []any, []map[string]any:
+		default:
+			errs = append(errs, fmt.Sprintf("`%s` must be a table or array of tables", foundAlias))
+			continue
+		}
+		if arr, ok := asArray(raw); ok && len(arr) == 0 {
+			errs = append(errs, fmt.Sprintf("`%s` must contain at least one entry", foundAlias))
+		}
+		resolved[canonical] = reviewEntries(raw)
+	}
+	idIndex := map[string]string{}
+	for section, entries := range resolved {
+		for _, entry := range entries {
+			id, _ := entry["id"].(string)
+			if id == "" {
+				errs = append(errs, fmt.Sprintf("%s: missing required `id` field", section))
+				continue
+			}
+			if _, exists := idIndex[id]; exists {
+				errs = append(errs, fmt.Sprintf("duplicate id across sections: %s", id))
+			} else {
+				idIndex[id] = section
+			}
+			for _, group := range reviewRequiredFields(kind, section) {
+				present := false
+				for _, field := range group {
+					if reviewValuePresent(entry, field) {
+						present = true
+						break
+					}
+				}
+				if !present {
+					if len(group) == 1 {
+						errs = append(errs, fmt.Sprintf("%s: missing required `%s` field", id, group[0]))
+					} else {
+						errs = append(errs, fmt.Sprintf("%s: missing required `%s` field", id, strings.Join(group, "` or `")))
+					}
+				}
+			}
+		}
+	}
+	for section, entries := range resolved {
+		for _, entry := range entries {
+			id, _ := entry["id"].(string)
+			if id == "" {
+				id = "<missing-id>"
+			}
+			for field, targetSection := range reviewLinkFields(kind, section) {
+				if targetSection == "" {
+					continue
+				}
+				for _, target := range reviewTargets(entry[field]) {
+					actual, ok := idIndex[target]
+					switch {
+					case !ok:
+						errs = append(errs, fmt.Sprintf("%s: `%s` target missing: %s", id, field, target))
+					case actual != targetSection:
+						errs = append(errs, fmt.Sprintf("%s: `%s` target must reference `%s` ids: %s", id, field, targetSection, target))
+					}
+				}
+			}
+		}
+	}
+	collectReviewPlaceholders(doc, "", &errs)
+	_ = path
+	return errs
+}
+
+// ----------------------------------------------------------------------------
+// Cost-record validation
+// ----------------------------------------------------------------------------
+
+type costVocabs struct {
+	decider   map[string]bool
+	citing    map[string]bool
+	dimension map[string]bool
+}
+
+func ontologyValues(doc rawDoc, attribute string) map[string]bool {
+	out := map[string]bool{}
+	entries, _ := asArray(doc["attribute_vocabularies"])
+	for _, raw := range entries {
+		entry, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if attr, _ := entry["attribute"].(string); attr != attribute {
+			continue
+		}
+		values, _ := asArray(entry["values"])
+		for _, rawValue := range values {
+			if value, ok := rawValue.(string); ok {
+				out[value] = true
+			}
+		}
+	}
+	return out
+}
+
+func loadCostVocabs(repoRoot string) (costVocabs, error) {
+	doc, err := loadDoc(filepath.Join(repoRoot, "profiles/cost/ontology.toml"))
+	if err != nil {
+		return costVocabs{}, err
+	}
+	v := costVocabs{
+		decider:   ontologyValues(doc, "decider_class"),
+		citing:    ontologyValues(doc, "cost_citing_kind"),
+		dimension: ontologyValues(doc, "cost_dimension_category"),
+	}
+	var missing []string
+	if len(v.decider) == 0 {
+		missing = append(missing, "decider_class")
+	}
+	if len(v.citing) == 0 {
+		missing = append(missing, "cost_citing_kind")
+	}
+	if len(v.dimension) == 0 {
+		missing = append(missing, "cost_dimension_category")
+	}
+	if len(missing) > 0 {
+		return costVocabs{}, fmt.Errorf("cost-profile ontology is missing required vocabularies: %v", missing)
+	}
+	return v, nil
+}
+
+var requiredCostRecordFields = []string{
+	"action_id", "incurred_at", "citing_kind", "citing_ref", "decider_class",
+	"producer_id", "hash_algorithm", "canonical_form",
+}
+
+func validateCostRecord(path string, doc rawDoc, repoRoot string) []string {
+	var errs []string
+	vocab, err := loadCostVocabs(repoRoot)
+	if err != nil {
+		return []string{fmt.Sprintf("cost-profile ontology could not be loaded: %v", err)}
+	}
+	meta, ok := doc["meta"].(map[string]any)
+	if !ok || meta["template_kind"] != "cost-record" {
+		return []string{fmt.Sprintf("%s: not a cost-record instance (meta.template_kind != 'cost-record')", path)}
+	}
+	if fp, _ := meta["framework_profile"].(string); fp != "cost" {
+		errs = append(errs, fmt.Sprintf("%s: meta.framework_profile must be 'cost', got %q", path, fp))
+	}
+	record, ok := doc["record"].(map[string]any)
+	if !ok {
+		errs = append(errs, fmt.Sprintf("%s: missing required `[record]` table", path))
+		return errs
+	}
+	for _, field := range requiredCostRecordFields {
+		if value, _ := record[field].(string); value == "" {
+			errs = append(errs, fmt.Sprintf("%s: record.%s must be a non-empty string", path, field))
+		}
+	}
+	if incurredAt, ok := record["incurred_at"].(string); ok {
+		if _, err := time.Parse(time.RFC3339Nano, incurredAt); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: record.incurred_at must be RFC 3339 date-time, got %q", path, incurredAt))
+		}
+	}
+	if citingKind, ok := record["citing_kind"].(string); ok && !vocab.citing[citingKind] {
+		errs = append(errs, fmt.Sprintf("%s: record.citing_kind %q not in closed vocabulary", path, citingKind))
+	}
+	if deciderClass, ok := record["decider_class"].(string); ok && !vocab.decider[deciderClass] {
+		errs = append(errs, fmt.Sprintf("%s: record.decider_class %q not in closed vocabulary", path, deciderClass))
+	}
+	if hashAlgorithm, ok := record["hash_algorithm"].(string); ok {
+		switch strings.ToLower(hashAlgorithm) {
+		case "md5", "sha1":
+			errs = append(errs, fmt.Sprintf("%s: record.hash_algorithm %q is forbidden by SPEC §12.1", path, hashAlgorithm))
+		}
+	}
+	dims, ok := asArray(record["dimensions"])
+	if !ok || len(dims) == 0 {
+		errs = append(errs, fmt.Sprintf("%s: at least one `[[record.dimensions]]` entry is required", path))
+		return errs
+	}
+	for i, raw := range dims {
+		dim, ok := raw.(map[string]any)
+		if !ok {
+			errs = append(errs, fmt.Sprintf("%s: record.dimensions[%d] must be a table", path, i))
+			continue
+		}
+		category, _ := dim["category"].(string)
+		if !vocab.dimension[category] {
+			errs = append(errs, fmt.Sprintf("%s: record.dimensions[%d].category %q not in closed vocabulary", path, i, category))
+		}
+		switch q := dim["quantity"].(type) {
+		case int64:
+			if q < 0 {
+				errs = append(errs, fmt.Sprintf("%s: record.dimensions[%d].quantity must be a non-negative integer; got %d", path, i, q))
+			}
+		case int:
+			if q < 0 {
+				errs = append(errs, fmt.Sprintf("%s: record.dimensions[%d].quantity must be a non-negative integer; got %d", path, i, q))
+			}
+		default:
+			errs = append(errs, fmt.Sprintf("%s: record.dimensions[%d].quantity must be a non-negative integer", path, i))
+		}
+		if unit, _ := dim["unit_label"].(string); unit == "" {
+			errs = append(errs, fmt.Sprintf("%s: record.dimensions[%d].unit_label must be a non-empty string", path, i))
+		}
+	}
+	return errs
+}
+
+// ----------------------------------------------------------------------------
+// Rollback-plan validation
+// ----------------------------------------------------------------------------
+
+func triggerKindValues(repoRoot string) (map[string]bool, error) {
+	doc, err := loadDoc(filepath.Join(repoRoot, "profiles/agent-assurance/ontology.toml"))
+	if err != nil {
+		return nil, err
+	}
+	values := ontologyValues(doc, "trigger_kind")
+	if len(values) == 0 {
+		return nil, fmt.Errorf("ontology declares no trigger_kind values")
+	}
+	return values, nil
+}
+
+func validateRollbackPlan(doc rawDoc, repoRoot string) []string {
+	var errs []string
+	allowed, err := triggerKindValues(repoRoot)
+	if err != nil {
+		return []string{fmt.Sprintf("agent-assurance ontology could not be loaded: %v", err)}
+	}
+	meta, ok := doc["meta"].(map[string]any)
+	if !ok || meta["template_kind"] != "rollback-plan" {
+		var actual any
+		if ok {
+			actual = meta["template_kind"]
+		}
+		errs = append(errs, fmt.Sprintf("[meta].template_kind is %v; expected 'rollback-plan'.", actual))
+	}
+	triggers, ok := asArray(doc["triggers"])
+	if !ok || len(triggers) == 0 {
+		errs = append(errs, "at least one [[triggers]] entry is required.")
+		return errs
+	}
+	for i, raw := range triggers {
+		trig, ok := raw.(map[string]any)
+		if !ok {
+			errs = append(errs, fmt.Sprintf("[[triggers]] #%d: must be a table.", i))
+			continue
+		}
+		trigID, _ := trig["id"].(string)
+		if trigID == "" {
+			trigID = "<unset>"
+		}
+		kindValue, _ := trig["trigger_kind"].(string)
+		if kindValue == "" {
+			kindValue, _ = trig["kind"].(string)
+		}
+		switch {
+		case strings.TrimSpace(kindValue) == "":
+			errs = append(errs, fmt.Sprintf("[[triggers]] #%d (id=%q): missing trigger_kind/kind.", i, trigID))
+		case !allowed[kindValue]:
+			errs = append(errs, fmt.Sprintf("[[triggers]] #%d (id=%q): trigger_kind=%q not in profile ontology vocabulary.", i, trigID, kindValue))
+		}
+		for _, field := range []string{"id", "metric", "threshold", "action"} {
+			if _, present := trig[field]; !present {
+				errs = append(errs, fmt.Sprintf("[[triggers]] #%d (id=%q): missing required field '%s'.", i, trigID, field))
+			}
+		}
+	}
+	return errs
+}
+
+// ----------------------------------------------------------------------------
+// SPEC §13 abstraction_class / capability_envelope validation
+// ----------------------------------------------------------------------------
+
+var abstractionIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*\.v\d+$`)
+
+func loadCapabilityDomains(repoRoot string) (map[string]bool, error) {
+	doc, err := loadDoc(filepath.Join(repoRoot, "core/ontology.toml"))
+	if err != nil {
+		return nil, err
+	}
+	values := ontologyValues(doc, "capability_envelope.domain")
+	if len(values) == 0 {
+		return nil, fmt.Errorf("core ontology is missing capability_envelope.domain vocabulary")
+	}
+	return values, nil
+}
+
+func checkAbstractionIJB(table map[string]any, loc string, errs *[]string) {
+	if table["ijb_primitive"] != "constraint" {
+		*errs = append(*errs, fmt.Sprintf("%s.ijb_primitive: must be 'constraint'", loc))
+	}
+	if table["ijb_constraint_type"] != "structural" {
+		*errs = append(*errs, fmt.Sprintf("%s.ijb_constraint_type: must be 'structural'", loc))
+	}
+}
+
+func checkNonNegativeInt(table map[string]any, key, loc string, errs *[]string) {
+	switch v := table[key].(type) {
+	case int64:
+		if v >= 0 {
+			return
+		}
+	case int:
+		if v >= 0 {
+			return
+		}
+	}
+	*errs = append(*errs, fmt.Sprintf("%s.%s: must be a non-negative integer", loc, key))
+}
+
+func checkBoolean(table map[string]any, key, loc string, errs *[]string) {
+	if _, ok := table[key].(bool); !ok {
+		*errs = append(*errs, fmt.Sprintf("%s.%s: must be a boolean", loc, key))
+	}
+}
+
+func checkStringList(table map[string]any, key, loc string, errs *[]string) {
+	values, ok := asArray(table[key])
+	if !ok {
+		*errs = append(*errs, fmt.Sprintf("%s.%s: must be a list of strings", loc, key))
+		return
+	}
+	for _, value := range values {
+		if _, ok := value.(string); !ok {
+			*errs = append(*errs, fmt.Sprintf("%s.%s: must be a list of strings", loc, key))
+			return
+		}
+	}
+}
+
+func checkCapabilityDomain(name string, table map[string]any, loc string, errs *[]string) {
+	if denied, _ := table["denied"].(bool); denied {
+		return
+	}
+	switch name {
+	case "filesystem":
+		checkStringList(table, "preopens", loc, errs)
+		checkBoolean(table, "read_allowed", loc, errs)
+		checkBoolean(table, "write_allowed", loc, errs)
+		checkBoolean(table, "exec_allowed", loc, errs)
+	case "sockets":
+		for _, key := range []string{"tcp_allowlist", "udp_allowlist"} {
+			if _, present := table[key]; present {
+				if b, ok := table[key].(bool); !ok || b {
+					checkStringList(table, key, loc, errs)
+				}
+			}
+		}
+		if _, present := table["ip_resolve_allowed"]; present {
+			checkBoolean(table, "ip_resolve_allowed", loc, errs)
+		}
+	case "http":
+		checkStringList(table, "outgoing_host_allowlist", loc, errs)
+		checkNonNegativeInt(table, "max_concurrent_requests", loc, errs)
+	case "clocks":
+		checkBoolean(table, "wall_clock_allowed", loc, errs)
+		checkBoolean(table, "monotonic_clock_allowed", loc, errs)
+		if _, present := table["precision_cap_ms"]; present {
+			checkNonNegativeInt(table, "precision_cap_ms", loc, errs)
+		}
+	case "random":
+		source, _ := table["entropy_source"].(string)
+		if source != "os" && source != "deterministic_seed" && source != "none" {
+			*errs = append(*errs, fmt.Sprintf("%s.entropy_source: must be one of ['os', 'deterministic_seed', 'none']", loc))
+		}
+	case "environment":
+		checkStringList(table, "var_allowlist", loc, errs)
+	case "process_spawn":
+		checkStringList(table, "allowed_programs", loc, errs)
+	case "ipc":
+		checkBoolean(table, "shared_memory_allowed", loc, errs)
+		checkBoolean(table, "fd_passing_allowed", loc, errs)
+	case "crypto_keys":
+		for _, key := range []string{"read_keys", "use_keys"} {
+			if _, present := table[key]; present {
+				checkStringList(table, key, loc, errs)
+			}
+		}
+		if _, present := table["generate_allowed"]; present {
+			checkBoolean(table, "generate_allowed", loc, errs)
+		}
+	}
+}
+
+func validateAbstractionClass(path string, doc rawDoc, repoRoot string) []string {
+	var errs []string
+	domains, err := loadCapabilityDomains(repoRoot)
+	if err != nil {
+		return []string{fmt.Sprintf("core ontology could not be loaded: %v", err)}
+	}
+	kind, ok := doc["kind"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	if ac, ok := kind["abstraction_class"].(map[string]any); ok {
+		loc := fmt.Sprintf("%s: [kind.abstraction_class]", path)
+		id, _ := ac["id"].(string)
+		if id == "" || !abstractionIDRe.MatchString(id) {
+			errs = append(errs, fmt.Sprintf("%s.id: must match `<slug>.v<integer>`, got %q", loc, id))
+		}
+		if desc, _ := ac["description"].(string); desc == "" {
+			errs = append(errs, fmt.Sprintf("%s.description: must be a non-empty string", loc))
+		}
+		checkAbstractionIJB(ac, loc, &errs)
+	}
+	if ce, ok := kind["capability_envelope"].(map[string]any); ok {
+		loc := fmt.Sprintf("%s: [kind.capability_envelope]", path)
+		if specVersion, _ := ce["spec_version"].(string); specVersion == "" {
+			errs = append(errs, fmt.Sprintf("%s.spec_version: must be a non-empty string", loc))
+		}
+		checkAbstractionIJB(ce, loc, &errs)
+		if cpu, ok := ce["cpu_bounds"].(map[string]any); ok {
+			checkNonNegativeInt(cpu, "max_cpu_ms", loc+".cpu_bounds", &errs)
+			checkNonNegativeInt(cpu, "max_cpu_percent", loc+".cpu_bounds", &errs)
+		} else {
+			errs = append(errs, fmt.Sprintf("%s.cpu_bounds: missing required table", loc))
+		}
+		if mem, ok := ce["memory_bounds"].(map[string]any); ok {
+			checkNonNegativeInt(mem, "max_bytes", loc+".memory_bounds", &errs)
+		} else {
+			errs = append(errs, fmt.Sprintf("%s.memory_bounds: missing required table", loc))
+		}
+		known := map[string]bool{
+			"cpu_bounds": true, "memory_bounds": true, "spec_version": true,
+			"ijb_primitive": true, "ijb_constraint_type": true,
+		}
+		for key, raw := range ce {
+			if known[key] {
+				continue
+			}
+			sub, ok := raw.(map[string]any)
+			if !ok {
+				errs = append(errs, fmt.Sprintf("%s.%s: top-level value must be a sub-table", loc, key))
+				continue
+			}
+			if !domains[key] {
+				errs = append(errs, fmt.Sprintf("%s.%s: not a capability domain.", loc, key))
+				continue
+			}
+			checkCapabilityDomain(key, sub, loc+"."+key, &errs)
+		}
+	}
+	return errs
 }
 
 // ----------------------------------------------------------------------------
@@ -908,7 +2996,7 @@ func main() {
 		modeStr  string
 	)
 	flag.StringVar(&repoRoot, "repo-root", "", "Repository root (required)")
-	flag.StringVar(&modeStr, "mode", "auto", "Validation mode (auto|profile|disclosure|provenance|meta)")
+	flag.StringVar(&modeStr, "mode", "auto", "Validation mode (auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class)")
 	flag.Parse()
 
 	if repoRoot == "" {
@@ -949,15 +3037,45 @@ func main() {
 			errs = append(errs, validateProvenanceEncryption(path, doc)...)
 			errs = append(errs, validateClosureRoot(path, doc)...)
 		}
+		if m == modeAuto || m == modeProvenanceBinding {
+			errs = append(errs, validateProvenanceBinding(path, doc, root)...)
+		}
 		switch m {
 		case modeAuto:
 			switch tk {
 			case "profile-descriptor":
 				errs = append(errs, validateProfileDescriptor(path, doc, root, descriptors)...)
+				errs = append(errs, validateIJB(path, doc, root)...)
+			case "kind-descriptor", "ontology":
+				if tk == "kind-descriptor" {
+					errs = append(errs, validateKindDescriptor(path, doc, root, true)...)
+					errs = append(errs, validateAbstractionClass(path, doc, root)...)
+				}
+				errs = append(errs, validateIJB(path, doc, root)...)
+			case "implementation-dag":
+				errs = append(errs, validateImplementationDag(path, doc)...)
+				errs = append(errs, validateIJB(path, doc, root)...)
+			case "traceability":
+				errs = append(errs, validateTraceability(path, doc)...)
+				errs = append(errs, validateIJB(path, doc, root)...)
+			case "readiness-gate", "contract-declaration", "evidence-matrix":
+				errs = append(errs, validateReviewReadiness(path, doc)...)
+				errs = append(errs, validateIJB(path, doc, root)...)
+			case "cost-record":
+				errs = append(errs, validateCostRecord(path, doc, root)...)
+				errs = append(errs, validateIJB(path, doc, root)...)
+			case "rollback-plan":
+				errs = append(errs, validateRollbackPlan(doc, root)...)
+				errs = append(errs, validateIJB(path, doc, root)...)
 			case "disclosure-attestation", "redaction-manifest", "selective-disclosure-proof":
 				errs = append(errs, validateDisclosure(path, doc, root)...)
+				errs = append(errs, validateIJB(path, doc, root)...)
 			case "gate-decision":
 				errs = append(errs, validateGateDecision(path, doc, root)...)
+				errs = append(errs, validateIJB(path, doc, root)...)
+			case "":
+			default:
+				errs = append(errs, validateIJB(path, doc, root)...)
 			}
 		case modeProfile:
 			errs = append(errs, validateProfileDescriptor(path, doc, root, descriptors)...)
@@ -965,6 +3083,23 @@ func main() {
 			errs = append(errs, validateDisclosure(path, doc, root)...)
 		case modeGateDecision:
 			errs = append(errs, validateGateDecision(path, doc, root)...)
+		case modeKindDescriptor:
+			errs = append(errs, validateKindDescriptor(path, doc, root, true)...)
+			errs = append(errs, validateAbstractionClass(path, doc, root)...)
+		case modeIJB:
+			errs = append(errs, validateIJB(path, doc, root)...)
+		case modeImplementationDag:
+			errs = append(errs, validateImplementationDag(path, doc)...)
+		case modeTraceability:
+			errs = append(errs, validateTraceability(path, doc)...)
+		case modeReviewReadiness:
+			errs = append(errs, validateReviewReadiness(path, doc)...)
+		case modeCostRecord:
+			errs = append(errs, validateCostRecord(path, doc, root)...)
+		case modeRollbackPlan:
+			errs = append(errs, validateRollbackPlan(doc, root)...)
+		case modeAbstractionClass:
+			errs = append(errs, validateAbstractionClass(path, doc, root)...)
 		}
 		if len(errs) > 0 {
 			allErrors = append(allErrors, fmt.Sprintf("--- %s ---", path))
@@ -1007,19 +3142,30 @@ var (
 	gdObservedRe  = regexp.MustCompile(`^A-[A-Za-z0-9][A-Za-z0-9_-]*\s*=\s*observed\([^)]+\)\s*$`)
 )
 
-// gdAsTableArray normalises an array-of-tables value from BurntSushi/toml's
-// dynamic decoder, which returns either []map[string]any or []any
-// (where elements are map[string]any) depending on context.
-func gdAsTableArray(v any) []map[string]any {
+// gdRawArray normalises an array value from BurntSushi/toml's dynamic
+// decoder into a flat []any WITHOUT dropping non-table elements. The Rust
+// reference (tools/dagtoml-validate-rs/src/main.rs gate_decision) iterates
+// the raw TOML array so that INV01's emptiness test sees every element and
+// INV02/INV03 can report a non-table entry as a violation. A previous
+// table-only normaliser silently discarded scalar elements, which let a
+// `verdict = "pass"` document carrying `failed_constraint_refs = ["A-1"]`
+// (an array of strings) pass INV01 in Go while Rust rejected it — a
+// cross-implementation divergence on the separation-of-duty gate. Keep the
+// element type intact; the INV loops decide table-vs-not per element.
+func gdRawArray(v any) []any {
 	switch x := v.(type) {
-	case []map[string]any:
-		return x
 	case []any:
-		out := make([]map[string]any, 0, len(x))
-		for _, e := range x {
-			if m, ok := e.(map[string]any); ok {
-				out = append(out, m)
-			}
+		return x
+	case []map[string]any:
+		out := make([]any, len(x))
+		for i := range x {
+			out[i] = x[i]
+		}
+		return out
+	case []string:
+		out := make([]any, len(x))
+		for i := range x {
+			out[i] = x[i]
 		}
 		return out
 	}
@@ -1103,7 +3249,9 @@ func validateGateDecision(path string, doc rawDoc, repoRoot string) []string {
 	}
 
 	verdict, _ := decision["verdict"].(string)
-	failedRefs := gdAsTableArray(decision["failed_constraint_refs"])
+	// Raw array: length and element types preserved so a non-table element
+	// counts toward INV01 and is reported by INV02 (Rust parity).
+	failedRefs := gdRawArray(decision["failed_constraint_refs"])
 
 	// INV01: verdict == "pass" iff failed_constraint_refs is empty.
 	isPass := verdict == "pass"
@@ -1115,7 +3263,13 @@ func validateGateDecision(path string, doc rawDoc, repoRoot string) []string {
 	}
 
 	// INV02.
-	for i, t := range failedRefs {
+	for i, e := range failedRefs {
+		t, ok := e.(map[string]any)
+		if !ok {
+			defects = append(defects, fmt.Sprintf(
+				"%s: INV02 violated: failed_constraint_refs[%d] is not a table", path, i))
+			continue
+		}
 		cid, _ := t["constraint_id"].(string)
 		if !gdAssertionRe.MatchString(cid) {
 			defects = append(defects, fmt.Sprintf(
@@ -1125,8 +3279,14 @@ func validateGateDecision(path string, doc rawDoc, repoRoot string) []string {
 	}
 
 	// INV03.
-	overrides := gdAsTableArray(decision["override_refs"])
-	for i, t := range overrides {
+	overrides := gdRawArray(decision["override_refs"])
+	for i, e := range overrides {
+		t, ok := e.(map[string]any)
+		if !ok {
+			defects = append(defects, fmt.Sprintf(
+				"%s: INV03 violated: override_refs[%d] is not a table", path, i))
+			continue
+		}
 		line, _ := t["observation_line"].(string)
 		if !gdObservedRe.MatchString(line) {
 			defects = append(defects, fmt.Sprintf(

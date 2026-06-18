@@ -15,7 +15,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
-import tomllib
+import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
 from dataclasses import dataclass
 
 

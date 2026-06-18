@@ -1,0 +1,37 @@
+# NEGATIVE (headline defect: RKV01 sub-part consistency). descriptor_sha256 does
+# NOT equal the SHA-256 of the request-descriptor sub-part embedded in the real
+# capture artefact, so validate_api_snapshot.py (run with --repo-root) MUST
+# reject it. This proves the §12 source-hash gate alone is not proof of sub-part
+# integrity: the closure_root below is the VALID source-only fold over the real
+# source_sha256, so validate_closure_root.py would accept it — only the
+# profile-layer sub-part check catches the mismatch.
+#
+# Secondary: as an examples/negative/ fixture with a [provenance] table, the
+# provenance-negative sweep requires it to fail validate_provenance.py too, so
+# source_bytes is deliberately wrong (621; the capture is 620 bytes).
+closure_root = "sha256:f251f64bc6170cb32a4b3c0bcc10d520247c41e7bbf22587d206108e6d19098c"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "api-snapshot"
+framework_profile = "com.verivus.runtime"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "examples/captures/2026-06-17T091402Z-usd-aud.capture"
+source_sha256 = "sha256:1af17db5085faf2b3078538922f462ed9a37ee3b8e0d0b11d5aa34276442eab7"
+source_bytes = 621
+
+[snapshot]
+captured_at = "2026-06-17T09:14:02.481Z"
+source_id = "https://api.exchange.example/v1/quotes/USD-AUD"
+
+[snapshot.request]
+method = "GET"
+url = "https://api.exchange.example/v1/quotes/USD-AUD?asof=2026-06-17T09:14:00Z&pair=USD-AUD"
+significant_headers = ["accept"]
+descriptor_sha256 = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+
+[snapshot.response]
+status = 200
+body_sha256 = "sha256:569cc4222c936a5c39184bc0e17048c3f80bed44d457f0327db1bd58faecfebd"

@@ -1,0 +1,12 @@
+DAGTOML-API-CAPTURE/1
+captured-at: 2026-06-17T09:14:02.481Z
+source-id: https://api.exchange.example/v1/quotes/USD-AUD
+request-descriptor-sha256: sha256:1e84dff27040181e39a0eedd71497241ae153efb65ec93e4b97303a8cb041869
+request-descriptor:
+method: GET
+url: https://api.exchange.example/v1/quotes/USD-AUD?asof=2026-06-17T09:14:00Z&pair=USD-AUD
+header: accept sha256:bacb769b46f6d169fb227ea026550f411d46cbe66a9c2a6ba36449c8cf8e4dea
+response-status: 200
+response-body-sha256: sha256:569cc4222c936a5c39184bc0e17048c3f80bed44d457f0327db1bd58faecfebd
+response-body:
+{"pair":"USD-AUD","rate":1.5217,"asof":"2026-06-17T09:14:00Z"}

@@ -1,0 +1,35 @@
+# Negative fixture: an entity declares the wrong IJB primitive.
+# Dedicated IJB checks MUST reject this file.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "ontology"
+ontology_version = 1
+title = "Negative ontology fixture"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "public"
+license = "Apache-2.0"
+
+[meta.ijb_field_primitives]
+template_kind = { ijb_primitive = "scope", ijb_class = "structural" }
+schema_version = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+ontology_version = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+confidentiality = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+license = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+
+[[entities]]
+id_prefix = "NEG"
+section = "negative"
+schema = "negative"
+description = "Invalid entity declaration with wrong primitive."
+extensible = false
+ijb_primitive = "path"
+ijb_class = "structural"
+
+[extension_rules]
+entity_kinds = "closed"
+relation_predicates = "closed"
+version_bump_rule = "negative fixture"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"

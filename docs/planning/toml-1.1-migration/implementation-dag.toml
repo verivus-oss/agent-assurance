@@ -1,0 +1,180 @@
+# Implementation DAG — TOML 1.0 → TOML 1.1 migration of the validator /
+# conformance stack. Self-contained planning document (no upstream
+# evidence), so it carries the empty-closure sentinel.
+#
+# The load-bearing constraint this DAG encodes: the three primary
+# parsers are NOT all on the same TOML version today. The Rust `toml`
+# crate has a 1.1 line (`1.1.x+spec-1.1.0`, already in tools/dagtoml-rdf),
+# and the Go validator already links BurntSushi/toml v1.6.0 (1.1 default)
+# at runtime via go.mod — but the Rust *validator* (toml 0.8) and the
+# Python reference (stdlib `tomllib`) are still TOML 1.0, and the
+# conformance evidence/harness is still 1.0-era. So the repo is latently
+# split (see U01). The whole repo invariant is that rs/go/py AGREE on
+# every fixture, so 1.1 cannot land piecemeal in one parser alone. The
+# DAG therefore gates every parser bump behind a parity spike (U01) and
+# an explicit go/no-go decision (U02): if any primary cannot reach 1.1,
+# the migration stops at U02 rather than introducing a divergence.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "implementation-dag"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+title          = "Migrate the validator + conformance stack from TOML 1.0 to TOML 1.1"
+spec           = "docs/planning/toml-1.1-migration/01_spec.md"
+decomposition  = "docs/planning/toml-1.1-migration/03_implementation_plan.md"
+created        = "2026-06-08"
+total_units    = 8
+tier1_units    = ["U01", "U02"]
+tier2_units    = ["U03", "U04", "U05", "U06"]
+tier3_units    = ["U07", "U08"]
+
+[units.U01]
+name           = "parser-availability-spike"
+summary        = "Survey TOML 1.1 support across the three primaries: Rust `toml` (1.1 line confirmed), Go BurntSushi/toml (which release, if any, implements 1.1), and Python (stdlib tomllib is 1.0-only — identify a 1.1-capable replacement and its trust posture)."
+layer          = 0
+tier           = 1
+status         = "done"
+depends_on     = []
+blocks         = ["U02"]
+estimated_loc  = 60
+files_create   = ["docs/planning/toml-1.1-migration/research/01-parser-availability-survey.md"]
+files_modify   = []
+produces       = ["ART:parser-availability-survey"]
+consumes       = []
+
+[units.U02]
+name           = "parity-go-no-go-decision"
+summary        = "Decide go/no-go for 1.1 adoption based on U01. Go only if all three primaries can reach 1.1 in lockstep; otherwise stop here and record the blocker. This is the separation-of-duty gate for the whole migration. DECISION: GO recorded 2026-06-08 (research/02-parity-decision.md); all three primaries have a released, default-1.1, no-unsafe parser. Operator STOP/GO sign-off confirmed 2026-06-08; U03+ cleared to proceed under the decision's guardrails."
+layer          = 1
+tier           = 1
+status         = "done"
+depends_on     = ["U01"]
+blocks         = ["U03", "U04", "U05"]
+estimated_loc  = 40
+files_create   = ["docs/planning/toml-1.1-migration/research/02-parity-decision.md"]
+files_modify   = []
+produces       = ["ART:parity-decision"]
+consumes       = ["ART:parser-availability-survey"]
+
+[units.U03]
+name           = "rust-primary-toml-1.1"
+summary        = "Bump the Rust primary validator to the TOML 1.1 `toml` line (1.1.x+spec-1.1.0), mirroring the parser already used by tools/dagtoml-rdf, and adjust the parse-only call sites. DONE: resolved toml 1.1.2+spec-1.1.0; enabled the `serde` feature (the 1.1 line gates `toml::Value` behind it) and moved document parsing from `str::parse::<Value>` (now a single-value parser) to `toml::from_str::<Value>` at all three load sites; differential vs the 0.8 baseline over all repo TOMLs (239 at this commit) = 0 verdict changes; safe-tools preserved (crate keeps forbid(unsafe_code), check_safe_tools.sh passes; transitive `unsafe` in `winnow` predates this bump and is out of scope); cargo-deny bans+licenses ok."
+layer          = 2
+tier           = 2
+status         = "done"
+depends_on     = ["U02"]
+blocks         = ["U06"]
+estimated_loc  = 120
+files_create   = []
+files_modify   = ["tools/dagtoml-validate-rs/Cargo.toml", "tools/dagtoml-validate-rs/Cargo.lock", "tools/dagtoml-validate-rs/src/main.rs"]
+produces       = ["ART:rust-primary-1.1"]
+consumes       = ["ART:parity-decision"]
+
+[units.U04]
+name           = "go-primary-toml-1.1"
+summary        = "Move the Go primary validator to a TOML 1.1-capable parser (BurntSushi/toml at the release identified in U01, or a documented alternative), preserving the safe-tools no-unsafe policy. DONE (no code change required): U01 found tools/dagtoml-validate-go/go.mod ALREADY requires BurntSushi/toml v1.6.0 — the latest release and 1.1-by-default — landed via #5 before this migration. v1.6.0 is verified pure Go (no unsafe/cgo; check_safe_tools.sh passes the Go side) and the validator builds + vets clean. The Go runtime is therefore already at the 1.1 target; this unit records and verifies it. The Go *conformance evidence* (the toml-test decoder, still pinned v1.4.0 in the Makefile) moves to 1.1 in U06 — that is the harness's job, not a parser bump. No go.mod/go.sum change is made here."
+layer          = 2
+tier           = 2
+status         = "done"
+depends_on     = ["U02"]
+blocks         = ["U06"]
+estimated_loc  = 140
+files_create   = []
+files_modify   = []
+produces       = ["ART:go-primary-1.1"]
+consumes       = ["ART:parity-decision"]
+
+[units.U05]
+name           = "python-reference-toml-1.1"
+summary        = "Replace the stdlib tomllib (TOML 1.0) dependency in the Python reference validators with a 1.1-capable, hash-pinned parser, keeping the reference behaviour authoritative for the conformance corpus. DONE: added a hash-pinned `tomli`==2.4.1 (PEP 680 upstream of tomllib, 1.1-capable) in requirements/toml.txt, installed pure-Python via `--no-binary tomli` (auditable; not the mypyc wheels); added validators/_toml11.py, a guarded shim that re-exports tomli's load/loads/TOMLDecodeError and FAILS LOUD if tomli is missing or < 2.4.0 (no silent TOML-1.0 fallback); swapped `import tomllib` -> `import _toml11 as tomllib` across all 15 validators + conformance/runner.py AND the three inline TOML-parsing scripts in .github/workflows/validate.yml AND the AGENTS.md contributor parse-the-repo command (so no stdlib TOML-1.0 parser remains in any operative surface; only prose/changelog and immutable docs/reviews/ archives still mention the word `tomllib`); wired the CI install. make dagtoml-conformance keeps rs/go/py in agreement (21 cases); ruff (S,F) + bandit clean."
+layer          = 2
+tier           = 2
+status         = "done"
+depends_on     = ["U02"]
+blocks         = ["U06"]
+estimated_loc  = 130
+files_create   = ["requirements/toml.txt", "validators/_toml11.py"]
+files_modify   = [
+  "validators/validate_implementation_dag.py",
+  "validators/validate_closure_root.py",
+  "validators/validate_review_readiness.py",
+  "validators/validate_rollback_plan.py",
+  "validators/validate_kind_descriptor.py",
+  "validators/validate_profile_descriptor.py",
+  "validators/validate_disclosure.py",
+  "validators/validate_provenance.py",
+  "validators/validate_gate_decision.py",
+  "validators/validate_cost.py",
+  "validators/validate_code_symbols.py",
+  "validators/validate_traceability.py",
+  "validators/validate_abstraction_class.py",
+  "validators/validate_ijb_conformance.py",
+  "validators/check_attribute_values.py",
+  "conformance/runner.py",
+  ".github/workflows/validate.yml",
+  "AGENTS.md",
+]
+produces       = ["ART:python-reference-1.1"]
+consumes       = ["ART:parity-decision"]
+
+[units.U06]
+name           = "conformance-harness-1.1"
+summary        = "Flip the conformance harness to the TOML 1.1 corpus (toml-test `-toml 1.1.0`), update the toml-test-decode-rs shim and the CI step name/comment. DONE: bumped the rs decoder shim toml 0.8->1.1 (added the `serde` feature; it already parses via toml::from_str); bumped TOML_TEST_DECODER_VERSION v1.4.0->v1.6.0 (matching the Go validator's go.mod) and added `-toml 1.1.0` to both toml-test recipes; retitled the two CI steps 1.0->1.1. Results under `-toml 1.1.0`: rs shim 189/189 valid + 362/362 invalid, ZERO skips; Go BurntSushi v1.6.0 189/189 valid + 349/362 invalid with the SAME 13 dotted-key/inline-table permissiveness skips as before (BurntSushi-specific, unchanged by the 1.0->1.1.0 flip — NOT zero-skip on the Go side, contrary to this unit's original aspiration). The dagtoml SEMANTIC corpus (the rs/go/py cross-impl check) stays CONFORMANCE PASSED with an empty known-divergences baseline; the empty-baseline + full cross-impl agreement is finalized in U08."
+layer          = 3
+tier           = 2
+status         = "done"
+depends_on     = ["U03", "U04", "U05"]
+blocks         = ["U07"]
+estimated_loc  = 90
+files_create   = []
+files_modify   = ["Makefile", ".github/workflows/validate.yml", "tools/toml-test-decode-rs/Cargo.toml", "tools/toml-test-decode-rs/Cargo.lock"]
+produces       = ["ART:conformance-harness-1.1"]
+consumes       = ["ART:rust-primary-1.1", "ART:go-primary-1.1", "ART:python-reference-1.1"]
+
+[units.U07]
+name           = "spec-document-1.1-audit"
+summary        = "Audit spec.md and every canonical example/kind/profile document for TOML 1.1 features that newly become valid (hex `\\x` escapes, seconds-less local times, etc.), and decide per feature whether the spec permits or forbids it. Update spec.md normatively. DONE: enumerated the complete set of TOML 1.1.0 syntactic additions from the toml-test version.go delta (FIVE: seconds-optional times; `\\xHH` hex escapes; `\\e` ESC escape; newlines in inline tables; trailing commas in inline tables) and added normative spec.md §9.2: parsers conform to TOML 1.1.0 (for cross-impl parity) but the conforming-DOCUMENT surface stays TOML 1.0 syntax — all five features FORBIDDEN, with per-feature rationale grounded in the canonical-form/SHA-binding ethos (§12), plus a default-forbid catch-all so no future feature enters by parser default alone (R4/C03). Verified no existing repo document uses any 1.1-only feature (all dates are quoted strings — no native TOML date/time values — and inline tables appear only in the TOML 1.0 single-line form, not the forbidden 1.1 multi-line/trailing-comma variants), so the disposition invalidates nothing (R3/C02)."
+layer          = 4
+tier           = 3
+status         = "done"
+depends_on     = ["U06"]
+blocks         = ["U08"]
+estimated_loc  = 110
+files_create   = []
+files_modify   = ["spec.md"]
+produces       = ["ART:spec-1.1-audited"]
+consumes       = ["ART:conformance-harness-1.1"]
+
+[units.U08]
+name           = "cross-impl-1.1-conformance-verification"
+summary        = "Final cross-implementation verification at TOML 1.1: verify rs/go/py agreement on the dagtoml conformance corpus (operative parity surface) and the toml-test valid corpus, record any toml-test divergences, and record the verified state. DONE: ran the full sweep — dagtoml semantic corpus (rs/go/py via runner.py) 21 cases CONFORMANCE PASSED with an empty divergences baseline (the OPERATIVE parity surface is clean); toml-test `-toml 1.1.0` rs decoder 189/189 valid + 362/362 invalid (0 skips), go decoder 189/189 valid + 349/362 invalid (13 skips); parsers all 1.1 (rs+shim `toml` 1.1.2+spec-1.1.0, go BurntSushi v1.6.0, py tomli 2.4.1); closure-root 97 files PASSED. HONEST CAVEAT (the 13 skips ARE rs/go/py divergences): on those 13 toml-test invalid fixtures go=accept while rs=reject and py=reject — a genuine cross-implementation divergence from BurntSushi/toml's permissiveness on dotted-key/inline-table redefinition. It is PRE-EXISTING and orthogonal to the version change (the same 13 failed under v1.4.0 on the 1.0 corpus); this migration left the divergence profile unchanged while moving all three parsers to 1.1 in lockstep. The 13 are recorded (named, not silently skipped) in conformance/known-divergences-toml-1.1.toml; eliminating them so Go is as strict as rs/py (C01's ultimate `block, not skip` aim) needs a stricter Go parser and is out of scope here. The VERSION migration is complete (uniformly TOML 1.1, lockstep, operative dagtoml parity clean); full toml-test parity remains bounded by this documented pre-existing BurntSushi gap."
+layer          = 5
+tier           = 3
+status         = "done"
+depends_on     = ["U07"]
+blocks         = []
+estimated_loc  = 70
+files_create   = ["conformance/known-divergences-toml-1.1.toml"]
+files_modify   = []
+produces       = ["OUT:toml-1.1-conformance-verified"]
+consumes       = ["ART:spec-1.1-audited"]
+
+[computed]
+entry_points      = ["U01"]
+leaf_nodes        = ["U08"]
+critical_path     = ["U01", "U02", "U04", "U06", "U07", "U08"]
+critical_path_loc = 510
+loc_totals        = { all = 760, tier1 = 100, tier2 = 480, tier3 = 180 }
+
+[computed.max_parallel]
+layer0 = 1
+layer1 = 1
+layer2 = 3
+layer3 = 1
+layer4 = 1
+layer5 = 1

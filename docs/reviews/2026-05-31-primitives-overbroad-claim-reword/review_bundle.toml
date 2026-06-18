@@ -1,0 +1,41 @@
+# Review bundle — reword the overbroad "all business reality" primitive claim.
+# Instantiation of tools/review-request-dag.toml. Working-tree diff (uncommitted).
+
+[meta]
+session_label = "2026-05-31-primitives-overbroad-claim-reword"
+kind          = "spec-doc-change-review"
+subject       = "Scope the overbroad 'all business reality can be described using six primitives' claim in foundations/ijb/primitives.md:7 and README.md:14"
+created       = "2026-05-31"
+origin        = "Sole actionable critique from the 3-0 round-2 BWW multi-model review (docs/research/2026-05-31-ijb-six-primitive-usability.md, ROUND-2 RESOLUTION)."
+
+[policy.instance]
+initiator_model       = "claude-opus-4-8"   # authored the reword — excluded as a standard reviewer
+reviewer_models       = ["codex", "grok", "mistral"]
+verification_report   = ""                  # n/a
+implementation_plan   = ""                  # n/a
+dag_paths             = []                  # n/a
+commit_or_diff_ref    = "working-tree (uncommitted) on branch fix/2026-05-29-five-weaknesses"
+changed_files         = ["foundations/ijb/primitives.md", "foundations/ijb/README.md"]
+review_session_label  = "2026-05-31-primitives-overbroad-claim-reword"
+
+[bundle]
+prompt        = "docs/reviews/2026-05-31-primitives-overbroad-claim-reword/review_prompt.md"
+repo          = "/srv/repos/external/verivus-oss/agent-assurance/"
+diff_command  = "git diff -- foundations/ijb/primitives.md foundations/ijb/README.md"
+research_trail = "docs/research/2026-05-31-ijb-six-primitive-usability.md"
+
+# Bytes reviewers must check the reword against (the declared-scope corpus).
+ground_truth_files = [
+  "foundations/ijb/primitives.md",
+  "foundations/ijb/README.md",
+  "foundations/ijb/faq.md",                       # :5-15 not-a-modeling-framework / refuses to abstract; :66-84 out-of-model
+  "foundations/ijb/core-specification.md",        # :9-15 the visualization is not the model
+  "foundations/ijb/canonical-assertion-grammar.md", # :15-19 Non-Goals
+  "foundations/ijb/why-this-matters.md",          # plain-spoken / anti-abstraction brand
+]
+
+[change]
+primitives_md_line = 7
+readme_md_line     = 14
+nature             = "non-normative foundations prose; no primitive added/removed/renamed; no grammar/ontology/validator/closure_root impact"
+terminal_states    = ["approve", "approve_with_revisions", "reject"]

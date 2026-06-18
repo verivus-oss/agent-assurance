@@ -1,0 +1,69 @@
+# Contract declaration — TOML 1.0 → 1.1 migration. The testable
+# statements the migration is held to. C01 (cross-implementation parity)
+# is the load-bearing one: it is the invariant that forbids landing 1.1
+# in one parser while the others stay 1.0.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "contract-declaration"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+title          = "Contracts: TOML 1.0 → 1.1 migration"
+status         = "draft"
+created        = "2026-06-08"
+review_subject = "toml-1.1-migration"
+
+[[contracts]]
+id          = "C01"
+domain      = "cross_implementation_parity"
+statement   = "After migration, the Rust, Go, and Python primaries MUST produce identical accept/reject verdicts on every fixture in both the toml-test 1.1 corpus and the dagtoml conformance corpus. No primary may implement a TOML version the others do not."
+applies_to  = ["toml-1.1-migration"]
+must_name   = [
+  "which toml-test spec version the harness pins",
+  "the parser + version each of rs/go/py uses to reach that version",
+  "the disposition of any case that cannot be made to agree (block, not skip)",
+]
+verified_by = [
+  "TEST:conformance::toml-test-1.1-valid-all-agree",
+  "TEST:conformance::toml-test-1.1-invalid-all-agree",
+  "TEST:conformance::dagtoml-corpus-rs-go-py-agree",
+]
+
+[[contracts]]
+id          = "C02"
+domain      = "backward_compatibility_of_documents"
+statement   = "Every TOML 1.0 document valid in the repo before migration MUST remain valid after, unless a breaking 1.0→1.1 change is explicitly enumerated and justified. No silent invalidation of existing conforming documents."
+applies_to  = ["toml-1.1-migration"]
+must_name   = [
+  "the enumerated set of 1.0→1.1 breaking changes (if any) that affect repo documents",
+  "the migration path for each affected document",
+]
+verified_by = ["TEST:conformance::existing-conforming-docs-still-validate"]
+
+[[contracts]]
+id          = "C03"
+domain      = "spec_normative_disposition_of_1.1_features"
+statement   = "Each TOML 1.1 feature that newly becomes parseable (hex/`\\x` escapes, seconds-less local times, and any other 1.1 additions) MUST be explicitly permitted or forbidden by spec.md before the harness is flipped. A feature may not be admitted into the conforming surface by parser default alone."
+applies_to  = ["toml-1.1-migration"]
+must_name   = [
+  "the per-feature permit/forbid disposition in spec.md",
+  "the rationale for any feature forbidden despite being 1.1-valid",
+]
+verified_by = ["TEST:spec-1.1-feature-disposition-covers-all-additions"]
+depends_on  = ["C01"]
+
+[[contracts]]
+id          = "C04"
+domain      = "go_no_go_gate_precedes_any_parser_bump"
+statement   = "No primary parser may be bumped to 1.1 until the parity go/no-go decision (implementation-dag U02) records that all three primaries can reach 1.1. If any cannot, the migration halts with the blocker recorded and no parser changes land."
+applies_to  = ["toml-1.1-migration"]
+must_name   = [
+  "the recorded go/no-go verdict and its evidence",
+  "the named 1.1 parser availability for each of rs/go/py",
+]
+verified_by = ["TEST:no-parser-bump-merges-before-parity-decision"]
+depends_on  = ["C01"]

@@ -1,0 +1,54 @@
+# Terminal decision — IJB primitive #1: referent vs party.
+# Synthesized by the initiator from the three verbatim reviewer findings in
+# raw_findings/. Per tools/review-request-dag.toml [policy.persistence], the
+# raw findings are the source of truth; this file is the synthesis.
+
+[decision]
+terminal_state = "adopt_party"
+unanimous      = true
+date           = "2026-05-31"
+summary        = "All three fresh-context reviewers independently recommended adopt_party. referent wins only the legal-risk axis; party wins official-meaning, internal-collision, brand/tone, and directional-ambiguity, with replay/ergonomics a tie. No concrete_unresolvable_blocker: both names are viable; party is the lower-risk continuation of the existence primitive."
+
+[votes]
+codex  = "adopt_party"
+gemini = "adopt_party"
+grok   = "adopt_party"
+
+# Per-axis tally across the three reviewers (prompt's 6 mandatory verifications).
+[axes]
+"1_official_meaning"      = { winner = "party",    agreement = "unanimous", note = "primitives.md:11-14 defines #1 as 'objects that exist'; referent reframes existence->reference, same category shift that sank matter. 07 draft concedes the reframe is required (07:108-116)." }
+"2_internal_collision"    = { winner = "party",    agreement = "unanimous", note = "referent token = 0, but the reference family is saturated (~725-828 reference / ~345-391 references / ~117-122 referenced), incl. enforcement surfaces: canonical-assertion-grammar.md:32 'dereference referenced assertion IDs' and validate_kind_descriptor.py:185 check_references / --check-references-exist. Confused-by-proximity. gemini graded this a blocker." }
+"3_legal_regulatory_risk" = { winner = "referent", agreement = "unanimous", note = "Neither is a GDPR hard blocker. party carries legal-register loading (third-party / 'the Parties' / relying-party; enterprise.toml:63). referent has no legal term-of-art. The only axis referent wins." }
+"4_brand_tone"            = { winner = "party",    agreement = "unanimous", note = "referent is academic semiotics — the same failure mode that eliminated subject. why-this-matters.md:61 'Resistance to abstraction'; IJB is plain-spoken." }
+"5_replay_ergonomics"     = { winner = "tie",      agreement = "majority",  note = "Both drafts drop the noun in high-frequency replay, so human replay is identical. codex leaned party on key/error legibility; gemini+grok scored tie." }
+"6_directional_ambiguity" = { winner = "party",    agreement = "unanimous", note = "M-W glosses referent as 'one that refers OR is referred to'; pinning it passive-only is a precision liability for a precision-first framework. party has no built-in converse." }
+
+[decisive_factor]
+text = "The first IJB primitive is defined and replayed as EXISTENCE ('objects that exist', primitives.md:11-14; '<Thing> exists' replay, grammar:98-101). referent would (a) reframe that foundation as reference-anchoring and (b) sit inside the repo's already-saturated reference/dereference vocabulary — making the existence primitive sound like just another reference-resolution concept, against a plain-spoken brand."
+
+# Findings the initiator re-verified against bytes (not accepted on assertion),
+# per policy.evidence.
+[[verified_findings]]
+finding   = "Winning party draft (06) cites case-stale uppercase filenames that do not exist at HEAD."
+locations = ["06-drafts-for-party.md:8", "06-drafts-for-party.md:70", "06-drafts-for-party.md:74", "06-drafts-for-party.md:76", "06-drafts-for-party.md:97", "06-drafts-for-party.md:98", "06-drafts-for-party.md:103"]
+severity  = "minor"
+verified  = "Confirmed: PRIMITIVES.md / CANONICAL-ASSERTION-GRAMMAR.md / SPEC.md are MISSING; primitives.md / canonical-assertion-grammar.md / spec.md EXIST."
+action    = "Fixed in 06 before porting (lowercased all path references)."
+
+[[verified_findings]]
+finding   = "Prior corpus citations (file 05) use case-stale absolute paths (PRIMITIVES.md etc.)."
+locations = ["05-codex-party-vs-matter-full.md:12", "05-codex-party-vs-matter-full.md:40", "05-codex-party-vs-matter-full.md:90"]
+severity  = "minor-process"
+verified  = "Confirmed drift; lowercase targets resolve. Core claims unaffected. Left as historical record (dated review artifact)."
+action    = "none — historical artifact, not ported text."
+
+[[verified_findings]]
+finding   = "referent already appears as ordinary English (not a schema term) in the style policy."
+locations = ["tools/werner-style-policy.toml"]
+severity  = "neutral"
+verified  = "Confirmed incidental English usage ('the thing referred to'); unrelated to primitive naming."
+action    = "none."
+
+[next_steps]
+port_target_draft = "kasselman/ijb-primitive-naming-review/06-drafts-for-party.md"
+note = "party remains the standing recommendation — confirmed, not changed, by this review. 07-drafts-for-referent.md is retained as the recorded challenger and rationale. Porting party upstream (primitives.md §1 rename, grammar keys, spec.md §10, ontology ijb_primitive pins from 'thing' -> 'party') is itself a SPEC/core change and must go through its own review round before merge."

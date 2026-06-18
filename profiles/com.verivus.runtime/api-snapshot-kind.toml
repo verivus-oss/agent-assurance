@@ -1,0 +1,263 @@
+# Kind descriptor for `template_kind = "api-snapshot"`.
+# Verivus runtime profile (com.verivus.runtime) artifact.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "kind-descriptor"
+ontology_version = 1
+title = "API snapshot kind descriptor"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+describes_kind = "api-snapshot"
+framework_profile = "com.verivus.runtime"
+authoritative_in = "this file"
+confidentiality = "public"
+license = "Apache-2.0"
+
+[kind]
+name = "api-snapshot"
+summary = "Digest-pinned, optionally witnessed capture of one external request/response interaction an agent observed at runtime."
+prose = """
+An api-snapshot records one external HTTP(S) request/response
+interaction an agent observed, in a form a later reader can verify
+without re-issuing the request. The captured bytes live at
+`provenance.source_path` and are pinned by `provenance.source_sha256`;
+the document inlines only digests, so publishing the snapshot does not
+publish the payload.
+
+ROOT SHAPE
+
+ closure_root = "sha256:..."          # source-hash closure (SPEC 12.8)
+
+ [meta]
+ schema_version = "0.1.0"
+ template_kind = "api-snapshot"
+ framework_profile = "com.verivus.runtime"
+ confidentiality = "restricted"
+
+ [provenance]
+ source_path = "examples/captures/2026-06-17T091402Z-usd-aud.capture"
+ source_sha256 = "sha256:..."        # digest of the captured artefact
+ source_bytes = 620
+
+ [snapshot]
+ captured_at = "2026-06-17T09:14:02.481Z"
+ source_id = "https://api.exchange.example/v1/quotes/USD-AUD"
+
+ [snapshot.request]
+ method = "GET"
+ url = "https://api.exchange.example/v1/quotes/USD-AUD?pair=USD-AUD"
+ significant_headers = ["accept"]
+ descriptor_sha256 = "sha256:..."    # canonical request-descriptor digest
+ auth_context = "oauth2-client-credentials; client=verivus-quote-reader"
+
+ [snapshot.response]
+ status = 200
+ body_sha256 = "sha256:..."          # digest of the response body bytes
+
+ [snapshot.witness]
+ present = true
+ scheme = "tls-notary"               # witness_scheme vocabulary
+ observed = "both"                   # attester_observed vocabulary
+ attester_id = "notary.example/ed25519:9f86d0818411"
+ attestation_sha256 = "sha256:..."
+
+CLOSURE LAYERING (the load-bearing point)
+
+At schema_version 0.1.0 the SPEC-layer closure (validate_closure_root.py,
+SPEC 12.8) folds exactly one cross-kind field into `closure_root`:
+`provenance.source_sha256`. An api-snapshot therefore puts the digest of
+the WHOLE captured artefact in `provenance.source_sha256`, so the
+brittleness cascade runs through it: change any captured byte and the
+artefact digest changes, the `closure_root` changes, and every downstream
+document that cited the old root cascade-breaks.
+
+`descriptor_sha256` and `body_sha256` pin sub-parts of that same captured
+artefact (the canonical request descriptor and the response body). They are
+component digests, NOT independent closure inputs at 0.1.0. The §12 gate commits
+only to the outer `source_sha256`; it does NOT itself check that these component
+digests are the digests of sub-parts of the capture, so that consistency is a
+producer obligation (validate_api_snapshot.py), not a §12 guarantee. A
+verifier can still check a sub-part against its component digest without
+re-hashing the whole capture.
+
+`attestation_sha256` pins a SEPARATE witness artefact that is not part of
+the captured bytes, so it is NOT covered by `source_sha256` and is NOT yet
+folded into `closure_root`. Folding the descriptor, body, and attestation
+digests in as independent closure records (so they cascade on their own)
+requires promoting their canonical record forms into SPEC 12.8, which the
+closure validator's own documentation flags as deferred profile/runtime
+work. Until that promotion lands this profile relies on the source-hash
+closure plus the component-digest consistency rule (RKV01).
+
+VALIDATOR MUST NOT verify the source-hash by re-fetching the URL, MUST NOT
+verify the witness signature/quote, and MUST NOT resolve `attester_id`.
+Those are RUNTIME-SPEC.
+"""
+references = [
+ "spec.md",
+ "core/ontology.toml",
+ "profiles/com.verivus.runtime/ontology.toml",
+]
+ijb_primitive = "thing"
+ijb_class = "structural"
+
+[[kind.required_fields]]
+path = "meta.template_kind"
+must_equal = "api-snapshot"
+description = "Identifies this file as an api-snapshot."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "meta.framework_profile"
+must_equal = "com.verivus.runtime"
+description = "Selects the Verivus runtime profile."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "snapshot.captured_at"
+description = "RFC3339 UTC timestamp at which the interaction was captured."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "snapshot.source_id"
+description = "Stable identifier (URL) of the external source the bytes were observed from."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "snapshot.request.descriptor_sha256"
+description = "Digest of the canonical request descriptor. A digest scalar whose hex length matches its algorithm prefix (sha256:64, sha384:96, sha512:128 hex chars), the prefix drawn from the core `closure_root.digest_algorithm` vocabulary. Typing this field as a digest is what makes RKV02 mechanical: a header value written as a raw string instead of a digest fails the type."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "snapshot.response.body_sha256"
+description = "Digest of the response body bytes. Same digest-scalar grammar as descriptor_sha256."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "provenance.source_sha256"
+ontology_mapping = "cites_upstream"
+description = "Digest of the whole captured artefact, as `sha256:<64 hex>` (the closure validator requires sha256 here). This is the SPEC 12.8 closure input for the kind (the field carrying the `cites_upstream` ontology mapping), folded into `closure_root` by validate_closure_root.py."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id = "RKV01"
+statement = "`closure_root` MUST equal the SPEC 12.8 source-hash closure over `provenance.source_sha256` (the captured-artefact digest), so it cascades when the capture changes. This is the ONLY part of RKV01 the §12 closure gate enforces, and it commits to the OUTER artefact digest only. `snapshot.request.descriptor_sha256` and `snapshot.response.body_sha256` are REQUIRED to equal the digests of the corresponding sub-parts of that same captured artefact, but that sub-part consistency is a PRODUCER obligation checked by validate_api_snapshot.py for captures in the profile's DAGTOML-API-CAPTURE/1 form (and a RUNTIME-SPEC obligation for foreign, producer-defined capture formats the validator cannot parse), NOT by the §12 gate: a document whose `source_sha256` names artefact X while its sub-digests come from Y still yields a valid `closure_root` over X, so a consumer MUST NOT read the §12 value as proof of sub-part integrity. `snapshot.witness.attestation_sha256` pins a separate artefact and is NOT folded into `closure_root` at 0.1.0 (its independent fold awaits SPEC 12.8 record-form promotion)."
+enforced_by = "validators/validate_closure_root.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also = "spec.md §12.8"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id = "RKV02"
+statement = "No secret is inlined. Every significant request-header value is carried in the canonical request descriptor as a digest, never as a raw string, and `snapshot.request.descriptor_sha256` is the digest over that canonical descriptor. A document that inlines a raw `authorization` or `cookie` value, or ANY other raw header/payload field under `[snapshot.request]` / `[snapshot.response]` / `[snapshot.witness]` (each table admits only a closed set of digest-bearing keys), or writes a header value where a digest scalar is required, MUST be rejected. The canonical request-descriptor form is normatively defined by the request-descriptor canonicalization addendum."
+enforced_by = "validators/validate_api_snapshot.py"
+see_also = "docs/profiles/com.verivus.runtime/request-descriptor-canonicalization.md"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id = "RKV03"
+statement = "When `snapshot.witness.present = true`, ALL of `snapshot.witness.scheme` (drawn from the `witness_scheme` vocabulary), `snapshot.witness.attester_id`, and `snapshot.witness.attestation_sha256` MUST be present, and `snapshot.witness.observed` (drawn from `attester_observed`) bounds what the witness covers. When `present = false` the snapshot is producer-attested only and those fields MAY be omitted. The attester MUST be independent of the producing agent; verifying that independence cryptographically is RUNTIME-SPEC."
+enforced_by = "validators/validate_api_snapshot.py"
+see_also = "profiles/com.verivus.runtime/ontology.toml [[attribute_vocabularies]]"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id = "RKV04"
+statement = "Every entity prefix and relation predicate used in this kind's instance files resolves to an `ijb_primitive` declared in the loaded ontology set (core plus the agent-assurance and com.verivus.runtime profiles). An api-snapshot introduces no entity prefixes of its own, so in practice this reduces to the core `cites_upstream` binding."
+enforced_by = "validators/validate_ijb_conformance.py"
+see_also = "foundations/ijb/core-specification.md"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name = "minimal api snapshot"
+file = "examples/minimal-api-snapshot.toml"
+inline_summary = "A single witnessed GET of a USD/AUD quote: source-hash closure over the captured artefact, digested request descriptor and response body, and a tls-notary witness observing both request and response."
+ijb_primitive = "observed"
+
+[kind.relation_to_ontology]
+entities_introduced = []
+ontology_entries = "profiles/com.verivus.runtime/ontology.toml [[attribute_vocabularies]]; core/ontology.toml [[relations]] cites_upstream and [[attribute_vocabularies]] closure_root.digest_algorithm"
+attribute_vocabularies = ["witness_scheme", "attester_observed"]
+predicates_used = ["cites_upstream (CORE; applied via the provenance.source_sha256 required field's ontology_mapping, folding the captured-artefact digest into closure_root per SPEC 12.8)"]
+note = "Like gate-decision, an api-snapshot is a flat single-subject observation record and introduces NO id-prefixed entities and NO namespaced relations. Its only profile-level ontology contribution is the two closed witness vocabularies; the closure binding and the digest-algorithm set are core. The witness conditional (RKV03) and the digest field type (RKV02) are enforced by the kind descriptor and validators, not by the ontology, which supplies vocabulary only."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13 — abstraction class + capability envelope
+# ============================================================================
+#
+# An api-snapshot is a flat, read-only observation record. Per the §13
+# anti-proliferation principle it REUSES the shared `observation-record.v1`
+# abstraction class already carried by five flat single-subject read-only
+# records (gate-decision, cost-record, evidence-matrix, assertion-log-record,
+# redaction-manifest) rather than minting a bespoke class: the structural
+# family (flat single subject, digest-pinned, no comment surface) and the
+# deny-all capability envelope are identical to gate-decision, and the
+# "external capture" semantics are carried by the witness vocabulary, not by
+# the abstraction class. The DOCUMENT (and its validation) needs no I/O: the
+# network capture happened at runtime, before the document existed, and is out
+# of this envelope's scope. So, like gate-decision and threat-model, every
+# capability domain is denied. Widening the envelope cascade-breaks downstream
+# snapshots (per §13.4).
+
+[kind.abstraction_class]
+id = "observation-record.v1"
+description = "Read-only observation record: a flat, single-subject, digest-pinned capture of a past state, action, or outcome, asserting nothing about authorization, ordering, or finality and carrying no editorial surface. For an api-snapshot the observed subject is one external request/response interaction, pinned by a whole-artefact `provenance.source_sha256` (the SPEC 12.8 closure input), component `snapshot.request.descriptor_sha256` / `snapshot.response.body_sha256` digests over sub-parts of that artefact, and an optional `snapshot.witness` block (closed-vocabulary `scheme` / `observed`, `attester_id`, `attestation_sha256`). No I/O outside the canonical-form text serialisation; no networking; no process spawn — the capture is a prior runtime act outside this envelope."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed = false
+monotonic_clock_allowed = false
+precision_cap_ms = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

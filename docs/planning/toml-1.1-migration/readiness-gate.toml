@@ -1,0 +1,90 @@
+# Readiness gate — TOML 1.0 → 1.1 migration. G01 (planning pack) passes.
+# G02 (parity go/no-go): the parity spike (U01) and decision (U02) recorded
+# GO; the operator STOP/GO sign-off was confirmed 2026-06-08; and the
+# migration has now been EXECUTED AND VERIFIED end-to-end. All eight units
+# (U01–U08) are done: the Rust, Go, and Python primaries are uniformly at
+# TOML 1.1 in lockstep, the conformance harness runs the 1.1 corpus, and
+# spec.md §9.2 carries the per-feature dispositions. U08 recorded the
+# verified state in conformance/known-divergences-toml-1.1.toml: rs/go/py
+# AGREE on the operative dagtoml semantic corpus (empty baseline) and the
+# toml-test VALID corpus, with one documented, PRE-EXISTING exception — on 13
+# toml-test INVALID fixtures the Go (BurntSushi v1.6.0) parser is more
+# permissive than rs/py (a BurntSushi limitation, unchanged by the version
+# change, recorded not skipped-silently). Status reflects this completion.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "readiness-gate"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+title          = "Review readiness: TOML 1.0 → 1.1 migration"
+status         = "migration-complete-go-toml-test-divergences-documented"
+created        = "2026-06-08"
+review_subject = "toml-1.1-migration"
+
+[[artifact_classes]]
+id          = "A01"
+name        = "planning_pack"
+description = "The scoping pack for the migration: spec, implementation plan, implementation DAG, contracts, and evidence matrix."
+
+[[artifact_classes]]
+id          = "A02"
+name        = "parity_decision"
+description = "The recorded go/no-go decision proving all three primaries (rs/go/py) can reach TOML 1.1 in lockstep."
+
+[[gates]]
+id                 = "G01"
+artifact_class     = "A01"
+name               = "Planning pack gate"
+purpose            = "Block review until the scoping pack is complete and cross-linked."
+required_documents = [
+  "01_spec.md",
+  "03_implementation_plan.md",
+  "implementation-dag.toml",
+  "contract-declaration.toml",
+  "evidence-matrix.toml",
+]
+required_links     = [
+  "implementation-dag.meta.spec to 01_spec.md",
+  "implementation-dag.meta.decomposition to 03_implementation_plan.md",
+  "contracts cover the cross-implementation parity invariant",
+  "evidence matrix links each claim to a pack document",
+]
+pass_conditions    = [
+  "all required documents exist and validate",
+  "documents are cross-linked",
+  "contract C01 (cross-implementation parity) is declared and verifiable",
+]
+block_conditions   = [
+  "missing prerequisite document",
+  "broken cross-link",
+]
+next_step = "complete and cross-link the planning pack before opening review"
+
+[[gates]]
+id                 = "G02"
+artifact_class     = "A02"
+name               = "Parity go/no-go gate"
+purpose            = "Forbid any parser bump until parity across rs/go/py at TOML 1.1 is proven feasible."
+required_documents = [
+  "research/01-parser-availability-survey.md",
+  "research/02-parity-decision.md",
+]
+required_links     = [
+  "parity decision cites the parser-availability survey",
+  "decision names a 1.1-capable parser for each of rs, go, and py",
+]
+pass_conditions    = [
+  "a 1.1-capable parser is identified for all three primaries",
+  "the go/no-go decision records GO with that evidence",
+]
+block_conditions   = [
+  "any primary lacks a viable TOML 1.1 parser",
+  "the survey or decision document is missing",
+  "the decision records NO-GO or is unresolved",
+]
+next_step = "complete the parser-availability spike (U01) and record the go/no-go decision (U02) before any parser bump"

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>DAG-TOML | Agent Assurance Specification</title>
+  <meta name="description" content="DAG-TOML is a public draft specification for declarative policy, workflow, and review evidence in agent-driven development.">
+  <link rel="canonical" href="https://agent-assurance.dev/">
+  <link rel="alternate" type="text/markdown" href="https://agent-assurance.dev/index.md">
+  <link rel="alternate" type="text/plain" href="https://agent-assurance.dev/llms.txt">
+  <link rel="stylesheet" href="/style.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": "DAG-TOML Agent Assurance Specification",
+    "description": "Declarative policy, workflow, and review evidence for agent-driven development.",
+    "datePublished": "2026-05-27",
+    "dateModified": "2026-05-27",
+    "license": "https://www.apache.org/licenses/LICENSE-2.0",
+    "url": "https://agent-assurance.dev/",
+    "author": {
+      "@type": "Organization",
+      "name": "Verivus OSS"
+    }
+  }
+  </script>
+  <link rel="icon" href="/assets/favicon.ico" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="agent-assurance.dev">
+  <meta property="og:title" content="DAG-TOML | Agent Assurance Specification">
+  <meta property="og:description" content="DAG-TOML is a public draft specification for declarative policy, workflow, and review evidence in agent-driven development.">
+  <meta property="og:url" content="https://agent-assurance.dev/">
+  <meta property="og:image" content="https://agent-assurance.dev/assets/og-image.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="DAG-TOML evidence surface: implementation-dag, traceability, and review-readiness artifacts grounded by a hash-bound closure root.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="DAG-TOML | Agent Assurance Specification">
+  <meta name="twitter:description" content="DAG-TOML is a public draft specification for declarative policy, workflow, and review evidence in agent-driven development.">
+  <meta name="twitter:image" content="https://agent-assurance.dev/assets/og-image.png">
+  <meta name="twitter:image:alt" content="DAG-TOML evidence surface: implementation-dag, traceability, and review-readiness artifacts grounded by a hash-bound closure root.">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="DAG-TOML home">
+      <span class="brand-mark">DT</span>
+      <span>DAG-TOML</span>
+    </a>
+    <nav aria-label="Primary">
+      <a href="/spec/">Spec</a>
+      <a href="/profiles/">Profiles</a>
+      <a href="/validators/">Validators</a>
+      <a href="/compare/">Compare</a>
+      <a href="/agent-readiness/">Agents</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Draft specification 0.1.0</p>
+        <h1>DAG-TOML proves what an agent intended, depended on, and made ready for review.</h1>
+        <p class="lead">A TOML format for declarative policy, workflow, traceability, evidence, closure roots, and review gates in agent-driven software development.</p>
+        <div class="actions" aria-label="Primary actions">
+          <a class="button primary" href="/spec/">Read the spec</a>
+          <a class="button" href="https://github.com/verivus-oss/agent-assurance">GitHub</a>
+          <a class="button" href="/llms.txt">llms.txt</a>
+        </div>
+      </div>
+      <figure class="hero-media">
+        <img src="/assets/dag-toml-flow.svg" alt="Diagram showing intent, dependency graph, evidence, validators, and review decision flow.">
+        <figcaption>Evidence layer, not an execution runtime.</figcaption>
+      </figure>
+    </section>
+
+    <section class="band">
+      <div class="section-head">
+        <p class="eyebrow">Positioning</p>
+        <h2>The evidence layer for agentic software work</h2>
+      </div>
+      <div class="grid three">
+        <article class="card">
+          <h3>Declares intent</h3>
+          <p>Agents describe planned work, ordered dependencies, traceability, evidence expectations, and review state before the result is treated as ready.</p>
+        </article>
+        <article class="card">
+          <h3>Preserves provenance</h3>
+          <p>Closure-root rules tie claims to upstream source hashes so downstream artifacts can inherit brittleness instead of hiding it.</p>
+        </article>
+        <article class="card">
+          <h3>Stays runtime-neutral</h3>
+          <p>DAG-TOML does not schedule tools, grant permissions, move messages, or sandbox code. Control planes and runtimes keep owning those decisions.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="split">
+      <div>
+        <p class="eyebrow">Use it when</p>
+        <h2>Diff review alone is no longer enough</h2>
+        <p>DAG-TOML is aimed at software generated or modified by agents, especially where a reviewer needs to evaluate the claimed shape of the work before reading every byte.</p>
+      </div>
+      <ul class="check-list">
+        <li>Agent-generated implementation plans and dependency graphs</li>
+        <li>Traceability from requirement to code, test, output, and evidence</li>
+        <li>Human review gates for self-modifying or high-impact changes</li>
+        <li>Disclosure, redaction, and selective evidence release</li>
+        <li>Cost accounting as a first-class artifact</li>
+      </ul>
+    </section>
+
+    <section class="band muted">
+      <div class="section-head">
+        <p class="eyebrow">Start points</p>
+        <h2>Human and machine-readable entry points</h2>
+      </div>
+      <div class="link-grid">
+        <a href="/spec/"><strong>Normative spec</strong><span>Root metadata, template kinds, closure roots, IJB, and extension rules.</span></a>
+        <a href="/profiles/"><strong>Profiles</strong><span>Agent Assurance, disclosure, cost, and deployment tiers.</span></a>
+        <a href="/validators/"><strong>Validators</strong><span>Rust and Go primary validators, Python reference validators, and local checks.</span></a>
+        <a href="/compare/"><strong>Protocol comparison</strong><span>How DAG-TOML relates to MCP, A2A, ACP, ANP, Agent Manifest, and JSON Agents.</span></a>
+        <a href="/agent-readiness/"><strong>Agent readiness</strong><span>Discovery files, Markdown mirrors, structured metadata, and retrieval design.</span></a>
+        <a href="/sitemap.md"><strong>Markdown sitemap</strong><span>Compact navigation for coding agents and retrieval systems.</span></a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>Apache-2.0</span>
+    <a href="https://github.com/verivus-oss/agent-assurance/releases/tag/v0.1.0">v0.1.0 release</a>
+    <a href="/.well-known/agent.json">agent.json</a>
+  </footer>
+</body>
+</html>

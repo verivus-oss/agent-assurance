@@ -140,6 +140,17 @@ Run the §12 closure-root gate after adding or modifying any spec-reserved
 python3 validators/validate_closure_root.py --discover .
 ```
 
+Run the structural implementation-dag validator after editing any operational
+DAG under `tools/` (ISS-005 — these are spec-reserved `implementation-dag`
+files and must stay INV01-INV06 conformant; CI runs the same check across
+Python + Rust + Go):
+
+```sh
+for f in tools/*-dag.toml; do
+  python3 validators/validate_implementation_dag.py "$f"
+done
+```
+
 CI runs the full matrix in [.github/workflows/validate.yml](.github/workflows/validate.yml).
 CI also runs thirteen OSS security and quality scanners on every push and
 pull request — in the order of the validate.yml "Coverage map" comment

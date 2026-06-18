@@ -1,0 +1,10 @@
+# Known cross-implementation divergences the conformance runner tolerates.
+#
+# This is a baseline of currently-known drift, NOT a green light — the
+# same contract as TOML_CONFORMANCE_SKIPS in the Makefile. Revisit every
+# entry whenever a validator implementation changes. If a run newly
+# agrees on an entry, delete it. If a run newly disagrees on something
+# not listed here, treat that as a regression and fix the validator
+# rather than extending this file.
+
+# (no entries — all implementations currently agree on the full corpus)

@@ -8,7 +8,7 @@
 -- schema never drifts. Treat hand-edits here as a smell.
 --
 -- Counts (verified against ontology files; matches MANIFEST.toml):
---   * 20 template kinds        (6 core + 9 agent-assurance + 3 disclosure + 1 cost + 1 meta `kind-descriptor`)
+--   * 21 template kinds        (6 core + 9 agent-assurance + 3 disclosure + 1 cost + 1 com.verivus.runtime + 1 meta `kind-descriptor`)
 --   * 27 entity kinds          (17 core + 6 agent-assurance + 3 disclosure + 1 cost)
 --   * 31 relation rows         (26 core + 5 contract-namespaced variants)
 --                              The ontology declares 31 [[relations]] blocks,
@@ -23,7 +23,7 @@
 --                              them as separate [[relations]] entries.
 --                              The 31st row is the cross-document
 --                              `cites_upstream` marker added by SPEC §12.
---   * 41 attribute vocabularies (10 core + 24 agent-assurance + 4 disclosure + 3 cost)
+--   * 48 attribute vocabularies (12 core + 27 agent-assurance + 4 disclosure + 3 cost + 2 com.verivus.runtime)
 
 SET search_path TO dagtoml, public;
 
@@ -52,7 +52,8 @@ INSERT INTO kind_descriptor (template_kind, layer, descriptor_path, requires_pro
     ('disclosure-attestation',         'profile:disclosure',      'profiles/disclosure/disclosure-attestation-kind.toml',         'disclosure'),
     ('redaction-manifest',             'profile:disclosure',      'profiles/disclosure/redaction-manifest-kind.toml',             'disclosure'),
     ('selective-disclosure-proof',     'profile:disclosure',      'profiles/disclosure/selective-disclosure-proof-kind.toml',     'disclosure'),
-    ('cost-record',                    'profile:cost',            'profiles/cost/cost-record-kind.toml',                          'cost');
+    ('cost-record',                    'profile:cost',            'profiles/cost/cost-record-kind.toml',                          'cost'),
+    ('api-snapshot',                   'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/api-snapshot-kind.toml',        'com.verivus.runtime');
 
 -- ============================================================
 -- entity_kind_descriptor (24 rows: 17 core + 6 agent-assurance + 3 disclosure + 1 cost)
@@ -216,7 +217,10 @@ INSERT INTO attribute_vocabulary
     -- Profile: agent-assurance cross-provider self-modification (gate-decision INV06).
     ('subject_class',       NULL, ARRAY['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL),
     ('provider_id',         NULL, ARRAY['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL),
-    ('model_family_id',     NULL, ARRAY['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL);
+    ('model_family_id',     NULL, ARRAY['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL),
+    -- Profile: com.verivus.runtime (2) — api-snapshot closed witness vocabularies.
+    ('witness_scheme',      NULL, ARRAY['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
+    ('attester_observed',   NULL, ARRAY['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL);
 
 -- Allowed values for non-enum-backed (i.e., extensible) vocabularies.
 -- Enum-backed values are enforced by the Postgres enum type itself, so
@@ -382,4 +386,11 @@ INSERT INTO attribute_value_allowed (attribute, value) VALUES
     ('model_family_id', 'deepseek'),
     ('model_family_id', 'qwen'),
     ('model_family_id', 'human'),
-    ('model_family_id', 'other');
+    ('model_family_id', 'other'),
+    -- Profile: com.verivus.runtime witness vocabularies (6).
+    ('witness_scheme', 'tls-notary'),
+    ('witness_scheme', 'provider-signature'),
+    ('witness_scheme', 'tee-quote'),
+    ('attester_observed', 'request'),
+    ('attester_observed', 'response'),
+    ('attester_observed', 'both');

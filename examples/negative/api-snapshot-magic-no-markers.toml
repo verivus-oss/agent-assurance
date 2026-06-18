@@ -1,0 +1,42 @@
+# NEGATIVE: the capture carries the DAGTOML-API-CAPTURE/1 magic but is missing
+# its 'request-descriptor:' / 'response-status:' / 'response-body:' section
+# markers. validate_api_snapshot.py MUST reject it on RKV01 — a magic header
+# with absent markers must not let an arbitrary descriptor/body digest pass
+# (sub-part consistency cannot be recomputed -> fail closed).
+# closure_root is the correct source-only SPEC §12.8 fold (so the positive
+# `--discover .` closure sweep stays green). source_bytes is deliberately wrong
+# (181 vs the real 180) so the provenance-negative gate also rejects it, per the
+# examples/negative/ convention (mirrors api-snapshot-bad-closure).
+# Expected: validate_api_snapshot.py exit 1 (RKV01 markers); validate_provenance
+# exit 1 (byte mismatch); validate_closure_root exit 0.
+
+closure_root = "sha256:335989389793f751236f57bf70425c74af6d0635d5b69f609e6aa3bea00707a4"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "api-snapshot"
+framework_profile = "com.verivus.runtime"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "examples/negative/captures/magic-no-markers.capture"
+source_sha256 = "sha256:55951b32ad363193fac2527844565b547342a3d096c0c05b1a4cb1a2586fc59c"
+source_bytes = 181
+
+[snapshot]
+captured_at = "2026-06-17T09:14:02.481Z"
+source_id = "https://api.exchange.example/v1/quotes/USD-AUD"
+
+[snapshot.request]
+method = "GET"
+url = "https://api.exchange.example/v1/quotes/USD-AUD?asof=2026-06-17T09:14:00Z&pair=USD-AUD"
+significant_headers = ["accept"]
+descriptor_sha256 = "sha256:00000000000000000000000000000000000000000000000000000000deadbeef"
+
+[snapshot.response]
+status = 200
+body_sha256 = "sha256:00000000000000000000000000000000000000000000000000000000c0ffee01"
+
+[snapshot.witness]
+present = false

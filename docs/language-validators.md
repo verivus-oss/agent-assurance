@@ -23,9 +23,11 @@ repository-analysis fit for this project:
 
 ## Validator
 
-Use `validators/validate_code_symbols.py` against any traceability file
-that declares `[[code]]` entries with `path` plus either `symbol` or
-`symbols`.
+The primary Rust and Go validators enforce the traceability document's
+structural rules, including path presence for `[[code]]` entries. Use
+`validators/validate_code_symbols.py` for the optional AST-aware layer
+against any traceability file that declares `[[code]]` entries with
+`path` plus either `symbol` or `symbols`.
 
 ```sh
 python3 validators/validate_code_symbols.py \
@@ -44,11 +46,13 @@ The validator:
 
 **Status: experimental.** This validator depends on a pinned `sqry`
 binary and is therefore not yet a required CI gate. The repository's
-main CI workflow performs two cheaper, sqry-independent checks against
-the fixture set:
+main CI workflow performs cheaper, sqry-independent checks against the
+fixture set:
 
-- structural validation of `examples/language-validation/traceability.toml`
-  (path existence + IJB conformance);
+- primary Rust + Go traceability validation of
+  `examples/language-validation/traceability.toml`;
+- Python reference traceability validation of the same fixture;
+- IJB conformance for the fixture;
 - a grep-level fixture-symbol drift check that fails if any declared
   symbol name disappears from its referenced source file.
 

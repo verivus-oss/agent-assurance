@@ -146,18 +146,18 @@ build break.
 | --- | --- | --- |
 | Syntax | [Taplo](https://taplo.tamasfe.dev/) | TOML 1.0 lint, duplicate-key detection |
 | Parser conformance | `toml-lang/toml-test` suite | Verifies the parsers the primary validators import (`BurntSushi/toml` for Go, `toml 0.8` crate for Rust) |
-| Semantics — **primary** | `tools/dagtoml-validate-rs/` (safe Rust, `#![forbid(unsafe_code)]`) | Authoritative for profile-descriptor, the disclosure-profile kinds, §2.2 and §2.5–§2.7 meta surface, §11.1 `[provenance.encryption]`, §12.8 `[provenance].source_sha256` closure roots, and gate-decision INV06 |
-| Semantics — **primary** | `tools/dagtoml-validate-go/` (safe Go, no `unsafe` import) | Same surface as Rust; CI runs both against every canonical example + tier file + profile descriptor on each push, and both must exit 0 |
-| Semantics — reference / migration backlog | `validators/*.py` | Cross-check on the primaries' surface, plus legacy CI-enforced surfaces still awaiting Tier-1 ports (cost-record, abstraction-class §13, rollback-plan trigger closure, implementation-dag, traceability, review-readiness, IJB conformance) |
+| Semantics — **primary** | `tools/dagtoml-validate-rs/` (safe Rust, `#![forbid(unsafe_code)]`) | Authoritative for profile descriptors; ontologies and IJB conformance; kind-descriptor structure and §13 abstraction/capability envelopes; implementation-dag; traceability; review-readiness; disclosure-profile kinds; cost-record; rollback-plan trigger closure; gate-decision; §2.2 and §2.5–§2.7 meta surface; §11.1 `[provenance.encryption]`; and §12.8 `[provenance].source_sha256` closure roots |
+| Semantics — **primary** | `tools/dagtoml-validate-go/` (safe Go, no `unsafe` import) | Same surface as Rust; CI runs both against ontologies, every kind descriptor, every canonical example, every tier file, and every profile descriptor on each push, and both must exit 0 |
+| Semantics — reference / cross-check | `validators/*.py` | Historical reference implementation. CI keeps these validators as independent cross-checks on the primary Rust/Go surface and uses negative fixtures to prove all three reject malformed examples consistently. |
 | Symbol traceability (optional) | `validators/validate_code_symbols.py` (sqry-backed) | Confirms `[[code]]` symbols in traceability files exist in real Rust/Go/TypeScript/Java sources |
 
 Why a Rust + Go + Python triad: the specification is for security and
 legal-grade artifacts; one implementation cannot self-vouch. Rust and
 Go are the two **primary** language ecosystems where safe-by-default
 parsers exist (`#![forbid(unsafe_code)]` Rust crates, `unsafe`-free
-Go modules); Python is the historical reference, cross-check, and the
-temporary home for explicitly documented legacy surfaces until they are
-ported to Tier 1.
+Go modules); Python is the historical reference and cross-check. New
+semantic surfaces should land in Rust, Go, and Python together unless
+the change is explicitly documented as experimental tooling.
 
 ## Local Validation
 
@@ -192,11 +192,10 @@ python3 validators/validate_abstraction_class.py --repo-root . \
 
 CI runs the full validator matrix (~25 steps) on every push and pull
 request: syntax lint, manifest drift, both primary validators against
-every canonical example + tier file + profile descriptor, Python
-cross-checks, IJB conformance, closure-root, abstraction-class +
-capability-envelope, kind-descriptor structural rules, rollback-plan
-trigger_kind closure, provenance bindings, skill packages, language
-fixture, and the banned-marker / leaked-internal-path scan. See
+ontologies, every kind descriptor, every canonical example, every tier
+file, and every profile descriptor; Python cross-checks; closure-root;
+provenance bindings; skill packages; language fixture checks; and the
+banned-marker / leaked-internal-path scan. See
 [.github/workflows/validate.yml](.github/workflows/validate.yml) for
 the source of truth.
 

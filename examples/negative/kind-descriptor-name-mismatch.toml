@@ -1,0 +1,24 @@
+# Negative fixture: kind.name intentionally disagrees with
+# meta.describes_kind. Dedicated validator checks MUST reject this file.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "kind-descriptor"
+describes_kind = "example-negative-kind"
+title          = "Negative kind descriptor fixture"
+docs           = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "public"
+license = "Apache-2.0"
+
+[kind]
+name    = "different-negative-kind"
+summary = "Negative fixture for kind descriptor validation."
+prose   = "This fixture is intentionally invalid because kind.name does not match meta.describes_kind. It is used only by negative validator tests."
+ijb_primitive = "thing"
+ijb_class = "structural"
+
+[[kind.example]]
+name = "negative"
+file = "examples/minimal-implementation-dag.toml"
+ijb_primitive = "observed"

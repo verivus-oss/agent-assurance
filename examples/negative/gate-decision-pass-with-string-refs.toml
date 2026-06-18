@@ -1,0 +1,33 @@
+# Negative fixture — gate-decision separation-of-duty boundary.
+#
+# `verdict = "pass"` together with a non-empty `failed_constraint_refs`
+# violates INV01 (verdict == "pass" iff failed_constraint_refs is empty).
+# Here the refs are an array of STRINGS, not tables, which also violates
+# INV02 (each entry must be a table with a constraint_id).
+#
+# This fixture pins a cross-implementation boundary: before the Go
+# validator counted the raw array, `gdAsTableArray` silently dropped the
+# string elements, so Go saw zero refs and ACCEPTED this "pass" verdict
+# while Rust and the Python reference REJECTED it. All three MUST now
+# reject it. See docs/reviews/2026-05-30-wp1-falsification/.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "gate-decision"
+docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+framework_profile = "agent-assurance"
+title             = "Negative: pass verdict with non-empty string refs"
+created           = "2026-05-30"
+
+[decision]
+verdict                 = "pass"
+evidence_root           = "3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d"
+evidence_root_algorithm = "sha256-merkle-sorted-leaves"
+decided_at              = "2026-05-30T00:00:00Z"
+# String elements, not [[decision.failed_constraint_refs]] tables.
+failed_constraint_refs  = ["A-1"]

@@ -85,12 +85,14 @@ CREATE INDEX instance_file_template_kind_idx IF NOT EXISTS
 //     core/ontology.toml + profiles/agent-assurance/ontology.toml.)
 // ============================================================
 
-// Template kinds — ontology declares 20 (6 core + 9 agent-assurance + 3 disclosure + 1 cost + 1 meta).
+// Template kinds — ontology declares 21 (6 core + 9 agent-assurance + 3 disclosure + 1 cost + 1 com.verivus.runtime + 1 meta).
 // NOTE: the UNWIND data below currently lists only 15. The graph schema's
 // seed data has not been updated to include the disclosure (3) + cost (1) +
-// profile-descriptor (1) kinds. This is tracked as a follow-up and surfaced
-// by `validators/check_attribute_values.py` against MANIFEST.toml's
-// expected_node_counts (which were updated to 20/27/31 at HEAD).
+// com.verivus.runtime api-snapshot (1) + profile-descriptor (1) kinds. This
+// remains a tracked follow-up: the property-graph seed is illustrative, and
+// `validators/check_attribute_values.py` compares MANIFEST.toml's
+// expected_node_counts (now 21/27/31 at HEAD) to the ontology, not to these
+// UNWIND rows. api-snapshot joins the existing disclosure/cost deferral.
 UNWIND [
     {template_kind: 'kind-descriptor',          layer: 'core'},
     {template_kind: 'implementation-dag',       layer: 'core'},

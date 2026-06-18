@@ -1,0 +1,294 @@
+# Proposal review — outreach pair pitching an opt-in assurance profile
+# to the Agent Skills (agentskills/agentskills) maintainers.
+#
+# This is a PROPOSAL-stage review (no commit yet on the posts being
+# public artifacts — they are currently drafts on disk). Two units
+# under review:
+#   P01: docs/posts/2026-05-27-agentskills-profile-proposal-draft.md
+#        — the proposal itself
+#   P02: docs/posts/2026-05-27-skills-corpus-before-after-pairing-draft.md
+#        — a companion artifact: a before/after pairing using
+#        Matt Pocock's `triage` skill as the worked example
+#
+# Reviewers MUST verify every claim about the agentskills/agentskills
+# repository state, the mattpocock/skills repository state, and the
+# agent-assurance repo state against bytes — not against the
+# initiator's summary.
+
+# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "1.0.0"
+template_kind  = "review-bundle"
+created        = "2026-05-27"
+review_session = "2026-05-27-agentskills-profile-pitch"
+predecessor    = ""
+
+[bundle]
+repo_root             = "/srv/repos/external/verivus-oss/agent-assurance"
+head_commit           = "3a480eb"
+commit_range          = ""        # proposal stage — draft on disk, not yet committed
+total_new_commits     = 0
+description           = """
+Proposal-stage review of an outbound communication pair: two draft
+posts that together pitch an opt-in assurance profile (this repo,
+verivus-oss/agent-assurance) to the maintainers of the Agent Skills
+specification (agentskills/agentskills).
+
+Both posts are OUTBOUND and PUBLIC-FACING. They will be posted under
+the initiator's own name on a public GitHub Discussions board
+operated by a third party. Reviewer evaluation therefore weights
+tone, framing, factual accuracy about the target project, factual
+accuracy about this project, factual accuracy about any third-party
+project quoted (mattpocock/skills is the worked example in P02), and
+compliance with this project's own policies (no memory-file
+citations, no naming of any specific implementation of the
+substrate, no JSON Schema sidecar proposal, no Claude/AI co-author
+trailer in any artifact produced from this review).
+
+The drafts do NOT propose changes to the Agent Skills core spec.
+The pitch framing is: profile-as-separate-repo, strict consumer of
+the SKILL.md format, optional showcase listing only after v1.0. The
+companion post (P02) takes Matt Pocock's `triage` skill as a
+concrete worked example to show what an assurance-wrapped version of
+the same workflow would look like — the workflow stays, the
+substrate stays, the gate-decision and provider attribution are
+additive.
+"""
+
+[bundle.scope]
+in_scope = [
+  "docs/posts/2026-05-27-agentskills-profile-proposal-draft.md — full text (P01)",
+  "docs/posts/2026-05-27-skills-corpus-before-after-pairing-draft.md — full text (P02)",
+  "Factual claims about agentskills/agentskills repo state (stars, license, language, format, governance, anthropics/skills companion repo, agentskills.io homepage)",
+  "Factual claims about this repo's spec (closure_root semantics per SPEC §12, capability_envelope per SPEC §13, gate-decision separation-of-duty per profiles/agent-assurance/gate-decision-kind.toml, multi-provider posture)",
+  "Factual claims about mattpocock/skills (P02): the triage skill quote at lines 10-14 of its SKILL.md, MIT license, attribution to Matt Pocock, the workflow shape (states, transitions, agent brief)",
+  "Illustrative TOML accuracy (P02): the example `gate-decision` block uses field names and structure that are plausible given profiles/agent-assurance/gate-decision-kind.toml; obviously-fictional fields (e.g. session_id, attribution_basis) are marked as illustrative; the closure_root is the empty-closure sentinel and is explicitly noted as a placeholder",
+  "Tone — must read as collaborative, not adversarial or solution-pushing; must not imply the Agent Skills core spec is insufficient for its stated purpose; must not imply mattpocock-skills is doing anything wrong (only that its substrate has no field for what an assurance gate needs)",
+  "Public language only — no memory/ file references, no VAP or other vendor-specific implementation names, no internal-only essay titles cited as load-bearing evidence",
+  "Compliance with project policy: no JSON Schema sidecar proposal anywhere in either draft (per repo policy and prior multi-LLM reviews)",
+]
+out_of_scope = [
+  "Whether the maintainers will accept the framing (a social judgement, not a reviewable fact)",
+  "Whether Matt Pocock will object to being quoted (the use is fair-use / MIT-license-permitted; reviewers MAY flag if the quote feels editorial)",
+  "The contents of the Agent Skills CONTRIBUTING.md beyond the fact that it exists (reviewers MAY fetch it once for context but should not gate approval on its detail)",
+  "Marketing-channel choice (Discord vs Discussions vs WG) — the draft asks the maintainers; reviewers should not pre-empt",
+  "Wording of any future v1.0 announcement of the profile itself",
+]
+
+# ----------------------------------------------------------------------
+# Unit under review — the draft post text.
+# ----------------------------------------------------------------------
+
+[[bundle.units]]
+id           = "P01"
+commit_sha   = ""           # draft on disk, not yet committed
+title        = "Outbound pitch to agentskills/agentskills: profile-as-separate-repo framing"
+summary      = """
+Four sub-claims, reviewable independently:
+
+P01-C1 (factual accuracy about agentskills/agentskills).
+  The draft makes assertions about: format shape (SKILL.md + folder),
+  progressive disclosure across discovery/activation/execution, the
+  presence of a Client Showcase, the existence of CONTRIBUTING.md,
+  the existence of the anthropics/skills companion repo, the
+  homepage at agentskills.io, and Apache-2.0 / CC-BY-4.0 licensing.
+  Each of these MUST be verifiable against the public agentskills
+  repo or homepage at the time of review. Reviewers SHOULD fetch
+  the README or other public sources of truth; the initiator's
+  summary alone is NOT evidence.
+
+P01-C2 (factual accuracy about this project's spec).
+  The draft asserts that this project's spec supplies (a) a
+  closure-root cascade-break property, (b) a capability_envelope
+  drawn from WASI Preview 2 domains + cpu/memory bounds with
+  fail-closed default, (c) a gate-decision descriptor in
+  profiles/agent-assurance/ with a separation-of-duty invariant
+  bound to a self-modification subject class, and (d) that the
+  profile targets multi-provider deployments only. Each of these
+  MUST be verifiable in repo bytes at HEAD 3a480eb (search
+  SPEC.md, core/, and profiles/agent-assurance/).
+
+P01-C3 (policy compliance).
+  The draft MUST NOT cite or paraphrase content from the
+  initiator's auto-memory store as load-bearing public evidence;
+  it MUST NOT name any specific runtime, broker, or implementation
+  of the assurance substrate (the existence proof is offered
+  abstractly on purpose); it MUST NOT propose a JSON Schema sidecar
+  for SKILL.md; and any commit, PR, or release artifact that
+  this review produces MUST NOT carry a Claude/AI co-author trailer
+  or 'Generated with Claude Code' line. The draft and its review
+  artifacts are bound by the same rules.
+
+P01-C4 (tone and framing).
+  The draft MUST read as a collaborative, profile-as-companion
+  proposal. It MUST NOT imply that the Agent Skills core spec is
+  insufficient for its own stated purpose; the framing is that
+  Agent Skills is correctly scoped, and the profile addresses a
+  separate class of deployment Agent Skills was not built for. The
+  'brittleness as feature' language used inside this project MUST
+  be translated into 'fail-closed semantics for legal-grade
+  contexts' or similar neutral terms for the outbound audience.
+
+Initiator naming check:
+  $ grep -rni 'agentskills\\|agent-skills' /srv/repos/external/verivus-oss/agent-assurance/docs/
+  (Reviewers MUST confirm whether 'agentskills' or 'agent-skills'
+  appears in any other repo location whose contents would conflict
+  with or duplicate the draft post. If duplicates exist, flag.)
+
+This is plan-compliance language and MUST be independently verified
+by reviewers against repo bytes and the public agentskills repo.
+"""
+changed_files = [
+  "docs/posts/2026-05-27-agentskills-profile-proposal-draft.md",
+]
+verify = [
+  "git rev-parse HEAD   # MUST be 3a480eb (or later, if rebased before review)",
+  "wc -l docs/posts/2026-05-27-agentskills-profile-proposal-draft.md",
+  "cat docs/posts/2026-05-27-agentskills-profile-proposal-draft.md",
+  "grep -rni 'agentskills\\|agent-skills' docs/ profiles/ core/ SPEC.md README.md",
+  "grep -rni 'closure_root\\|closure-root' SPEC.md core/ profiles/agent-assurance/ | head -40",
+  "grep -rni 'capability_envelope\\|capability-envelope\\|wasi' SPEC.md core/ profiles/agent-assurance/ | head -40",
+  "cat profiles/agent-assurance/gate-decision-kind.toml | head -200",
+  "ls profiles/agent-assurance/tiers/",
+  "grep -rni 'multi-provider\\|cross-provider\\|cross_provider' SPEC.md profiles/agent-assurance/ | head -40",
+  "grep -rni 'json schema\\|json-schema' docs/posts/2026-05-27-agentskills-profile-proposal-draft.md  # MUST only appear in the 'NOT being asked' list",
+  "grep -rni 'vap\\|verivus.*runtime\\|verivus.*broker' docs/posts/2026-05-27-agentskills-profile-proposal-draft.md  # MUST be empty",
+  "grep -ni 'co-authored-by.*claude\\|generated with .*claude code' docs/posts/2026-05-27-agentskills-profile-proposal-draft.md  # MUST be empty",
+  "# Fetch the public Agent Skills README and verify P01-C1 claims",
+  "# (Reviewers with web access: hit https://github.com/agentskills/agentskills and https://agentskills.io and verify the stated facts.)",
+]
+
+# ----------------------------------------------------------------------
+# Unit under review — the companion pairing draft.
+# ----------------------------------------------------------------------
+
+[[bundle.units]]
+id           = "P02"
+commit_sha   = ""           # draft on disk, not yet committed
+title        = "Before/after pairing: mattpocock/skills `triage` as the worked example"
+summary      = """
+Four sub-claims, reviewable independently:
+
+P02-C1 (factual accuracy about mattpocock/skills).
+  The draft quotes lines 10-14 of
+  /srv/repos/external/verivus-oss/agent-assurance-research/mattpocock-skills/skills/engineering/triage/SKILL.md
+  verbatim (the 'Every comment or issue posted ... must start with
+  this disclaimer ... > *This was generated by AI during triage.*'
+  block). The draft asserts MIT licensing and attributes the corpus
+  to Matt Pocock. The draft describes the triage workflow's two
+  category roles + five state roles + state transitions; each MUST
+  be checked against the SKILL.md bytes. The post's framing of the
+  workflow ('tasteful', 'separation of concerns', 'ADR-cited norms',
+  '.out-of-scope/ log') MUST be defensible against repo bytes, not
+  rhetorical.
+
+P02-C2 (factual accuracy about this project's spec).
+  The example `gate-decision` TOML must use:
+    - `template_kind = \"gate-decision\"` (exists in
+      profiles/agent-assurance/gate-decision-kind.toml — verify),
+    - the empty-closure sentinel
+      sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+      (per SPEC §12.1 — verify the sentinel value),
+    - a `subject_class` field whose value 'issue-triage-promotion'
+      is illustrative AND a clear non-'self-modification' value (the
+      separation-of-duty MUST rule cited in the post is bound to
+      subject_class = 'self-modification' per existing reviews; the
+      ordinary triage case is a fresh-session check, not a
+      different-provider check).
+  Any other field used (proposing_agent, deciding_provider,
+  evidence, disclaimer) MUST either be present in the existing
+  descriptor OR be clearly marked as illustrative for the post.
+
+P02-C3 (policy compliance).
+  Identical rules to P01-C3: no memory-file citations, no naming of
+  any specific runtime/broker/implementation of the assurance
+  substrate (the existence proof remains abstract), no JSON Schema
+  sidecar proposal, no Claude/AI co-author trailer in any artifact
+  produced from this review. Additionally for P02: the MIT-license
+  attribution to Matt Pocock MUST be present and accurate, and the
+  quoted excerpt MUST be visually clearly attributed (the post uses
+  a code block and an 'Attribution:' line in the front matter —
+  verify).
+
+P02-C4 (tone and framing).
+  The draft MUST read as a 'small, surgical, additive' delta on a
+  workflow that is already tasteful. It MUST NOT read as 'mattpocock
+  is doing it wrong'; the framing is that the substrate (SKILL.md +
+  free-text comments) intentionally has no field for what an
+  assurance gate needs, so the gap is structural, not personal. The
+  'load-bearing gap' framing MUST be specific (free text + same
+  agent + no sha-binding + no provider attribution), not vague.
+
+Initiator naming check:
+  $ grep -n 'triage\\|mattpocock\\|matt pocock' docs/posts/2026-05-27-skills-corpus-before-after-pairing-draft.md
+  Verify all citations resolve to either repo bytes in
+  agent-assurance-research/mattpocock-skills/ OR are clearly framed
+  as illustrative.
+
+This is plan-compliance language and MUST be independently verified
+by reviewers against repo bytes (this repo + the research repo) and
+the public agentskills and mattpocock/skills sources of truth.
+"""
+changed_files = [
+  "docs/posts/2026-05-27-skills-corpus-before-after-pairing-draft.md",
+]
+verify = [
+  "git rev-parse HEAD   # MUST be 3a480eb (or later, if rebased before review)",
+  "wc -l docs/posts/2026-05-27-skills-corpus-before-after-pairing-draft.md",
+  "cat docs/posts/2026-05-27-skills-corpus-before-after-pairing-draft.md",
+  "cat /srv/repos/external/verivus-oss/agent-assurance-research/mattpocock-skills/skills/engineering/triage/SKILL.md",
+  "cat /srv/repos/external/verivus-oss/agent-assurance-research/mattpocock-skills/LICENSE | head -5",
+  "ls /srv/repos/external/verivus-oss/agent-assurance-research/mattpocock-skills/skills/engineering/triage/",
+  "cat profiles/agent-assurance/gate-decision-kind.toml | head -300",
+  "grep -ni 'self-modif\\|self_modif' profiles/agent-assurance/gate-decision-kind.toml SPEC.md",
+  "grep -ni 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855' SPEC.md core/ profiles/  # the empty-closure sentinel",
+  "grep -ni 'json schema\\|json-schema' docs/posts/2026-05-27-skills-corpus-before-after-pairing-draft.md  # MUST only appear in the 'NOT being asked' list if at all (this draft may not have such a list)",
+  "grep -ni 'vap\\|verivus.*runtime\\|verivus.*broker' docs/posts/2026-05-27-skills-corpus-before-after-pairing-draft.md  # MUST be empty",
+  "grep -ni 'co-authored-by.*claude\\|generated with .*claude code' docs/posts/2026-05-27-skills-corpus-before-after-pairing-draft.md  # MUST be empty",
+]
+
+[roster]
+initiator       = "claude-opus-4-7 (session running on /srv/repos/external/verivus-oss/agent-assurance, 2026-05-27)"
+initiator_role  = "excluded from standard reviewer set per [policy.roles].initiator_excluded_as_standard_reviewer"
+reviewer_models = ["codex", "gemini", "grok", "mistral"]
+roster_note     = """
+Four reviewers, matching the most recent precedent in this repo
+(docs/reviews/2026-05-25-cross-provider-self-mod-gate-proposal). The
+post is outbound and public-facing, so reviewer diversity matters
+more than usual; cross-provider review is the mechanism the
+agent-assurance profile itself advocates, and an outbound pitch
+of that profile should be reviewed under the same regime. If a
+reviewer is unavailable (session_logging not enabled or similar),
+the panel falls back to three and that fact is recorded in
+terminal_decision.toml.
+"""
+
+[review_instructions]
+rules_source  = "tools/review-request-dag.toml [policy.*]"
+prompt_path   = "docs/reviews/2026-05-27-agentskills-profile-pitch/review_prompt.md"
+narrow_scope  = """
+Eight sub-claims total: P01-C1 through P01-C4 for the proposal
+draft, and P02-C1 through P02-C4 for the pairing draft. For each,
+classify as complete / incomplete / unverifiable with file:line
+evidence drawn from current repo state at HEAD 3a480eb and, where
+relevant, evidence fetched from the public agentskills/agentskills
+repo, agentskills.io, or the mattpocock/skills repo
+(/srv/repos/external/verivus-oss/agent-assurance-research/mattpocock-skills).
+Approval bases: inspected_code (the draft text and the repo bytes
+the drafts reference), inspected_docs (the public sources of
+truth), persisted_review_evidence.
+"""
+iteration_rule = "If initiator disagrees with a finding, response MUST cite code/doc evidence (file + line) from this repo, the research repo, OR a fetched URL from the public sources of truth, not assertion."
+polling_cadence_seconds = 90
+
+[output_artifacts]
+raw_findings_dir = "docs/reviews/2026-05-27-agentskills-profile-pitch/raw_findings/"
+expected_files = [
+  "raw_findings/codex.md",
+  "raw_findings/gemini.md",
+  "raw_findings/grok.md",
+  "raw_findings/mistral.md",
+  "terminal_decision.toml",
+]

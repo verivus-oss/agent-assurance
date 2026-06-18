@@ -1,0 +1,5 @@
+DAGTOML-API-ATTESTATION/1
+scheme: tls-notary
+observed: both
+attester: notary.example/ed25519:9f86d0818411
+capture-sha256: sha256:1af17db5085faf2b3078538922f462ed9a37ee3b8e0d0b11d5aa34276442eab7
