@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	pelletier "github.com/pelletier/go-toml/v2"
 )
 
 // ----------------------------------------------------------------------------
@@ -35,6 +36,21 @@ func loadDoc(path string) (rawDoc, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: read failed: %w", path, err)
 	}
+	// Strict TOML 1.1 pre-check (issue #38 / contract C01). BurntSushi/toml
+	// v1.6.0 is permissive on 13 dotted-key / inline-table redefinition cases
+	// that the Rust (`toml` 1.1) and Python (tomli) primaries correctly reject.
+	// pelletier/go-toml/v2 rejects all 13 while accepting the full TOML 1.1
+	// valid corpus, so it runs first as a strictness gate: on a pelletier
+	// parse error we REJECT here and never reach the BurntSushi decode. Every
+	// document this validator currently accepts is valid TOML 1.1 and passes
+	// pelletier, so the gate adds strictness without regressing acceptance.
+	var strictSink any
+	if err := pelletier.Unmarshal(bytes, &strictSink); err != nil {
+		return nil, fmt.Errorf("%s: TOML parse failed (strict): %w", path, err)
+	}
+	// BurntSushi performs the structural decode the rest of the validator
+	// relies on (its typed array/datetime shapes are threaded through
+	// asArray/int64Of and the per-kind validators).
 	var out rawDoc
 	if _, err := toml.Decode(string(bytes), &out); err != nil {
 		return nil, fmt.Errorf("%s: TOML parse failed: %w", path, err)
