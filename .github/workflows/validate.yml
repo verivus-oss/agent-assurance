@@ -25,18 +25,18 @@ jobs:
       contents: read
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           # Wipe the auth token from .git/config after checkout so it
           # cannot be picked up by later steps (zizmor artipacked).
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
           python-version: "3.11"
 
@@ -62,7 +62,7 @@ jobs:
         # (tools/README.md), Go is one of the two primary native
         # languages; the patch pin keeps OSV/go-vuln scanning aligned
         # with the stdlib version declared by the reference Go modules.
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c  # v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6
         with:
           go-version: "1.26.4"
           cache-dependency-path: tools/dagtoml-validate-go/go.sum
@@ -1032,7 +1032,7 @@ jobs:
 
       - name: Source-code spellcheck (typos)
         continue-on-error: false
-        uses: crate-ci/typos@37bb98842b0d8c4ffebdb75301a13db0267cef89  # v1.47.2
+        uses: crate-ci/typos@bee27e3a4fd1ea2111cf90ab89cd076c870fce14  # v1.48.0
 
       # --- Language-specific deep checks ---
 
@@ -1229,7 +1229,7 @@ jobs:
         # golangci-lint runs the configured suite from .golangci.yml:
         # gosec (security), staticcheck (correctness), errcheck (error
         # handling), govet, ineffassign, unused.
-        uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee  # v9.2.1
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
         with:
           version: v2.12.2
           # Run against each Go module independently. The action accepts
@@ -1240,7 +1240,7 @@ jobs:
 
       - name: Go meta-linter (golangci-lint - duckdb-go)
         continue-on-error: false
-        uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee  # v9.2.1
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
         with:
           version: v2.12.2
           working-directory: tools/dagtoml-duckdb-go
@@ -1248,7 +1248,7 @@ jobs:
 
       - name: Go meta-linter (golangci-lint - rdf-go)
         continue-on-error: false
-        uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee  # v9.2.1
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
         with:
           version: v2.12.2
           working-directory: tools/dagtoml-rdf-go
@@ -1256,7 +1256,7 @@ jobs:
 
       - name: Go meta-linter (golangci-lint - toml-test-decode-go)
         continue-on-error: false
-        uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee  # v9.2.1
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
         with:
           version: v2.12.2
           working-directory: tools/toml-test-decode-go
