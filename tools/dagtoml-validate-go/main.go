@@ -2881,9 +2881,13 @@ func kindDescriptorCandidates(repoRoot, slug, profileName string) []string {
 	}
 	if entries, err := os.ReadDir(filepath.Join(repoRoot, "profiles")); err == nil {
 		for _, e := range entries {
-			if e.IsDir() {
-				cands = append(cands, filepath.Join(repoRoot, "profiles", e.Name(), fname))
+			// Stat follows symlinked profile directories (DirEntry.IsDir
+			// does not), matching rs/py (U10 review round 2, R2-2).
+			info, statErr := os.Stat(filepath.Join(repoRoot, "profiles", e.Name()))
+			if statErr != nil || !info.IsDir() {
+				continue
 			}
+			cands = append(cands, filepath.Join(repoRoot, "profiles", e.Name(), fname))
 		}
 	}
 	seen := map[string]bool{}

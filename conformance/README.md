@@ -62,7 +62,7 @@ it as a regression in the validator, not a candidate for this file.
 
 ## Coverage
 
-Current corpus: `api-snapshot` (1 valid, 3 invalid) covering the SPEC
+Current corpus: `api-snapshot` (2 valid, 6 invalid) covering the SPEC
 12.8/12.8.1 profile-pinned closure stream: the four-record positive, the
 witness-strip stale-root rejection (contract C02 of the
 closure-record-form promotion), a missing required pinned record, and a
@@ -73,7 +73,7 @@ via the rs/go auto modes; the Python verdict is the combination of the
 kind validator and the closure step. Invalid cases are excluded from
 the repo-wide positive closure sweep (they are asserted-negative here).
 
-Also: `implementation-dag` (2 valid, 18 invalid) covering
+Also: `implementation-dag` (3 valid, 18 invalid) covering
 required fields, status/tier vocabularies, self-dependencies, unknown
 references, the `blocks`/`depends_on` inverse invariant, dependency
 cycles, single-producer artifacts, consumed-but-never-produced

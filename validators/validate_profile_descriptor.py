@@ -33,9 +33,9 @@ This validator enforces the hard invariants INV01..INV05 listed in
           invariant, enforced by validate_ijb_conformance.py.)
 
 The validator loads every profile-descriptor it finds under
-`profiles/*/PROFILE.toml` (plus any path passed on the command line)
-so the `extends` resolution can succeed across spec-reserved and
-locally-shipped non-spec-reserved profiles.
+`profiles/*/PROFILE.toml`; for each file under validation, that file
+itself (and only it) is merged into the resolution set, matching the
+primaries' fall-back semantics (U10 review fix 3).
 """
 
 from __future__ import annotations
@@ -47,8 +47,11 @@ import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
 
 
-UNPREFIXED_RE = re.compile(r"^[a-z][a-z0-9-]*$")
-REVERSE_DNS_RE = re.compile(r"^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$")
+# \Z, not $: Python's $ also matches before a trailing newline; rs/go
+# reject such names, so $ would be a cross-implementation divergence
+# (U10 review round 2, R2-1).
+UNPREFIXED_RE = re.compile(r"^[a-z][a-z0-9-]*\Z")
+REVERSE_DNS_RE = re.compile(r"^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+\Z")
 
 REQUIRED_PROFILE_FIELDS = (
     "name",
@@ -376,7 +379,7 @@ def validate_one(
             errors.append(
                 f"{descriptor_path}: [profile].extends entry `{entry}` does not "
                 f"resolve to a loaded profile-descriptor (looked under "
-                f"`profiles/*/PROFILE.toml` and the explicit --files set)"
+                f"`profiles/*/PROFILE.toml` and the file under validation)"
             )
 
     # INV04 — ontology path exists and is an ontology

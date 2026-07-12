@@ -49,7 +49,10 @@ ALGO_HEX_LENGTHS = {
 
 FORBIDDEN_ALGOS = ("md5", "sha1")
 
-CLOSURE_ROOT_RE = re.compile(r"^([a-z0-9]+):([0-9a-f]+)$")
+# \Z hardening (U10 round 2): no reachable verdict divergence today
+# (the raw value is compared for equality downstream), but $ would admit
+# a trailing newline into the match, so anchor like every other gate.
+CLOSURE_ROOT_RE = re.compile(r"^([a-z0-9]+):([0-9a-f]+)\Z")
 
 EMPTY_CLOSURE_SENTINELS = {
     "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",

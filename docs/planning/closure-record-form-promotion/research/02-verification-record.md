@@ -41,10 +41,10 @@ Stacked on the planning branch (U01/U02 recorded there; GO 2026-07-13):
   enforcement boundary recorded in the kind descriptor and the freeze
   decision (the primaries do not implement RKV03).
 - **C03 backward compatibility: HOLDS.** Closure discover across the
-  tree passes (79 conforming files on a clean tree after the
-  asserted-negative exclusions; review correction: the originally
-  recorded 80 included a gitignored local policy file in the author's
-  working tree); the only re-rooted documents are the enumerated
+  tree passes (clean-tree counts pinned to refs: 79 at c1be19c, 80 at
+  and after the review-fix ref, whose valid conformance case adds one;
+  the originally recorded 80 at c1be19c had counted a gitignored local
+  policy file); the only re-rooted documents are the enumerated
   com.verivus.runtime instances from the U02 sweep (the example, four
   blessed negatives) plus the two new negatives and the polarity-inverted
   bad-closure fixture, all landed in U08. Documents of unpinned kinds
@@ -68,8 +68,11 @@ Stacked on the planning branch (U01/U02 recorded there; GO 2026-07-13):
 
 ## Full-sweep results (all PASS)
 
-closure discover 79 files on a clean tree (exclusions are the asserted-negative sets; the 80 in the first revision counted a gitignored local file);
-dagtoml-conformance 25 cases; profile descriptors x4 in all three
+closure discover: 79 conforming files on a clean tree at the pre-fix
+ref (c1be19c), 80 at and after the review-fix ref (the delta is the
+added valid conformance case unwitnessed-three-record.toml; counts are
+pinned to the ref measured, round-2 finding R2-3);
+dagtoml-conformance 29 cases; profile descriptors x4 in all three
 implementations; kind descriptors (profile-descriptor: 7 invariants;
 api-snapshot: 4); IJB on both touched descriptors; abstraction class 20
 files; local negative-agreement simulation: every wired negative
@@ -124,11 +127,32 @@ regressions, plus record/doc repairs (folded into this revision):
 Parity-matrix coverage added as tracked corpus cases:
 missing/unresolvable `framework_profile`, when-present-absent (the
 unwitnessed three-record positive), and the trailing-newline
-regression. The duplicate-name and symlink regressions require
-alternate repo roots and live as recorded repro roots in the review
-evidence (they cannot be tracked in-tree without corrupting the
-repository's own profile set); the parity harness and its results are
-persisted in `research/03-parity-harness.md`.
+regression. The duplicate-name and symlink regressions require alternate repo
+roots; they are executable-tracked in
+`validators/check_pin_resolution_guards.sh` (wired as a CI behavioural
+guard, constructing its roots at run time), and the parity harness and
+its results are persisted in `research/03-parity-harness.md`.
+
+## U10 review round 2 (applied 2026-07-13)
+
+Round 2 verified all round-1 fixes as applied and found the round-1
+sweeps incomplete; fixes applied in the same stack:
+
+1. R2-1 (P1): two remaining $-anchored regexes in
+   `validate_profile_descriptor.py` (UNPREFIXED_RE / REVERSE_DNS_RE)
+   accepted a trailing-newline profile name rs/go reject; anchored with
+   backslash-Z, plus the verdict-safe CLOSURE_ROOT_RE hardened the same
+   way. Guard 4 of check_pin_resolution_guards.sh is the regression.
+2. R2-2 (P1): the kind-descriptor candidate enumeration in both
+   primaries did not follow symlinked profile directories (the round-1
+   fix covered only descriptor discovery); both now follow, matching
+   Python. Guard 3 is the regression.
+3. R2-3/R2-5/R2-8: counts pinned to refs (79 at c1be19c, 80 after),
+   stale 25-case and coverage numbers corrected.
+4. R2-4: the alternate-root regressions became the executable CI guard
+   script above.
+5. R2-6/R2-7: EOF whitespace and stale prose about the removed global
+   CLI merge repaired.
 
 ## Boundary statements a reviewer should not have to discover
 

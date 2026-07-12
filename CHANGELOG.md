@@ -9,6 +9,21 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **U10 implementation-review round 2 fixes.** Round 2 verified all
+  round-1 fixes and exposed two incomplete sweeps, both fixed across the
+  triad with regressions: the remaining `$`-anchored name regexes in the
+  Python profile-descriptor validator (a trailing-newline profile name
+  was accepted where the primaries reject; now backslash-Z, with
+  CLOSURE_ROOT_RE hardened the same way) and the kind-descriptor
+  candidate enumeration in both primaries not following symlinked
+  profile directories (descriptor discovery was fixed in round 1, the
+  candidate path was not). The alternate-root regressions are now
+  executable: `validators/check_pin_resolution_guards.sh` constructs the
+  duplicate-name, symlinked-profile, symlinked-kind-candidate, and
+  newline-name roots at run time and asserts three-way agreement, wired
+  as a CI behavioural guard. Record counts pinned to refs; stale corpus
+  and coverage numbers corrected.
+
 - **U10 implementation-review fixes for the closure-record-form
   promotion.** The independent multi-LLM implementation review (evidence
   under `docs/reviews/2026-07-13-closure-record-form-promotion-impl/`)
@@ -30,8 +45,8 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 - **Cross-implementation verification record for the closure-record-form
   promotion (U10).** Full sweep recorded in
   `docs/planning/closure-record-form-promotion/research/02-verification-record.md`:
-  closure discover 79 files on a clean tree, 29-case conformance corpus
-  with rs/go/py agreement, INV07 parity across all three profile-descriptor validators,
+  closure discover 79/80 conforming files on a clean tree (pinned to the
+  refs measured), 29-case conformance corpus with rs/go/py agreement, INV07 parity across all three profile-descriptor validators,
   every wired negative rejected, posture-flip demonstration (C05), and
   the C01-C06 contract evidence with recorded boundaries and file-list
   deviations. Merge remains gated on the independent multi-LLM

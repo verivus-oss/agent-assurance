@@ -860,6 +860,17 @@ jobs:
             "${RUNNER_TEMP}/dagtoml-validate-rs" \
             "${RUNNER_TEMP}/dagtoml-validate-go"
 
+      - name: Pin-resolution behavioural guards (SPEC 12.8.1)
+        # Duplicate-name fail-closed, symlinked-profile discovery (pin
+        # map AND kind-descriptor candidates), and trailing-newline name
+        # rejection: adversarial roots that cannot live in-tree,
+        # constructed at run time. Origin: U10 review rounds 1-2.
+        run: |
+          set -e
+          validators/check_pin_resolution_guards.sh \
+            "${RUNNER_TEMP}/dagtoml-validate-rs" \
+            "${RUNNER_TEMP}/dagtoml-validate-go"
+
       - name: Validate skill packages (IJB + provenance)
         run: |
           set -e

@@ -3171,7 +3171,10 @@ mod profile {
         ];
         if let Ok(entries) = std::fs::read_dir(repo_root.join("profiles")) {
             for entry in entries.flatten() {
-                if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                // Path::is_dir follows symlinks (DirEntry::file_type does
+                // not), matching the Python candidate enumeration
+                // (U10 review round 2, R2-2).
+                if entry.path().is_dir() {
                     out.push(entry.path().join(&fname));
                 }
             }
