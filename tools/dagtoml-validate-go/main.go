@@ -2459,6 +2459,176 @@ func sourceHashRecords(path string, doc rawDoc) ([]string, []string) {
 	return records, nil
 }
 
+// ----------------------------------------------------------------------------
+// SPEC §12.8.1: profile-pinned closure records
+// ----------------------------------------------------------------------------
+//
+// The pin map is keyed by `template_kind` (kind names are
+// namespace-partitioned per SPEC §6.1, so a kind maps to at most one
+// profile). Built from the discovered profile descriptors, with
+// `closure_records` unioned across `extends` like `contained_kinds`.
+// Declaration-shape enforcement (INV07) lives in the profile-descriptor
+// path; this consumes well-formed declarations.
+
+type pinnedClosureRecord struct {
+	field    string
+	presence string
+	profile  string
+}
+
+// loadPinnedRecords returns {template_kind -> sorted [(field,
+// presence, profile_name)]} over the discovered descriptor set.
+func loadPinnedRecords(descriptors map[string]descriptor) map[string][]pinnedClosureRecord {
+	pinMap := map[string][]pinnedClosureRecord{}
+	for root := range descriptors {
+		seen := map[string]bool{}
+		var visit func(node string)
+		visit = func(node string) {
+			if seen[node] {
+				return
+			}
+			d, ok := descriptors[node]
+			if !ok {
+				return
+			}
+			seen[node] = true
+			profile, ok := d.doc["profile"].(map[string]any)
+			if !ok {
+				return
+			}
+			if arr, ok := asArray(profile["closure_records"]); ok {
+				for _, raw := range arr {
+					rec, ok := raw.(map[string]any)
+					if !ok {
+						continue
+					}
+					kind, kindOK := rec["contained_kind"].(string)
+					field, fieldOK := rec["field"].(string)
+					presence, presenceOK := rec["presence"].(string)
+					if !kindOK || !fieldOK || !presenceOK {
+						continue
+					}
+					if presence != "required" && presence != "when-present" {
+						continue
+					}
+					// Dedup by (field, presence) only: a record
+					// inherited through `extends` reaches this map once
+					// per extending root, but its record string excludes
+					// the profile name, so keying dedup on the profile
+					// would double-emit the record and corrupt the
+					// digest stream.
+					duplicate := false
+					for _, existing := range pinMap[kind] {
+						if existing.field == field && existing.presence == presence {
+							duplicate = true
+							break
+						}
+					}
+					if !duplicate {
+						pinMap[kind] = append(pinMap[kind], pinnedClosureRecord{field, presence, root})
+					}
+				}
+			}
+			if ext, ok := asArray(profile["extends"]); ok {
+				for _, child := range ext {
+					if s, ok := child.(string); ok {
+						visit(s)
+					}
+				}
+			}
+		}
+		visit(root)
+	}
+	for _, entries := range pinMap {
+		sort.Slice(entries, func(i, j int) bool {
+			if entries[i].field != entries[j].field {
+				return entries[i].field < entries[j].field
+			}
+			if entries[i].presence != entries[j].presence {
+				return entries[i].presence < entries[j].presence
+			}
+			return entries[i].profile < entries[j].profile
+		})
+	}
+	return pinMap
+}
+
+func walkField(doc rawDoc, dotted string) (any, bool) {
+	var current any = doc
+	for _, segment := range strings.Split(dotted, ".") {
+		table, ok := current.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		value, ok := table[segment]
+		if !ok {
+			return nil, false
+		}
+		current = value
+	}
+	return current, true
+}
+
+// pinnedClosureInputs implements SPEC §12.8.1 record emission + pin
+// resolution for one document.
+//
+// Pins resolve by `template_kind` over the full loaded descriptor set,
+// in EVERY mode that validates `closure_root`; a document of a pinned
+// kind with a missing/unresolvable `framework_profile` is rejected.
+// There is no pin-free fall-through for a pinned kind.
+func pinnedClosureInputs(path string, doc rawDoc, pinMap map[string][]pinnedClosureRecord, loadedProfiles map[string]bool) ([]string, []string) {
+	meta, ok := doc["meta"].(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+	templateKind, ok := meta["template_kind"].(string)
+	if !ok {
+		// legacy synonym
+		templateKind, ok = meta["kind"].(string)
+	}
+	if !ok {
+		return nil, nil
+	}
+	pins, pinned := pinMap[templateKind]
+	if !pinned {
+		return nil, nil
+	}
+
+	var errs []string
+	frameworkProfile, fpOK := meta["framework_profile"].(string)
+	if !fpOK || frameworkProfile == "" {
+		errs = append(errs, fmt.Sprintf(
+			"%s: documents of pinned kind `%s` MUST declare `meta.framework_profile` (SPEC §12.8.1 pin resolution)",
+			path, templateKind))
+	} else if !loadedProfiles[frameworkProfile] {
+		errs = append(errs, fmt.Sprintf(
+			"%s: `meta.framework_profile` `%s` does not resolve to a loaded profile-descriptor (SPEC §12.8.1 pin resolution; pinned kind `%s`)",
+			path, frameworkProfile, templateKind))
+	}
+
+	var records []string
+	for _, pin := range pins {
+		value, present := walkField(doc, pin.field)
+		if !present {
+			if pin.presence == "required" {
+				errs = append(errs, fmt.Sprintf(
+					"%s: pinned closure record `%s` (required by profile `%s`, SPEC §12.8.1) is missing",
+					path, pin.field, pin.profile))
+			}
+			continue
+		}
+		s, isString := value.(string)
+		if !isString || !sha256RE.MatchString(s) {
+			errs = append(errs, fmt.Sprintf(
+				"%s: pinned closure record `%s` must match `sha256:<64 lowercase hex chars>` (SPEC §12.8.1), got %#v",
+				path, pin.field, value))
+			continue
+		}
+		records = append(records, fmt.Sprintf("%s %s\n", pin.field, s))
+	}
+	return records, errs
+}
+
 func expectedClosureRoot(algo string, records []string) string {
 	stream := strings.Join(records, "")
 	switch algo {
@@ -2476,7 +2646,7 @@ func expectedClosureRoot(algo string, records []string) string {
 	}
 }
 
-func validateClosureRoot(path string, doc rawDoc) []string {
+func validateClosureRoot(path string, doc rawDoc, pinMap map[string][]pinnedClosureRecord, loadedProfiles map[string]bool) []string {
 	raw, ok := doc["closure_root"]
 	if !ok {
 		return []string{fmt.Sprintf("%s: missing required root-level `closure_root` field (SPEC §12.1)", path)}
@@ -2489,10 +2659,17 @@ func validateClosureRoot(path string, doc rawDoc) []string {
 	if err != nil {
 		return []string{fmt.Sprintf("%s: %s", path, err)}
 	}
-	records, errs := sourceHashRecords(path, doc)
-	if len(errs) > 0 {
-		return errs
+	records, inputErrs := sourceHashRecords(path, doc)
+	// SPEC §12.8.1: pinned records join the same sorted record stream
+	// as `provenance.source_sha256`; any pin-input error short-circuits
+	// before the digest comparison (mirrors the Python reference).
+	pinnedRecords, pinnedErrs := pinnedClosureInputs(path, doc, pinMap, loadedProfiles)
+	records = append(records, pinnedRecords...)
+	inputErrs = append(inputErrs, pinnedErrs...)
+	if len(inputErrs) > 0 {
+		return inputErrs
 	}
+	sort.Strings(records)
 	expected := expectedClosureRoot(algo, records)
 	if value != expected {
 		if len(records) == 0 {
@@ -3219,6 +3396,14 @@ func main() {
 		os.Exit(2)
 	}
 	descriptors := discoverDescriptors(root)
+	// SPEC §12.8.1: build the profile-pinned closure-record map and the
+	// loaded-profile-name set once per run; both feed closure_root
+	// validation in every mode that runs it.
+	pinMap := loadPinnedRecords(descriptors)
+	loadedProfiles := make(map[string]bool, len(descriptors))
+	for name := range descriptors {
+		loadedProfiles[name] = true
+	}
 
 	var allErrors []string
 	for _, path := range files {
@@ -3235,7 +3420,7 @@ func main() {
 		}
 		if m == modeAuto || m == modeProvenance {
 			errs = append(errs, validateProvenanceEncryption(path, doc)...)
-			errs = append(errs, validateClosureRoot(path, doc)...)
+			errs = append(errs, validateClosureRoot(path, doc, pinMap, loadedProfiles)...)
 		}
 		if m == modeAuto || m == modeProvenanceBinding {
 			errs = append(errs, validateProvenanceBinding(path, doc, root)...)

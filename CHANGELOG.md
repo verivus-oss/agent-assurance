@@ -9,6 +9,14 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Go primary consumes profile-pinned closure records (U07 of the
+  closure-record-form promotion).** `tools/dagtoml-validate-go` mirrors U06:
+  kind-keyed pin map from the discovered descriptor set (extends union,
+  (field, presence) dedup), SPEC 12.8.1 record emission and pin resolution
+  in every closure-validating mode, verdict parity with the Python
+  reference and the Rust primary on the nine-case matrix. No `unsafe`
+  import; stdlib only.
+
 - **Rust primary consumes profile-pinned closure records (U06 of the
   closure-record-form promotion).** `tools/dagtoml-validate-rs` builds the
   kind-keyed pin map from the discovered profile-descriptor set (extends
