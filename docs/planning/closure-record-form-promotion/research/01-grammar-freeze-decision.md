@@ -1,7 +1,7 @@
 # U02: grammar-freeze decision record
 
-Status: **AWAITING OPERATOR STOP/GO** (everything below this status line is
-complete; the decision section at the bottom is the operator's).
+Status: **GO recorded 2026-07-13** (operator sign-off received in session;
+see section 5). U03+ cleared to proceed under the frozen grammar below.
 Prepared: 2026-07-13.
 Inputs: the reviewed design pack (U01;
 `docs/reviews/2026-07-13-closure-record-form-promotion-design/`) and the
@@ -125,9 +125,9 @@ closure gate keeps passing on them for the reasons their fixtures intend;
 
 ## 5. Operator decision
 
-DECISION: ______ (GO / STOP)
-Signed: ______ (operator)
-Date: ______
+DECISION: GO
+Signed: werner (operator; recorded from the interactive session instruction "GO")
+Date: 2026-07-13
 
 Recorded constraints on a GO: U03+ proceed as the DAG orders; any change to
 §1 or §2 after GO re-opens U02; the U10 implementation review is still

@@ -56,10 +56,10 @@ consumes       = []
 
 [units.U02]
 name           = "grammar-freeze-go-no-go-and-compat-sweep"
-summary        = "Freeze the record grammar (record shape, field-path regex, presence semantics, the pin-resolution rule, INV07 constraints, the RKV03 amendment and its enforcement boundary) incorporating design-review findings; run the compatibility sweep enumerating every conforming document's before/after closure verdict; record GO only if the sole verdict changes are the enumerated com.verivus.runtime instances. Operator STOP/GO sign-off required. If the sweep finds an unenumerated invalidation, halt here with the blocker recorded (C06). IN PROGRESS 2026-07-13: freeze record prepared with the byte-level grammar and the sweep (105 conforming docs, 100 byte-identical, exactly the 5 enumerated instances change); AWAITING OPERATOR STOP/GO in research/01-grammar-freeze-decision.md section 5."
+summary        = "Freeze the record grammar (record shape, field-path regex, presence semantics, the pin-resolution rule, INV07 constraints, the RKV03 amendment and its enforcement boundary) incorporating design-review findings; run the compatibility sweep enumerating every conforming document's before/after closure verdict; record GO only if the sole verdict changes are the enumerated com.verivus.runtime instances. Operator STOP/GO sign-off required. If the sweep finds an unenumerated invalidation, halt here with the blocker recorded (C06). IN PROGRESS 2026-07-13: freeze record prepared with the byte-level grammar and the sweep (105 conforming docs, 100 byte-identical, exactly the 5 enumerated instances change); GO recorded 2026-07-13 with operator sign-off in research/01-grammar-freeze-decision.md section 5. U03+ cleared."
 layer          = 1
 tier           = 1
-status         = "in_progress"
+status         = "done"
 depends_on     = ["U01"]
 blocks         = ["U03", "U04"]
 estimated_loc  = 60
