@@ -9,6 +9,28 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Profile-pinned closure record forms (SPEC 12.8 promotion): planning pack
+  + design review + freeze preparation.** Added the self-validating
+  governance pack under
+  [`docs/planning/closure-record-form-promotion/`](docs/planning/closure-record-form-promotion/)
+  (design, implementation plan, 10-unit implementation DAG with a hard
+  grammar-freeze gate at U02, contracts C01-C06, readiness gates G01/G02,
+  evidence matrix, rollback plan) scoping the promotion that lets a
+  profile-descriptor pin additional labeled closure records
+  (`[[profile.closure_records]]`, new invariant INV07) into the SPEC 12.8
+  stream; first user is the `com.verivus.runtime` `api-snapshot` kind, whose
+  witness attestation digest becomes a `when-present` closure input so
+  witness stripping is detectable at an anchored `closure_root`. Completed
+  the independent cross-LLM design review (U01; evidence under
+  [`docs/reviews/2026-07-13-closure-record-form-promotion-design/`](docs/reviews/2026-07-13-closure-record-form-promotion-design/),
+  all required fixes applied, including the witness-downgrade RKV03
+  amendment and the recast pin-resolution rule) and prepared the U02
+  grammar-freeze record with the compatibility sweep (105 conforming
+  documents; 100 byte-identical; exactly the 5 enumerated api-snapshot
+  instances change verdicts). **No spec text, validator, profile, or fixture
+  changes land in this change**; U03+ remain blocked on the operator
+  STOP/GO in `research/01-grammar-freeze-decision.md`.
+
 - **TOML 1.0 → 1.1 migration: scoping pack + parity go/no-go (GO).** Added
   the self-validating DAG-TOML governance pack under
   [`docs/planning/toml-1.1-migration/`](docs/planning/toml-1.1-migration/)

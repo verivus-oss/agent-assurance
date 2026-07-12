@@ -1,0 +1,66 @@
+# Rollback plan: profile-pinned closure record forms promotion.
+# The promotion's "production" surface is the conforming-document set:
+# a bad cutover does not page an oncall, it silently changes which
+# documents are valid and which closure roots verify. Triggers are
+# tooling-outcome triggers plus an operator manual override.
+
+# Empty-closure sentinel: SHA-256("") as required by SPEC 12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version    = "0.1.0"
+template_kind     = "rollback-plan"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+framework_profile = "agent-assurance"
+title             = "Rollback plan: profile-pinned closure record forms promotion"
+created           = "2026-07-12"
+
+[plan]
+summary          = "Revert the spec-text, validator-triad, profile-pinning, fixture, and conformance commits as one stack if the promotion produces any cross-implementation divergence, invalidates a document outside the enumerated set, or the operator aborts. Because the units merge as stacked per-unit PRs behind the U10 review, rollback before merge is dropping the stack; rollback after merge is reverting the stack in reverse order and re-running the full sweep."
+owner            = "spec-maintainers"
+estimated_ttr    = "PT45M"
+previous_release = "main@pre-closure-record-form-promotion"
+
+[[triggers]]
+id           = "TRIG:cross-impl-divergence"
+trigger_kind = "validator_failure"
+metric       = "conformance.dagtoml.api_snapshot.rs_go_py_disagreements"
+threshold    = 1
+window       = "PT0S"
+action       = "halt cutover; open incident; begin rollback procedure"
+
+[[triggers]]
+id           = "TRIG:unenumerated-doc-invalidated"
+trigger_kind = "data_corruption"
+metric       = "validate.closure_root.newly_rejected_outside_enumerated_set"
+threshold    = 1
+window       = "PT0S"
+action       = "halt cutover; identify the unenumerated breaking change; begin rollback procedure"
+
+[[triggers]]
+id           = "TRIG:posture-change-flips-root"
+trigger_kind = "validator_failure"
+metric       = "validate.closure_root.posture_only_change_changed_a_root"
+threshold    = 1
+window       = "PT0S"
+action       = "halt cutover; this violates SPEC 12.9 and contract C05; begin rollback procedure"
+
+[[triggers]]
+id           = "TRIG:operator-abort"
+trigger_kind = "manual_override"
+metric       = "operator.abort_signal"
+threshold    = 1
+window       = "PT0S"
+action       = "begin rollback procedure on maintainer instruction"
+
+[procedure]
+steps = [
+  "If pre-merge: close the stacked U03-U10 PRs without merging; the repo is untouched.",
+  "If post-merge: revert the stack in reverse order (U09 conformance, U08 profile+fixtures, U07 go, U06 rust, U05 python, U04 profile-descriptor validator, U03 spec text) as one revert PR.",
+  "Restore examples/minimal-api-snapshot.toml and the negative fixtures to their source-only-closure forms.",
+  "Run validate_closure_root.py --discover ., the kind validators, and make dagtoml-conformance; confirm rs/go/py agree and the pre-promotion verdict set is restored byte-identically.",
+  "Record the rollback and the specific divergence/invalidation that triggered it in research/01-grammar-freeze-decision.md, and re-open the go/no-go decision (U02).",
+  "Notify any downstream consumer that bumped its validator pin to the promoted ref that the ref is withdrawn; downstream pins to the pre-promotion ref are unaffected by design.",
+]

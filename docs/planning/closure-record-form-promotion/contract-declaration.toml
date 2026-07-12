@@ -1,0 +1,108 @@
+# Contract declaration: profile-pinned closure record forms promotion.
+# C01 (cross-implementation parity) and C02 (cascade-break / stripping
+# detection) are the load-bearing contracts: C01 forbids landing the new
+# record grammar in one closure implementation while the others lag, and
+# C02 is the property the whole promotion exists to deliver.
+
+# Empty-closure sentinel: SHA-256("") as required by SPEC 12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "contract-declaration"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+title          = "Contracts: profile-pinned closure record forms (SPEC 12.8 promotion)"
+status         = "draft"
+created        = "2026-07-12"
+review_subject = "closure-record-form-promotion"
+
+[[contracts]]
+id          = "C01"
+domain      = "cross_implementation_parity"
+statement   = "After the promotion, the Rust, Go, and Python closure implementations MUST produce identical accept/reject verdicts on every fixture in the api-snapshot conformance cases and on every pre-existing conformance case, including the full failure-mode parity matrix (missing required pinned field, malformed pinned digest, absent when-present field, failed pin resolution per the frozen U02 rule, unpinned documents). Pin resolution MUST live in the closure path of every mode that validates closure_root; a silent no-pins fall-through for a pinned kind is a defect, not a verdict. No implementation may understand a record form the others do not."
+applies_to  = ["closure-record-form-promotion"]
+must_name   = [
+  "the frozen record grammar each implementation encodes",
+  "the failure-mode parity matrix and each implementation's verdict per row",
+  "the disposition of any fixture that cannot be made to agree (block, not skip)",
+]
+verified_by = [
+  "TEST:conformance::api-snapshot-closure-rs-go-py-agree",
+  "TEST:conformance::parity-matrix-all-rows-agree",
+  "TEST:conformance::runner-python-closure-step-active",
+]
+
+[[contracts]]
+id          = "C02"
+domain      = "cascade_break_and_stripping_detection"
+statement   = "Removing or altering ANY pinned closure input, including removing the witness table of a document whose profile pins the attestation digest when-present, MUST change the expected closure_root, so that a stale root is rejected and an anchored root detects the change. The witness-stripped negative fixture MUST be rejected by all three implementations. The complementary downgrade state (witness.present = false with witness digest/identity fields retained) MUST be rejected at the kind layer per amended RKV03, with the enforcement boundary (Python kind layer vs primaries) recorded in the freeze decision."
+applies_to  = ["closure-record-form-promotion"]
+must_name   = [
+  "the witness-stripped negative fixture and its rejection evidence",
+  "the witness-lingering-digest negative fixture and its rejection evidence plus enforcement scope",
+  "the recomputed four-record root of the positive example",
+]
+verified_by = [
+  "TEST:examples::api-snapshot-witness-stripped-rejected",
+  "TEST:examples::api-snapshot-witness-lingering-digest-rejected",
+  "TEST:examples::minimal-api-snapshot-four-record-root-accepted",
+]
+depends_on  = ["C01"]
+
+[[contracts]]
+id          = "C03"
+domain      = "backward_compatibility_of_documents"
+statement   = "Every conforming document outside profiles that pin closure records MUST keep a byte-identical closure verdict after the promotion. The only closure-verdict changes permitted are the enumerated com.verivus.runtime instances re-emitted in the same change. No silent invalidation."
+applies_to  = ["closure-record-form-promotion"]
+must_name   = [
+  "the U02 sweep enumerating every conforming document and its before/after verdict",
+  "the enumerated set of deliberately re-rooted instances",
+]
+verified_by = [
+  "TEST:sweep::existing-conforming-docs-verdicts-unchanged-outside-enumerated-set",
+]
+
+[[contracts]]
+id          = "C04"
+domain      = "enumerability_without_reading_code"
+statement   = "A consumer MUST be able to enumerate every pinned closure record form for a profile by reading its profile-descriptor document alone, per SPEC 12.8. The profile-descriptor validator MUST reject descriptors whose pinned records reference kinds outside contained_kinds, malformed field paths, duplicate pins, or the double-pinning of provenance.source_sha256."
+applies_to  = ["closure-record-form-promotion"]
+must_name   = [
+  "the closure_records schema in the SPEC 6.1 field table",
+  "the INV07 rejection cases and their fixtures",
+]
+verified_by = [
+  "TEST:profile-descriptor::inv07-rejects-invalid-pins",
+  "TEST:profile-descriptor::com-verivus-runtime-pins-validate",
+]
+depends_on  = ["C01"]
+
+[[contracts]]
+id          = "C05"
+domain      = "posture_field_exclusion_preserved"
+statement   = "No meta.* field and no SPEC 12.9 posture field (confidentiality, license, embargo_until) may be pinned as a closure record. A posture-only change MUST NOT change any closure_root after the promotion, exactly as before it."
+applies_to  = ["closure-record-form-promotion"]
+must_name   = [
+  "the INV07 constraint rejecting meta/posture pins",
+  "the spec text cross-referencing SPEC 12.9 from the pinned-record grammar",
+]
+verified_by = [
+  "TEST:profile-descriptor::inv07-rejects-meta-and-posture-pins",
+  "TEST:sweep::posture-only-change-leaves-roots-unchanged",
+]
+
+[[contracts]]
+id          = "C06"
+domain      = "gate_precedes_any_implementation"
+statement   = "No spec text, validator, profile, or fixture change may land before the grammar-freeze go/no-go (implementation-dag U02) records GO with the compatibility sweep attached and operator sign-off. If the sweep finds an unenumerated invalidation, the promotion halts at U02 with the blocker recorded."
+applies_to  = ["closure-record-form-promotion"]
+must_name   = [
+  "the recorded go/no-go verdict and its evidence",
+  "the compatibility-sweep result it relied on",
+]
+verified_by = [
+  "TEST:no-implementation-merges-before-grammar-freeze-decision",
+]
+depends_on  = ["C01"]

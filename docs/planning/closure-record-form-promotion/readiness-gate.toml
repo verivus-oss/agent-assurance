@@ -1,0 +1,84 @@
+# Readiness gate: profile-pinned closure record forms promotion.
+# G01 gates the planning pack; G02 is the grammar-freeze go/no-go that
+# blocks every implementation unit (U03+) until the frozen grammar, the
+# compatibility sweep, the cross-LLM design review, and the operator
+# STOP/GO are all recorded.
+
+# Empty-closure sentinel: SHA-256("") as required by SPEC 12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "readiness-gate"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+title          = "Review readiness: profile-pinned closure record forms promotion"
+status         = "draft"
+created        = "2026-07-12"
+review_subject = "closure-record-form-promotion"
+
+[[artifact_classes]]
+id          = "A01"
+name        = "planning_pack"
+description = "The scoping pack for the promotion: design, implementation plan, implementation DAG, contracts, evidence matrix, and rollback plan."
+
+[[artifact_classes]]
+id          = "A02"
+name        = "grammar_freeze_decision"
+description = "The recorded grammar-freeze go/no-go with the compatibility sweep and the cross-LLM design-review evidence attached."
+
+[[gates]]
+id                 = "G01"
+artifact_class     = "A01"
+name               = "Planning pack gate"
+purpose            = "Block review until the scoping pack is complete, cross-linked, and every TOML artifact validates."
+required_documents = [
+  "01_design.md",
+  "03_implementation_plan.md",
+  "implementation-dag.toml",
+  "contract-declaration.toml",
+  "evidence-matrix.toml",
+  "rollback-plan.toml",
+]
+required_links     = [
+  "implementation-dag.meta.spec to 01_design.md",
+  "implementation-dag.meta.decomposition to 03_implementation_plan.md",
+  "contracts cover cross-implementation parity and cascade-break/stripping detection",
+  "evidence matrix links each claim to a pack document",
+]
+pass_conditions    = [
+  "all required documents exist and validate",
+  "documents are cross-linked",
+  "contracts C01 (parity) and C02 (stripping detection) are declared and verifiable",
+]
+block_conditions   = [
+  "missing prerequisite document",
+  "broken cross-link",
+  "any pack TOML fails the shipped validators",
+]
+next_step = "complete and cross-link the planning pack, then dispatch the cross-LLM design review (U01)"
+
+[[gates]]
+id                 = "G02"
+artifact_class     = "A02"
+name               = "Grammar-freeze go/no-go gate"
+purpose            = "Forbid any spec, validator, profile, or fixture change until the record grammar is frozen, the compatibility sweep shows no unenumerated invalidation, the independent design review is recorded, and the operator signs off."
+required_documents = [
+  "research/01-grammar-freeze-decision.md",
+]
+required_links     = [
+  "the freeze decision cites the cross-LLM design-review evidence under docs/reviews/",
+  "the freeze decision attaches the compatibility sweep with before/after verdicts",
+]
+pass_conditions    = [
+  "the record grammar is frozen with presence semantics and INV07 constraints stated byte-level",
+  "the sweep shows the only closure-verdict changes are the enumerated com.verivus.runtime instances",
+  "the go/no-go decision records GO with operator sign-off",
+]
+block_conditions   = [
+  "any unenumerated document invalidation in the sweep",
+  "design review not recorded or not independent of the initiator",
+  "the decision records NO-GO or is unresolved",
+]
+next_step = "record the grammar-freeze decision (U02) before starting U03+"
