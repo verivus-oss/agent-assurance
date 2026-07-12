@@ -9,7 +9,7 @@
 # Secondary: as an examples/negative/ fixture with a [provenance] table, the
 # provenance-negative sweep requires it to fail validate_provenance.py too, so
 # source_bytes is deliberately wrong (621; the capture is 620 bytes).
-closure_root = "sha256:f251f64bc6170cb32a4b3c0bcc10d520247c41e7bbf22587d206108e6d19098c"
+closure_root = "sha256:4beda7c352616a999e55df5d98f3d4357735ac879491cd02a681497b42d0ba9b"
 
 [meta]
 schema_version = "0.1.0"

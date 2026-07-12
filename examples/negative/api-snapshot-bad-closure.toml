@@ -1,33 +1,25 @@
-# NEGATIVE (headline defect: closure_root).
-#
-# This file carries the profile-PROPOSED four-input closure value
-# (sha256:013f3d34…), folded over source + descriptor + body + attestation.
-# The shipped validate_closure_root.py (SPEC 12.8) folds ONLY
-# provenance.source_sha256, so the expected value here is the source-only
-# closure sha256:f251f64b… (the same value the positive instance carries).
-# The four-input value therefore MUST be rejected by the closure validator in
-# all three implementations until the richer record forms are promoted into
-# SPEC 12.8.
-#
-# template_kind is the UNBLESSED `api-snapshot-bad-closure` (not the spec-reserved
-# `api-snapshot`), so this deliberately-non-conforming document is out of the §12
-# closure discovery scope per spec.md §12.1 (process-artifact TOMLs with unblessed
-# template_kind values are intentionally out of scope). The closure rule is
-# cross-kind and kind-agnostic, so the negative-agreement gate still rejects this
-# file in all three implementations via explicit `--mode provenance` /
-# validate_closure_root.py — the value below is rejected because the source-only
-# §12.8 fold expects sha256:f251f64b...
+# NEGATIVE FIXTURE: MUST be rejected by the SPEC 12.8/12.8.1 closure gate
+# in all three implementations. Since the profile pinned the api-snapshot
+# component and witness digests as closure records (SPEC 12.8.1), the
+# correct root for this witnessed document is the FOUR-record stream; the
+# value below is the pre-promotion source-only root, now stale. (This
+# fixture's polarity inverted at the promotion: the four-input root it
+# used to carry as an illustration became the correct value.) It also
+# keeps the deliberately-wrong provenance byte count so the provenance
+# binding rejects it independently. Excluded from the positive closure
+# sweep via --exclude; asserted to fail in the negative-agreement step.
+
 #
 # Secondary: because this fixture lives in examples/negative/ and declares a
 # [provenance] table, CI's provenance-negative sweep also requires it to fail
 # validate_provenance.py — so source_bytes is deliberately wrong (621, the
 # capture is 620 bytes). The provenance digest is left correct so the closure
 # validator still computes the source-only expected from a real source hash.
-closure_root = "sha256:013f3d34bab26a1b9d9fd77ff03aae76a3b07ee112c4995dc5ef448b2d1796db"
+closure_root = "sha256:f251f64bc6170cb32a4b3c0bcc10d520247c41e7bbf22587d206108e6d19098c"
 
 [meta]
 schema_version = "0.1.0"
-template_kind = "api-snapshot-bad-closure"
+template_kind = "api-snapshot"
 framework_profile = "com.verivus.runtime"
 confidentiality = "restricted"
 

@@ -9,6 +9,28 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **com.verivus.runtime pins the api-snapshot closure records; witness
+  stripping is now detectable at the closure root (U08 of the
+  closure-record-form promotion).** `PROFILE.toml` pins
+  `snapshot.request.descriptor_sha256` (required),
+  `snapshot.response.body_sha256` (required), and
+  `snapshot.witness.attestation_sha256` (when-present) per SPEC 12.8.1;
+  the api-snapshot kind's CLOSURE LAYERING prose and RKV01 now describe the
+  four-record stream, and RKV03 is amended (witness digest/identity fields
+  MUST be absent at `present = false`, enforced by
+  `validate_api_snapshot.py`; the primaries do not implement RKV03, an
+  explicitly recorded boundary). The shipped example re-roots to the
+  four-record value `sha256:013f3d34...`; the blessed negatives re-root to
+  their pinned-stream values; `api-snapshot-bad-closure` inverts polarity
+  (now blessed, carrying the stale source-only root); new negatives
+  `api-snapshot-witness-stripped` (stale four-record root, rejected by all
+  three closure implementations: contract C02) and
+  `api-snapshot-witness-lingering-digest` (closure-valid, rejected by
+  amended RKV03). The CI closure sweep now explicitly excludes
+  `examples/negative/` (each exclusion is asserted to fail in the
+  negative-agreement step), via the new `--exclude` option on
+  `validate_closure_root.py --discover`.
+
 - **Go primary consumes profile-pinned closure records (U07 of the
   closure-record-form promotion).** `tools/dagtoml-validate-go` mirrors U06:
   kind-keyed pin map from the discovered descriptor set (extends union,

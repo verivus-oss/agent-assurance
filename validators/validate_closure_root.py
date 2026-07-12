@@ -474,6 +474,20 @@ def main(argv: list[str]) -> int:
         ),
     )
     parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        metavar="PREFIX",
+        help=(
+            "Path prefix (relative to the current directory) to skip during "
+            "--discover. Used by CI to keep deliberately-broken closure "
+            "fixtures (examples/negative/, conformance invalid cases) out of "
+            "the positive sweep; each excluded fixture MUST be asserted to "
+            "fail explicitly elsewhere (the negative-agreement CI step), "
+            "mirroring the [provenance] sweep's explicit exclusion."
+        ),
+    )
+    parser.add_argument(
         "--repo-root",
         default=".",
         help=(
@@ -494,6 +508,18 @@ def main(argv: list[str]) -> int:
         targets = discover_conforming(
             [pathlib.Path(r) for r in args.discover], spec_reserved
         )
+        if args.exclude:
+            prefixes = [
+                pathlib.Path(prefix).resolve() for prefix in args.exclude
+            ]
+            kept = []
+            for target in targets:
+                resolved = target.resolve()
+                if any(resolved.is_relative_to(prefix) for prefix in prefixes):
+                    print(f"EXCLUDED (asserted-negative path): {target}")
+                    continue
+                kept.append(target)
+            targets = kept
         if not targets:
             print(
                 "CLOSURE-ROOT VALIDATION: no conforming TOMLs found "

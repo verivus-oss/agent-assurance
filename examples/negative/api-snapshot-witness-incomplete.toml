@@ -2,7 +2,7 @@
 # attestation_sha256 is missing, so the witness conditional is unsatisfied.
 # validate_api_snapshot.py MUST reject it. No [provenance] table, so the
 # closure_root is the empty sentinel and the provenance sweep skips this file.
-closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+closure_root = "sha256:03e3be2c12c77646183d3f2d8493ed5f08e1089b24be976b80148d990736f44c"
 
 [meta]
 schema_version = "0.1.0"

@@ -268,6 +268,19 @@ def validate_one(toml_path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
                     f"{toml_path}: snapshot.witness.observed must be one of "
                     f"{sorted(ATTESTER_OBSERVED)} when present=true; got {witness.get('observed')!r} (RKV03)"
                 )
+        else:
+            lingering = [
+                key
+                for key in ("scheme", "attester_id", "attestation_sha256", "observed")
+                if key in witness
+            ]
+            if lingering:
+                errors.append(
+                    f"{toml_path}: snapshot.witness fields {lingering} MUST be absent "
+                    f"when present=false (amended RKV03: the SPEC 12.8.1 closure keys "
+                    f"on field presence, so a lingering witness digest would make the "
+                    f"downgrade invisible at the closure root)"
+                )
 
     # --- RKV01: sub-part consistency against the capture --------------------
     verify_subparts(doc, repo_root, toml_path, errors)
