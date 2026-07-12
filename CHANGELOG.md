@@ -9,6 +9,16 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Python closure validator consumes profile-pinned closure records (U05
+  of the closure-record-form promotion).** `validators/validate_closure_root.py`
+  now loads every `profiles/*/PROFILE.toml` under `--repo-root`, unions
+  `closure_records` across `extends`, resolves pins by `template_kind`
+  (SPEC 12.8.1: no pin-free fall-through for a pinned kind; missing or
+  unresolvable `framework_profile` on a pinned-kind document is rejected),
+  and folds the labeled `<field> <sha256:hex>` records into the sorted
+  SPEC 12.8 stream. Documents of unpinned kinds keep byte-identical
+  verdicts (no shipped profile pins records until U08).
+
 - **INV07 enforcement across the triad (U04 of the closure-record-form
   promotion).** The profile-pinned closure-record declaration rules of SPEC
   12.8.1 are now mechanically enforced by all three profile-descriptor
