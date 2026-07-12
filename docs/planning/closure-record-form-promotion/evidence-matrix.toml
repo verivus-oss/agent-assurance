@@ -47,10 +47,11 @@ scope_covered    = [
   "the witness-stripped negative fixture is rejected by all three implementations (C02)",
 ]
 known_exclusions = [
-  "prospective: holds only once U08/U09 land; not yet evidenced",
+  "evidenced 2026-07-13 by U08/U09: witness-stripped fixture rejected by all three closure implementations; see research/02-verification-record.md",
   "does not cover unanchored self-attested documents an attacker fully re-roots: that remains the declared tier-0 posture",
+  "the lingering-digest downgrade is rejected at the Python kind layer only (recorded RKV03 boundary)",
 ]
-status = "draft"
+status = "verified"
 
 [[claims]]
 id    = "E04"
@@ -60,9 +61,9 @@ scope_covered    = [
   "the runner exercises Python closure explicitly, so the parity claim is non-vacuous",
 ]
 known_exclusions = [
-  "prospective: holds only once U09/U10 complete",
+  "evidenced 2026-07-13: 25-case corpus rs/go/py agreement with the runner's Python closure step active; see research/02-verification-record.md",
 ]
-status = "draft"
+status = "verified"
 
 [[evidence]]
 id            = "EV01"
@@ -87,7 +88,7 @@ summary       = "Prospective: the recorded grammar-freeze go/no-go with the comp
 [[evidence]]
 id            = "EV05"
 artifact_path = "docs/planning/closure-record-form-promotion/research/02-verification-record.md"
-summary       = "Prospective: the U10 cross-implementation verification record with C01-C06 evidence."
+summary       = "The U10 cross-implementation verification record with C01-C06 evidence (recorded 2026-07-13; implementation review pending before merge)."
 
 [[matrix]]
 id              = "M01"

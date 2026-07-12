@@ -9,6 +9,16 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Cross-implementation verification record for the closure-record-form
+  promotion (U10).** Full sweep recorded in
+  `docs/planning/closure-record-form-promotion/research/02-verification-record.md`:
+  closure discover 80 files, 25-case conformance corpus with rs/go/py
+  agreement, INV07 parity across all three profile-descriptor validators,
+  every wired negative rejected, posture-flip demonstration (C05), and
+  the C01-C06 contract evidence with recorded boundaries and file-list
+  deviations. Merge remains gated on the independent multi-LLM
+  implementation review per tools/review-request-dag.toml.
+
 - **api-snapshot conformance corpus + Python closure step in the runner
   (U09 of the closure-record-form promotion).** New
   `conformance/cases/api-snapshot/` cases (four-record positive;
