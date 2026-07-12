@@ -4248,7 +4248,167 @@ fn expected_closure_root(algo: &str, records: &[String]) -> String {
     format!("{algo}:{}", digest_hex(algo, stream.as_bytes()))
 }
 
-fn validate_closure_root(path: &Path, doc: &Value) -> Vec<String> {
+// ------------------------------------------------------------
+// SPEC §12.8.1: profile-pinned closure records
+// ------------------------------------------------------------
+//
+// The pin map is keyed by `template_kind` (kind names are
+// namespace-partitioned per SPEC §6.1, so a kind maps to at most one
+// profile). Built from the discovered profile descriptors, with
+// `closure_records` unioned across `extends` like `contained_kinds`.
+// Declaration-shape enforcement (INV07) lives in the
+// profile-descriptor path; this consumes well-formed declarations.
+
+/// `{template_kind -> sorted [(field, presence, profile_name)]}`.
+type ClosurePinMap = BTreeMap<String, Vec<(String, String, String)>>;
+
+fn closure_pin_map(descriptors: &BTreeMap<String, (PathBuf, Value)>) -> ClosurePinMap {
+    let mut pin_map: ClosurePinMap = BTreeMap::new();
+    for root in descriptors.keys() {
+        let mut seen: BTreeSet<&str> = BTreeSet::new();
+        let mut stack: Vec<&str> = vec![root.as_str()];
+        while let Some(node) = stack.pop() {
+            if seen.contains(node) {
+                continue;
+            }
+            let Some((_, doc)) = descriptors.get(node) else {
+                continue;
+            };
+            seen.insert(node);
+            let Some(profile) = doc.get("profile").and_then(|p| p.as_table()) else {
+                continue;
+            };
+            if let Some(arr) = profile.get("closure_records").and_then(|x| x.as_array()) {
+                for rec in arr {
+                    let Some(table) = rec.as_table() else {
+                        continue;
+                    };
+                    let (Some(kind), Some(field), Some(presence)) = (
+                        table.get("contained_kind").and_then(|v| v.as_str()),
+                        table.get("field").and_then(|v| v.as_str()),
+                        table.get("presence").and_then(|v| v.as_str()),
+                    ) else {
+                        continue;
+                    };
+                    if presence != "required" && presence != "when-present" {
+                        continue;
+                    }
+                    let entries = pin_map.entry(kind.to_string()).or_default();
+                    // Dedup by (field, presence) only: a record inherited
+                    // through `extends` reaches this map once per extending
+                    // root, but its record string excludes the profile
+                    // name, so keying dedup on the profile would
+                    // double-emit the record and corrupt the digest stream.
+                    if !entries.iter().any(|(f, p, _)| f == field && p == presence) {
+                        entries.push((field.to_string(), presence.to_string(), root.clone()));
+                    }
+                }
+            }
+            if let Some(arr) = profile.get("extends").and_then(|x| x.as_array()) {
+                for child in arr {
+                    if let Some(s) = child.as_str() {
+                        stack.push(s);
+                    }
+                }
+            }
+        }
+    }
+    for entries in pin_map.values_mut() {
+        entries.sort();
+    }
+    pin_map
+}
+
+fn walk_field<'a>(doc: &'a Value, dotted: &str) -> Option<&'a Value> {
+    let mut current = doc;
+    for segment in dotted.split('.') {
+        current = current.as_table()?.get(segment)?;
+    }
+    Some(current)
+}
+
+fn is_pinned_sha256(s: &str) -> bool {
+    s.len() == "sha256:".len() + 64
+        && s.starts_with("sha256:")
+        && is_lower_hex(&s["sha256:".len()..])
+}
+
+/// SPEC §12.8.1 record emission + pin resolution for one document.
+///
+/// Pins resolve by `template_kind` over the full loaded descriptor
+/// set, in EVERY mode that validates `closure_root`; a document of a
+/// pinned kind with a missing/unresolvable `framework_profile` is
+/// rejected. There is no pin-free fall-through for a pinned kind.
+fn pinned_closure_inputs(
+    path: &Path,
+    doc: &Value,
+    pin_map: &ClosurePinMap,
+    loaded_profiles: &BTreeSet<String>,
+) -> (Vec<String>, Vec<String>) {
+    let Some(meta) = doc.get("meta").and_then(|x| x.as_table()) else {
+        return (Vec::new(), Vec::new());
+    };
+    let template_kind = meta
+        .get("template_kind")
+        .and_then(|x| x.as_str())
+        // legacy synonym
+        .or_else(|| meta.get("kind").and_then(|x| x.as_str()));
+    let Some(template_kind) = template_kind else {
+        return (Vec::new(), Vec::new());
+    };
+    let Some(pins) = pin_map.get(template_kind) else {
+        return (Vec::new(), Vec::new());
+    };
+
+    let mut errors: Vec<String> = Vec::new();
+    match meta.get("framework_profile").and_then(|x| x.as_str()) {
+        None | Some("") => errors.push(format!(
+            "{}: documents of pinned kind `{template_kind}` MUST declare `meta.framework_profile` (SPEC §12.8.1 pin resolution)",
+            path.display()
+        )),
+        Some(fp) if !loaded_profiles.contains(fp) => errors.push(format!(
+            "{}: `meta.framework_profile` `{fp}` does not resolve to a loaded profile-descriptor (SPEC §12.8.1 pin resolution; pinned kind `{template_kind}`)",
+            path.display()
+        )),
+        _ => {}
+    }
+
+    let mut records: Vec<String> = Vec::new();
+    for (field, presence, profile_name) in pins {
+        let Some(value) = walk_field(doc, field) else {
+            if presence == "required" {
+                errors.push(format!(
+                    "{}: pinned closure record `{field}` (required by profile `{profile_name}`, SPEC §12.8.1) is missing",
+                    path.display()
+                ));
+            }
+            continue;
+        };
+        match value.as_str() {
+            Some(s) if is_pinned_sha256(s) => {
+                records.push(format!("{field} {s}\n"));
+            }
+            _ => {
+                let shown = match value.as_str() {
+                    Some(s) => format!("{s:?}"),
+                    None => format!("`{}` value", value.type_str()),
+                };
+                errors.push(format!(
+                    "{}: pinned closure record `{field}` must match `sha256:<64 lowercase hex chars>` (SPEC §12.8.1), got {shown}",
+                    path.display()
+                ));
+            }
+        }
+    }
+    (records, errors)
+}
+
+fn validate_closure_root(
+    path: &Path,
+    doc: &Value,
+    pin_map: &ClosurePinMap,
+    loaded_profiles: &BTreeSet<String>,
+) -> Vec<String> {
     let mut errors = Vec::new();
     let Some(value) = doc.get("closure_root") else {
         errors.push(format!(
@@ -4278,10 +4438,22 @@ fn validate_closure_root(path: &Path, doc: &Value) -> Vec<String> {
             return errors;
         }
     };
-    let records = match source_hash_records(path, doc) {
-        Ok(records) => records,
-        Err(errs) => return errs,
+    let (mut records, mut input_errors) = match source_hash_records(path, doc) {
+        Ok(records) => (records, Vec::new()),
+        Err(errs) => (Vec::new(), errs),
     };
+    // SPEC §12.8.1: pinned records join the same sorted record stream
+    // as `provenance.source_sha256`; any pin-input error short-circuits
+    // before the digest comparison (mirrors the Python reference).
+    let (pinned_records, pinned_errors) =
+        pinned_closure_inputs(path, doc, pin_map, loaded_profiles);
+    records.extend(pinned_records);
+    input_errors.extend(pinned_errors);
+    if !input_errors.is_empty() {
+        errors.extend(input_errors);
+        return errors;
+    }
+    records.sort();
     let expected = expected_closure_root(algo, &records);
     if value != expected {
         if records.is_empty() {
@@ -4385,6 +4557,11 @@ fn main() -> ExitCode {
         .unwrap_or(parsed.repo_root.clone());
 
     let descriptors = profile::discover(&repo_root);
+    // SPEC §12.8.1: build the profile-pinned closure-record map and the
+    // loaded-profile-name set once per run; both feed closure_root
+    // validation in every mode that runs it.
+    let pin_map = closure_pin_map(&descriptors);
+    let loaded_profiles: BTreeSet<String> = descriptors.keys().cloned().collect();
 
     let mut all_errors: Vec<String> = Vec::new();
     let mut validated = 0usize;
@@ -4416,7 +4593,12 @@ fn main() -> ExitCode {
         // Provenance encryption sub-table check (§11.1).
         if matches!(parsed.mode, cli::Mode::Auto | cli::Mode::Provenance) {
             errs.extend(validate_provenance_encryption(path, &doc));
-            errs.extend(validate_closure_root(path, &doc));
+            errs.extend(validate_closure_root(
+                path,
+                &doc,
+                &pin_map,
+                &loaded_profiles,
+            ));
         }
         if matches!(parsed.mode, cli::Mode::Auto | cli::Mode::ProvenanceBinding) {
             errs.extend(validate_provenance_binding(path, &doc, &repo_root));

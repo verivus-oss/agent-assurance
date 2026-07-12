@@ -9,6 +9,15 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **Rust primary consumes profile-pinned closure records (U06 of the
+  closure-record-form promotion).** `tools/dagtoml-validate-rs` builds the
+  kind-keyed pin map from the discovered profile-descriptor set (extends
+  union, (field, presence) dedup) and applies SPEC 12.8.1 record emission
+  and pin resolution in every closure-validating mode (auto and
+  provenance), with verdicts identical to the Python reference across the
+  nine-case pin parity matrix. `#![forbid(unsafe_code)]` intact; no new
+  dependencies.
+
 - **Python closure validator consumes profile-pinned closure records (U05
   of the closure-record-form promotion).** `validators/validate_closure_root.py`
   now loads every `profiles/*/PROFILE.toml` under `--repo-root`, unions
