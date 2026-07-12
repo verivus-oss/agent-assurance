@@ -34,10 +34,19 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "validators"))
 import _toml11 as tomllib  # noqa: E402  (path set up immediately above)
 
-# Maps a case-directory kind to the Python reference validator.
+# Maps a case-directory kind to the Python reference validator
+# invocation (validator path plus any extra arguments).
 PY_VALIDATORS = {
-    "implementation-dag": "validators/validate_implementation_dag.py",
+    "implementation-dag": ["validators/validate_implementation_dag.py"],
+    "api-snapshot": ["validators/validate_api_snapshot.py", "--repo-root", "."],
 }
+
+# The Python closure step (SPEC 12.8 / 12.8.1) runs for EVERY fixture of
+# every kind, so cross-implementation closure parity is exercised on the
+# Python side too (the rs/go auto runs already include their closure
+# checks). The Python verdict for a case is the combination: reject if
+# the kind validator OR the closure validator rejects.
+PY_CLOSURE_VALIDATOR = "validators/validate_closure_root.py"
 
 
 def parse_args() -> argparse.Namespace:
@@ -112,6 +121,21 @@ def main() -> int:
                         "error_contains", []
                     )
 
+                py_kind_code, py_kind_out = run_validator(
+                    [sys.executable, *py_validator, str(fixture)]
+                )
+                py_closure_code, py_closure_out = run_validator(
+                    [
+                        sys.executable,
+                        PY_CLOSURE_VALIDATOR,
+                        str(fixture),
+                        "--repo-root",
+                        args.repo_root,
+                    ]
+                )
+                py_code = py_kind_code if py_kind_code != 0 else py_closure_code
+                if py_kind_code == 2 or py_closure_code == 2:
+                    py_code = 2
                 runs = {
                     "rs": run_validator(
                         [args.rs, "--repo-root", args.repo_root, str(fixture)]
@@ -119,9 +143,7 @@ def main() -> int:
                     "go": run_validator(
                         [args.go, "-repo-root", args.repo_root, str(fixture)]
                     ),
-                    "py": run_validator(
-                        [sys.executable, py_validator, str(fixture)]
-                    ),
+                    "py": (py_code, py_kind_out + py_closure_out),
                 }
 
                 row = " ".join(f"{impl}={code}" for impl, (code, _) in runs.items())

@@ -9,6 +9,17 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **api-snapshot conformance corpus + Python closure step in the runner
+  (U09 of the closure-record-form promotion).** New
+  `conformance/cases/api-snapshot/` cases (four-record positive;
+  witness-strip stale root; missing required pin; malformed pinned
+  digest); `conformance/runner.py` registers the api-snapshot Python
+  validator and now runs `validate_closure_root.py` on every fixture of
+  every kind, making cross-implementation closure parity (contract C01)
+  non-vacuous on the Python side. Corpus: 25 cases, rs/go/py agree on
+  all. Invalid corpus cases are excluded from the positive closure sweep
+  alongside `examples/negative/`.
+
 - **com.verivus.runtime pins the api-snapshot closure records; witness
   stripping is now detectable at the closure root (U08 of the
   closure-record-form promotion).** `PROFILE.toml` pins

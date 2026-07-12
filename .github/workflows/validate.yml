@@ -351,6 +351,12 @@ jobs:
               # sweep's explicit exclusion.
               if path.as_posix().startswith("examples/negative/"):
                   continue
+              # Same rule for conformance invalid cases: they are
+              # asserted-negative fixtures the runner requires all three
+              # implementations to reject (some are deliberately
+              # closure-invalid, e.g. the api-snapshot witness-strip case).
+              if path.as_posix().startswith("conformance/cases/") and "/invalid/" in path.as_posix():
+                  continue
               try:
                   data = tomllib.loads(path.read_text())
               except Exception:
@@ -369,7 +375,9 @@ jobs:
           "${RUNNER_TEMP}/dagtoml-validate-go" \
             --repo-root . --mode provenance "${closure_targets[@]}"
           python3 validators/validate_closure_root.py \
-            --discover . --exclude examples/negative
+            --discover . --exclude examples/negative \
+            --exclude conformance/cases/implementation-dag/invalid \
+            --exclude conformance/cases/api-snapshot/invalid
 
       - name: Validate kind descriptors
         run: |
