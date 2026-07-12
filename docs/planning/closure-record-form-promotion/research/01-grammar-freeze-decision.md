@@ -132,3 +132,15 @@ Date: 2026-07-13
 Recorded constraints on a GO: U03+ proceed as the DAG orders; any change to
 §1 or §2 after GO re-opens U02; the U10 implementation review is still
 required before merge (this GO does not pre-approve the implementation).
+
+## 6. Errata (recorded 2026-07-13, U10 review; no frozen-scope change)
+
+- Section 1.4 names `attester_observed`: that is the ontology
+  VOCABULARY name; the instance key the schema and validators implement
+  is `snapshot.witness.observed`. The amendment's field set as
+  implemented is `scheme`, `attester_id`, `attestation_sha256`,
+  `observed`. Intent unchanged.
+- Section 1.1's "exactly three keys" sentence was initially omitted
+  from the SPEC 12.8.1 text while being enforced by all three
+  validators; the sentence now appears in the spec text. Alignment of
+  text to the frozen rule, not a rule change.

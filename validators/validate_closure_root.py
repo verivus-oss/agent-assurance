@@ -64,7 +64,46 @@ EMPTY_CLOSURE_SENTINELS = {
 # unioned across `extends` like `contained_kinds`. Declaration-shape
 # enforcement (INV07) belongs to validate_profile_descriptor.py; this
 # module consumes well-formed declarations.
-PINNED_VALUE_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+# \Z, not $: Python's $ also matches before a trailing newline, which a
+# TOML multiline string can smuggle in; rs/go reject it, so $ would be a
+# cross-implementation verdict divergence (U10 review, fix 1).
+PINNED_VALUE_RE = re.compile(r"^sha256:[0-9a-f]{64}\Z")
+
+
+def duplicate_profile_names(repo_root: pathlib.Path) -> list[str]:
+    """Duplicate profile-descriptor names under profiles/*/PROFILE.toml.
+
+    A duplicate would let one descriptor shadow another in the
+    name-keyed map and silently erase its closure pins, so callers MUST
+    refuse to validate anything when duplicates exist (SPEC 12.8.1 pin
+    resolution: no pin-free fall-through)."""
+    seen: dict[str, pathlib.Path] = {}
+    duplicates: list[str] = []
+    profiles_dir = repo_root / "profiles"
+    if profiles_dir.is_dir():
+        for entry in sorted(profiles_dir.iterdir()):
+            candidate = entry / "PROFILE.toml"
+            if not candidate.is_file():
+                continue
+            try:
+                doc = tomllib.loads(candidate.read_text())
+            except (OSError, tomllib.TOMLDecodeError):
+                continue
+            meta = doc.get("meta") or {}
+            profile = doc.get("profile") or {}
+            name = profile.get("name")
+            if meta.get("template_kind") != "profile-descriptor" or not isinstance(
+                name, str
+            ):
+                continue
+            if name in seen:
+                duplicates.append(
+                    f"duplicate profile-descriptor name `{name}` "
+                    f"({seen[name]} and {candidate})"
+                )
+            else:
+                seen[name] = candidate
+    return duplicates
 
 
 def load_pinned_records(
@@ -500,6 +539,15 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     repo_root = pathlib.Path(args.repo_root).resolve()
+    duplicates = duplicate_profile_names(repo_root)
+    if duplicates:
+        for dup in duplicates:
+            print(
+                f"FAIL {dup}: pin resolution refuses to proceed (SPEC §12.8.1)",
+                file=sys.stderr,
+            )
+        print("\nCLOSURE-ROOT VALIDATION FAILED: duplicate profile names.", file=sys.stderr)
+        return 1
     pin_map = load_pinned_records(repo_root)
     loaded_profiles = _loaded_profile_names(repo_root)
 

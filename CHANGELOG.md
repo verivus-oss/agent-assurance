@@ -9,11 +9,29 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **U10 implementation-review fixes for the closure-record-form
+  promotion.** The independent multi-LLM implementation review (evidence
+  under `docs/reviews/2026-07-13-closure-record-form-promotion-impl/`)
+  returned consensus approval with required fixes; all applied: Python's
+  pinned-value and pin-field regexes re-anchored with backslash-Z (the $
+  anchor accepted a trailing newline the primaries reject); duplicate
+  profile-descriptor names now make all three validators refuse to
+  validate anything (fail-closed; a duplicate could shadow pins and
+  reopen the pin-free fall-through the frozen rule forbids); the Go
+  primary follows symlinked profile directories like rs/py; the Python
+  profile-descriptor validator merges only the file under validation
+  into extends resolution, matching the primaries. Four conformance
+  cases added (missing/unresolvable framework_profile, unwitnessed
+  three-record positive, trailing-newline regression; corpus now 29
+  cases, rs/go/py agree). Also recorded during the U05-U07 porting: the
+  extends double-emission dedup fix (a2d6b92), proven by the persisted
+  parity harness (`research/03-parity-harness.md`).
+
 - **Cross-implementation verification record for the closure-record-form
   promotion (U10).** Full sweep recorded in
   `docs/planning/closure-record-form-promotion/research/02-verification-record.md`:
-  closure discover 80 files, 25-case conformance corpus with rs/go/py
-  agreement, INV07 parity across all three profile-descriptor validators,
+  closure discover 79 files on a clean tree, 29-case conformance corpus
+  with rs/go/py agreement, INV07 parity across all three profile-descriptor validators,
   every wired negative rejected, posture-flip demonstration (C05), and
   the C01-C06 contract evidence with recorded boundaries and file-list
   deviations. Merge remains gated on the independent multi-LLM

@@ -1,14 +1,13 @@
-# Conformance case (invalid): witness table removed, stale four-record
-# root kept. The SPEC 12.8.1 when-present attestation record is gone from
-# the stream, so the expected root is the three-record value and this
-# stale root MUST be rejected by rs, go, and the Python closure step.
+# Conformance case (invalid): a pinned-kind document whose
+# meta.framework_profile does not resolve to a loaded profile-descriptor
+# MUST be rejected (frozen pin-resolution rule, SPEC 12.8.1).
 
 closure_root = "sha256:013f3d34bab26a1b9d9fd77ff03aae76a3b07ee112c4995dc5ef448b2d1796db"
 
 [meta]
 schema_version = "0.1.0"
 template_kind = "api-snapshot"
-framework_profile = "com.verivus.runtime"
+framework_profile = "com.verivus.ghost"
 docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
 confidentiality = "restricted"
 
@@ -31,3 +30,10 @@ auth_context = "oauth2-client-credentials; client=verivus-quote-reader"
 [snapshot.response]
 status = 200
 body_sha256 = "sha256:569cc4222c936a5c39184bc0e17048c3f80bed44d457f0327db1bd58faecfebd"
+
+[snapshot.witness]
+present = true
+scheme = "tls-notary"
+observed = "both"
+attester_id = "notary.example/ed25519:9f86d0818411"
+attestation_sha256 = "sha256:afdb2e991b18d3b37506f893a987ba6fdc8888f7b474835bb81aeb2941e26d14"

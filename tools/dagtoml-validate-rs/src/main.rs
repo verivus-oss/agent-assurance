@@ -3009,11 +3009,17 @@ mod profile {
         errors
     }
 
-    pub fn discover(repo_root: &Path) -> BTreeMap<String, (PathBuf, Value)> {
-        let mut out = BTreeMap::new();
+    /// Discover profile descriptors; also report duplicate profile
+    /// names. A duplicate would let one descriptor shadow another in
+    /// the name-keyed map and silently erase its closure pins, so the
+    /// caller MUST refuse to validate anything when duplicates exist
+    /// (SPEC 12.8.1 pin resolution: no pin-free fall-through).
+    pub fn discover(repo_root: &Path) -> (BTreeMap<String, (PathBuf, Value)>, Vec<String>) {
+        let mut duplicates: Vec<String> = Vec::new();
+        let mut out: BTreeMap<String, (PathBuf, Value)> = BTreeMap::new();
         let dir = repo_root.join("profiles");
         let Ok(entries) = std::fs::read_dir(&dir) else {
-            return out;
+            return (out, duplicates);
         };
         for entry in entries.flatten() {
             let candidate = entry.path().join("PROFILE.toml");
@@ -3034,10 +3040,19 @@ mod profile {
                 .and_then(|p| p.get("name"))
                 .and_then(|x| x.as_str())
             {
+                if let Some((existing, _)) = out.get(name) {
+                    duplicates.push(format!(
+                        "duplicate profile-descriptor name `{}` ({} and {})",
+                        name,
+                        existing.display(),
+                        candidate.display()
+                    ));
+                    continue;
+                }
                 out.insert(name.to_string(), (candidate, doc));
             }
         }
-        out
+        (out, duplicates)
     }
 
     fn is_unprefixed(name: &str) -> bool {
@@ -4556,7 +4571,14 @@ fn main() -> ExitCode {
         .canonicalize()
         .unwrap_or(parsed.repo_root.clone());
 
-    let descriptors = profile::discover(&repo_root);
+    let (descriptors, duplicate_profiles) = profile::discover(&repo_root);
+    if !duplicate_profiles.is_empty() {
+        eprintln!("DAGTOML VALIDATION FAILED (rust primary)");
+        for d in &duplicate_profiles {
+            eprintln!("- {d}: pin resolution refuses to proceed (SPEC 12.8.1)");
+        }
+        std::process::exit(1);
+    }
     // SPEC §12.8.1: build the profile-pinned closure-record map and the
     // loaded-profile-name set once per run; both feed closure_root
     // validation in every mode that runs it.

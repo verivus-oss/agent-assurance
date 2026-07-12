@@ -22,7 +22,8 @@ Stacked on the planning branch (U01/U02 recorded there; GO 2026-07-13):
 ## Contract evidence (sweep of 2026-07-13; full output in the review packet)
 
 - **C01 cross-implementation parity: HOLDS.** `make dagtoml-conformance`:
-  25 cases (21 pre-existing implementation-dag + 4 new api-snapshot),
+  29 cases (21 pre-existing implementation-dag + 8 api-snapshot, four of
+  them added as U10 review regressions),
   rs/go/py agree on all; the runner now executes
   `validate_closure_root.py` on every fixture of every kind, so the
   Python side of closure parity is exercised directly (the U09 change
@@ -40,8 +41,10 @@ Stacked on the planning branch (U01/U02 recorded there; GO 2026-07-13):
   enforcement boundary recorded in the kind descriptor and the freeze
   decision (the primaries do not implement RKV03).
 - **C03 backward compatibility: HOLDS.** Closure discover across the
-  tree passes (80 conforming files after the asserted-negative
-  exclusions); the only re-rooted documents are the enumerated
+  tree passes (79 conforming files on a clean tree after the
+  asserted-negative exclusions; review correction: the originally
+  recorded 80 included a gitignored local policy file in the author's
+  working tree); the only re-rooted documents are the enumerated
   com.verivus.runtime instances from the U02 sweep (the example, four
   blessed negatives) plus the two new negatives and the polarity-inverted
   bad-closure fixture, all landed in U08. Documents of unpinned kinds
@@ -50,9 +53,11 @@ Stacked on the planning branch (U01/U02 recorded there; GO 2026-07-13):
 - **C04 enumerability: HOLDS.** The pins are readable from
   `profiles/com.verivus.runtime/PROFILE.toml` alone; INV07 is enforced
   by `validate_profile_descriptor.py` AND both primaries with
-  byte-identical error sets on
+  verdict-identical rejections and matching error counts on
   `examples/negative/profile-descriptor-bad-closure-record.toml`
-  (`--mode profile` in both), wired into the CI negative-agreement step.
+  (`--mode profile` in both; review correction: the presence-enum
+  RENDERING differs across the three, so "byte-identical" was
+  overstated), wired into the CI negative-agreement step.
 - **C05 posture exclusion: HOLDS.** INV07 rejects `meta.*`/posture pins
   (fixture entry 1); a posture-only flip of the shipped example
   (`confidentiality` restricted -> public) leaves the root valid
@@ -63,7 +68,7 @@ Stacked on the planning branch (U01/U02 recorded there; GO 2026-07-13):
 
 ## Full-sweep results (all PASS)
 
-closure discover 80 files (exclusions are the asserted-negative sets);
+closure discover 79 files on a clean tree (exclusions are the asserted-negative sets; the 80 in the first revision counted a gitignored local file);
 dagtoml-conformance 25 cases; profile descriptors x4 in all three
 implementations; kind descriptors (profile-descriptor: 7 invariants;
 api-snapshot: 4); IJB on both touched descriptors; abstraction class 20
@@ -88,6 +93,42 @@ example; taplo lint zero errors.
    extends double-emission defect found during U06/U07 porting
    (pin dedup must key on (field, presence), not the extends-graph
    root). Proven by the m9 parity case.
+4. U09 also modified `.github/workflows/validate.yml` (the conformance
+   invalid-case sweep exclusion), undeclared in the first revision of
+   this record; surfaced by the U10 review.
+
+## U10 review fixes (applied 2026-07-13, all reviewer-reproduced first)
+
+The independent implementation review (codex/gemini/grok, consensus
+approval with required fixes; evidence in
+`docs/reviews/2026-07-13-closure-record-form-promotion-impl/`) produced
+three P1 triad-divergence defects, all fixed in the same stack with
+regressions, plus record/doc repairs (folded into this revision):
+
+1. Python `$`-anchored regexes accepted a trailing newline rs/go
+   reject; both anchors moved to `\Z`
+   (`validators/validate_closure_root.py`,
+   `validators/validate_profile_descriptor.py`); regression:
+   `conformance/cases/api-snapshot/invalid/trailing-newline-pinned-digest.toml`.
+2. Duplicate profile-descriptor names could shadow each other in the
+   name-keyed map and silently erase pins (a frozen-1.3 escape). All
+   three implementations now refuse to validate anything when
+   duplicate names exist among `profiles/*/PROFILE.toml`
+   (fail-closed), in both the closure and profile-descriptor paths.
+3. Discovery parity: the Go primary skipped symlinked profile
+   directories (now follows them via os.Stat, matching rs/py); the
+   Python profile-descriptor validator merged every CLI-passed file
+   into extends resolution (now merges only the file under
+   validation, matching the primaries' fall-back semantics).
+
+Parity-matrix coverage added as tracked corpus cases:
+missing/unresolvable `framework_profile`, when-present-absent (the
+unwitnessed three-record positive), and the trailing-newline
+regression. The duplicate-name and symlink regressions require
+alternate repo roots and live as recorded repro roots in the review
+evidence (they cannot be tracked in-tree without corrupting the
+repository's own profile set); the parity harness and its results are
+persisted in `research/03-parity-harness.md`.
 
 ## Boundary statements a reviewer should not have to discover
 

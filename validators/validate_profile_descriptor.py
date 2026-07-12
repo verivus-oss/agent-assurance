@@ -63,7 +63,9 @@ REQUIRED_PROFILE_FIELDS = (
 # INV07 (spec.md §12.8.1): profile-pinned closure records.
 CLOSURE_RECORD_KEYS = ("contained_kind", "field", "presence")
 CLOSURE_RECORD_PRESENCE = ("required", "when-present")
-CLOSURE_RECORD_FIELD_RE = re.compile(r"^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$")
+# \Z, not $: see the equivalent note in validate_closure_root.py
+# (Python's $ tolerates a trailing newline; rs/go do not).
+CLOSURE_RECORD_FIELD_RE = re.compile(r"^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*\Z")
 CLOSURE_RECORD_FORBIDDEN_FIELDS = (
     "closure_root",
     "provenance.source_sha256",
@@ -468,27 +470,58 @@ def main() -> int:
     repo_root = pathlib.Path(args.repo_root).resolve()
     descriptors = discover_descriptors(repo_root)
 
-    # Make sure any descriptor passed explicitly on the CLI is also in
-    # the discovered set, so `extends` referencing it resolves even if
-    # the file lives outside `profiles/*/PROFILE.toml`.
-    for raw in args.files:
-        path = pathlib.Path(raw).resolve()
-        try:
-            doc = load_toml(path)
-        except (FileNotFoundError, tomllib.TOMLDecodeError):
-            continue
-        meta = doc.get("meta") or {}
-        if meta.get("template_kind") != "profile-descriptor":
-            continue
-        profile = doc.get("profile") or {}
-        name = profile.get("name")
-        if isinstance(name, str) and name not in descriptors:
-            descriptors[name] = (path, doc)
+    # Duplicate profile names would shadow each other in the name-keyed
+    # map and could erase closure pins; refuse to validate anything
+    # (SPEC 12.8.1 pin resolution, mirrored by the closure validators).
+    seen_names: dict[str, pathlib.Path] = {}
+    duplicate_errors: list[str] = []
+    profiles_dir = repo_root / "profiles"
+    if profiles_dir.is_dir():
+        for entry in sorted(profiles_dir.iterdir()):
+            candidate = entry / "PROFILE.toml"
+            if not candidate.is_file():
+                continue
+            try:
+                dup_doc = load_toml(candidate)
+            except (FileNotFoundError, tomllib.TOMLDecodeError):
+                continue
+            if (dup_doc.get("meta") or {}).get("template_kind") != "profile-descriptor":
+                continue
+            dup_name = (dup_doc.get("profile") or {}).get("name")
+            if not isinstance(dup_name, str):
+                continue
+            if dup_name in seen_names:
+                duplicate_errors.append(
+                    f"duplicate profile-descriptor name `{dup_name}` "
+                    f"({seen_names[dup_name]} and {candidate}): pin resolution "
+                    f"refuses to proceed (SPEC §12.8.1)"
+                )
+            else:
+                seen_names[dup_name] = candidate
+    if duplicate_errors:
+        print("PROFILE DESCRIPTOR VALIDATION FAILED")
+        for line in duplicate_errors:
+            print(f"- {line}")
+        return 1
 
     all_errors: list[str] = []
     for raw in args.files:
         path = pathlib.Path(raw).resolve()
-        errs = validate_one(path, repo_root, descriptors)
+        # Merge ONLY the file under validation into the resolution set
+        # (rs/go resolve the root through the discovered map with a
+        # fall-back to the document itself; a global merge of every CLI
+        # file would give Python cross-file extends resolution the
+        # primaries do not have; U10 review, fix 3).
+        per_file = dict(descriptors)
+        try:
+            doc = load_toml(path)
+        except (FileNotFoundError, tomllib.TOMLDecodeError):
+            doc = None
+        if doc is not None and (doc.get("meta") or {}).get("template_kind") == "profile-descriptor":
+            name = (doc.get("profile") or {}).get("name")
+            if isinstance(name, str) and name not in per_file:
+                per_file[name] = (path, doc)
+        errs = validate_one(path, repo_root, per_file)
         if errs:
             all_errors.append(f"--- {path} ---")
             all_errors.extend(errs)

@@ -1190,7 +1190,9 @@ algorithm (§12.1).
 
 A profile MAY promote instance-local digest fields of its contained
 kinds into the closure stream by declaring them in its
-profile-descriptor (§6.1):
+profile-descriptor (§6.1). Each `[[profile.closure_records]]` entry
+carries EXACTLY the three keys `contained_kind`, `field`, and
+`presence`; unknown keys are rejected (INV07):
 
 ```toml
 [[profile.closure_records]]

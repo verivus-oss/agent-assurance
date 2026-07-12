@@ -1,9 +1,9 @@
-# Conformance case (invalid): witness table removed, stale four-record
-# root kept. The SPEC 12.8.1 when-present attestation record is gone from
-# the stream, so the expected root is the three-record value and this
-# stale root MUST be rejected by rs, go, and the Python closure step.
+# Conformance case: an unwitnessed snapshot. The when-present pinned
+# record (snapshot.witness.attestation_sha256) is absent, so the stream
+# is the three-record form and this root MUST be accepted by all three
+# implementations (frozen parity-matrix row: when-present absent).
 
-closure_root = "sha256:013f3d34bab26a1b9d9fd77ff03aae76a3b07ee112c4995dc5ef448b2d1796db"
+closure_root = "sha256:627490aebb92bc8f5a4611dfe5ad763df1ce4980599bffb3baf4d8ba3eb5c3a6"
 
 [meta]
 schema_version = "0.1.0"
@@ -31,3 +31,4 @@ auth_context = "oauth2-client-credentials; client=verivus-quote-reader"
 [snapshot.response]
 status = 200
 body_sha256 = "sha256:569cc4222c936a5c39184bc0e17048c3f80bed44d457f0327db1bd58faecfebd"
+

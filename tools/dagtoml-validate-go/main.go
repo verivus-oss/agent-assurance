@@ -2762,17 +2762,22 @@ type descriptor struct {
 	doc  rawDoc
 }
 
-func discoverDescriptors(repoRoot string) map[string]descriptor {
+// discoverDescriptors also reports duplicate profile names: a
+// duplicate would let one descriptor shadow another in the name-keyed
+// map and silently erase its closure pins, so the caller MUST refuse
+// to validate anything when duplicates exist (SPEC 12.8.1 pin
+// resolution: no pin-free fall-through). Directory entries are checked
+// via os.Stat on the candidate path so symlinked profile directories
+// are followed, matching the Rust and Python discovery.
+func discoverDescriptors(repoRoot string) (map[string]descriptor, []string) {
 	out := map[string]descriptor{}
+	var duplicates []string
 	root := filepath.Join(repoRoot, "profiles")
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		return out
+		return out, duplicates
 	}
 	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
 		candidate := filepath.Join(root, e.Name(), "PROFILE.toml")
 		info, err := os.Stat(candidate)
 		if err != nil || info.IsDir() {
@@ -2786,10 +2791,16 @@ func discoverDescriptors(repoRoot string) map[string]descriptor {
 			continue
 		}
 		if name, ok := stringOf(doc["profile"], "name"); ok {
+			if existing, dup := out[name]; dup {
+				duplicates = append(duplicates, fmt.Sprintf(
+					"duplicate profile-descriptor name `%s` (%s and %s)",
+					name, existing.path, candidate))
+				continue
+			}
 			out[name] = descriptor{candidate, doc}
 		}
 	}
-	return out
+	return out, duplicates
 }
 
 func checkNamespacePartition(name, namespace string) []string {
@@ -3395,7 +3406,14 @@ func main() {
 		fmt.Fprintln(os.Stderr, "error: resolving repo root:", err)
 		os.Exit(2)
 	}
-	descriptors := discoverDescriptors(root)
+	descriptors, duplicateProfiles := discoverDescriptors(root)
+	if len(duplicateProfiles) > 0 {
+		fmt.Fprintln(os.Stderr, "DAGTOML VALIDATION FAILED (go primary)")
+		for _, d := range duplicateProfiles {
+			fmt.Fprintf(os.Stderr, "- %s: pin resolution refuses to proceed (SPEC 12.8.1)\n", d)
+		}
+		os.Exit(1)
+	}
 	// SPEC §12.8.1: build the profile-pinned closure-record map and the
 	// loaded-profile-name set once per run; both feed closure_root
 	// validation in every mode that runs it.
