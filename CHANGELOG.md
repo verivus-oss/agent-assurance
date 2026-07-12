@@ -9,6 +9,18 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **SPEC text for profile-pinned closure records (U03 of the
+  closure-record-form promotion).** Normative additions under the recorded
+  U02 GO: SPEC 12.8.1 (the `[[profile.closure_records]]` declaration, the
+  byte-frozen field-path grammar, `required`/`when-present` semantics, the
+  labeled `<field> <sha256:hex>` record emission into the sorted 12.8
+  stream, and the kind-keyed pin-resolution rule that forbids a pin-free
+  fall-through for pinned kinds); the SPEC 12.1 profile-input enumeration
+  amendment; the `closure_records` row and extends-union rule in the SPEC
+  6.1 profile-descriptor table (INV07); and the SPEC 12.9 posture-exclusion
+  cross-reference. Text only: validators, profiles, and fixtures follow in
+  U04-U09; no shipped document changes verdict in this change.
+
 - **Profile-pinned closure record forms (SPEC 12.8 promotion): planning pack
   + design review + freeze preparation.** Added the self-validating
   governance pack under

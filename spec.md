@@ -449,6 +449,7 @@ declaring:
 | `extends` | yes | Array of zero or more profile names this profile layers on top of. An empty array marks a base profile. Cycles are rejected. Inheritance is declarative: a consumer that loads a descriptor walks `extends` to construct the effective entity / kind / vocabulary set. |
 | `ontology` | yes | Repo-relative path to the profile's `ontology.toml`. |
 | `contained_kinds` | yes | Closed array of every `template_kind` slug the profile introduces. Each slug MUST resolve to a `*-kind.toml` descriptor whose `[meta].describes_kind` matches the slug. |
+| `closure_records` | optional | Array of tables pinning instance-local digest fields of contained kinds as closure inputs (§12.8.1). Each entry declares `contained_kind` / `field` / `presence` and is validated under INV07 (`core/profile-descriptor-kind.toml`). |
 | `confidentiality` | optional | Per §2.7. |
 | `embargo_until` | optional | Per §2.7. |
 
@@ -472,6 +473,9 @@ Validators walking `extends` MUST:
 3. Treat the effective set of contained kinds and ontology entries
    as the **union** of the named profile and every transitively
    extended profile.
+4. Treat the effective `closure_records` set as the same union, and
+   reject duplicate (`contained_kind`, `field`) pairs after the
+   union (§12.8.1, INV07).
 
 The spec does not prescribe a registry of non-spec-reserved profiles. A
 consuming organisation that wants to inherit from a private profile
@@ -949,10 +953,13 @@ preserve, and the inversion is intentional.
 Every conforming DAG-TOML document MUST carry a `closure_root` field.
 At `schema_version = "0.1.0"`, the cross-kind normative byte-level
 input is `[provenance].source_sha256`, computed as specified in
-§12.8. Profiles MAY add canonical record forms for kind-specific
-`cites_upstream`, `[[evidence_*]]`, and revocation-snapshot inputs,
-but those additions MUST preserve the cascade-break property in
-§12.2.
+§12.8. Profiles MAY promote instance-local digest fields of their
+contained kinds into the closure stream via **profile-pinned closure
+records** declared in the profile-descriptor (`closure_records`,
+§6.1; byte-level rules in §12.8), and MAY add canonical record forms
+for kind-specific `cites_upstream`, `[[evidence_*]]`, and
+revocation-snapshot inputs. All such additions MUST preserve the
+cascade-break property in §12.2.
 
 A document is **conforming** for the purposes of this section if and
 only if its `[meta].template_kind` value is **spec-reserved** — i.e. is
@@ -986,8 +993,10 @@ descriptor lands.
 
 The digest algorithm MUST be SHA-256 or stronger. Weaker algorithms
 (MD5, SHA-1) are forbidden. The default SPEC-level input set is every
-`[provenance].source_sha256` entry. Profile/runtime-layer inputs MAY
-include the closure of fields whose ontology mapping is
+`[provenance].source_sha256` entry, plus every profile-pinned closure
+record that §12.8 derives from the document's kind (when a loaded
+profile pins records for that kind). Further profile/runtime-layer
+inputs MAY include the closure of fields whose ontology mapping is
 `cites_upstream` (declared in the relevant `*-kind.toml` descriptor),
 `[[evidence_*]]` entries that carry upstream digests, and upstream
 revocation snapshots known to the producer at emission time, provided
@@ -1177,8 +1186,75 @@ For the empty input set the canonical stream is zero bytes, so the
 expected value is the empty-closure sentinel for the selected digest
 algorithm (§12.1).
 
-The full byte-level algorithm for kind-specific `cites_upstream`
-fields, `[[evidence_*]]` upstream digests, revocation snapshots,
+#### 12.8.1 Profile-pinned closure records
+
+A profile MAY promote instance-local digest fields of its contained
+kinds into the closure stream by declaring them in its
+profile-descriptor (§6.1):
+
+```toml
+[[profile.closure_records]]
+contained_kind = "api-snapshot"
+field          = "snapshot.request.descriptor_sha256"
+presence       = "required"
+```
+
+Declaration constraints (invariant INV07, declared in
+`core/profile-descriptor-kind.toml` and enforced by the
+profile-descriptor validators):
+
+- `contained_kind` MUST be a member of the post-`extends`-union
+  `contained_kinds` of the declaring profile.
+- `field` MUST match `^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$`, applied
+  to the decoded TOML string scalar. Lookup is segment-wise from the
+  document root; the emitted record label is the identical string.
+  `field` MUST NOT begin with `meta.`, MUST NOT name a §12.9 posture
+  field, MUST NOT be `closure_root`, and MUST NOT be
+  `provenance.source_sha256` (already a SPEC-layer record;
+  double-pinning is rejected).
+- `presence` MUST be `"required"` or `"when-present"`.
+- `closure_records` entries union across `extends` exactly like
+  `contained_kinds`; duplicate (`contained_kind`, `field`) pairs
+  after the union are rejected.
+
+**Record emission.** For each pinned field present in the document,
+the value MUST be `sha256:` followed by 64 lowercase hex digits
+(pinned records are sha256-only at `schema_version = "0.1.0"`;
+widening to `sha384`/`sha512` is a deliberate future change to this
+section) and emits exactly one UTF-8 record:
+
+```text
+<field> <sha256:64-lowercase-hex>\n
+```
+
+(single 0x20 separator, single trailing 0x0A; identical shape to the
+`provenance.source_sha256` record). A `required` field that is absent
+is a validation error. A `when-present` field that is absent emits no
+record. A present pinned field whose value is malformed is a
+validation error. Pinned records join the §12.8 stream: the union of
+the `provenance.source_sha256` records and all pinned records is
+sorted bytewise, concatenated, and digested exactly as specified
+above. The empty-input sentinel rule is unchanged.
+
+**Pin resolution.** Pins resolve by `template_kind` over the full
+loaded profile-descriptor set (kind names are namespace-partitioned
+per §6.1, so a `template_kind` maps to at most one profile). A
+document whose `template_kind` is pinned by a loaded descriptor MUST
+have those pins applied in EVERY validation mode that checks
+`closure_root`, regardless of the document's `framework_profile`
+value. Additionally, such a document whose `framework_profile` is
+missing or does not resolve to a loaded profile-descriptor MUST be
+rejected by the closure check. Validators MUST NOT fall through to a
+pin-free closure for a document of a pinned kind.
+
+Profile-pinned closure records extend the §12.2 cascade-break
+property rather than weakening it: removing a pinned `when-present`
+input (for example a witness attestation digest) removes its record
+and therefore changes the expected `closure_root`.
+
+Beyond the instance-local digest fields covered by §12.8.1, the full
+byte-level algorithm for kind-specific `cites_upstream` fields,
+`[[evidence_*]]` upstream digests, revocation snapshots,
 duplicate-input policy, and closure-cycle traversal remains profile /
 runtime work until a future `schema_version` promotes those record
 forms into normative spec text. Profiles that pin additional record
@@ -1193,6 +1269,10 @@ cascade-break property of §12.2.
   fields are declared policy, **not** closure-root inputs. They
   change without breaking downstream hashes. This is intentional:
   posture is a policy declaration, not upstream evidence.
+  Profile-pinned closure records (§12.8.1) are subject to the same
+  exclusion: INV07 rejects any pin naming a posture field or a
+  `meta.*` path, so posture-only changes remain cascade-free even
+  for documents of pinned kinds.
 - §5 (Hard invariants) — the closure graph induced by
   `closure_root` inputs MUST be acyclic. A document MUST NOT,
   directly or transitively, cite an upstream artifact whose own
