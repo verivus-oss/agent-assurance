@@ -112,9 +112,17 @@ def load_pinned_records(
                         and isinstance(field, str)
                         and presence in ("required", "when-present")
                     ):
-                        entry = (field, presence, name)
-                        if entry not in pin_map.setdefault(kind, []):
-                            pin_map[kind].append(entry)
+                        existing = pin_map.setdefault(kind, [])
+                        # Dedup by (field, presence) only: a record
+                        # inherited through `extends` reaches this map
+                        # once per extending root, but its record string
+                        # excludes the profile name, so keying dedup on
+                        # the profile would double-emit the record and
+                        # corrupt the digest stream.
+                        if not any(
+                            f == field and pr == presence for f, pr, _ in existing
+                        ):
+                            existing.append((field, presence, name))
             for child in profile.get("extends", []) or []:
                 if isinstance(child, str):
                     visit(child)
