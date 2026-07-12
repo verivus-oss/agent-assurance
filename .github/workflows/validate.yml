@@ -733,6 +733,21 @@ jobs:
             examples/negative/abstraction-class-unknown-domain.toml \
             --repo-root .
 
+          # INV07 (SPEC 12.8.1): profile-pinned closure-record declarations.
+          # The fixture carries an out-of-union contained_kind, a meta.*
+          # posture pin, a provenance.source_sha256 double-pin, and a bad
+          # presence value; all three implementations must reject it.
+          check_rejects "rust profile-descriptor closure-records" \
+            "$rs" --repo-root . --mode profile \
+            examples/negative/profile-descriptor-bad-closure-record.toml
+          check_rejects "go profile-descriptor closure-records" \
+            "$go_bin" --repo-root . --mode profile \
+            examples/negative/profile-descriptor-bad-closure-record.toml
+          check_rejects "python profile-descriptor closure-records" \
+            python3 validators/validate_profile_descriptor.py \
+            examples/negative/profile-descriptor-bad-closure-record.toml \
+            --repo-root .
+
           # Gate-decision separation-of-duty boundary: a "pass" verdict
           # carrying non-empty (string-typed) failed_constraint_refs must
           # be rejected by all three. Pins the Rust/Go divergence fixed in

@@ -1529,9 +1529,8 @@ mod implementation_dag {
                 if let Some(files) = str_vec(unit.get(field)) {
                     for file in files {
                         if has_placeholder(&file) {
-                            errors.push(format!(
-                                "{uid}.{field}: placeholder not allowed: `{file}`"
-                            ));
+                            errors
+                                .push(format!("{uid}.{field}: placeholder not allowed: `{file}`"));
                         }
                     }
                 }
@@ -2790,6 +2789,226 @@ mod profile {
         "contained_kinds",
     ];
 
+    // INV07 (spec.md §12.8.1): profile-pinned closure records.
+    const CLOSURE_RECORD_KEYS: &[&str] = &["contained_kind", "field", "presence"];
+    const CLOSURE_RECORD_PRESENCE: &[&str] = &["required", "when-present"];
+    const CLOSURE_RECORD_FORBIDDEN_FIELDS: &[&str] = &["closure_root", "provenance.source_sha256"];
+    const POSTURE_FIELDS: &[&str] = &["confidentiality", "license", "embargo_until"];
+
+    /// Frozen path grammar `^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$`,
+    /// hand-rolled (no regex dependency): one or more dot-separated
+    /// non-empty segments of `[A-Za-z0-9_-]`.
+    fn closure_record_field_ok(field: &str) -> bool {
+        !field.is_empty()
+            && field.split('.').all(|seg| {
+                !seg.is_empty()
+                    && seg
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+            })
+    }
+
+    /// Union `contained_kinds` and `closure_records` across the
+    /// `extends` graph rooted at `name` (spec.md §6.1 rules 3 and 4).
+    /// The root resolves through `descriptors` when discovered there,
+    /// falling back to the profile table of the document under
+    /// validation (mirrors the Python reference, which merges CLI
+    /// files into the discovery set before validating).
+    fn effective_profile_sets(
+        name: &str,
+        local_profile: &toml::map::Map<String, Value>,
+        descriptors: &BTreeMap<String, (PathBuf, Value)>,
+    ) -> (BTreeSet<String>, Vec<toml::map::Map<String, Value>>) {
+        let mut kinds: BTreeSet<String> = BTreeSet::new();
+        let mut records: Vec<toml::map::Map<String, Value>> = Vec::new();
+        let mut seen: BTreeSet<String> = BTreeSet::new();
+        union_visit(
+            name,
+            name,
+            local_profile,
+            descriptors,
+            &mut seen,
+            &mut kinds,
+            &mut records,
+        );
+        (kinds, records)
+    }
+
+    fn union_visit(
+        node: &str,
+        root: &str,
+        local_profile: &toml::map::Map<String, Value>,
+        descriptors: &BTreeMap<String, (PathBuf, Value)>,
+        seen: &mut BTreeSet<String>,
+        kinds: &mut BTreeSet<String>,
+        records: &mut Vec<toml::map::Map<String, Value>>,
+    ) {
+        if seen.contains(node) {
+            return;
+        }
+        let profile: &toml::map::Map<String, Value> = match descriptors.get(node) {
+            Some((_, doc)) => match doc.get("profile").and_then(|p| p.as_table()) {
+                Some(t) => t,
+                None => return,
+            },
+            None if node == root => local_profile,
+            None => return, // unresolved extends entry; INV03 handles it
+        };
+        seen.insert(node.to_string());
+        if let Some(arr) = profile.get("contained_kinds").and_then(|x| x.as_array()) {
+            for slug in arr {
+                if let Some(s) = slug.as_str() {
+                    kinds.insert(s.to_string());
+                }
+            }
+        }
+        if let Some(arr) = profile.get("closure_records").and_then(|x| x.as_array()) {
+            for rec in arr {
+                if let Some(t) = rec.as_table() {
+                    records.push(t.clone());
+                }
+            }
+        }
+        if let Some(arr) = profile.get("extends").and_then(|x| x.as_array()) {
+            for child in arr {
+                if let Some(s) = child.as_str() {
+                    union_visit(s, root, local_profile, descriptors, seen, kinds, records);
+                }
+            }
+        }
+    }
+
+    /// INV07 (spec.md §12.8.1): profile-pinned closure records.
+    fn check_closure_records(
+        descriptor_path: &Path,
+        name: &str,
+        profile: &toml::map::Map<String, Value>,
+        descriptors: &BTreeMap<String, (PathBuf, Value)>,
+    ) -> Vec<String> {
+        let mut errors: Vec<String> = Vec::new();
+        let closure_records: &[Value] = match profile.get("closure_records") {
+            None => &[],
+            Some(v) => match v.as_array() {
+                Some(a) => a.as_slice(),
+                None => {
+                    return vec![format!(
+                        "{}: [profile].closure_records must be an array of tables (INV07)",
+                        descriptor_path.display()
+                    )];
+                }
+            },
+        };
+
+        for (index, entry) in closure_records.iter().enumerate() {
+            let place = format!(
+                "{}: [[profile.closure_records]] entry {}",
+                descriptor_path.display(),
+                index
+            );
+            let Some(table) = entry.as_table() else {
+                errors.push(format!("{} must be a table (INV07)", place));
+                continue;
+            };
+            let mut unknown: Vec<&str> = table
+                .keys()
+                .map(|k| k.as_str())
+                .filter(|k| !CLOSURE_RECORD_KEYS.contains(k))
+                .collect();
+            unknown.sort_unstable();
+            if !unknown.is_empty() {
+                errors.push(format!(
+                    "{} carries unknown keys {:?} (INV07: exactly contained_kind / field / presence)",
+                    place, unknown
+                ));
+            }
+            let mut bad_shape = false;
+            for key in CLOSURE_RECORD_KEYS {
+                let ok = table
+                    .get(*key)
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|s| !s.is_empty());
+                if !ok {
+                    errors.push(format!(
+                        "{}.{} must be a non-empty string (INV07)",
+                        place, key
+                    ));
+                    bad_shape = true;
+                }
+            }
+            if bad_shape {
+                continue;
+            }
+
+            let field = table.get("field").and_then(|v| v.as_str()).unwrap_or("");
+            let presence = table.get("presence").and_then(|v| v.as_str()).unwrap_or("");
+            if !closure_record_field_ok(field) {
+                errors.push(format!(
+                    "{}.field `{}` does not match the frozen path grammar ^[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*$ (INV07)",
+                    place, field
+                ));
+            } else if CLOSURE_RECORD_FORBIDDEN_FIELDS.contains(&field)
+                || field.split('.').next() == Some("meta")
+                || POSTURE_FIELDS.contains(&field)
+            {
+                errors.push(format!(
+                    "{}.field `{}` is a forbidden pin target (INV07: not closure_root, not provenance.source_sha256, no meta.* path, no §12.9 posture field)",
+                    place, field
+                ));
+            }
+            if !CLOSURE_RECORD_PRESENCE.contains(&presence) {
+                errors.push(format!(
+                    "{}.presence `{}` must be one of {:?} (INV07)",
+                    place, presence, CLOSURE_RECORD_PRESENCE
+                ));
+            }
+        }
+
+        let (effective_kinds, effective_records) =
+            effective_profile_sets(name, profile, descriptors);
+
+        for (index, entry) in closure_records.iter().enumerate() {
+            let Some(table) = entry.as_table() else {
+                continue;
+            };
+            if let Some(ck) = table.get("contained_kind").and_then(|v| v.as_str()) {
+                if !ck.is_empty() && !effective_kinds.contains(ck) {
+                    errors.push(format!(
+                        "{}: [[profile.closure_records]] entry {}.contained_kind `{}` is not in the post-extends-union contained_kinds (INV07)",
+                        descriptor_path.display(),
+                        index,
+                        ck
+                    ));
+                }
+            }
+        }
+
+        let mut pairs: Vec<(String, String)> = Vec::new();
+        for rec in &effective_records {
+            if let (Some(ck), Some(fld)) = (
+                rec.get("contained_kind").and_then(|v| v.as_str()),
+                rec.get("field").and_then(|v| v.as_str()),
+            ) {
+                pairs.push((ck.to_string(), fld.to_string()));
+            }
+        }
+        let mut duplicates: BTreeSet<(String, String)> = BTreeSet::new();
+        for pair in &pairs {
+            if pairs.iter().filter(|p| *p == pair).count() > 1 {
+                duplicates.insert(pair.clone());
+            }
+        }
+        for (ck, fld) in duplicates {
+            errors.push(format!(
+                "{}: duplicate closure-record pin (`{}`, `{}`) after the extends union (INV07)",
+                descriptor_path.display(),
+                ck,
+                fld
+            ));
+        }
+
+        errors
+    }
+
     pub fn discover(repo_root: &Path) -> BTreeMap<String, (PathBuf, Value)> {
         let mut out = BTreeMap::new();
         let dir = repo_root.join("profiles");
@@ -3130,6 +3349,14 @@ mod profile {
                 }
             }
         }
+
+        // INV07: profile-pinned closure records (spec.md §12.8.1)
+        errors.extend(check_closure_records(
+            descriptor_path,
+            name,
+            profile,
+            descriptors,
+        ));
 
         errors
     }

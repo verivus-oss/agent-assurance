@@ -9,6 +9,17 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **INV07 enforcement across the triad (U04 of the closure-record-form
+  promotion).** The profile-pinned closure-record declaration rules of SPEC
+  12.8.1 are now mechanically enforced by all three profile-descriptor
+  validators: `validators/validate_profile_descriptor.py` (reference), the
+  Rust primary, and the Go primary, with byte-identical verdicts on the new
+  negative fixture
+  `examples/negative/profile-descriptor-bad-closure-record.toml` (wired
+  into the CI negative-agreement step under `--mode profile`). INV07 is
+  declared in `core/profile-descriptor-kind.toml`. No profile pins records
+  yet; the com.verivus.runtime pinning lands in U08.
+
 - **SPEC text for profile-pinned closure records (U03 of the
   closure-record-form promotion).** Normative additions under the recorded
   U02 GO: SPEC 12.8.1 (the `[[profile.closure_records]]` declaration, the

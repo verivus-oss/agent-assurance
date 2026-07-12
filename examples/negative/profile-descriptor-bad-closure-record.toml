@@ -1,0 +1,54 @@
+# NEGATIVE FIXTURE: MUST be rejected by the profile-descriptor
+# validators (INV07, SPEC 12.8.1). Three independent violations:
+#   1. closure_records[0].contained_kind names a kind that is NOT in
+#      this profile's post-extends-union contained_kinds.
+#   2. closure_records[1].field pins a meta.* / posture path.
+#   3. closure_records[2].presence is not in {required, when-present},
+#      and its field double-pins provenance.source_sha256.
+# Everything else about the descriptor is deliberately valid so the
+# rejection isolates INV07.
+
+# Empty-closure sentinel: SHA-256("") as required by SPEC 12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version   = "0.1.0"
+template_kind    = "profile-descriptor"
+ontology_version = 1
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+title          = "NEGATIVE: profile descriptor with invalid closure_records pins"
+
+[meta.ijb_field_primitives]
+template_kind     = { ijb_primitive = "scope",      ijb_class = "structural" }
+schema_version    = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+ontology_version  = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+confidentiality   = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+license           = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+
+[profile]
+name            = "com.example.badpins"
+namespace       = "com.example"
+owner           = "example"
+license         = "Apache-2.0"
+extends         = []
+ontology        = "core/ontology.toml"
+contained_kinds = []
+ijb_primitive   = "thing"
+ijb_class       = "structural"
+
+[[profile.closure_records]]
+contained_kind = "api-snapshot"
+field          = "snapshot.request.descriptor_sha256"
+presence       = "required"
+
+[[profile.closure_records]]
+contained_kind = "api-snapshot"
+field          = "meta.confidentiality"
+presence       = "required"
+
+[[profile.closure_records]]
+contained_kind = "api-snapshot"
+field          = "provenance.source_sha256"
+presence       = "sometimes"

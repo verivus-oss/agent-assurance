@@ -2556,6 +2556,24 @@ var requiredProfileFields = []string{
 	"name", "namespace", "owner", "license", "extends", "ontology", "contained_kinds",
 }
 
+// INV07 (spec.md §12.8.1): profile-pinned closure records.
+var (
+	closureRecordKeys            = []string{"contained_kind", "field", "presence"}
+	closureRecordPresence        = []string{"required", "when-present"}
+	closureRecordFieldRE         = regexp.MustCompile(`^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$`)
+	closureRecordForbiddenFields = []string{"closure_root", "provenance.source_sha256"}
+	postureFields                = []string{"confidentiality", "license", "embargo_until"}
+)
+
+func stringInSlice(s string, set []string) bool {
+	for _, v := range set {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
 var (
 	unprefixedRE = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 	reverseDNSRE = regexp.MustCompile(`^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$`)
@@ -2691,6 +2709,170 @@ func kindDescriptorCandidates(repoRoot, slug, profileName string) []string {
 	return out
 }
 
+// effectiveProfileSets unions `contained_kinds` and `closure_records`
+// across the `extends` graph rooted at `name` (spec.md §6.1 rules 3 and
+// 4). The root resolves through `descriptors` when discovered there,
+// falling back to the profile table of the document under validation
+// (mirrors the Python reference, which merges CLI files into the
+// discovery set before validating).
+func effectiveProfileSets(name string, localProfile map[string]any, descriptors map[string]descriptor) (map[string]bool, []map[string]any) {
+	kinds := map[string]bool{}
+	var records []map[string]any
+	seen := map[string]bool{}
+	var visit func(node string)
+	visit = func(node string) {
+		if seen[node] {
+			return
+		}
+		var profile map[string]any
+		if d, ok := descriptors[node]; ok {
+			profile, _ = d.doc["profile"].(map[string]any)
+		} else if node == name {
+			profile = localProfile
+		}
+		if profile == nil {
+			return // unresolved extends entry; INV03 handles it
+		}
+		seen[node] = true
+		if ck, ok := asArray(profile["contained_kinds"]); ok {
+			for _, e := range ck {
+				if s, ok := e.(string); ok {
+					kinds[s] = true
+				}
+			}
+		}
+		if recs, ok := asArray(profile["closure_records"]); ok {
+			for _, r := range recs {
+				if t, ok := r.(map[string]any); ok {
+					records = append(records, t)
+				}
+			}
+		}
+		if ext, ok := asArray(profile["extends"]); ok {
+			for _, c := range ext {
+				if s, ok := c.(string); ok {
+					visit(s)
+				}
+			}
+		}
+	}
+	visit(name)
+	return kinds, records
+}
+
+// checkClosureRecords enforces INV07 (spec.md §12.8.1):
+// profile-pinned closure records.
+func checkClosureRecords(path, name string, profile map[string]any, descriptors map[string]descriptor) []string {
+	var errs []string
+	var closureRecords []any
+	if raw, present := profile["closure_records"]; present {
+		arr, ok := asArray(raw)
+		if !ok {
+			return []string{fmt.Sprintf(
+				"%s: [profile].closure_records must be an array of tables (INV07)", path)}
+		}
+		closureRecords = arr
+	}
+
+	for index, entry := range closureRecords {
+		place := fmt.Sprintf("%s: [[profile.closure_records]] entry %d", path, index)
+		table, ok := entry.(map[string]any)
+		if !ok {
+			errs = append(errs, fmt.Sprintf("%s must be a table (INV07)", place))
+			continue
+		}
+		var unknown []string
+		for k := range table {
+			if !stringInSlice(k, closureRecordKeys) {
+				unknown = append(unknown, k)
+			}
+		}
+		if len(unknown) > 0 {
+			sort.Strings(unknown)
+			errs = append(errs, fmt.Sprintf(
+				"%s carries unknown keys %v (INV07: exactly contained_kind / field / presence)",
+				place, unknown))
+		}
+		badShape := false
+		for _, key := range closureRecordKeys {
+			if s, ok := table[key].(string); !ok || s == "" {
+				errs = append(errs, fmt.Sprintf(
+					"%s.%s must be a non-empty string (INV07)", place, key))
+				badShape = true
+			}
+		}
+		if badShape {
+			continue
+		}
+
+		field, _ := table["field"].(string)
+		presence, _ := table["presence"].(string)
+		if !closureRecordFieldRE.MatchString(field) {
+			errs = append(errs, fmt.Sprintf(
+				"%s.field `%s` does not match the frozen path grammar ^[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*$ (INV07)",
+				place, field))
+		} else if stringInSlice(field, closureRecordForbiddenFields) ||
+			strings.SplitN(field, ".", 2)[0] == "meta" ||
+			stringInSlice(field, postureFields) {
+			errs = append(errs, fmt.Sprintf(
+				"%s.field `%s` is a forbidden pin target (INV07: not closure_root, not provenance.source_sha256, no meta.* path, no §12.9 posture field)",
+				place, field))
+		}
+		if !stringInSlice(presence, closureRecordPresence) {
+			errs = append(errs, fmt.Sprintf(
+				"%s.presence `%s` must be one of %v (INV07)",
+				place, presence, closureRecordPresence))
+		}
+	}
+
+	effectiveKinds, effectiveRecords := effectiveProfileSets(name, profile, descriptors)
+
+	for index, entry := range closureRecords {
+		table, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		if ck, ok := table["contained_kind"].(string); ok && ck != "" && !effectiveKinds[ck] {
+			errs = append(errs, fmt.Sprintf(
+				"%s: [[profile.closure_records]] entry %d.contained_kind `%s` is not in the post-extends-union contained_kinds (INV07)",
+				path, index, ck))
+		}
+	}
+
+	type pinPair struct{ ck, field string }
+	var pairs []pinPair
+	for _, rec := range effectiveRecords {
+		ck, ckOK := rec["contained_kind"].(string)
+		fld, fldOK := rec["field"].(string)
+		if ckOK && fldOK {
+			pairs = append(pairs, pinPair{ck, fld})
+		}
+	}
+	counts := map[pinPair]int{}
+	for _, p := range pairs {
+		counts[p]++
+	}
+	var duplicates []pinPair
+	for p, n := range counts {
+		if n > 1 {
+			duplicates = append(duplicates, p)
+		}
+	}
+	sort.Slice(duplicates, func(i, j int) bool {
+		if duplicates[i].ck != duplicates[j].ck {
+			return duplicates[i].ck < duplicates[j].ck
+		}
+		return duplicates[i].field < duplicates[j].field
+	})
+	for _, p := range duplicates {
+		errs = append(errs, fmt.Sprintf(
+			"%s: duplicate closure-record pin (`%s`, `%s`) after the extends union (INV07)",
+			path, p.ck, p.field))
+	}
+
+	return errs
+}
+
 func validateProfileDescriptor(path string, doc rawDoc, repoRoot string, descriptors map[string]descriptor) []string {
 	var errs []string
 	meta, ok := doc["meta"].(map[string]any)
@@ -2787,6 +2969,8 @@ func validateProfileDescriptor(path string, doc rawDoc, repoRoot string, descrip
 			}
 		}
 	}
+	// INV07: profile-pinned closure records (spec.md §12.8.1)
+	errs = append(errs, checkClosureRecords(path, name, profile, descriptors)...)
 	return errs
 }
 
