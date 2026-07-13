@@ -19,6 +19,29 @@ session reproduced every load-bearing finding before acceptance
 No blocker; no unconditional approval; consensus that the frozen
 grammar is implemented consistently on the shipped corpus.
 
+## Rounds 2-5 and gate closure
+
+The gate iterated to closure across five rounds, all evidence in
+`raw_findings/` (round-1 files keep their original names; later rounds
+are prefixed `roundN-`):
+
+| Round | Outcome | Fix commit |
+|---|---|---|
+| 1 | 3x approval-with-required-fixes (3 P1 triad divergences) | bef13ad |
+| 2 | 3x approval-with-required-fixes (2 new P1: residual $-anchors, kind-candidate symlinks; counts re-pinned) | 987a4e8 |
+| 3 | 3x fixes-required (guard 4 proven vacuous under mutation; corrected, guard 5 added) | 64fc137 |
+| 4 | grok UNCONDITIONAL; codex/gemini required 2 documentation items | 57d1647 |
+| 5 | codex and gemini UNCONDITIONAL at 57d1647 (comment-only delta from 64fc137, verified by both) | none needed |
+
+**GATE CLOSED 2026-07-13: 3 of 3 unconditional external approvals**
+(grok at 64fc137 with the delta to 57d1647 verified comment-only;
+codex and gemini at 57d1647). Every verdict was issued by an external
+reviewer; the initiator approved nothing. The behavioural regression
+surface produced by the rounds is tracked in
+`validators/check_pin_resolution_guards.sh` (16 checks, wired in CI)
+plus four conformance cases; the guard-4 mutation-sensitivity proof is
+recorded in round-3/4 evidence.
+
 ## Disposition
 
 All required fixes were applied in the same stack (commit

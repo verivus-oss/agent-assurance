@@ -209,10 +209,10 @@ consumes       = ["ART:profile-pinned-and-fixtures"]
 
 [units.U10]
 name           = "cross-impl-verify-and-implementation-review"
-summary        = "Terminal verification: full sweep (validate_closure_root --discover, kind validators, IJB conformance, abstraction class, make dagtoml-conformance, taplo lint) with rs/go/py agreement recorded; C01-C06 evidence attached to the evidence matrix; independent multi-LLM implementation review dispatched via tools/review-request-dag.toml with evidence under docs/reviews/; merge only after review approval. Initiator does not approve."
+summary        = "DONE 2026-07-13: five review rounds to 3-of-3 unconditional external approval at 57d1647 (see research/02-verification-record.md and docs/reviews/2026-07-13-closure-record-form-promotion-impl/). Original scope: full sweep (validate_closure_root --discover, kind validators, IJB conformance, abstraction class, make dagtoml-conformance, taplo lint) with rs/go/py agreement recorded; C01-C06 evidence attached to the evidence matrix; independent multi-LLM implementation review dispatched via tools/review-request-dag.toml with evidence under docs/reviews/; merge only after review approval. Initiator does not approve."
 layer          = 6
 tier           = 3
-status         = "in_progress"
+status         = "done"
 depends_on     = ["U09"]
 blocks         = []
 estimated_loc  = 60

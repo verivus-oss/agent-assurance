@@ -9,6 +9,19 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **U10 review gate CLOSED: 3 of 3 unconditional external approvals
+  (rounds 3-5).** Round 3 proved the new pin-resolution guard script's
+  guard 4 vacuously true under mutation and it was corrected (the
+  trailing-newline name is now the fixture's only defect;
+  mutation-verified) with a fifth guard pinning the newline-closure_root
+  parity verdict; round 4 confirmed every behavioural surface across all
+  three reviewers (grok unconditional) leaving two documentation items;
+  round 5 closed with codex and gemini unconditional at 57d1647. Full
+  five-round evidence under
+  `docs/reviews/2026-07-13-closure-record-form-promotion-impl/`. The
+  stack is merge-eligible; merge remains gated on the code-owner PR
+  approval.
+
 - **U10 implementation-review round 2 fixes.** Round 2 verified all
   round-1 fixes and exposed two incomplete sweeps, both fixed across the
   triad with regressions: the remaining `$`-anchored name regexes in the

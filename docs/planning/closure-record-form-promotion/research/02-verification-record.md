@@ -1,8 +1,9 @@
 # U10: cross-implementation verification record
 
-Status: sweep complete 2026-07-13; independent implementation review
-dispatched per the no-self-approval rule (evidence to be appended under
-`docs/reviews/` before merge). Nothing merges on this record alone.
+Status: **U10 REVIEW GATE CLOSED 2026-07-13, 3 of 3 unconditional
+external approvals at 57d1647** (five rounds; evidence under
+`docs/reviews/2026-07-13-closure-record-form-promotion-impl/`). The
+stack is merge-eligible; merging remains an operator action.
 
 ## The stack under verification
 
