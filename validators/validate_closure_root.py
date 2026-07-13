@@ -49,13 +49,220 @@ ALGO_HEX_LENGTHS = {
 
 FORBIDDEN_ALGOS = ("md5", "sha1")
 
-CLOSURE_ROOT_RE = re.compile(r"^([a-z0-9]+):([0-9a-f]+)$")
+# \Z hardening (U10 round 2): no reachable verdict divergence today
+# (the raw value is compared for equality downstream), but $ would admit
+# a trailing newline into the match, so anchor like every other gate.
+CLOSURE_ROOT_RE = re.compile(r"^([a-z0-9]+):([0-9a-f]+)\Z")
 
 EMPTY_CLOSURE_SENTINELS = {
     "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "sha384:38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b",
     "sha512:cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
 }
+
+# SPEC §12.8.1: profile-pinned closure records. The pin map is keyed by
+# `template_kind` (kind names are namespace-partitioned per SPEC §6.1,
+# so a kind maps to at most one profile). Built from every
+# `profiles/*/PROFILE.toml` under --repo-root, with `closure_records`
+# unioned across `extends` like `contained_kinds`. Declaration-shape
+# enforcement (INV07) belongs to validate_profile_descriptor.py; this
+# module consumes well-formed declarations.
+# \Z, not $: Python's $ also matches before a trailing newline, which a
+# TOML multiline string can smuggle in; rs/go reject it, so $ would be a
+# cross-implementation verdict divergence (U10 review, fix 1).
+PINNED_VALUE_RE = re.compile(r"^sha256:[0-9a-f]{64}\Z")
+
+
+def duplicate_profile_names(repo_root: pathlib.Path) -> list[str]:
+    """Duplicate profile-descriptor names under profiles/*/PROFILE.toml.
+
+    A duplicate would let one descriptor shadow another in the
+    name-keyed map and silently erase its closure pins, so callers MUST
+    refuse to validate anything when duplicates exist (SPEC 12.8.1 pin
+    resolution: no pin-free fall-through)."""
+    seen: dict[str, pathlib.Path] = {}
+    duplicates: list[str] = []
+    profiles_dir = repo_root / "profiles"
+    if profiles_dir.is_dir():
+        for entry in sorted(profiles_dir.iterdir()):
+            candidate = entry / "PROFILE.toml"
+            if not candidate.is_file():
+                continue
+            try:
+                doc = tomllib.loads(candidate.read_text())
+            except (OSError, tomllib.TOMLDecodeError):
+                continue
+            meta = doc.get("meta") or {}
+            profile = doc.get("profile") or {}
+            name = profile.get("name")
+            if meta.get("template_kind") != "profile-descriptor" or not isinstance(
+                name, str
+            ):
+                continue
+            if name in seen:
+                duplicates.append(
+                    f"duplicate profile-descriptor name `{name}` "
+                    f"({seen[name]} and {candidate})"
+                )
+            else:
+                seen[name] = candidate
+    return duplicates
+
+
+def load_pinned_records(
+    repo_root: pathlib.Path,
+) -> dict[str, list[tuple[str, str, str]]]:
+    """Return {template_kind: [(field, presence, profile_name), ...]}."""
+    descriptors: dict[str, dict] = {}
+    profiles_dir = repo_root / "profiles"
+    if profiles_dir.is_dir():
+        for entry in sorted(profiles_dir.iterdir()):
+            candidate = entry / "PROFILE.toml"
+            if not candidate.is_file():
+                continue
+            try:
+                doc = tomllib.loads(candidate.read_text())
+            except (OSError, tomllib.TOMLDecodeError):
+                continue
+            meta = doc.get("meta") or {}
+            if meta.get("template_kind") != "profile-descriptor":
+                continue
+            profile = doc.get("profile") or {}
+            name = profile.get("name")
+            if isinstance(name, str):
+                descriptors[name] = profile
+
+    pin_map: dict[str, list[tuple[str, str, str]]] = {}
+    for name in descriptors:
+        seen: set[str] = set()
+
+        def visit(node: str) -> None:
+            if node in seen or node not in descriptors:
+                return
+            seen.add(node)
+            profile = descriptors[node]
+            records = profile.get("closure_records")
+            if isinstance(records, list):
+                for record in records:
+                    if not isinstance(record, dict):
+                        continue
+                    kind = record.get("contained_kind")
+                    field = record.get("field")
+                    presence = record.get("presence")
+                    if (
+                        isinstance(kind, str)
+                        and isinstance(field, str)
+                        and presence in ("required", "when-present")
+                    ):
+                        existing = pin_map.setdefault(kind, [])
+                        # Dedup by (field, presence) only: a record
+                        # inherited through `extends` reaches this map
+                        # once per extending root, but its record string
+                        # excludes the profile name, so keying dedup on
+                        # the profile would double-emit the record and
+                        # corrupt the digest stream.
+                        if not any(
+                            f == field and pr == presence for f, pr, _ in existing
+                        ):
+                            existing.append((field, presence, name))
+            for child in profile.get("extends", []) or []:
+                if isinstance(child, str):
+                    visit(child)
+
+        visit(name)
+    for records_list in pin_map.values():
+        records_list.sort()
+    return pin_map
+
+
+def _loaded_profile_names(repo_root: pathlib.Path) -> frozenset[str]:
+    """Names of every loadable profile-descriptor (SPEC §12.8.1 pin
+    resolution: a pinned-kind document's framework_profile must resolve
+    to one of these)."""
+    names: set[str] = set()
+    profiles_dir = repo_root / "profiles"
+    if profiles_dir.is_dir():
+        for entry in sorted(profiles_dir.iterdir()):
+            candidate = entry / "PROFILE.toml"
+            if not candidate.is_file():
+                continue
+            try:
+                doc = tomllib.loads(candidate.read_text())
+            except (OSError, tomllib.TOMLDecodeError):
+                continue
+            meta = doc.get("meta") or {}
+            profile = doc.get("profile") or {}
+            name = profile.get("name")
+            if meta.get("template_kind") == "profile-descriptor" and isinstance(
+                name, str
+            ):
+                names.add(name)
+    return frozenset(names)
+
+
+def _walk_field(data: dict, dotted: str):
+    current = data
+    for segment in dotted.split("."):
+        if not isinstance(current, dict) or segment not in current:
+            return None
+        current = current[segment]
+    return current
+
+
+def pinned_closure_inputs(
+    data: dict,
+    pin_map: dict[str, list[tuple[str, str, str]]],
+    loaded_profiles: frozenset[str],
+) -> tuple[list[str], list[str]]:
+    """SPEC §12.8.1 record emission + pin resolution for one document.
+
+    Pins resolve by template_kind over the full loaded descriptor set,
+    in EVERY mode that validates closure_root; a document of a pinned
+    kind with a missing/unresolvable framework_profile is rejected.
+    There is no pin-free fall-through for a pinned kind.
+    """
+    meta = data.get("meta")
+    if not isinstance(meta, dict):
+        return [], []
+    template_kind = meta.get("template_kind")
+    if not isinstance(template_kind, str):
+        template_kind = meta.get("kind")  # legacy synonym
+    if not isinstance(template_kind, str) or template_kind not in pin_map:
+        return [], []
+
+    errors: list[str] = []
+    framework_profile = meta.get("framework_profile")
+    if not isinstance(framework_profile, str) or not framework_profile:
+        errors.append(
+            f"documents of pinned kind `{template_kind}` MUST declare "
+            f"`meta.framework_profile` (SPEC §12.8.1 pin resolution)"
+        )
+    elif framework_profile not in loaded_profiles:
+        errors.append(
+            f"`meta.framework_profile` `{framework_profile}` does not "
+            f"resolve to a loaded profile-descriptor (SPEC §12.8.1 pin "
+            f"resolution; pinned kind `{template_kind}`)"
+        )
+
+    records: list[str] = []
+    for field, presence, profile_name in pin_map[template_kind]:
+        value = _walk_field(data, field)
+        if value is None:
+            if presence == "required":
+                errors.append(
+                    f"pinned closure record `{field}` (required by profile "
+                    f"`{profile_name}`, SPEC §12.8.1) is missing"
+                )
+            continue
+        if not isinstance(value, str) or not PINNED_VALUE_RE.match(value):
+            errors.append(
+                f"pinned closure record `{field}` must match "
+                f"`sha256:<64 lowercase hex chars>` (SPEC §12.8.1), "
+                f"got {value!r}"
+            )
+            continue
+        records.append(f"{field} {value}\n")
+    return records, errors
 
 
 def canonical_source_hash_inputs(data: dict) -> tuple[list[str], list[str]]:
@@ -91,7 +298,11 @@ def expected_closure_root(algo: str, records: list[str]) -> str:
     return f"{algo}:{digest.hexdigest()}"
 
 
-def validate(path: pathlib.Path) -> list[str]:
+def validate(
+    path: pathlib.Path,
+    pin_map: dict[str, list[tuple[str, str, str]]] | None = None,
+    loaded_profiles: frozenset[str] = frozenset(),
+) -> list[str]:
     errors: list[str] = []
     try:
         data = tomllib.loads(path.read_text())
@@ -149,6 +360,11 @@ def validate(path: pathlib.Path) -> list[str]:
         )
 
     records, input_errors = canonical_source_hash_inputs(data)
+    pinned_records, pinned_errors = pinned_closure_inputs(
+        data, pin_map or {}, loaded_profiles
+    )
+    records = records + pinned_records
+    input_errors = input_errors + pinned_errors
     for err in input_errors:
         errors.append(f"{path}: {err}")
     if input_errors:
@@ -300,6 +516,20 @@ def main(argv: list[str]) -> int:
         ),
     )
     parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        metavar="PREFIX",
+        help=(
+            "Path prefix (relative to the current directory) to skip during "
+            "--discover. Used by CI to keep deliberately-broken closure "
+            "fixtures (examples/negative/, conformance invalid cases) out of "
+            "the positive sweep; each excluded fixture MUST be asserted to "
+            "fail explicitly elsewhere (the negative-agreement CI step), "
+            "mirroring the [provenance] sweep's explicit exclusion."
+        ),
+    )
+    parser.add_argument(
         "--repo-root",
         default=".",
         help=(
@@ -311,12 +541,36 @@ def main(argv: list[str]) -> int:
     )
     args = parser.parse_args(argv)
 
+    repo_root = pathlib.Path(args.repo_root).resolve()
+    duplicates = duplicate_profile_names(repo_root)
+    if duplicates:
+        for dup in duplicates:
+            print(
+                f"FAIL {dup}: pin resolution refuses to proceed (SPEC §12.8.1)",
+                file=sys.stderr,
+            )
+        print("\nCLOSURE-ROOT VALIDATION FAILED: duplicate profile names.", file=sys.stderr)
+        return 1
+    pin_map = load_pinned_records(repo_root)
+    loaded_profiles = _loaded_profile_names(repo_root)
+
     if args.discover:
-        repo_root = pathlib.Path(args.repo_root).resolve()
         spec_reserved = spec_reserved_kinds(repo_root)
         targets = discover_conforming(
             [pathlib.Path(r) for r in args.discover], spec_reserved
         )
+        if args.exclude:
+            prefixes = [
+                pathlib.Path(prefix).resolve() for prefix in args.exclude
+            ]
+            kept = []
+            for target in targets:
+                resolved = target.resolve()
+                if any(resolved.is_relative_to(prefix) for prefix in prefixes):
+                    print(f"EXCLUDED (asserted-negative path): {target}")
+                    continue
+                kept.append(target)
+            targets = kept
         if not targets:
             print(
                 "CLOSURE-ROOT VALIDATION: no conforming TOMLs found "
@@ -336,7 +590,7 @@ def main(argv: list[str]) -> int:
             failures.append(f"{path}: does not exist")
             continue
         checked += 1
-        failures.extend(validate(path))
+        failures.extend(validate(path, pin_map, loaded_profiles))
 
     if failures:
         for f in failures:

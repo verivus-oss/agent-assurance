@@ -22,10 +22,20 @@ This validator enforces the hard invariants INV01..INV05 listed in
   INV05 — every entry of `contained_kinds` resolves to a `*-kind.toml`
           under repo root whose `[meta].describes_kind` matches the entry.
 
+  INV07: `closure_records` entries (spec.md §12.8.1) are well-formed:
+          exactly the keys contained_kind/field/presence; contained_kind
+          is in the post-`extends`-union contained_kinds; field matches
+          the frozen path grammar and is not closure_root,
+          provenance.source_sha256, a `meta.*` path, or a §12.9 posture
+          field; presence is "required" or "when-present"; and no
+          duplicate (contained_kind, field) pair survives the
+          post-`extends` union. (INV06 is the IJB ontology-resolution
+          invariant, enforced by validate_ijb_conformance.py.)
+
 The validator loads every profile-descriptor it finds under
-`profiles/*/PROFILE.toml` (plus any path passed on the command line)
-so the `extends` resolution can succeed across spec-reserved and
-locally-shipped non-spec-reserved profiles.
+`profiles/*/PROFILE.toml`; for each file under validation, that file
+itself (and only it) is merged into the resolution set, matching the
+primaries' fall-back semantics (U10 review fix 3).
 """
 
 from __future__ import annotations
@@ -37,8 +47,11 @@ import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
 
 
-UNPREFIXED_RE = re.compile(r"^[a-z][a-z0-9-]*$")
-REVERSE_DNS_RE = re.compile(r"^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$")
+# \Z, not $: Python's $ also matches before a trailing newline; rs/go
+# reject such names, so $ would be a cross-implementation divergence
+# (U10 review round 2, R2-1).
+UNPREFIXED_RE = re.compile(r"^[a-z][a-z0-9-]*\Z")
+REVERSE_DNS_RE = re.compile(r"^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+\Z")
 
 REQUIRED_PROFILE_FIELDS = (
     "name",
@@ -49,6 +62,18 @@ REQUIRED_PROFILE_FIELDS = (
     "ontology",
     "contained_kinds",
 )
+
+# INV07 (spec.md §12.8.1): profile-pinned closure records.
+CLOSURE_RECORD_KEYS = ("contained_kind", "field", "presence")
+CLOSURE_RECORD_PRESENCE = ("required", "when-present")
+# \Z, not $: see the equivalent note in validate_closure_root.py
+# (Python's $ tolerates a trailing newline; rs/go do not).
+CLOSURE_RECORD_FIELD_RE = re.compile(r"^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*\Z")
+CLOSURE_RECORD_FORBIDDEN_FIELDS = (
+    "closure_root",
+    "provenance.source_sha256",
+)
+POSTURE_FIELDS = ("confidentiality", "license", "embargo_until")
 
 
 def parse_args() -> argparse.Namespace:
@@ -125,6 +150,129 @@ def check_namespace_partition(name: str, namespace: str) -> list[str]:
                 f"[profile].namespace `{namespace}` is not a strict reverse-DNS "
                 f"prefix of name `{name}` (SPEC §2.5)"
             )
+    return errors
+
+
+def effective_profile_sets(
+    name: str,
+    descriptors: dict[str, tuple[pathlib.Path, dict]],
+) -> tuple[set[str], list[tuple[str, dict]]]:
+    """Union `contained_kinds` and `closure_records` across the
+    `extends` graph rooted at `name` (spec.md §6.1 rules 3 and 4).
+    Returns (effective_kinds, [(declaring_profile, record), ...])."""
+    kinds: set[str] = set()
+    records: list[tuple[str, dict]] = []
+    seen: set[str] = set()
+
+    def visit(node: str) -> None:
+        if node in seen or node not in descriptors:
+            return
+        seen.add(node)
+        _, doc = descriptors[node]
+        profile = doc.get("profile") or {}
+        for slug in profile.get("contained_kinds", []) or []:
+            if isinstance(slug, str):
+                kinds.add(slug)
+        recs = profile.get("closure_records")
+        if isinstance(recs, list):
+            for rec in recs:
+                if isinstance(rec, dict):
+                    records.append((node, rec))
+        for child in profile.get("extends", []) or []:
+            if isinstance(child, str):
+                visit(child)
+
+    visit(name)
+    return kinds, records
+
+
+def check_closure_records(
+    descriptor_path: pathlib.Path,
+    name: str,
+    profile: dict,
+    descriptors: dict[str, tuple[pathlib.Path, dict]],
+) -> list[str]:
+    """INV07 (spec.md §12.8.1): profile-pinned closure records."""
+    errors: list[str] = []
+    closure_records = profile.get("closure_records")
+    if closure_records is None:
+        closure_records = []
+    if not isinstance(closure_records, list):
+        return [
+            f"{descriptor_path}: [profile].closure_records must be an array "
+            f"of tables (INV07)"
+        ]
+
+    for index, entry in enumerate(closure_records):
+        where = f"{descriptor_path}: [[profile.closure_records]] entry {index}"
+        if not isinstance(entry, dict):
+            errors.append(f"{where} must be a table (INV07)")
+            continue
+        unknown = sorted(set(entry) - set(CLOSURE_RECORD_KEYS))
+        if unknown:
+            errors.append(
+                f"{where} carries unknown keys {unknown} (INV07: exactly "
+                f"contained_kind / field / presence)"
+            )
+        bad_shape = False
+        for key in CLOSURE_RECORD_KEYS:
+            value = entry.get(key)
+            if not isinstance(value, str) or not value:
+                errors.append(f"{where}.{key} must be a non-empty string (INV07)")
+                bad_shape = True
+        if bad_shape:
+            continue
+
+        field = entry["field"]
+        presence = entry["presence"]
+        if not CLOSURE_RECORD_FIELD_RE.match(field):
+            errors.append(
+                f"{where}.field `{field}` does not match the frozen path "
+                r"grammar ^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$ (INV07)"
+            )
+        elif (
+            field in CLOSURE_RECORD_FORBIDDEN_FIELDS
+            or field.split(".")[0] == "meta"
+            or field in POSTURE_FIELDS
+        ):
+            errors.append(
+                f"{where}.field `{field}` is a forbidden pin target (INV07: "
+                f"not closure_root, not provenance.source_sha256, no meta.* "
+                f"path, no §12.9 posture field)"
+            )
+        if presence not in CLOSURE_RECORD_PRESENCE:
+            errors.append(
+                f"{where}.presence `{presence}` must be one of "
+                f"{list(CLOSURE_RECORD_PRESENCE)} (INV07)"
+            )
+
+    effective_kinds, effective_records = effective_profile_sets(name, descriptors)
+
+    for index, entry in enumerate(closure_records):
+        if not isinstance(entry, dict):
+            continue
+        contained_kind = entry.get("contained_kind")
+        if isinstance(contained_kind, str) and contained_kind:
+            if contained_kind not in effective_kinds:
+                errors.append(
+                    f"{descriptor_path}: [[profile.closure_records]] entry "
+                    f"{index}.contained_kind `{contained_kind}` is not in the "
+                    f"post-extends-union contained_kinds (INV07)"
+                )
+
+    pairs: list[tuple[str, str]] = []
+    for _, rec in effective_records:
+        ck = rec.get("contained_kind")
+        fld = rec.get("field")
+        if isinstance(ck, str) and isinstance(fld, str):
+            pairs.append((ck, fld))
+    duplicates = sorted({pair for pair in pairs if pairs.count(pair) > 1})
+    for ck, fld in duplicates:
+        errors.append(
+            f"{descriptor_path}: duplicate closure-record pin "
+            f"(`{ck}`, `{fld}`) after the extends union (INV07)"
+        )
+
     return errors
 
 
@@ -231,7 +379,7 @@ def validate_one(
             errors.append(
                 f"{descriptor_path}: [profile].extends entry `{entry}` does not "
                 f"resolve to a loaded profile-descriptor (looked under "
-                f"`profiles/*/PROFILE.toml` and the explicit --files set)"
+                f"`profiles/*/PROFILE.toml` and the file under validation)"
             )
 
     # INV04 — ontology path exists and is an ontology
@@ -286,6 +434,9 @@ def validate_one(
                 f"(searched: {[str(c) for c in candidates]})"
             )
 
+    # INV07: profile-pinned closure records (spec.md §12.8.1)
+    errors.extend(check_closure_records(descriptor_path, name, profile, descriptors))
+
     return errors
 
 
@@ -322,27 +473,58 @@ def main() -> int:
     repo_root = pathlib.Path(args.repo_root).resolve()
     descriptors = discover_descriptors(repo_root)
 
-    # Make sure any descriptor passed explicitly on the CLI is also in
-    # the discovered set, so `extends` referencing it resolves even if
-    # the file lives outside `profiles/*/PROFILE.toml`.
-    for raw in args.files:
-        path = pathlib.Path(raw).resolve()
-        try:
-            doc = load_toml(path)
-        except (FileNotFoundError, tomllib.TOMLDecodeError):
-            continue
-        meta = doc.get("meta") or {}
-        if meta.get("template_kind") != "profile-descriptor":
-            continue
-        profile = doc.get("profile") or {}
-        name = profile.get("name")
-        if isinstance(name, str) and name not in descriptors:
-            descriptors[name] = (path, doc)
+    # Duplicate profile names would shadow each other in the name-keyed
+    # map and could erase closure pins; refuse to validate anything
+    # (SPEC 12.8.1 pin resolution, mirrored by the closure validators).
+    seen_names: dict[str, pathlib.Path] = {}
+    duplicate_errors: list[str] = []
+    profiles_dir = repo_root / "profiles"
+    if profiles_dir.is_dir():
+        for entry in sorted(profiles_dir.iterdir()):
+            candidate = entry / "PROFILE.toml"
+            if not candidate.is_file():
+                continue
+            try:
+                dup_doc = load_toml(candidate)
+            except (FileNotFoundError, tomllib.TOMLDecodeError):
+                continue
+            if (dup_doc.get("meta") or {}).get("template_kind") != "profile-descriptor":
+                continue
+            dup_name = (dup_doc.get("profile") or {}).get("name")
+            if not isinstance(dup_name, str):
+                continue
+            if dup_name in seen_names:
+                duplicate_errors.append(
+                    f"duplicate profile-descriptor name `{dup_name}` "
+                    f"({seen_names[dup_name]} and {candidate}): pin resolution "
+                    f"refuses to proceed (SPEC §12.8.1)"
+                )
+            else:
+                seen_names[dup_name] = candidate
+    if duplicate_errors:
+        print("PROFILE DESCRIPTOR VALIDATION FAILED")
+        for line in duplicate_errors:
+            print(f"- {line}")
+        return 1
 
     all_errors: list[str] = []
     for raw in args.files:
         path = pathlib.Path(raw).resolve()
-        errs = validate_one(path, repo_root, descriptors)
+        # Merge ONLY the file under validation into the resolution set
+        # (rs/go resolve the root through the discovered map with a
+        # fall-back to the document itself; a global merge of every CLI
+        # file would give Python cross-file extends resolution the
+        # primaries do not have; U10 review, fix 3).
+        per_file = dict(descriptors)
+        try:
+            doc = load_toml(path)
+        except (FileNotFoundError, tomllib.TOMLDecodeError):
+            doc = None
+        if doc is not None and (doc.get("meta") or {}).get("template_kind") == "profile-descriptor":
+            name = (doc.get("profile") or {}).get("name")
+            if isinstance(name, str) and name not in per_file:
+                per_file[name] = (path, doc)
+        errs = validate_one(path, repo_root, per_file)
         if errs:
             all_errors.append(f"--- {path} ---")
             all_errors.extend(errs)

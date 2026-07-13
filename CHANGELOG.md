@@ -9,6 +9,167 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **U10 review gate CLOSED: 3 of 3 unconditional external approvals
+  (rounds 3-5).** Round 3 proved the new pin-resolution guard script's
+  guard 4 vacuously true under mutation and it was corrected (the
+  trailing-newline name is now the fixture's only defect;
+  mutation-verified) with a fifth guard pinning the newline-closure_root
+  parity verdict; round 4 confirmed every behavioural surface across all
+  three reviewers (grok unconditional) leaving two documentation items;
+  round 5 closed with codex and gemini unconditional at 57d1647. Full
+  five-round evidence under
+  `docs/reviews/2026-07-13-closure-record-form-promotion-impl/`. The
+  stack is merge-eligible; merge remains gated on the code-owner PR
+  approval.
+
+- **U10 implementation-review round 2 fixes.** Round 2 verified all
+  round-1 fixes and exposed two incomplete sweeps, both fixed across the
+  triad with regressions: the remaining `$`-anchored name regexes in the
+  Python profile-descriptor validator (a trailing-newline profile name
+  was accepted where the primaries reject; now backslash-Z, with
+  CLOSURE_ROOT_RE hardened the same way) and the kind-descriptor
+  candidate enumeration in both primaries not following symlinked
+  profile directories (descriptor discovery was fixed in round 1, the
+  candidate path was not). The alternate-root regressions are now
+  executable: `validators/check_pin_resolution_guards.sh` constructs the
+  duplicate-name, symlinked-profile, symlinked-kind-candidate, and
+  newline-name roots at run time and asserts three-way agreement, wired
+  as a CI behavioural guard. Record counts pinned to refs; stale corpus
+  and coverage numbers corrected.
+
+- **U10 implementation-review fixes for the closure-record-form
+  promotion.** The independent multi-LLM implementation review (evidence
+  under `docs/reviews/2026-07-13-closure-record-form-promotion-impl/`)
+  returned consensus approval with required fixes; all applied: Python's
+  pinned-value and pin-field regexes re-anchored with backslash-Z (the $
+  anchor accepted a trailing newline the primaries reject); duplicate
+  profile-descriptor names now make all three validators refuse to
+  validate anything (fail-closed; a duplicate could shadow pins and
+  reopen the pin-free fall-through the frozen rule forbids); the Go
+  primary follows symlinked profile directories like rs/py; the Python
+  profile-descriptor validator merges only the file under validation
+  into extends resolution, matching the primaries. Four conformance
+  cases added (missing/unresolvable framework_profile, unwitnessed
+  three-record positive, trailing-newline regression; corpus now 29
+  cases, rs/go/py agree). Also recorded during the U05-U07 porting: the
+  extends double-emission dedup fix (a2d6b92), proven by the persisted
+  parity harness (`research/03-parity-harness.md`).
+
+- **Cross-implementation verification record for the closure-record-form
+  promotion (U10).** Full sweep recorded in
+  `docs/planning/closure-record-form-promotion/research/02-verification-record.md`:
+  closure discover 79/80 conforming files on a clean tree (pinned to the
+  refs measured), 29-case conformance corpus with rs/go/py agreement, INV07 parity across all three profile-descriptor validators,
+  every wired negative rejected, posture-flip demonstration (C05), and
+  the C01-C06 contract evidence with recorded boundaries and file-list
+  deviations. Merge remains gated on the independent multi-LLM
+  implementation review per tools/review-request-dag.toml.
+
+- **api-snapshot conformance corpus + Python closure step in the runner
+  (U09 of the closure-record-form promotion).** New
+  `conformance/cases/api-snapshot/` cases (four-record positive;
+  witness-strip stale root; missing required pin; malformed pinned
+  digest); `conformance/runner.py` registers the api-snapshot Python
+  validator and now runs `validate_closure_root.py` on every fixture of
+  every kind, making cross-implementation closure parity (contract C01)
+  non-vacuous on the Python side. Corpus: 25 cases, rs/go/py agree on
+  all. Invalid corpus cases are excluded from the positive closure sweep
+  alongside `examples/negative/`.
+
+- **com.verivus.runtime pins the api-snapshot closure records; witness
+  stripping is now detectable at the closure root (U08 of the
+  closure-record-form promotion).** `PROFILE.toml` pins
+  `snapshot.request.descriptor_sha256` (required),
+  `snapshot.response.body_sha256` (required), and
+  `snapshot.witness.attestation_sha256` (when-present) per SPEC 12.8.1;
+  the api-snapshot kind's CLOSURE LAYERING prose and RKV01 now describe the
+  four-record stream, and RKV03 is amended (witness digest/identity fields
+  MUST be absent at `present = false`, enforced by
+  `validate_api_snapshot.py`; the primaries do not implement RKV03, an
+  explicitly recorded boundary). The shipped example re-roots to the
+  four-record value `sha256:013f3d34...`; the blessed negatives re-root to
+  their pinned-stream values; `api-snapshot-bad-closure` inverts polarity
+  (now blessed, carrying the stale source-only root); new negatives
+  `api-snapshot-witness-stripped` (stale four-record root, rejected by all
+  three closure implementations: contract C02) and
+  `api-snapshot-witness-lingering-digest` (closure-valid, rejected by
+  amended RKV03). The CI closure sweep now explicitly excludes
+  `examples/negative/` (each exclusion is asserted to fail in the
+  negative-agreement step), via the new `--exclude` option on
+  `validate_closure_root.py --discover`.
+
+- **Go primary consumes profile-pinned closure records (U07 of the
+  closure-record-form promotion).** `tools/dagtoml-validate-go` mirrors U06:
+  kind-keyed pin map from the discovered descriptor set (extends union,
+  (field, presence) dedup), SPEC 12.8.1 record emission and pin resolution
+  in every closure-validating mode, verdict parity with the Python
+  reference and the Rust primary on the nine-case matrix. No `unsafe`
+  import; stdlib only.
+
+- **Rust primary consumes profile-pinned closure records (U06 of the
+  closure-record-form promotion).** `tools/dagtoml-validate-rs` builds the
+  kind-keyed pin map from the discovered profile-descriptor set (extends
+  union, (field, presence) dedup) and applies SPEC 12.8.1 record emission
+  and pin resolution in every closure-validating mode (auto and
+  provenance), with verdicts identical to the Python reference across the
+  nine-case pin parity matrix. `#![forbid(unsafe_code)]` intact; no new
+  dependencies.
+
+- **Python closure validator consumes profile-pinned closure records (U05
+  of the closure-record-form promotion).** `validators/validate_closure_root.py`
+  now loads every `profiles/*/PROFILE.toml` under `--repo-root`, unions
+  `closure_records` across `extends`, resolves pins by `template_kind`
+  (SPEC 12.8.1: no pin-free fall-through for a pinned kind; missing or
+  unresolvable `framework_profile` on a pinned-kind document is rejected),
+  and folds the labeled `<field> <sha256:hex>` records into the sorted
+  SPEC 12.8 stream. Documents of unpinned kinds keep byte-identical
+  verdicts (no shipped profile pins records until U08).
+
+- **INV07 enforcement across the triad (U04 of the closure-record-form
+  promotion).** The profile-pinned closure-record declaration rules of SPEC
+  12.8.1 are now mechanically enforced by all three profile-descriptor
+  validators: `validators/validate_profile_descriptor.py` (reference), the
+  Rust primary, and the Go primary, with byte-identical verdicts on the new
+  negative fixture
+  `examples/negative/profile-descriptor-bad-closure-record.toml` (wired
+  into the CI negative-agreement step under `--mode profile`). INV07 is
+  declared in `core/profile-descriptor-kind.toml`. No profile pins records
+  yet; the com.verivus.runtime pinning lands in U08.
+
+- **SPEC text for profile-pinned closure records (U03 of the
+  closure-record-form promotion).** Normative additions under the recorded
+  U02 GO: SPEC 12.8.1 (the `[[profile.closure_records]]` declaration, the
+  byte-frozen field-path grammar, `required`/`when-present` semantics, the
+  labeled `<field> <sha256:hex>` record emission into the sorted 12.8
+  stream, and the kind-keyed pin-resolution rule that forbids a pin-free
+  fall-through for pinned kinds); the SPEC 12.1 profile-input enumeration
+  amendment; the `closure_records` row and extends-union rule in the SPEC
+  6.1 profile-descriptor table (INV07); and the SPEC 12.9 posture-exclusion
+  cross-reference. Text only: validators, profiles, and fixtures follow in
+  U04-U09; no shipped document changes verdict in this change.
+
+- **Profile-pinned closure record forms (SPEC 12.8 promotion): planning pack
+  + design review + freeze preparation.** Added the self-validating
+  governance pack under
+  [`docs/planning/closure-record-form-promotion/`](docs/planning/closure-record-form-promotion/)
+  (design, implementation plan, 10-unit implementation DAG with a hard
+  grammar-freeze gate at U02, contracts C01-C06, readiness gates G01/G02,
+  evidence matrix, rollback plan) scoping the promotion that lets a
+  profile-descriptor pin additional labeled closure records
+  (`[[profile.closure_records]]`, new invariant INV07) into the SPEC 12.8
+  stream; first user is the `com.verivus.runtime` `api-snapshot` kind, whose
+  witness attestation digest becomes a `when-present` closure input so
+  witness stripping is detectable at an anchored `closure_root`. Completed
+  the independent cross-LLM design review (U01; evidence under
+  [`docs/reviews/2026-07-13-closure-record-form-promotion-design/`](docs/reviews/2026-07-13-closure-record-form-promotion-design/),
+  all required fixes applied, including the witness-downgrade RKV03
+  amendment and the recast pin-resolution rule) and prepared the U02
+  grammar-freeze record with the compatibility sweep (105 conforming
+  documents; 100 byte-identical; exactly the 5 enumerated api-snapshot
+  instances change verdicts). **No spec text, validator, profile, or fixture
+  changes land in this change**; U03+ remain blocked on the operator
+  STOP/GO in `research/01-grammar-freeze-decision.md`.
+
 ### Fixed
 
 - **CI: zizmor findings on the CLA workflow (unblocks all PR checks).**

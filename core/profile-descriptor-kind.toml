@@ -219,6 +219,15 @@ see_also    = "foundations/ijb/primitives.md"
 ijb_primitive       = "constraint"
 ijb_constraint_type = "structural"
 
+[[kind.hard_invariants]]
+id          = "INV07"
+statement   = "Every `[[profile.closure_records]]` entry (profile-pinned closure records, SPEC 12.8.1) carries exactly `contained_kind` / `field` / `presence`; `contained_kind` is a member of the post-`extends`-union `contained_kinds`; `field` matches `^[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*$` and is not `closure_root`, not `provenance.source_sha256`, not a `meta.*` path, and not a SPEC 12.9 posture field; `presence` is `required` or `when-present`; and no duplicate (`contained_kind`, `field`) pair survives the post-`extends` union."
+enforced_by = "validators/validate_profile_descriptor.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also    = "spec.md §12.8.1"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
 [[kind.example]]
 name           = "agent-assurance profile descriptor"
 file           = "profiles/agent-assurance/PROFILE.toml"

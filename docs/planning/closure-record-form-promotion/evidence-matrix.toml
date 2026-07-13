@@ -1,0 +1,133 @@
+# Evidence matrix: profile-pinned closure record forms promotion.
+# Links the promotion's claims to the pack documents and prospective
+# test/conformance evidence. Claims about post-promotion behaviour are
+# scoped as prospective until the corresponding units complete.
+
+# Empty-closure sentinel: SHA-256("") as required by SPEC 12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "evidence-matrix"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+title          = "Evidence matrix: profile-pinned closure record forms promotion"
+status         = "draft"
+created        = "2026-07-12"
+review_subject = "closure-record-form-promotion"
+
+[[claims]]
+id    = "E01"
+claim = "scope_is_complete_and_validated"
+scope_covered    = [
+  "the implementation DAG decomposes the promotion into 10 units behind a grammar-freeze gate",
+  "contracts declare parity, stripping detection, backward compatibility, enumerability, posture exclusion, and gate precedence",
+]
+known_exclusions = [
+  "does not prove the grammar is sound: that is the design review plus the freeze decision (U01/U02)",
+]
+status = "draft"
+
+[[claims]]
+id    = "E02"
+claim = "grammar_frozen_and_compat_swept_before_any_implementation"
+scope_covered    = [
+  "readiness gate G02 blocks U03+ until the freeze decision, sweep, review evidence, and operator sign-off exist",
+]
+known_exclusions = [
+  "the freeze decision itself is prospective until U02 completes",
+]
+status = "draft"
+
+[[claims]]
+id    = "E03"
+claim = "witness_stripping_detectable_at_the_closure_root_post_promotion"
+scope_covered    = [
+  "the witness-stripped negative fixture is rejected by all three implementations (C02)",
+]
+known_exclusions = [
+  "evidenced 2026-07-13 by U08/U09: witness-stripped fixture rejected by all three closure implementations; see research/02-verification-record.md",
+  "does not cover unanchored self-attested documents an attacker fully re-roots: that remains the declared tier-0 posture",
+  "the lingering-digest downgrade is rejected at the Python kind layer only (recorded RKV03 boundary)",
+]
+status = "verified"
+
+[[claims]]
+id    = "E04"
+claim = "cross_impl_parity_on_pinned_records"
+scope_covered    = [
+  "rs/go/py agree on every api-snapshot conformance case and every parity-matrix row (C01)",
+  "the runner exercises Python closure explicitly, so the parity claim is non-vacuous",
+]
+known_exclusions = [
+  "evidenced 2026-07-13: 29-case corpus rs/go/py agreement with the runner's Python closure step active; see research/02-verification-record.md",
+]
+status = "verified"
+
+[[evidence]]
+id            = "EV01"
+artifact_path = "docs/planning/closure-record-form-promotion/implementation-dag.toml"
+summary       = "The 10-unit promotion DAG with the grammar-freeze gate (U02) upstream of every spec/validator/profile change."
+
+[[evidence]]
+id            = "EV02"
+artifact_path = "docs/planning/closure-record-form-promotion/contract-declaration.toml"
+summary       = "Contracts C01-C06: parity, cascade-break/stripping detection, backward compatibility, enumerability, posture exclusion, gate precedence."
+
+[[evidence]]
+id            = "EV03"
+artifact_path = "docs/planning/closure-record-form-promotion/readiness-gate.toml"
+summary       = "Readiness gates G01 (planning pack) and G02 (grammar freeze), the latter blocking all implementation units."
+
+[[evidence]]
+id            = "EV04"
+artifact_path = "docs/planning/closure-record-form-promotion/research/01-grammar-freeze-decision.md"
+summary       = "Prospective: the recorded grammar-freeze go/no-go with the compatibility sweep, produced by U02."
+
+[[evidence]]
+id            = "EV05"
+artifact_path = "docs/planning/closure-record-form-promotion/research/02-verification-record.md"
+summary       = "The U10 cross-implementation verification record with C01-C06 evidence (recorded 2026-07-13; implementation review pending before merge)."
+
+[[matrix]]
+id              = "M01"
+claim_id        = "E01"
+evidence_id     = "EV01"
+scope_covered   = "the DAG decomposes the promotion behind the freeze gate"
+known_exclusions = ["does not prove grammar soundness"]
+
+[[matrix]]
+id              = "M02"
+claim_id        = "E01"
+evidence_id     = "EV02"
+scope_covered   = "contracts declare the load-bearing invariants"
+known_exclusions = ["contracts are declared, not yet verified"]
+
+[[matrix]]
+id              = "M03"
+claim_id        = "E02"
+evidence_id     = "EV03"
+scope_covered   = "gate G02 blocks implementation until freeze + sweep + review + sign-off"
+known_exclusions = ["gate is authored; its pass condition is prospective"]
+
+[[matrix]]
+id              = "M04"
+claim_id        = "E02"
+evidence_id     = "EV04"
+scope_covered   = "the freeze decision records the frozen grammar and sweep outcome"
+known_exclusions = ["prospective: produced by U02, not yet recorded"]
+
+[[matrix]]
+id              = "M05"
+claim_id        = "E03"
+evidence_id     = "EV05"
+scope_covered   = "the witness-stripped fixture rejection is recorded in the verification record"
+known_exclusions = ["prospective: holds only once U08-U10 complete"]
+
+[[matrix]]
+id              = "M06"
+claim_id        = "E04"
+evidence_id     = "EV05"
+scope_covered   = "rs/go/py parity on pinned records is recorded, with the Python closure step active"
+known_exclusions = ["prospective: holds only once U09/U10 complete"]

@@ -41,3 +41,22 @@ contained_kinds   = [
 ]
 ijb_primitive     = "thing"
 ijb_class         = "structural"
+
+# Profile-pinned closure records (SPEC 12.8.1, INV07). These promote the
+# api-snapshot component digests and the witness attestation digest into
+# the closure stream, so component swaps and witness stripping change
+# `closure_root` and cascade-break downstream citations.
+[[profile.closure_records]]
+contained_kind = "api-snapshot"
+field          = "snapshot.request.descriptor_sha256"
+presence       = "required"
+
+[[profile.closure_records]]
+contained_kind = "api-snapshot"
+field          = "snapshot.response.body_sha256"
+presence       = "required"
+
+[[profile.closure_records]]
+contained_kind = "api-snapshot"
+field          = "snapshot.witness.attestation_sha256"
+presence       = "when-present"

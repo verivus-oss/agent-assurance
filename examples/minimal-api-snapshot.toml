@@ -1,9 +1,11 @@
 # Minimal api-snapshot: one witnessed GET of a USD/AUD quote.
-# closure_root is the SPEC 12.8 source-hash closure over provenance.source_sha256.
+# closure_root is the SPEC 12.8 stream over provenance.source_sha256 plus the
+# three profile-pinned closure records (descriptor, body, witness attestation;
+# SPEC 12.8.1, pinned in this profile's PROFILE.toml).
 # Every digest below is a real SHA-256 over the committed capture/attestation
 # artefacts under examples/captures/ and is independently recomputable.
 
-closure_root = "sha256:f251f64bc6170cb32a4b3c0bcc10d520247c41e7bbf22587d206108e6d19098c"
+closure_root = "sha256:013f3d34bab26a1b9d9fd77ff03aae76a3b07ee112c4995dc5ef448b2d1796db"
 
 [meta]
 schema_version = "0.1.0"

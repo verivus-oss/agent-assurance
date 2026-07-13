@@ -343,6 +343,20 @@ jobs:
           for path in sorted(root.rglob("*.toml")):
               if any(part.startswith(".") or part in skip_dirs for part in path.parts):
                   continue
+              # examples/negative/ holds deliberately-broken fixtures,
+              # including SPEC 12.8/12.8.1 closure negatives with stale
+              # roots; every one of them is asserted to FAIL explicitly
+              # in the negative-agreement step below. Keeping them out of
+              # the positive closure sweep mirrors the [provenance]
+              # sweep's explicit exclusion.
+              if path.as_posix().startswith("examples/negative/"):
+                  continue
+              # Same rule for conformance invalid cases: they are
+              # asserted-negative fixtures the runner requires all three
+              # implementations to reject (some are deliberately
+              # closure-invalid, e.g. the api-snapshot witness-strip case).
+              if path.as_posix().startswith("conformance/cases/") and "/invalid/" in path.as_posix():
+                  continue
               try:
                   data = tomllib.loads(path.read_text())
               except Exception:
@@ -361,7 +375,9 @@ jobs:
           "${RUNNER_TEMP}/dagtoml-validate-go" \
             --repo-root . --mode provenance "${closure_targets[@]}"
           python3 validators/validate_closure_root.py \
-            --discover .
+            --discover . --exclude examples/negative \
+            --exclude conformance/cases/implementation-dag/invalid \
+            --exclude conformance/cases/api-snapshot/invalid
 
       - name: Validate kind descriptors
         run: |
@@ -733,6 +749,21 @@ jobs:
             examples/negative/abstraction-class-unknown-domain.toml \
             --repo-root .
 
+          # INV07 (SPEC 12.8.1): profile-pinned closure-record declarations.
+          # The fixture carries an out-of-union contained_kind, a meta.*
+          # posture pin, a provenance.source_sha256 double-pin, and a bad
+          # presence value; all three implementations must reject it.
+          check_rejects "rust profile-descriptor closure-records" \
+            "$rs" --repo-root . --mode profile \
+            examples/negative/profile-descriptor-bad-closure-record.toml
+          check_rejects "go profile-descriptor closure-records" \
+            "$go_bin" --repo-root . --mode profile \
+            examples/negative/profile-descriptor-bad-closure-record.toml
+          check_rejects "python profile-descriptor closure-records" \
+            python3 validators/validate_profile_descriptor.py \
+            examples/negative/profile-descriptor-bad-closure-record.toml \
+            --repo-root .
+
           # Gate-decision separation-of-duty boundary: a "pass" verdict
           # carrying non-empty (string-typed) failed_constraint_refs must
           # be rejected by all three. Pins the Rust/Go divergence fixed in
@@ -749,8 +780,9 @@ jobs:
             --repo-root .
 
           # com.verivus.runtime api-snapshot negatives.
-          # bad-closure: carries the profile-proposed four-input closure value;
-          # the shipped source-only SPEC §12.8 fold rejects it in all three.
+          # bad-closure: carries the pre-promotion source-only root; since the
+          # profile pinned the component + witness digests (SPEC 12.8.1), the
+          # expected root is the four-record stream, so all three reject it.
           check_rejects "rust api-snapshot bad-closure" \
             "$rs" --repo-root . --mode provenance \
             examples/negative/api-snapshot-bad-closure.toml
@@ -760,6 +792,21 @@ jobs:
           check_rejects "python api-snapshot bad-closure" \
             python3 validators/validate_closure_root.py \
             examples/negative/api-snapshot-bad-closure.toml
+
+          # witness-stripped: [snapshot.witness] removed but the stale
+          # four-record root kept. Proves contract C02 of the
+          # closure-record-form promotion: witness stripping changes the
+          # expected root, so the stale (or anchored) root is rejected by
+          # the SPEC 12.8.1 closure in all three implementations.
+          check_rejects "rust api-snapshot witness-stripped (12.8.1)" \
+            "$rs" --repo-root . --mode provenance \
+            examples/negative/api-snapshot-witness-stripped.toml
+          check_rejects "go api-snapshot witness-stripped (12.8.1)" \
+            "$go_bin" --repo-root . --mode provenance \
+            examples/negative/api-snapshot-witness-stripped.toml
+          check_rejects "python api-snapshot witness-stripped (12.8.1)" \
+            python3 validators/validate_closure_root.py \
+            examples/negative/api-snapshot-witness-stripped.toml
 
           # bad-ijb: an ontology vocab block illegally declares ijb_class.
           check_rejects "rust api-snapshot bad-ijb" \
@@ -792,6 +839,14 @@ jobs:
           check_rejects "python api-snapshot magic-no-markers (RKV01 fail-closed)" \
             python3 validators/validate_api_snapshot.py --repo-root . \
             examples/negative/api-snapshot-magic-no-markers.toml
+          # Amended RKV03: witness digest/identity fields MUST be absent at
+          # present=false. The fixture is deliberately closure-VALID (the
+          # lingering digest keeps its when-present record in the stream),
+          # so this is a Python kind-layer rejection; the all-three
+          # closure-level stripping test is witness-stripped above.
+          check_rejects "python api-snapshot witness-lingering-digest (RKV03)" \
+            python3 validators/validate_api_snapshot.py --repo-root . \
+            examples/negative/api-snapshot-witness-lingering-digest.toml
 
       - name: Provenance source_path containment guard (SPEC §11)
         # Behavioural guard: a static fixture cannot isolate the
@@ -802,6 +857,17 @@ jobs:
         run: |
           set -e
           validators/check_provenance_containment.sh \
+            "${RUNNER_TEMP}/dagtoml-validate-rs" \
+            "${RUNNER_TEMP}/dagtoml-validate-go"
+
+      - name: Pin-resolution behavioural guards (SPEC 12.8.1)
+        # Duplicate-name fail-closed, symlinked-profile discovery (pin
+        # map AND kind-descriptor candidates), and trailing-newline name
+        # rejection: adversarial roots that cannot live in-tree,
+        # constructed at run time. Origin: U10 review rounds 1-2.
+        run: |
+          set -e
+          validators/check_pin_resolution_guards.sh \
             "${RUNNER_TEMP}/dagtoml-validate-rs" \
             "${RUNNER_TEMP}/dagtoml-validate-go"
 

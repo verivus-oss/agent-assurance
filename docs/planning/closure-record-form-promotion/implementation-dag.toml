@@ -1,0 +1,241 @@
+# Implementation DAG: promote profile-pinned closure record forms
+# (SPEC 12.8) so a profile-descriptor can declare additional labeled
+# closure inputs, starting with the com.verivus.runtime api-snapshot
+# component digests (descriptor, body, attestation-when-present).
+#
+# The load-bearing constraint this DAG encodes: the record grammar must
+# be frozen and reviewed (U01/U02) BEFORE any of the three closure
+# implementations is touched, and the three implementations plus the
+# profile pinning must merge as one reviewed stack, because the repo
+# invariant is that rs/go/py AGREE on every fixture. The witness-strip
+# detection contract (C02) is the property the promotion exists for.
+#
+# Self-contained planning document (no upstream evidence), so it carries
+# the empty-closure sentinel.
+
+# Empty-closure sentinel: SHA-256("") as required by SPEC 12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind  = "implementation-dag"
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+title          = "Promote profile-pinned closure record forms into the SPEC 12.8 stream"
+spec           = "docs/planning/closure-record-form-promotion/01_design.md"
+decomposition  = "docs/planning/closure-record-form-promotion/03_implementation_plan.md"
+created        = "2026-07-12"
+total_units    = 10
+tier1_units    = ["U01", "U02"]
+tier2_units    = ["U03", "U04", "U05", "U06", "U07", "U08"]
+tier3_units    = ["U09", "U10"]
+
+[units.U01]
+name           = "design-pack-and-cross-llm-design-review"
+summary        = "Complete this planning bundle (design, plan, contracts, gates, evidence matrix, rollback plan), validate every TOML artifact with the shipped validators, and dispatch the independent cross-LLM design review. The initiator does not approve; review evidence is persisted under docs/reviews/. DONE 2026-07-13: pack validated by all three implementations; codex/gemini/grok final verdicts APPROVAL WITH REQUIRED FIXES (two round-1 BLOCKERs converted on concrete amendments), all enumerated fixes applied to the pack; evidence at docs/reviews/2026-07-13-closure-record-form-promotion-design/ (private-repository findings redacted there and persisted in that repository)."
+layer          = 0
+tier           = 1
+status         = "done"
+depends_on     = []
+blocks         = ["U02"]
+estimated_loc  = 80
+files_create   = [
+  "docs/planning/closure-record-form-promotion/01_design.md",
+  "docs/planning/closure-record-form-promotion/03_implementation_plan.md",
+  "docs/planning/closure-record-form-promotion/contract-declaration.toml",
+  "docs/planning/closure-record-form-promotion/implementation-dag.toml",
+  "docs/planning/closure-record-form-promotion/readiness-gate.toml",
+  "docs/planning/closure-record-form-promotion/evidence-matrix.toml",
+  "docs/planning/closure-record-form-promotion/rollback-plan.toml",
+  "docs/planning/closure-record-form-promotion/README.md",
+]
+files_modify   = []
+produces       = ["ART:design-pack-reviewed"]
+consumes       = []
+
+[units.U02]
+name           = "grammar-freeze-go-no-go-and-compat-sweep"
+summary        = "Freeze the record grammar (record shape, field-path regex, presence semantics, the pin-resolution rule, INV07 constraints, the RKV03 amendment and its enforcement boundary) incorporating design-review findings; run the compatibility sweep enumerating every conforming document's before/after closure verdict; record GO only if the sole verdict changes are the enumerated com.verivus.runtime instances. Operator STOP/GO sign-off required. If the sweep finds an unenumerated invalidation, halt here with the blocker recorded (C06). IN PROGRESS 2026-07-13: freeze record prepared with the byte-level grammar and the sweep (105 conforming docs, 100 byte-identical, exactly the 5 enumerated instances change); GO recorded 2026-07-13 with operator sign-off in research/01-grammar-freeze-decision.md section 5. U03+ cleared."
+layer          = 1
+tier           = 1
+status         = "done"
+depends_on     = ["U01"]
+blocks         = ["U03", "U04"]
+estimated_loc  = 60
+files_create   = ["docs/planning/closure-record-form-promotion/research/01-grammar-freeze-decision.md"]
+files_modify   = []
+produces       = ["ART:grammar-freeze-decision"]
+consumes       = ["ART:design-pack-reviewed"]
+
+[units.U03]
+name           = "spec-text-12-8-and-6-1"
+summary        = "Land the normative spec text: the SPEC 12.1 profile-input enumeration amendment (admit pinned instance-local digest fields), the profile-pinned record grammar in SPEC 12.8 (byte-level record shape, frozen field-path regex, presence semantics, the frozen pin-resolution rule, sort/concat/digest and sentinel unchanged), the closure_records field in the SPEC 6.1 profile-descriptor table, and the SPEC 12.9 cross-reference forbidding meta/posture pins. CHANGELOG under Unreleased."
+layer          = 2
+tier           = 2
+status         = "done"
+depends_on     = ["U02"]
+blocks         = ["U05", "U06", "U07"]
+estimated_loc  = 120
+files_create   = []
+files_modify   = [
+  "spec.md",
+  "CHANGELOG.md",
+]
+produces       = ["ART:spec-pinned-record-grammar"]
+consumes       = ["ART:grammar-freeze-decision"]
+
+[units.U04]
+name           = "profile-descriptor-inv07"
+summary        = "Add INV07 (INV06 is already defined by core/profile-descriptor-kind.toml): closure_records entries must reference contained kinds, match the frozen field-path regex, be non-meta non-posture, not pin closure_root or provenance.source_sha256, use presence in {required, when-present}, inherit through extends with post-union duplicate rejection, and carry sha256-only values. Enforce in validate_profile_descriptor.py AND port to the Rust/Go primaries (both natively enforce the existing profile invariants); declare INV07 in core/profile-descriptor-kind.toml in the same change per the move-together rule. Add rejection fixtures for each case. CHANGELOG under Unreleased."
+layer          = 2
+tier           = 2
+status         = "done"
+depends_on     = ["U02"]
+blocks         = ["U05", "U06", "U07"]
+estimated_loc  = 260
+files_create   = []
+files_modify   = [
+  "validators/validate_profile_descriptor.py",
+  "tools/dagtoml-validate-rs/src/main.rs",
+  "tools/dagtoml-validate-go/main.go",
+  "core/profile-descriptor-kind.toml",
+  "CHANGELOG.md",
+]
+produces       = ["ART:inv07-enforced"]
+consumes       = ["ART:grammar-freeze-decision"]
+
+[units.U05]
+name           = "python-closure-pinned-records"
+summary        = "Teach validators/validate_closure_root.py the pinned-record grammar: load profile descriptors under --repo-root, build the contained_kind to pinned-declarations map (post-extends union), implement the frozen pin-resolution rule inside the closure path, extend canonical_source_hash_inputs to emit the labeled records, and implement the failure-mode parity matrix rows. CHANGELOG under Unreleased."
+layer          = 3
+tier           = 2
+status         = "done"
+depends_on     = ["U03", "U04"]
+blocks         = ["U08"]
+estimated_loc  = 160
+files_create   = []
+files_modify   = [
+  "validators/validate_closure_root.py",
+  "CHANGELOG.md",
+]
+produces       = ["ART:python-pinned-records"]
+consumes       = ["ART:spec-pinned-record-grammar", "ART:inv07-enforced"]
+
+[units.U06]
+name           = "rust-primary-pinned-records"
+summary        = "Extend tools/dagtoml-validate-rs source_hash_records/validate_closure_root to consume the already-discovered profile-descriptor map, apply the frozen pin-resolution rule in every mode that validates closure_root (including provenance mode), and emit pinned records per the frozen grammar, with the same failure-mode verdicts as U05. forbid(unsafe_code) preserved. CHANGELOG under Unreleased."
+layer          = 3
+tier           = 2
+status         = "done"
+depends_on     = ["U03", "U04"]
+blocks         = ["U08"]
+estimated_loc  = 180
+files_create   = []
+files_modify   = [
+  "tools/dagtoml-validate-rs/src/main.rs",
+  "CHANGELOG.md",
+]
+produces       = ["ART:rust-pinned-records"]
+consumes       = ["ART:spec-pinned-record-grammar", "ART:inv07-enforced"]
+
+[units.U07]
+name           = "go-primary-pinned-records"
+summary        = "Extend tools/dagtoml-validate-go sourceHashRecords/validateClosureRoot to consume the already-discovered profile-descriptor map, apply the frozen pin-resolution rule in every mode that validates closure_root (including provenance mode), and emit pinned records per the frozen grammar, with the same failure-mode verdicts as U05/U06. No unsafe import. CHANGELOG under Unreleased."
+layer          = 3
+tier           = 2
+status         = "done"
+depends_on     = ["U03", "U04"]
+blocks         = ["U08"]
+estimated_loc  = 170
+files_create   = []
+files_modify   = [
+  "tools/dagtoml-validate-go/main.go",
+  "CHANGELOG.md",
+]
+produces       = ["ART:go-pinned-records"]
+consumes       = ["ART:spec-pinned-record-grammar", "ART:inv07-enforced"]
+
+[units.U08]
+name           = "profile-pin-kind-prose-fixtures-atomic"
+summary        = "One atomic change per repo rules: pin the three api-snapshot closure records in profiles/com.verivus.runtime/PROFILE.toml; rewrite the api-snapshot kind CLOSURE LAYERING prose, RKV01, and the amended RKV03 (witness digest/identity fields MUST be absent when present = false); recompute examples/minimal-api-snapshot.toml closure_root to the four-record value under the frozen grammar (review recomputation shows the shipped digests yield sha256:013f3d34..., the value the old negative carries; verify by recomputation, never copy); rewrite examples/negative/api-snapshot-bad-closure.toml (source-only root now rejected on a witnessed doc; stays unblessed and unpinned); RE-ROOT the four blessed api-snapshot negatives that acquire pinned records (CI closure-discovers the whole tree, no negative exclusion); add the witness-stripped (proves C02) and witness-lingering-digest (proves amended RKV03) negatives; CHANGELOG."
+layer          = 4
+tier           = 2
+status         = "done"
+depends_on     = ["U05", "U06", "U07"]
+blocks         = ["U09"]
+estimated_loc  = 190
+files_create   = [
+  "examples/negative/api-snapshot-witness-stripped.toml",
+  "examples/negative/api-snapshot-witness-lingering-digest.toml",
+]
+files_modify   = [
+  "profiles/com.verivus.runtime/PROFILE.toml",
+  "profiles/com.verivus.runtime/api-snapshot-kind.toml",
+  "validators/validate_api_snapshot.py",
+  "examples/minimal-api-snapshot.toml",
+  "examples/negative/api-snapshot-bad-closure.toml",
+  "examples/negative/api-snapshot-bad-subpart-digest.toml",
+  "examples/negative/api-snapshot-inlined-secret.toml",
+  "examples/negative/api-snapshot-raw-header.toml",
+  "examples/negative/api-snapshot-witness-incomplete.toml",
+  "CHANGELOG.md",
+]
+produces       = ["ART:profile-pinned-and-fixtures"]
+consumes       = ["ART:python-pinned-records", "ART:rust-pinned-records", "ART:go-pinned-records"]
+
+[units.U09]
+name           = "conformance-corpus-and-runner-closure-step"
+summary        = "Add conformance/cases/api-snapshot/{valid,invalid} covering every row of the failure-mode parity matrix plus the witness-strip and lingering-digest cases; register api-snapshot in conformance/runner.py PY_VALIDATORS (validators/validate_api_snapshot.py); add an explicit Python validate_closure_root.py step for every fixture of every kind so C01 is non-vacuous on the Python side. CHANGELOG under Unreleased."
+layer          = 5
+tier           = 3
+status         = "done"
+depends_on     = ["U08"]
+blocks         = ["U10"]
+estimated_loc  = 130
+files_create   = [
+  "conformance/cases/api-snapshot/valid/minimal-four-record.toml",
+  "conformance/cases/api-snapshot/invalid/witness-stripped.toml",
+  "conformance/cases/api-snapshot/invalid/required-pin-missing.toml",
+  "conformance/cases/api-snapshot/invalid/malformed-pinned-digest.toml",
+]
+files_modify   = [
+  "conformance/runner.py",
+  "conformance/README.md",
+  "CHANGELOG.md",
+]
+produces       = ["ART:api-snapshot-conformance"]
+consumes       = ["ART:profile-pinned-and-fixtures"]
+
+[units.U10]
+name           = "cross-impl-verify-and-implementation-review"
+summary        = "DONE 2026-07-13: five review rounds to 3-of-3 unconditional external approval at 57d1647 (see research/02-verification-record.md and docs/reviews/2026-07-13-closure-record-form-promotion-impl/). Original scope: full sweep (validate_closure_root --discover, kind validators, IJB conformance, abstraction class, make dagtoml-conformance, taplo lint) with rs/go/py agreement recorded; C01-C06 evidence attached to the evidence matrix; independent multi-LLM implementation review dispatched via tools/review-request-dag.toml with evidence under docs/reviews/; merge only after review approval. Initiator does not approve."
+layer          = 6
+tier           = 3
+status         = "done"
+depends_on     = ["U09"]
+blocks         = []
+estimated_loc  = 60
+files_create   = ["docs/planning/closure-record-form-promotion/research/02-verification-record.md"]
+files_modify   = [
+  "docs/planning/closure-record-form-promotion/evidence-matrix.toml",
+  "CHANGELOG.md",
+]
+produces       = ["OUT:pinned-record-closure-verified"]
+consumes       = ["ART:api-snapshot-conformance"]
+
+[computed]
+entry_points      = ["U01"]
+leaf_nodes        = ["U10"]
+critical_path     = ["U01", "U02", "U04", "U06", "U08", "U09", "U10"]
+critical_path_loc = 960
+loc_totals        = { all = 1410, tier1 = 140, tier2 = 1080, tier3 = 190 }
+
+[computed.max_parallel]
+layer0 = 1
+layer1 = 1
+layer2 = 2
+layer3 = 3
+layer4 = 1
+layer5 = 1
+layer6 = 1
