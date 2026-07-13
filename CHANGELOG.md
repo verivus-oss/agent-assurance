@@ -175,9 +175,10 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 - **Stale version comment on the no-ai-attribution checkout pin.** The
   SHA-pinned `actions/checkout` reference in
   `.github/workflows/no-ai-attribution.yml` was annotated `# v4` while
-  pointing at the v6.0.3 release commit; the comment now states the
-  version the hash actually resolves to. Comment-only; no behavioural
-  change. (A bare-major comment also evades dependabot's comment
+  pointing at the v6.0.3 release commit (and at v7.0.0 after the #58
+  group bump preserved the stale comment); the annotation now states
+  the version the hash actually resolves to. Comment-only; no
+  behavioural change. (A bare-major comment also evades dependabot's comment
   updater, which is how the drift survived two bumps.)
 
 - **Recurring lychee flake on toml.io excluded with justification.**
