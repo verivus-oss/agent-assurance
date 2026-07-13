@@ -71,6 +71,14 @@ exclude = [
     # The legacy AGDF codename URL pattern referenced in profile alias
     # docs — kept as historical text, not meant to resolve.
     "verivus\\.com/agdf-internal",
+    # toml.io: the TOML language spec site, cited from the toml-1.1
+    # migration records. Intermittently resets connections from GitHub
+    # Actions runner IPs (two CI failures on 2026-07-13 with
+    # "connection reset by peer" while the site answered 200 from
+    # elsewhere minutes apart). The migration evidence pins the spec
+    # by release tag and date, not by URL liveness, so a flaky edge
+    # in front of toml.io must not block the build.
+    "^https?://toml\\.io",
     # www.fco-im.nl — Dutch academic publisher hosting FCO-IM
     # methodology papers cited from foundations/ijb/fco-im-integration-options.md.
     # The site times out from GitHub Actions runners (slow non-CDN
