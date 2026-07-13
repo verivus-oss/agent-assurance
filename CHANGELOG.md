@@ -180,6 +180,13 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   change. (A bare-major comment also evades dependabot's comment
   updater, which is how the drift survived two bumps.)
 
+- **Recurring lychee flake on toml.io excluded with justification.**
+  The TOML spec site intermittently resets connections from GitHub
+  Actions runner IPs (two CI failures on 2026-07-13) while answering
+  normally elsewhere; excluded in `lychee.toml` following the existing
+  fco-im.nl precedent, since the toml-1.1 migration records pin the
+  spec by release tag and date, not by URL liveness.
+
 - **CI: zizmor findings on the CLA workflow (unblocks all PR checks).**
   The workflow-security audit began failing on `.github/workflows/cla.yml`
   after upstream drift (the SHA-pinned CLA action's repository was
