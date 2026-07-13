@@ -172,6 +172,14 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **Stale version comment on the no-ai-attribution checkout pin.** The
+  SHA-pinned `actions/checkout` reference in
+  `.github/workflows/no-ai-attribution.yml` was annotated `# v4` while
+  pointing at the v6.0.3 release commit; the comment now states the
+  version the hash actually resolves to. Comment-only; no behavioural
+  change. (A bare-major comment also evades dependabot's comment
+  updater, which is how the drift survived two bumps.)
+
 - **CI: zizmor findings on the CLA workflow (unblocks all PR checks).**
   The workflow-security audit began failing on `.github/workflows/cla.yml`
   after upstream drift (the SHA-pinned CLA action's repository was
