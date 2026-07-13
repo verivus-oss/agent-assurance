@@ -42,7 +42,7 @@ Stacked on the planning branch (U01/U02 recorded there; GO 2026-07-13):
   decision (the primaries do not implement RKV03).
 - **C03 backward compatibility: HOLDS.** Closure discover across the
   tree passes (clean-tree counts pinned to refs: 79 at c1be19c, 80 at
-  and after the review-fix ref, whose valid conformance case adds one;
+  bef13ad and 987a4e8, whose valid conformance case adds one;
   the originally recorded 80 at c1be19c had counted a gitignored local
   policy file); the only re-rooted documents are the enumerated
   com.verivus.runtime instances from the U02 sweep (the example, four
@@ -69,9 +69,10 @@ Stacked on the planning branch (U01/U02 recorded there; GO 2026-07-13):
 ## Full-sweep results (all PASS)
 
 closure discover: 79 conforming files on a clean tree at the pre-fix
-ref (c1be19c), 80 at and after the review-fix ref (the delta is the
-added valid conformance case unwitnessed-three-record.toml; counts are
-pinned to the ref measured, round-2 finding R2-3);
+ref (c1be19c), 80 at the round-1 fix ref (bef13ad) and the round-2 fix
+ref (987a4e8); the delta is the added valid conformance case
+unwitnessed-three-record.toml; counts are pinned to the refs measured
+(round-2 finding R2-3, hashes added per round-3 finding R3-3);
 dagtoml-conformance 29 cases; profile descriptors x4 in all three
 implementations; kind descriptors (profile-descriptor: 7 invariants;
 api-snapshot: 4); IJB on both touched descriptors; abstraction class 20
@@ -153,6 +154,24 @@ sweeps incomplete; fixes applied in the same stack:
    script above.
 5. R2-6/R2-7: EOF whitespace and stale prose about the removed global
    CLI merge repaired.
+
+## U10 review round 3 (applied 2026-07-13)
+
+Round 3 confirmed the R2 fixes and caught the guard script guarding
+itself insufficiently:
+
+1. R3-1 (P1): guard 4 was vacuously true (its root failed on an
+   unrelated INV05 error with or without the anchor fix). Corrected by
+   installing the kind descriptor so the newline name is the only
+   defect; mutation-verified (reverting the anchors flips exactly the
+   Python check to FAILED). Guard 5 added to pin the newline
+   closure_root parity verdict (not mutation-detectable by design: the
+   raw-value equality downstream also rejects; the guard pins the
+   three-way verdict).
+2. R3-2/R3-3: evidence-matrix corpus count corrected to 29; ref hashes
+   (bef13ad, 987a4e8) named explicitly wherever counts are pinned.
+3. R3-4: the guard script now fails with usage on missing arguments and
+   reports mktemp failure explicitly.
 
 ## Boundary statements a reviewer should not have to discover
 

@@ -12,13 +12,18 @@
 # Usage: check_pin_resolution_guards.sh <dagtoml-validate-rs> <dagtoml-validate-go>
 set -euo pipefail
 
+if [ "$#" -lt 2 ]; then
+  echo "usage: check_pin_resolution_guards.sh <dagtoml-validate-rs> <dagtoml-validate-go>" >&2
+  exit 2
+fi
+
 RS="$1"
 GO="$2"
 PY="${PYTHON:-python3}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 SENTINEL="sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
-TMP="$(mktemp -d)"
+TMP="$(mktemp -d)" || { echo "check_pin_resolution_guards.sh: mktemp failed (TMPDIR unwritable?)" >&2; exit 2; }
 trap 'rm -rf "$TMP"' EXIT
 
 fail=0
@@ -105,9 +110,16 @@ expect "rs kind-candidate via symlink (accept)" 0 "$RS" --repo-root "$R" --mode 
 expect "go kind-candidate via symlink (accept)" 0 "$GO" -repo-root "$R" -mode profile "$R/profiles/pin-link/PROFILE.toml"
 
 echo "--- GUARD 4: trailing-newline profile name rejected everywhere (round 2, R2-1) ---"
+# Round-3 correction (R3-1): the first version of this guard omitted the
+# kind descriptor, so the root failed on an unrelated INV05 resolution
+# error whether or not the regex fix was present (vacuously green under
+# mutation). The descriptor below makes the newline name the ONLY
+# defect, so reverting the backslash-Z anchor flips this guard.
 R="$TMP/nl"
 write_common "$R"
 write_profile "$R/profiles/nl" "com.example.pin"
+printf 'closure_root = "%s"\n[meta]\nschema_version = "0.1.0"\ntemplate_kind = "kind-descriptor"\ndescribes_kind = "pinned-note"\n[kind]\nname = "pinned-note"\n' \
+  "$SENTINEL" > "$R/profiles/nl/pinned-note-kind.toml"
 "$PY" - "$R/profiles/nl/PROFILE.toml" <<'PYEOF'
 import pathlib, sys
 p = pathlib.Path(sys.argv[1])
@@ -117,6 +129,21 @@ PYEOF
 expect "py newline name" 1 "$PY" "$HERE/validate_profile_descriptor.py" "$R/profiles/nl/PROFILE.toml" --repo-root "$R"
 expect "rs newline name" 1 "$RS" --repo-root "$R" --mode profile "$R/profiles/nl/PROFILE.toml"
 expect "go newline name" 1 "$GO" -repo-root "$R" -mode profile "$R/profiles/nl/PROFILE.toml"
+
+echo "--- GUARD 5: newline-smuggled closure_root value rejected everywhere (round 3) ---"
+R="$TMP/root-nl"
+write_common "$R"
+write_profile "$R/profiles/pin" "com.example.pin"
+printf 'closure_root = "%s"\n[meta]\nschema_version = "0.1.0"\ntemplate_kind = "kind-descriptor"\ndescribes_kind = "pinned-note"\n[kind]\nname = "pinned-note"\n' \
+  "$SENTINEL" > "$R/profiles/pin/pinned-note-kind.toml"
+{
+  printf 'closure_root = """\n%s\n"""\n\n' "$SENTINEL"
+  printf '[meta]\nschema_version = "0.1.0"\ntemplate_kind = "pinned-note"\nframework_profile = "com.example.pin"\n\n'
+  printf '[notes]\nbody_sha256 = "sha256:af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"\n'
+} > "$R/doc.toml"
+expect "py newline closure_root" 1 "$PY" "$HERE/validate_closure_root.py" "$R/doc.toml" --repo-root "$R"
+expect "rs newline closure_root" 1 "$RS" --repo-root "$R" --mode provenance "$R/doc.toml"
+expect "go newline closure_root" 1 "$GO" -repo-root "$R" -mode provenance "$R/doc.toml"
 
 if [ "$fail" -ne 0 ]; then
   echo "PIN-RESOLUTION GUARDS FAILED"

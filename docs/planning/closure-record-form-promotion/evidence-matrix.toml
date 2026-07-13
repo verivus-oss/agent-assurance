@@ -61,7 +61,7 @@ scope_covered    = [
   "the runner exercises Python closure explicitly, so the parity claim is non-vacuous",
 ]
 known_exclusions = [
-  "evidenced 2026-07-13: 25-case corpus rs/go/py agreement with the runner's Python closure step active; see research/02-verification-record.md",
+  "evidenced 2026-07-13: 29-case corpus rs/go/py agreement with the runner's Python closure step active; see research/02-verification-record.md",
 ]
 status = "verified"
 
