@@ -9,6 +9,19 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+### Fixed
+
+- **CI: zizmor findings on the CLA workflow (unblocks all PR checks).**
+  The workflow-security audit began failing on `.github/workflows/cla.yml`
+  after upstream drift (the SHA-pinned CLA action's repository was
+  archived). The app-installation token is now explicitly narrowed with
+  `permission-contents: write` (resolving the `github-app` error
+  properly), and the two deliberate design choices carry justified
+  inline suppressions: `pull_request_target` (required by CLA Assistant;
+  the job never checks out PR code) and the archived, SHA-pinned action
+  (read-only upstream cannot move the pin). No behavioural change to CLA
+  enforcement.
+
 - **TOML 1.0 → 1.1 migration: scoping pack + parity go/no-go (GO).** Added
   the self-validating DAG-TOML governance pack under
   [`docs/planning/toml-1.1-migration/`](docs/planning/toml-1.1-migration/)
