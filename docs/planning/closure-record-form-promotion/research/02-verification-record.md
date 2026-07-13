@@ -148,8 +148,8 @@ sweeps incomplete; fixes applied in the same stack:
    primaries did not follow symlinked profile directories (the round-1
    fix covered only descriptor discovery); both now follow, matching
    Python. Guard 3 is the regression.
-3. R2-3/R2-5/R2-8: counts pinned to refs (79 at c1be19c, 80 after),
-   stale 25-case and coverage numbers corrected.
+3. R2-3/R2-5/R2-8: counts pinned to refs (79 at c1be19c, 80 at bef13ad
+   and 987a4e8), stale 25-case and coverage numbers corrected.
 4. R2-4: the alternate-root regressions became the executable CI guard
    script above.
 5. R2-6/R2-7: EOF whitespace and stale prose about the removed global

@@ -130,6 +130,13 @@ expect "py newline name" 1 "$PY" "$HERE/validate_profile_descriptor.py" "$R/prof
 expect "rs newline name" 1 "$RS" --repo-root "$R" --mode profile "$R/profiles/nl/PROFILE.toml"
 expect "go newline name" 1 "$GO" -repo-root "$R" -mode profile "$R/profiles/nl/PROFILE.toml"
 
+# GUARD 5 is a PARITY PIN, not a mutation-detectable regression guard:
+# reverting the CLOSURE_ROOT_RE backslash-Z hardening does NOT flip it,
+# because the raw-value equality comparison downstream also rejects the
+# smuggled value. What this guard pins is the three-way REJECT verdict
+# itself (py/rs/go agree), so a future refactor that quietly starts
+# accepting a newline-smuggled closure_root in any one implementation
+# breaks here. See the U10 round-3 record for the full rationale.
 echo "--- GUARD 5: newline-smuggled closure_root value rejected everywhere (round 3) ---"
 R="$TMP/root-nl"
 write_common "$R"
