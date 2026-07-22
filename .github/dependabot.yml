@@ -3,13 +3,24 @@ version: 2
 # Dependabot scope:
 # - github-actions: pinned by SHA org-wide; weekly bumps keep us current
 #   with the upstream maintainer's latest tag → SHA mapping.
-# - pip: only one runtime dep today (networkx), used by validators/.
-# - cargo: four primary-validator + reference tooling Rust crates under
-#   tools/. Each crate's lockfile is independent.
-# - gomod: three primary-validator + reference tooling Go modules under
-#   tools/. Each go.mod is independent.
+# - pip: runtime + tooling Python deps (networkx runtime; ruff/zizmor/etc.
+#   tooling), all resolved from the repo root.
+# - cargo: primary-validator + reference tooling Rust crates under tools/.
+#   Each crate has an independent lockfile, but a single dependency block
+#   with `directories:` + `group-by: dependency-name` collapses the
+#   per-directory fan-out: one upstream release (e.g. serde, toml) opens
+#   ONE pull request spanning every affected crate instead of one PR per
+#   (dependency × directory). Distinct dependencies stay in separate PRs,
+#   so a failing bump does not block unrelated ones.
+# - gomod: primary-validator + reference tooling Go modules under tools/,
+#   consolidated the same way.
 #
-# Security-only mode is NOT enabled — we want all updates (security +
+# The directory lists include every crate/module, including the ones that
+# currently declare no third-party dependencies (dagtoml-duckdb,
+# dagtoml-duckdb-go); Dependabot simply finds nothing to update there, and
+# the entry keeps them covered if a dependency is added later.
+#
+# Security-only mode is NOT enabled; we want all updates (security +
 # version) so the toolchain stays current. The validator triad
 # (Python + Rust + Go) intentionally has minimal dependency surface, so
 # weekly PR volume is expected to be low.
@@ -42,78 +53,45 @@ updates:
       - "python"
 
   - package-ecosystem: "cargo"
-    directory: "/tools/dagtoml-validate-rs"
+    directories:
+      - "/tools/dagtoml-validate-rs"
+      - "/tools/toml-test-decode-rs"
+      - "/tools/dagtoml-duckdb"
+      - "/tools/dagtoml-rdf"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 5
     commit-message:
       prefix: "deps(cargo)"
     labels:
       - "dependencies"
       - "rust"
-
-  - package-ecosystem: "cargo"
-    directory: "/tools/toml-test-decode-rs"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 3
-    commit-message:
-      prefix: "deps(cargo)"
-    labels:
-      - "dependencies"
-      - "rust"
-
-  - package-ecosystem: "cargo"
-    directory: "/tools/dagtoml-duckdb"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 3
-    commit-message:
-      prefix: "deps(cargo)"
-    labels:
-      - "dependencies"
-      - "rust"
-
-  - package-ecosystem: "cargo"
-    directory: "/tools/dagtoml-rdf"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 3
-    commit-message:
-      prefix: "deps(cargo)"
-    labels:
-      - "dependencies"
-      - "rust"
+    groups:
+      cargo:
+        patterns:
+          - "*"
+        # One PR per dependency across all crate directories (version
+        # updates only), instead of one PR per dependency-and-directory.
+        group-by: "dependency-name"
 
   - package-ecosystem: "gomod"
-    directory: "/tools/dagtoml-validate-go"
+    directories:
+      - "/tools/dagtoml-validate-go"
+      - "/tools/toml-test-decode-go"
+      - "/tools/dagtoml-duckdb-go"
+      - "/tools/dagtoml-rdf-go"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 5
     commit-message:
       prefix: "deps(gomod)"
     labels:
       - "dependencies"
       - "go"
-
-  - package-ecosystem: "gomod"
-    directory: "/tools/dagtoml-duckdb-go"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 3
-    commit-message:
-      prefix: "deps(gomod)"
-    labels:
-      - "dependencies"
-      - "go"
-
-  - package-ecosystem: "gomod"
-    directory: "/tools/dagtoml-rdf-go"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 3
-    commit-message:
-      prefix: "deps(gomod)"
-    labels:
-      - "dependencies"
-      - "go"
+    groups:
+      gomod:
+        patterns:
+          - "*"
+        # One PR per dependency across all module directories (version
+        # updates only), instead of one PR per dependency-and-directory.
+        group-by: "dependency-name"
