@@ -7,6 +7,21 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Dependabot noise reduction and coverage fix.** Consolidated the seven
+  per-directory `cargo`/`gomod` update entries (four cargo, three gomod)
+  in [`.github/dependabot.yml`](.github/dependabot.yml) into one `cargo`
+  and one `gomod` entry, each using the `directories:` list plus
+  `group-by: dependency-name`, so a single upstream release (e.g. `serde`,
+  `toml`) opens ONE pull request spanning every affected crate/module
+  instead of one PR per dependency-and-directory. Also added the
+  previously-unmonitored `tools/toml-test-decode-go` Go module (which
+  carries real dependencies) to Dependabot coverage, and created the five
+  repository labels the config references (`dependencies`, `python`,
+  `rust`, `go`, `github-actions`), which previously did not exist so
+  Dependabot could not apply them.
+
 ### Added
 
 - **U10 review gate CLOSED: 3 of 3 unconditional external approvals
