@@ -29,14 +29,14 @@ jobs:
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           # Wipe the auth token from .git/config after checkout so it
           # cannot be picked up by later steps (zizmor artipacked).
           persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.11"
 
@@ -62,7 +62,7 @@ jobs:
         # (tools/README.md), Go is one of the two primary native
         # languages; the patch pin keeps OSV/go-vuln scanning aligned
         # with the stdlib version declared by the reference Go modules.
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16  # v6
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
           go-version: "1.26.5"
           cache-dependency-path: tools/dagtoml-validate-go/go.sum
@@ -1258,7 +1258,7 @@ jobs:
         # banned-crate enforcement, and source allowlist (only crates.io
         # — no arbitrary git deps). Each tools/*-rs crate is scanned
         # against the policy in deny.toml at the repo root.
-        uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe  # v2.0.20
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25  # v2.1.1
         with:
           # Default `command: check` runs advisories + bans + licenses
           # + sources against every Cargo.lock found.
@@ -1271,21 +1271,21 @@ jobs:
 
       - name: Rust license + ban (toml-test-decode-rs)
         continue-on-error: false
-        uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe  # v2.0.20
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25  # v2.1.1
         with:
           command: check advisories bans licenses sources
           manifest-path: tools/toml-test-decode-rs/Cargo.toml
 
       - name: Rust license + ban (dagtoml-duckdb)
         continue-on-error: false
-        uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe  # v2.0.20
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25  # v2.1.1
         with:
           command: check advisories bans licenses sources
           manifest-path: tools/dagtoml-duckdb/Cargo.toml
 
       - name: Rust license + ban (dagtoml-rdf)
         continue-on-error: false
-        uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe  # v2.0.20
+        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25  # v2.1.1
         with:
           command: check advisories bans licenses sources
           manifest-path: tools/dagtoml-rdf/Cargo.toml
