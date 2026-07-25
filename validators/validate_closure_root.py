@@ -49,7 +49,7 @@ ALGO_HEX_LENGTHS = {
 
 FORBIDDEN_ALGOS = ("md5", "sha1")
 
-# \Z hardening (U10 round 2): no reachable verdict divergence today
+# \Z hardening: no reachable verdict divergence today
 # (the raw value is compared for equality downstream), but $ would admit
 # a trailing newline into the match, so anchor like every other gate.
 CLOSURE_ROOT_RE = re.compile(r"^([a-z0-9]+):([0-9a-f]+)\Z")

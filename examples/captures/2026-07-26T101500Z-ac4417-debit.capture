@@ -1,0 +1,12 @@
+DAGTOML-API-CAPTURE/1
+captured-at: 2026-07-26T10:15:00.412Z
+--- request ---
+POST /v1/accounts/AC-4417/debit HTTP/1.1
+host: ledger.example
+accept: application/json
+content-digest: sha-256=:mZ1nQ2p4rS6tV8wX0yZ2aB4cD6eF8gH0iJ2kL4mN6oQ=:
+--- response ---
+HTTP/1.1 201 Created
+content-type: application/json
+{"account":"AC-4417","operation":"debit","amount":"250.00","currency":"AUD","tx":"0x9f2c","status":"confirmed"}
+"

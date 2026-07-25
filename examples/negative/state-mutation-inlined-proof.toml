@@ -1,0 +1,38 @@
+# NEGATIVE FIXTURE: MUST be rejected by validators/validate_state_mutation.py
+# for RKM03 (closed key set / no inlined payload).
+#
+# The document inlines the proof artefact itself as `execution_proof.proof_body`
+# instead of pinning it by digest. closure_root is the correct five-record value
+# (the inlined key is not a pinned field), so the SPEC 12 gate passes and only
+# the kind layer rejects. This is what "no field for a secret to live in" means
+# mechanically: the key set is closed, so an inlined payload has nowhere to go.
+#
+# Secondary: source_bytes is deliberately wrong (417; the capture is 416).
+closure_root = "sha256:f4fd826755732b642bdcf6616e1fca19e603f2456d4651b3363819a1f66ef435"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "state-mutation"
+framework_profile = "com.verivus.runtime"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "examples/captures/2026-07-26T101500Z-ac4417-debit.capture"
+source_sha256 = "sha256:0a10577329b53feadb5a4d5f009cbc5ebf1c40a5ff86b55254a9d489b8b2e765"
+source_bytes = 417
+
+[mutation]
+performed_at = "2026-07-26T10:15:00.412Z"
+target_id = "https://ledger.example/v1/accounts/AC-4417"
+operation = "debit"
+authorization_sha256 = "sha256:218c6bd3c6a2386de7461fe24fe5b2bca1adbd92d5ddd67c0bdbeb7bfbd04a41"
+effect_sha256 = "sha256:7c9d12b09521dd2cbb0403916a82c800148976e990236436cb9216187e3aa792"
+
+[execution_proof]
+scheme = "ledger-transaction"
+finality_basis = "ledger-confirmed"
+proof_sha256 = "sha256:a5255188d6a0efd927a7bca54ac504bd3f1908fe76e75b6be3e50568d7bc38ba"
+binds_sha256 = "sha256:bafc26b4a50b6fe2a35f69bd42eb5275b889333b5c522b79c078f5093481e52b"
+proof_body = "-----BEGIN SIGNED RECEIPT----- MIIBIjANBgkqh..."
+proof_locator = "eip155:1/tx/0x9f2c00000000000000000000000000000000000000000000000000000000"

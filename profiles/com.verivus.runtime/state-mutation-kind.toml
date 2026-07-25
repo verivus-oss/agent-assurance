@@ -1,0 +1,305 @@
+# Kind descriptor for `template_kind = "state-mutation"`.
+# Verivus runtime profile (com.verivus.runtime) artifact.
+
+# Empty-closure sentinel, SHA-256(""), required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "kind-descriptor"
+ontology_version = 2
+title = "State mutation kind descriptor"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+describes_kind = "state-mutation"
+framework_profile = "com.verivus.runtime"
+authoritative_in = "this file"
+confidentiality = "public"
+license = "Apache-2.0"
+
+[kind]
+name = "state-mutation"
+summary = "Digest-pinned record of one irreversible state change an agent caused, carrying a mandatory execution proof that binds the authorization, the target, the operation, and the resulting effect."
+prose = """
+A state-mutation records one external state change an agent CAUSED, as
+distinct from an api-snapshot, which records one interaction an agent
+OBSERVED. The distinction is load-bearing: an observation asserts nothing
+about authorization, ordering, or finality, whereas this kind asserts that
+an operation was executed against a named target under a named
+authorization.
+
+Because the kind's NAME asserts execution, the proof is not optional. A
+record that cannot carry an execution proof is not a state-mutation and
+MUST NOT use this template_kind; it is an observation or an intent, and
+belongs in a kind whose name claims only that.
+
+ROOT SHAPE
+
+ closure_root = "sha256:..."          # SPEC 12.8 stream, five records
+
+ [meta]
+ schema_version = "0.1.0"
+ template_kind = "state-mutation"
+ framework_profile = "com.verivus.runtime"
+ confidentiality = "restricted"
+
+ [provenance]
+ source_path = "captures/2026-07-26T101500Z-debit.capture"
+ source_sha256 = "sha256:..."        # digest of the captured interaction
+ source_bytes = 512
+
+ [mutation]
+ performed_at = "2026-07-26T10:15:00.412Z"
+ target_id = "https://ledger.example/v1/accounts/AC-4417"
+ operation = "debit"
+ authorization_sha256 = "sha256:..." # digest of the authorizing manifest
+ effect_sha256 = "sha256:..."        # digest of the resulting state record
+
+ [execution_proof]
+ scheme = "ledger-transaction"       # execution_proof_scheme vocabulary
+ finality_basis = "ledger-confirmed" # finality_basis vocabulary
+ proof_sha256 = "sha256:..."         # digest of the receipt/quote artefact
+ binds_sha256 = "sha256:..."         # digest of the canonical bound tuple
+ proof_locator = "eip155:1/tx/0x..." # where the proof can be fetched
+
+CLOSURE LAYERING
+
+The profile descriptor pins five records into the SPEC 12.8 stream for this
+kind: `provenance.source_sha256`, `mutation.authorization_sha256`,
+`mutation.effect_sha256`, `execution_proof.proof_sha256`, and
+`execution_proof.binds_sha256`. Every one is pinned `required`, NOT
+`when-present`.
+
+That choice is deliberate and is the structural difference from the
+api-snapshot witness. A witness may be legitimately absent, so its record is
+`when-present` and an honestly re-rooted unwitnessed document is valid.
+An execution proof may NOT be legitimately absent, so removing it does not
+yield a smaller valid stream: it removes a REQUIRED pin, which is a
+validation error in all three closure implementations. A state-mutation
+therefore cannot be silently downgraded by deletion the way an unwitnessed
+capture can. Stripping the proof produces an invalid document, not a
+weaker valid one.
+
+WHAT binds_sha256 IS FOR
+
+An execution proof is only worth its name if it commits to WHAT was
+authorized and WHAT changed, not merely that some transaction exists. A
+bare transaction hash proves a transaction happened; it does not prove that
+THIS authorization produced THAT effect. `binds_sha256` is the digest of the
+canonical bound tuple, the exact byte string the producer committed into the
+proof scheme's own binding slot: TEE report data for `tee-quote`, public
+inputs for `zk-receipt`, the memo or calldata commitment for
+`ledger-transaction`, the signed payload for `provider-receipt`. The tuple
+covers `mutation.target_id`, `mutation.operation`,
+`mutation.authorization_sha256`, `mutation.effect_sha256`, and
+`mutation.performed_at`, in the canonical record form of SPEC 12.8.
+
+The SPEC layer enforces that `binds_sha256` is present, well-formed, and
+equal to the digest of the tuple recomputed from the document's own fields
+(RKM04). It does NOT and CANNOT verify that the proof artefact actually
+contains that value: opening a TEE quote, checking a ZK verification key, or
+fetching a ledger transaction all require I/O, keys, and trust roots that
+this inert document forbids. That comparison is RUNTIME-SPEC and is the
+single most important check a consuming KYA verifier performs.
+
+VALIDATOR MUST NOT fetch `proof_locator`, MUST NOT verify the proof
+signature, quote, or receipt, MUST NOT resolve ledger inclusion or finality,
+and MUST NOT treat `finality_basis` as verified. Those are RUNTIME-SPEC.
+"""
+references = [
+ "spec.md",
+ "core/ontology.toml",
+ "profiles/com.verivus.runtime/ontology.toml",
+]
+ijb_primitive = "thing"
+ijb_class = "structural"
+
+[[kind.required_fields]]
+path = "meta.template_kind"
+must_equal = "state-mutation"
+description = "Identifies this file as a state-mutation."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "meta.framework_profile"
+must_equal = "com.verivus.runtime"
+description = "Selects the Verivus runtime profile."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "mutation.performed_at"
+description = "RFC3339 UTC timestamp at which the mutation was performed. Part of the bound tuple (RKM04), so it is freshness-bearing rather than advisory."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "mutation.target_id"
+description = "Stable identifier (URL or URN) of the system or resource whose state changed."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "mutation.operation"
+description = "Short lower-case token naming the operation performed against the target, for example `debit`, `delete`, `grant`. Free-form by design: the operation namespace belongs to the target system, not to this profile."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "mutation.authorization_sha256"
+description = "Digest of the artefact that authorized this mutation, typically the KYA manifest or capability grant under which the agent acted. A digest scalar whose hex length matches its algorithm prefix. Pinned into the closure stream, so re-authorizing under a different manifest cascade-breaks the evidence."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "mutation.effect_sha256"
+description = "Digest of the canonical record of the resulting state transition (the post-state, or the diff, as the target system defines it). Same digest-scalar grammar."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "execution_proof.scheme"
+description = "Proof scheme, drawn from the closed `execution_proof_scheme` vocabulary in the profile ontology."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "execution_proof.finality_basis"
+description = "What durability the record claims, drawn from the closed `finality_basis` vocabulary. Recorded, never verified at the SPEC layer."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "execution_proof.proof_sha256"
+description = "Digest of the proof artefact itself (the receipt, quote, or transaction record). Same digest-scalar grammar."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "execution_proof.binds_sha256"
+description = "Digest of the canonical bound tuple the producer committed into the proof scheme's binding slot. Recomputable from this document's own fields, which is what makes RKM04 mechanical."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "provenance.source_sha256"
+ontology_mapping = "cites_upstream"
+description = "Digest of the whole captured interaction, as `sha256:<64 hex>`. This is the SPEC 12.8 closure input for the kind (the field carrying the `cites_upstream` ontology mapping)."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id = "RKM01"
+statement = "`closure_root` MUST equal the SPEC 12.8 stream over the five pinned records declared for this kind in the profile descriptor: `provenance.source_sha256`, `mutation.authorization_sha256`, `mutation.effect_sha256`, `execution_proof.proof_sha256`, and `execution_proof.binds_sha256`. All five are pinned `required`, so any one of them being removed is a closure-layer validation error rather than a smaller valid stream. As with every SPEC 12 closure, this commits to the DECLARED digests: it proves internal consistency, not authenticity. A producer that controls the captured artefact and the proof artefact can emit a wholly self-consistent document. Detecting that requires comparison against an externally anchored prior root plus runtime verification of the proof, and consumers MUST NOT read closure validity as evidence that the mutation occurred."
+enforced_by = "validators/validate_closure_root.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also = "spec.md §12.8.1"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id = "RKM02"
+statement = "The `[execution_proof]` table MUST be present and complete: `scheme`, `finality_basis`, `proof_sha256`, and `binds_sha256` are all REQUIRED. There is no producer-attested tier for this kind. A record of an irreversible state change that carries no execution proof MUST be rejected, and MUST NOT be re-expressed as a state-mutation by omitting the table, because the kind's name asserts execution. Producers with no proof available MUST use an observation-shaped or intent-shaped kind instead."
+enforced_by = "validators/validate_state_mutation.py"
+enforcement_boundary = "Split, recorded rather than assumed. DELETION of the proof is caught by all three closure implementations, because `execution_proof.proof_sha256` and `execution_proof.binds_sha256` are pinned `required` and a missing required pin is an ordinary SPEC 12.8.1 error. COMPLETENESS of the remaining proof fields (`scheme` and `finality_basis`, which are not pinned) is checked by the Python kind layer only; the Rust and Go primaries do not implement RKM02, exactly as they do not implement RKV02 or RKV03 for api-snapshot. A port is not scheduled. A consumer running only the primaries will catch a deleted proof but not a proof missing its scheme or finality basis."
+see_also = "the closure-layering note above (removal breaks a required pin)"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id = "RKM03"
+statement = "No secret is inlined. Every field of `[mutation]` and `[execution_proof]` is a digest, an identifier, a closed-vocabulary token, a timestamp, or a locator. Raw request bodies, credentials, signing keys, bearer tokens, and proof payloads MUST NOT appear. A document that inlines a payload or credential where a digest scalar is required MUST be rejected."
+enforced_by = "validators/validate_state_mutation.py"
+see_also = "profiles/com.verivus.runtime/api-snapshot-kind.toml RKV02"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id = "RKM04"
+statement = "`execution_proof.binds_sha256` MUST equal the SHA-256 of the canonical bound tuple recomputed from this document's own fields: the SPEC 12.8 record form over `mutation.target_id`, `mutation.operation`, `mutation.authorization_sha256`, `mutation.effect_sha256`, and `mutation.performed_at`, bytewise sorted and concatenated. This is what stops a proof being pointed at a mutation it does not describe. The SPEC layer proves the DOCUMENT is internally bound; it cannot prove the proof ARTEFACT carries that value, because opening the artefact needs I/O, keys, and trust roots the capability envelope denies. Confirming that the quote report data, ZK public inputs, or ledger commitment actually contains `binds_sha256` is RUNTIME-SPEC and is the consuming verifier's central obligation."
+enforced_by = "validators/validate_state_mutation.py"
+see_also = "spec.md §12.8"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id = "RKM05"
+statement = "Every entity prefix and relation predicate used in this kind's instance files resolves to an `ijb_primitive` declared in the loaded ontology set (core plus the agent-assurance and com.verivus.runtime profiles). A state-mutation introduces no entity prefixes of its own, so in practice this reduces to the core `cites_upstream` binding on `provenance.source_sha256`."
+enforced_by = "validators/validate_ijb_conformance.py"
+see_also = "foundations/ijb/core-specification.md"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name = "minimal state mutation"
+file = "examples/minimal-state-mutation.toml"
+inline_summary = "A single authorized account debit: five-record closure over the captured interaction, the authorizing manifest, the resulting state record, the ledger receipt, and the bound tuple that ties them together."
+ijb_primitive = "observed"
+
+[kind.relation_to_ontology]
+entities_introduced = []
+ontology_entries = "profiles/com.verivus.runtime/ontology.toml [[attribute_vocabularies]] execution_proof_scheme and finality_basis; core/ontology.toml [[relations]] cites_upstream and [[attribute_vocabularies]] closure_root.digest_algorithm"
+attribute_vocabularies = ["execution_proof_scheme", "finality_basis"]
+predicates_used = ["cites_upstream (CORE; applied via the provenance.source_sha256 required field's ontology_mapping)"]
+note = "Like api-snapshot and gate-decision, a state-mutation is a flat single-subject record and introduces NO id-prefixed entities and NO namespaced relations. The authorizing manifest and the proof artefact are pinned by digest as fields, not modelled as separate graph nodes at the SPEC layer. Promoting them to first-class entities would bump this profile's ontology_version."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13, abstraction class plus capability envelope
+# ============================================================================
+#
+# A state-mutation is an execution record, not an observation record: it
+# asserts that an operation was performed under a named authorization. The
+# DOCUMENT is still inert. The mutation happened at runtime, before the
+# document existed, and is out of this envelope's scope, so every capability
+# domain is denied exactly as for the observation kinds. Naming a distinct
+# class is what keeps the two apart: widening an observation class to cover
+# execution would let an unproved record claim execution.
+
+[kind.abstraction_class]
+id = "execution-record.v1"
+description = "Read-only execution record: a flat, single-subject, digest-pinned record of one irreversible state change the producing agent caused, carrying a MANDATORY execution proof. Distinct from `observation-record.v1`, which captures only what was observed and asserts nothing about authorization or execution. An execution record asserts that a named operation was performed against a named target under a named authorization, and binds that assertion to a proof artefact via a recomputable bound-tuple digest. It does NOT assert that the proof verifies, that the target system reached finality, or that the authorization was itself valid: those are RUNTIME-SPEC. No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed = false
+monotonic_clock_allowed = false
+precision_cap_ms = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

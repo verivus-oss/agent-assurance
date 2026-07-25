@@ -1,0 +1,39 @@
+# NEGATIVE FIXTURE: MUST be rejected by validators/validate_state_mutation.py
+# for RKM04 (bound-tuple consistency).
+#
+# The execution proof is present and complete, and closure_root has been
+# recomputed so that the SPEC 12 gate PASSES: this fixture is deliberately
+# closure-valid. What is wrong is semantic. binds_sha256 is the digest of some
+# other tuple, so the proof does not commit to THIS target, operation,
+# authorization, effect and timestamp. That is the "point a real receipt at a
+# different mutation" attack, and the closure layer cannot see it: only the
+# kind-layer recomputation can.
+#
+# Secondary: source_bytes is deliberately wrong (417; the capture is 416).
+closure_root = "sha256:52bdcf1a8e7cf12c2a74125022df667990827755a60d40a9f194825524ec5ad5"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "state-mutation"
+framework_profile = "com.verivus.runtime"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "examples/captures/2026-07-26T101500Z-ac4417-debit.capture"
+source_sha256 = "sha256:0a10577329b53feadb5a4d5f009cbc5ebf1c40a5ff86b55254a9d489b8b2e765"
+source_bytes = 417
+
+[mutation]
+performed_at = "2026-07-26T10:15:00.412Z"
+target_id = "https://ledger.example/v1/accounts/AC-4417"
+operation = "debit"
+authorization_sha256 = "sha256:218c6bd3c6a2386de7461fe24fe5b2bca1adbd92d5ddd67c0bdbeb7bfbd04a41"
+effect_sha256 = "sha256:7c9d12b09521dd2cbb0403916a82c800148976e990236436cb9216187e3aa792"
+
+[execution_proof]
+scheme = "ledger-transaction"
+finality_basis = "ledger-confirmed"
+proof_sha256 = "sha256:a5255188d6a0efd927a7bca54ac504bd3f1908fe76e75b6be3e50568d7bc38ba"
+binds_sha256 = "sha256:cfa3c4006e9ddc4d6ba95a681586b998becb333d811b96fe53293cc79af48a98"
+proof_locator = "eip155:1/tx/0x9f2c00000000000000000000000000000000000000000000000000000000"

@@ -2882,7 +2882,7 @@ func kindDescriptorCandidates(repoRoot, slug, profileName string) []string {
 	if entries, err := os.ReadDir(filepath.Join(repoRoot, "profiles")); err == nil {
 		for _, e := range entries {
 			// Stat follows symlinked profile directories (DirEntry.IsDir
-			// does not), matching rs/py (U10 review round 2, R2-2).
+			// does not), matching rs/py.
 			info, statErr := os.Stat(filepath.Join(repoRoot, "profiles", e.Name()))
 			if statErr != nil || !info.IsDir() {
 				continue

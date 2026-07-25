@@ -238,6 +238,7 @@ jobs:
             examples/minimal-assertion-log-record.toml
             examples/minimal-gate-decision.toml
             examples/minimal-api-snapshot.toml
+            examples/minimal-state-mutation.toml
             examples/minimal-review-readiness/review_readiness.toml
             examples/minimal-review-readiness/contract_declaration.toml
             examples/minimal-review-readiness/evidence_matrix.toml
@@ -263,6 +264,8 @@ jobs:
             profiles/com.verivus.runtime/PROFILE.toml
           python3 validators/validate_api_snapshot.py \
             --repo-root . examples/minimal-api-snapshot.toml
+          python3 validators/validate_state_mutation.py \
+            --repo-root . examples/minimal-state-mutation.toml
           python3 validators/validate_disclosure.py \
             --repo-root . \
             examples/minimal-disclosure-attestation.toml \
@@ -451,6 +454,7 @@ jobs:
                    examples/minimal-assertion-log-record.toml \
                    examples/minimal-gate-decision.toml \
                    examples/minimal-api-snapshot.toml \
+                   examples/minimal-state-mutation.toml \
                    examples/minimal-review-readiness/review_readiness.toml \
                    examples/minimal-review-readiness/contract_declaration.toml \
                    examples/minimal-review-readiness/evidence_matrix.toml \
@@ -848,6 +852,36 @@ jobs:
             python3 validators/validate_api_snapshot.py --repo-root . \
             examples/negative/api-snapshot-witness-lingering-digest.toml
 
+          # com.verivus.runtime state-mutation negatives.
+          #
+          # no-proof is the counterpart of witness-stripped, and the contrast
+          # is the point: the execution-proof records are pinned `required`,
+          # not `when-present`, so deleting the proof and honestly re-rooting
+          # removes two REQUIRED pins. All three closure implementations must
+          # reject, which is what makes a state-mutation impossible to
+          # downgrade by deletion (RKM02).
+          check_rejects "rust state-mutation no-proof (required pin missing)" \
+            "$rs" --repo-root . --mode provenance \
+            examples/negative/state-mutation-no-proof.toml
+          check_rejects "go state-mutation no-proof (required pin missing)" \
+            "$go_bin" --repo-root . -mode provenance \
+            examples/negative/state-mutation-no-proof.toml
+          check_rejects "python state-mutation no-proof (required pin missing)" \
+            python3 validators/validate_closure_root.py --repo-root . \
+            examples/negative/state-mutation-no-proof.toml
+          check_rejects "python state-mutation no-proof (RKM02 kind layer)" \
+            python3 validators/validate_state_mutation.py --repo-root . \
+            examples/negative/state-mutation-no-proof.toml
+          # The next two are deliberately closure-VALID: a real proof pointed
+          # at a different mutation, and an inlined proof body. Neither is
+          # visible to the closure layer, so both are kind-layer rejections.
+          check_rejects "python state-mutation unbound-proof (RKM04)" \
+            python3 validators/validate_state_mutation.py --repo-root . \
+            examples/negative/state-mutation-unbound-proof.toml
+          check_rejects "python state-mutation inlined-proof (RKM03)" \
+            python3 validators/validate_state_mutation.py --repo-root . \
+            examples/negative/state-mutation-inlined-proof.toml
+
       - name: Provenance source_path containment guard (SPEC §11)
         # Behavioural guard: a static fixture cannot isolate the
         # containment defect, so this constructs an out-of-repo file whose
@@ -864,7 +898,7 @@ jobs:
         # Duplicate-name fail-closed, symlinked-profile discovery (pin
         # map AND kind-descriptor candidates), and trailing-newline name
         # rejection: adversarial roots that cannot live in-tree,
-        # constructed at run time. Origin: U10 review rounds 1-2.
+        # constructed at run time. Origin: the U10 pin-resolution work.
         run: |
           set -e
           validators/check_pin_resolution_guards.sh \

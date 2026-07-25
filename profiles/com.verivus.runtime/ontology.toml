@@ -26,7 +26,7 @@ closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7
 schema_version = "0.1.0"
 template_kind = "ontology"
 docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
-ontology_version = 1
+ontology_version = 2
 framework_profile = "com.verivus.runtime"
 title = "Verivus runtime profile ontology extension"
 extends = "../agent-assurance/ontology.toml"
@@ -87,6 +87,24 @@ applies_to = "api-snapshot"
 values = ["request", "response", "both"]
 extensible = false
 notes = "Closed set on the [snapshot.witness].observed field. Bounds what a witnessed snapshot proves: an attester that saw only the response cannot witness the request descriptor, so `response` MUST NOT be read as covering request integrity. Applies only when [snapshot.witness].present is true."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute = "execution_proof_scheme"
+applies_to = "state-mutation"
+values = ["ledger-transaction", "provider-receipt", "tee-quote", "zk-receipt"]
+extensible = false
+notes = "Closed set on the [execution_proof].scheme field of a state-mutation. `ledger-transaction` binds the mutation to a transaction on an external ledger; `provider-receipt` binds it to a counterparty-signed acknowledgement; `tee-quote` binds it to a measured execution environment; `zk-receipt` binds it to a verifiable-computation receipt. The SPEC layer records the choice and the digests, and enforces that a proof is present at all (RKM02). Verification of the proof itself, key and trust-root resolution, ledger inclusion, circuit and verification-key identity, and freshness are RUNTIME-SPEC. Which schemes are ACCEPTABLE for a given workflow is policy and belongs to the consuming conformance profile, not to this vocabulary: this profile fixes that a proof exists, not that any particular proof is strong enough."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[attribute_vocabularies]]
+attribute = "finality_basis"
+applies_to = "state-mutation"
+values = ["none", "provider-acknowledged", "ledger-confirmed", "ledger-final"]
+extensible = false
+notes = "Closed set on the [execution_proof].finality_basis field. Bounds what the record claims about the DURABILITY of the mutation, which the proof scheme alone does not establish: a ledger transaction hash evidences submission and inclusion, not settlement. `none` means the record evidences that the operation was executed and claims nothing about durability; `provider-acknowledged` means a counterparty accepted it; `ledger-confirmed` means included with some confirmations; `ledger-final` means final under the ledger's own finality rule. A consumer MUST NOT read any value above `none` as verified: the SPEC layer records the producer's claim, and checking it against the named ledger is RUNTIME-SPEC."
 ijb_primitive = "constraint"
 ijb_constraint_type = "structural"
 

@@ -1,0 +1,37 @@
+# NEGATIVE FIXTURE: MUST be rejected by the SPEC 12.8/12.8.1 closure gate in
+# all three implementations. This is the fixture that proves the structural
+# difference between a MANDATORY pin and a when-present pin.
+#
+# The [execution_proof] table has been removed and closure_root has been
+# HONESTLY recomputed over the three records that remain. For the api-snapshot
+# witness (pinned when-present) that manoeuvre yields a valid unwitnessed
+# document. Here it does not: mutation.authorization_sha256,
+# mutation.effect_sha256, execution_proof.proof_sha256 and
+# execution_proof.binds_sha256 are all pinned `required`, so two required pins
+# are now missing and the closure layer MUST reject. An execution proof cannot
+# be deleted into a weaker valid record (RKM02).
+#
+# Secondary: source_bytes is deliberately wrong (417; the capture is 416) so
+# the provenance-negative sweep also rejects it, per the examples/negative
+# convention.
+closure_root = "sha256:ac236f9ef89ad30d472c07a26492de3c26b68883803e3f0777ccd04882eb6fc8"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "state-mutation"
+framework_profile = "com.verivus.runtime"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "examples/captures/2026-07-26T101500Z-ac4417-debit.capture"
+source_sha256 = "sha256:0a10577329b53feadb5a4d5f009cbc5ebf1c40a5ff86b55254a9d489b8b2e765"
+source_bytes = 417
+
+[mutation]
+performed_at = "2026-07-26T10:15:00.412Z"
+target_id = "https://ledger.example/v1/accounts/AC-4417"
+operation = "debit"
+authorization_sha256 = "sha256:218c6bd3c6a2386de7461fe24fe5b2bca1adbd92d5ddd67c0bdbeb7bfbd04a41"
+effect_sha256 = "sha256:7c9d12b09521dd2cbb0403916a82c800148976e990236436cb9216187e3aa792"
+

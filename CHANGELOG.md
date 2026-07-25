@@ -7,6 +7,38 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- **`state-mutation` kind in the `com.verivus.runtime` profile (PROPOSAL,
+  pending design review).** Records one irreversible state change an agent
+  CAUSED, as distinct from `api-snapshot`, which records one interaction an
+  agent OBSERVED. The execution proof is **mandatory**: the kind's name
+  asserts execution, so a record that cannot carry a proof is not a
+  state-mutation and must use an observation-shaped or intent-shaped kind
+  instead (RKM02). New files:
+  [`profiles/com.verivus.runtime/state-mutation-kind.toml`](profiles/com.verivus.runtime/state-mutation-kind.toml),
+  [`validators/validate_state_mutation.py`](validators/validate_state_mutation.py),
+  [`examples/minimal-state-mutation.toml`](examples/minimal-state-mutation.toml)
+  plus its capture, and three negatives (`no-proof`, `unbound-proof`,
+  `inlined-proof`). The profile ontology gains two closed vocabularies,
+  `execution_proof_scheme` and `finality_basis`, bumping its
+  `ontology_version` to 2.
+
+  The structural point: the profile descriptor pins all five state-mutation
+  closure records as `required`, in deliberate contrast to the api-snapshot
+  witness pinned `when-present`. A witness may legitimately be absent, so an
+  honestly re-rooted unwitnessed capture is valid. An execution proof may
+  not, so deleting it removes two REQUIRED pins and fails the closure gate in
+  all three implementations rather than yielding a smaller valid stream. The
+  `no-proof` negative proves it. This is what makes a state-mutation
+  impossible to downgrade silently by deletion.
+
+  `RKM04` makes proof-to-mutation binding mechanical: `binds_sha256` must
+  equal the digest of the canonical bound tuple recomputed from the
+  document's own fields, so a real receipt pointed at a different mutation is
+  rejected. Whether the proof ARTEFACT actually carries that value is
+  RUNTIME-SPEC, and is the consuming verifier's central obligation.
+
 ### Changed
 
 - **Dependabot noise reduction and coverage fix.** Consolidated the seven
