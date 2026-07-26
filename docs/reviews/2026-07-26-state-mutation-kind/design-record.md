@@ -138,7 +138,8 @@ Separately, Grok's hygiene note was accepted: `PROFILE.toml` and
 
 ## Known gaps, stated rather than assumed away
 
-1. **The primaries do not implement RKM03 or RKM04, and only half of RKM02.** Only the closure
+1. **CLOSED.** The primaries now implement RKM02, RKM03, RKM04, RKM06 and
+   RKC02. Previously: Only the closure
    layer (RKM01) has triad parity, because the pins are ordinary SPEC 12.8.1
    records, and deletion of the proof is therefore triad-caught (a missing
    required pin). The remaining kind-layer checks are Python-only, exactly as
@@ -156,11 +157,62 @@ Separately, Grok's hygiene note was accepted: `PROFILE.toml` and
    producing the proof has no knowledge of the agent's capture digest, so
    including it would require the target to sign the agent's own observation.
    Treated as resolved unless round 2 disagrees.
-5. **No companion kind for unproved mutations.** All three substantive
-   reviewers named this as the real cost of the mandatory-proof decision: a
-   producer with a genuine mutation and no proof has no kind in this profile.
-   Not addressed here because it is a product decision for the operator, not a
-   defect in this change. It is the most likely thing to block adoption.
+5. **CLOSED.** `mutation-claim` ships as the companion kind: identical
+   `[mutation]` table so promotion is mechanical, three-record closure, and
+   RKC02 forbidding `[execution_proof]` in either direction.
 6. **`provider-receipt` retention is a judgment call** (see round 1 above),
    made against one reviewer's blocker. Reversible by deleting one vocabulary
    value and its RKM06 row.
+
+
+## Round 2 additions: companion kind and primary parity
+
+Both remaining gaps from round 1 are closed.
+
+**`mutation-claim`.** All three substantive reviewers named the same cost of
+the mandatory-proof decision: a producer with a genuine mutation and no proof
+had no kind, which does not make the case disappear, it makes producers
+mislabel it. The companion kind carries an identical `[mutation]` table so
+promotion is mechanical (add the proof table, change `template_kind`, re-root),
+pins three closure records, and declares abstraction class `claim-record.v1`
+distinct from both `observation-record.v1` and `execution-record.v1`.
+
+RKC02 enforces the split in BOTH directions: a claim must not carry
+`[execution_proof]` (or a proved record could escape RKM02, RKM04 and RKM06 by
+renaming itself), and a proof-bearing document must use `state-mutation`. This
+cannot be a closure rule, because a stream can pin the presence of a field but
+never its absence, so it is a kind-layer invariant with a negative fixture
+asserted against all three implementations.
+
+**Primary parity.** `validateMutationKinds` (Go) and `mutation_kinds` (Rust)
+port RKM02, RKM03, RKM04, RKM06 and RKC02, wired into both auto dispatch and an
+explicit `--mode mutation-kinds`. The motivating case was Grok's hollow proof:
+an `[execution_proof]` carrying only the two pinned digests is closure-valid,
+so before the port a primary-only consumer accepted a state-mutation with no
+typed proof at all. It is now rejected by all three.
+
+Cross-implementation parity verified on the bound tuple, which is the byte-level
+contract that matters most:
+
+| Implementation | expected `binds_sha256` for the unbound fixture |
+|---|---|
+| Python | `sha256:7a5604ab…fda87` |
+| Rust | `sha256:7a5604ab…fda87` |
+| Go | `sha256:7a5604ab…fda87` |
+
+Both primaries pass every positive (`state-mutation`, `mutation-claim`, and the
+unrelated `api-snapshot` control) and reject all five state-mutation negatives
+plus the RKC02 claim-with-proof negative. The RFC3339, operation-token and
+URI-shape grammars are hand-rolled in both, matching the Python regexes, since
+the Rust crate carries no regex dependency by policy.
+
+Repo-wide closure sweep as CI invokes it: PASSED, 90 files.
+
+### What is still open
+
+- The bound-tuple grammar is now normative (SPEC 12.8.2) and implemented three
+  times, but SPEC 12.8.2 itself has had no independent review: it was written
+  in response to a round-1 blocker and reviewed by nobody yet.
+- `mutation-claim` has no conformance cases.
+- The `provider-receipt` retention decision still stands against one reviewer's
+  blocker and remains the operator's to reverse.

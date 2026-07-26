@@ -170,13 +170,14 @@ def check_keys(table: dict, allowed: frozenset, dotted: str, errors: list[str]) 
         )
 
 
-def validate_one(path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
+def _validate_mutation_table(doc: dict, path: pathlib.Path) -> list[str]:
+    """The `[mutation]` checks shared by state-mutation and mutation-claim.
+
+    Both kinds carry an identical table by design, so a claim can be promoted
+    to a proved record without rewriting any of it. Sharing the code is what
+    keeps that promise true rather than aspirational.
+    """
     errors: list[str] = []
-    doc = tomllib.loads(path.read_text())
-
-    if doc.get("meta", {}).get("template_kind") != "state-mutation":
-        return errors  # not our kind; the discovery caller decides what that means
-
     mutation = doc.get("mutation")
     if not isinstance(mutation, dict):
         errors.append(f"{path}: missing required `[mutation]` table")
@@ -224,6 +225,34 @@ def validate_one(path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
             f"{path}: provenance.source_sha256 {provenance.get('source_sha256')!r} "
             f"is required and MUST be a digest scalar"
         )
+
+    return errors
+
+
+def validate_one(path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
+    errors: list[str] = []
+    doc = tomllib.loads(path.read_text())
+
+    kind = doc.get("meta", {}).get("template_kind")
+    if kind not in ("state-mutation", "mutation-claim"):
+        return errors  # not our kind; the discovery caller decides what that means
+
+    # `mutation-claim` shares the `[mutation]` table and its grammars, so
+    # promoting a claim to a proved record is mechanical. What it must NOT
+    # carry is a proof: RKC02. Checked first so the message is the useful one
+    # rather than a cascade of missing-proof errors from the RKM02 path.
+    if kind == "mutation-claim":
+        if "execution_proof" in doc:
+            errors.append(
+                f"{path}: a mutation-claim MUST NOT carry `[execution_proof]` (RKC02). "
+                f"A document with a proof is a state-mutation and MUST declare "
+                f"`template_kind = \"state-mutation\"`, so that RKM02, RKM04 and RKM06 apply "
+                f"to it rather than proof-shaped fields no invariant governs"
+            )
+        errors.extend(_validate_mutation_table(doc, path))
+        return errors
+
+    errors.extend(_validate_mutation_table(doc, path))
 
     # RKM02: the proof is mandatory and complete. An absent table is an
     # error, never a producer-attested downgrade.
@@ -284,6 +313,7 @@ def validate_one(path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
         )
 
     # RKM04: the proof must be bound to THIS mutation, not merely exist.
+    mutation = doc.get("mutation") if isinstance(doc.get("mutation"), dict) else {}
     declared = proof.get("binds_sha256")
     if is_digest(declared) and all(
         isinstance(mutation.get(f.split(".", 1)[1]), str) for f in BOUND_TUPLE_FIELDS

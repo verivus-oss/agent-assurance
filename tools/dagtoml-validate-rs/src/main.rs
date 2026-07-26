@@ -47,6 +47,7 @@ mod cli {
         Meta,
         /// Force gate-decision INV01..INV06 validation.
         GateDecision,
+    MutationKinds,
         /// Force kind-descriptor structural validation.
         KindDescriptor,
         /// Force IJB conformance validation.
@@ -94,6 +95,7 @@ mod cli {
                     Some("provenance") => mode = Mode::Provenance,
                     Some("meta") => mode = Mode::Meta,
                     Some("gate-decision") => mode = Mode::GateDecision,
+            Some("mutation-kinds") => mode = Mode::MutationKinds,
                     Some("kind-descriptor") => mode = Mode::KindDescriptor,
                     Some("ijb") => mode = Mode::Ijb,
                     Some("provenance-binding") => mode = Mode::ProvenanceBinding,
@@ -3658,6 +3660,359 @@ mod disclosure {
 // CI runs both; divergence is a build break.
 // ------------------------------------------------------------
 
+/// Kind-layer invariants for the `com.verivus.runtime` mutation kinds.
+///
+/// Ported from `validators/validate_state_mutation.py` to close the
+/// primary-parity gap recorded against RKM02/RKM03/RKM04/RKM06 and RKC02.
+/// Before this port a primary-only consumer accepted a hollow proof (the two
+/// pinned digests with no scheme, finality or locator), because the closure
+/// layer sees pins and nothing else.
+mod mutation_kinds {
+    use super::*;
+
+    /// SPEC 12.8.2 bound tuple. Values are PREHASHED, never inlined: an
+    /// inlined value carrying 0x0A forges a different field assignment with
+    /// an identical digest, which is exactly the collision that blocked the
+    /// first draft of this kind.
+    const BOUND_TUPLE_FIELDS: [(&str, &str); 5] = [
+        ("mutation.target_id", "target_id"),
+        ("mutation.operation", "operation"),
+        ("mutation.authorization_sha256", "authorization_sha256"),
+        ("mutation.effect_sha256", "effect_sha256"),
+        ("mutation.performed_at", "performed_at"),
+    ];
+
+    const ALLOWED_MUTATION_KEYS: [&str; 5] = [
+        "performed_at",
+        "target_id",
+        "operation",
+        "authorization_sha256",
+        "effect_sha256",
+    ];
+
+    const ALLOWED_PROOF_KEYS: [&str; 5] = [
+        "scheme",
+        "finality_basis",
+        "proof_sha256",
+        "binds_sha256",
+        "proof_locator",
+    ];
+
+    const REQUIRED_PROOF_KEYS: [&str; 5] = [
+        "scheme",
+        "finality_basis",
+        "proof_sha256",
+        "binds_sha256",
+        "proof_locator",
+    ];
+
+    /// RKM06 scheme-to-finality coherence.
+    fn allowed_finality(scheme: &str) -> Option<&'static [&'static str]> {
+        match scheme {
+            "ledger-transaction" | "zk-receipt" => {
+                Some(&["none", "ledger-confirmed", "ledger-final"])
+            }
+            "provider-receipt" => Some(&["none", "provider-acknowledged"]),
+            "tee-quote" => Some(&["none"]),
+            _ => None,
+        }
+    }
+
+    fn is_digest(s: &str) -> bool {
+        for (prefix, len) in [("sha256:", 64usize), ("sha384:", 96), ("sha512:", 128)] {
+            if let Some(hex) = s.strip_prefix(prefix) {
+                return hex.len() == len
+                    && hex
+                        .chars()
+                        .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c));
+            }
+        }
+        false
+    }
+
+    /// RFC3339 UTC, `YYYY-MM-DDTHH:MM:SS[.frac]Z`. Hand-rolled: this crate
+    /// carries no regex dependency by policy.
+    fn is_rfc3339_utc(s: &str) -> bool {
+        let b = s.as_bytes();
+        if b.len() < 20 || *b.last().unwrap() != b'Z' {
+            return false;
+        }
+        let shape = |i: usize, c: u8| b.get(i) == Some(&c);
+        let digits = |r: std::ops::Range<usize>| b[r].iter().all(u8::is_ascii_digit);
+        if !(digits(0..4) && shape(4, b'-') && digits(5..7) && shape(7, b'-') && digits(8..10)) {
+            return false;
+        }
+        if !(shape(10, b'T') && digits(11..13) && shape(13, b':') && digits(14..16)
+            && shape(16, b':') && digits(17..19))
+        {
+            return false;
+        }
+        match b.len() {
+            20 => true,
+            _ => {
+                b[19] == b'.'
+                    && b.len() <= 30
+                    && b[20..b.len() - 1].iter().all(u8::is_ascii_digit)
+                    && b.len() - 21 >= 1
+            }
+        }
+    }
+
+    /// Bare lowercase token, at most 64 characters.
+    fn is_operation(s: &str) -> bool {
+        let b = s.as_bytes();
+        if b.is_empty() || b.len() > 64 {
+            return false;
+        }
+        if !(b[0].is_ascii_lowercase() || b[0].is_ascii_digit()) {
+            return false;
+        }
+        b.iter().all(|&c| {
+            c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'.' || c == b'_' || c == b'-'
+        })
+    }
+
+    /// URI-shaped: `scheme:rest`, no whitespace or control characters,
+    /// bounded. Used for `target_id` and `proof_locator`. A locator names
+    /// where a proof lives; it is never a place to inline one (RKM03).
+    fn is_uri_shaped(s: &str) -> bool {
+        let Some(colon) = s.find(':') else {
+            return false;
+        };
+        if colon == 0 {
+            return false;
+        }
+        let (scheme, rest) = s.split_at(colon);
+        let rest = &rest[1..];
+        if rest.is_empty() || rest.len() > 480 {
+            return false;
+        }
+        let mut chars = scheme.chars();
+        let Some(first) = chars.next() else {
+            return false;
+        };
+        if !first.is_ascii_lowercase() {
+            return false;
+        }
+        if !chars.all(|c| {
+            c.is_ascii_lowercase() || c.is_ascii_digit() || c == '+' || c == '.' || c == '-'
+        }) {
+            return false;
+        }
+        rest.chars()
+            .all(|c| !c.is_whitespace() && !c.is_control() && c != '\u{7f}')
+    }
+
+    fn str_field<'a>(t: Option<&'a toml::map::Map<String, Value>>, key: &str) -> Option<&'a str> {
+        t?.get(key)?.as_str()
+    }
+
+    fn bound_tuple(mutation: &toml::map::Map<String, Value>) -> String {
+        let mut records: Vec<Vec<u8>> = Vec::new();
+        for (dotted, key) in BOUND_TUPLE_FIELDS {
+            let value = mutation.get(key).and_then(|v| v.as_str()).unwrap_or("");
+            let vd = super::digest_hex("sha256", value.as_bytes());
+            records.push(format!("{dotted} sha256:{vd}\n").into_bytes());
+        }
+        records.sort();
+        let stream: Vec<u8> = records.concat();
+        format!("sha256:{}", super::digest_hex("sha256", &stream))
+    }
+
+    fn check_mutation_table(
+        doc: &Value,
+        location: &std::path::Display,
+        defects: &mut Vec<String>,
+    ) {
+        let mutation = doc.get("mutation").and_then(|x| x.as_table());
+        let Some(mutation) = mutation else {
+            defects.push(format!("{}: missing required `[mutation]` table", location));
+            return;
+        };
+        for key in mutation.keys() {
+            if !ALLOWED_MUTATION_KEYS.contains(&key.as_str()) {
+                defects.push(format!(
+                    "{}: mutation.{} is not a permitted key (closed key set; payloads and \
+                     credentials have no field to live in)",
+                    location, key
+                ));
+            }
+        }
+        for key in ["authorization_sha256", "effect_sha256"] {
+            match str_field(Some(mutation), key) {
+                Some(v) if is_digest(v) => {}
+                Some(v) => defects.push(format!(
+                    "{}: mutation.{} {:?} is not a digest scalar",
+                    location, key, v
+                )),
+                None => defects.push(format!("{}: mutation.{} is required", location, key)),
+            }
+        }
+        match str_field(Some(mutation), "performed_at") {
+            Some(v) if is_rfc3339_utc(v) => {}
+            Some(v) => defects.push(format!(
+                "{}: mutation.performed_at {:?} must be an RFC3339 UTC timestamp ending in Z",
+                location, v
+            )),
+            None => defects.push(format!("{}: mutation.performed_at is required", location)),
+        }
+        match str_field(Some(mutation), "operation") {
+            Some(v) if is_operation(v) => {}
+            Some(v) => defects.push(format!(
+                "{}: mutation.operation {:?} must be a bare lowercase token, at most 64 characters",
+                location, v
+            )),
+            None => defects.push(format!("{}: mutation.operation is required", location)),
+        }
+        match str_field(Some(mutation), "target_id") {
+            Some(v) if is_uri_shaped(v) => {}
+            Some(v) => defects.push(format!(
+                "{}: mutation.target_id {:?} must be a URI or URN with no whitespace or control \
+                 characters",
+                location, v
+            )),
+            None => defects.push(format!("{}: mutation.target_id is required", location)),
+        }
+        match doc.get("provenance").and_then(|x| x.as_table()) {
+            None => defects.push(format!(
+                "{}: missing required `[provenance]` table; provenance.source_sha256 is a \
+                 required field of this kind",
+                location
+            )),
+            Some(p) => match str_field(Some(p), "source_sha256") {
+                Some(v) if is_digest(v) => {}
+                _ => defects.push(format!(
+                    "{}: provenance.source_sha256 is required and MUST be a digest scalar",
+                    location
+                )),
+            },
+        }
+    }
+
+    pub fn validate(path: &Path, doc: &Value, _repo_root: &Path) -> Vec<String> {
+        let mut defects = Vec::new();
+        let location = path.display();
+        let tk = doc
+            .get("meta")
+            .and_then(|x| x.as_table())
+            .and_then(|m| m.get("template_kind"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("");
+
+        if tk == "mutation-claim" {
+            // RKC02: a claim must not borrow the appearance of proof.
+            if doc.get("execution_proof").is_some() {
+                defects.push(format!(
+                    "{}: a mutation-claim MUST NOT carry `[execution_proof]` (RKC02). A document \
+                     with a proof is a state-mutation and MUST declare that template_kind, so \
+                     that RKM02, RKM04 and RKM06 apply to it",
+                    location
+                ));
+            }
+            check_mutation_table(doc, &location, &mut defects);
+            return defects;
+        }
+        if tk != "state-mutation" {
+            return defects;
+        }
+
+        check_mutation_table(doc, &location, &mut defects);
+
+        // RKM02: the proof is mandatory and complete. An absent table is an
+        // error, never a producer-attested downgrade.
+        let proof = doc.get("execution_proof").and_then(|x| x.as_table());
+        let Some(proof) = proof else {
+            defects.push(format!(
+                "{}: missing required `[execution_proof]` table (RKM02). A record of an \
+                 irreversible state change with no execution proof is not a state-mutation; use \
+                 mutation-claim instead",
+                location
+            ));
+            return defects;
+        };
+        for key in proof.keys() {
+            if !ALLOWED_PROOF_KEYS.contains(&key.as_str()) {
+                defects.push(format!(
+                    "{}: execution_proof.{} is not a permitted key (RKM03 closed key set)",
+                    location, key
+                ));
+            }
+        }
+        for key in REQUIRED_PROOF_KEYS {
+            if !proof.contains_key(key) {
+                defects.push(format!(
+                    "{}: execution_proof.{} is required (RKM02)",
+                    location, key
+                ));
+            }
+        }
+        for key in ["proof_sha256", "binds_sha256"] {
+            if let Some(v) = str_field(Some(proof), key) {
+                if !is_digest(v) {
+                    defects.push(format!(
+                        "{}: execution_proof.{} {:?} is not a digest scalar",
+                        location, key, v
+                    ));
+                }
+            }
+        }
+        if let Some(loc) = str_field(Some(proof), "proof_locator") {
+            if !is_uri_shaped(loc) {
+                defects.push(format!(
+                    "{}: execution_proof.proof_locator {:?} must be a URI-shaped reference. A \
+                     locator names where the proof can be fetched; it is not a place to inline \
+                     the proof itself (RKM03)",
+                    location, loc
+                ));
+            }
+        }
+
+        // RKM06: a scheme may only claim durability its evidence can carry.
+        let scheme = str_field(Some(proof), "scheme").unwrap_or("");
+        let finality = str_field(Some(proof), "finality_basis").unwrap_or("");
+        match allowed_finality(scheme) {
+            None => {
+                if !scheme.is_empty() {
+                    defects.push(format!(
+                        "{}: execution_proof.scheme {:?} is not in the closed \
+                         execution_proof_scheme vocabulary",
+                        location, scheme
+                    ));
+                }
+            }
+            Some(allowed) => {
+                if !finality.is_empty() && !allowed.contains(&finality) {
+                    defects.push(format!(
+                        "{}: execution_proof scheme {:?} cannot claim finality_basis {:?} \
+                         (RKM06); it carries evidence for {:?} only",
+                        location, scheme, finality, allowed
+                    ));
+                }
+            }
+        }
+
+        // RKM04: the proof must bind THIS mutation, not merely exist.
+        if let (Some(mutation), Some(declared)) = (
+            doc.get("mutation").and_then(|x| x.as_table()),
+            str_field(Some(proof), "binds_sha256"),
+        ) {
+            if is_digest(declared) {
+                let expected = bound_tuple(mutation);
+                if declared != expected {
+                    defects.push(format!(
+                        "{}: execution_proof.binds_sha256 {} does not equal the SPEC 12.8.2 bound \
+                         tuple recomputed from this document ({}) (RKM04). The proof does not \
+                         commit to this mutation",
+                        location, declared, expected
+                    ));
+                }
+            }
+        }
+
+        defects
+    }
+}
+
 mod gate_decision {
     use super::*;
 
@@ -4673,6 +5028,10 @@ fn main() -> ExitCode {
                     errs.extend(gate_decision::validate(path, &doc, &repo_root));
                     errs.extend(ijb::validate(path, &doc, &repo_root));
                 }
+                "state-mutation" | "mutation-claim" => {
+                    errs.extend(mutation_kinds::validate(path, &doc, &repo_root));
+                    errs.extend(ijb::validate(path, &doc, &repo_root));
+                }
                 "" => {}
                 _ => {
                     errs.extend(ijb::validate(path, &doc, &repo_root));
@@ -4686,6 +5045,9 @@ fn main() -> ExitCode {
             }
             cli::Mode::GateDecision => {
                 errs.extend(gate_decision::validate(path, &doc, &repo_root));
+            }
+            cli::Mode::MutationKinds => {
+                errs.extend(mutation_kinds::validate(path, &doc, &repo_root));
             }
             cli::Mode::KindDescriptor => {
                 errs.extend(kind_descriptor::validate(

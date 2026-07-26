@@ -9,6 +9,19 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **`mutation-claim` kind, and primary parity for both mutation kinds.** The
+  companion kind is the honest home for a state change with no execution proof:
+  identical `[mutation]` table so promotion to `state-mutation` is mechanical,
+  three pinned closure records, abstraction class `claim-record.v1`, and RKC02
+  forbidding `[execution_proof]` so the claim/proof split cannot be evaded in
+  either direction. The Rust and Go primaries now implement RKM02, RKM03,
+  RKM04, RKM06 and RKC02 (`--mode mutation-kinds`, plus auto dispatch), closing
+  the Python-only enforcement boundary recorded when the kind first landed. The
+  motivating case was a hollow proof: an `[execution_proof]` carrying only the
+  two pinned digests is closure-valid, so a primary-only consumer previously
+  accepted a state-mutation with no typed proof. All three implementations
+  agree byte for byte on the SPEC 12.8.2 bound tuple.
+
 - **`state-mutation` kind in the `com.verivus.runtime` profile (PROPOSAL,
   pending design review).** Records one irreversible state change an agent
   CAUSED, as distinct from `api-snapshot`, which records one interaction an

@@ -239,6 +239,7 @@ jobs:
             examples/minimal-gate-decision.toml
             examples/minimal-api-snapshot.toml
             examples/minimal-state-mutation.toml
+            examples/minimal-mutation-claim.toml
             examples/minimal-review-readiness/review_readiness.toml
             examples/minimal-review-readiness/contract_declaration.toml
             examples/minimal-review-readiness/evidence_matrix.toml
@@ -265,7 +266,8 @@ jobs:
           python3 validators/validate_api_snapshot.py \
             --repo-root . examples/minimal-api-snapshot.toml
           python3 validators/validate_state_mutation.py \
-            --repo-root . examples/minimal-state-mutation.toml
+            --repo-root . examples/minimal-state-mutation.toml \
+            examples/minimal-mutation-claim.toml
           python3 validators/validate_disclosure.py \
             --repo-root . \
             examples/minimal-disclosure-attestation.toml \
@@ -455,6 +457,7 @@ jobs:
                    examples/minimal-gate-decision.toml \
                    examples/minimal-api-snapshot.toml \
                    examples/minimal-state-mutation.toml \
+                   examples/minimal-mutation-claim.toml \
                    examples/minimal-review-readiness/review_readiness.toml \
                    examples/minimal-review-readiness/contract_declaration.toml \
                    examples/minimal-review-readiness/evidence_matrix.toml \
@@ -895,6 +898,30 @@ jobs:
           check_rejects "python state-mutation operation-injection (RKM03 grammar)" \
             python3 validators/validate_state_mutation.py --repo-root . \
             examples/negative/state-mutation-operation-injection.toml
+          # Kind-layer parity. The Rust and Go primaries now implement
+          # RKM02/RKM03/RKM04/RKM06 and RKC02, so every kind-layer negative is
+          # asserted against all three implementations rather than Python
+          # alone. hollow-proof is the case that motivated the port: it is
+          # closure-valid, so before parity a primary-only consumer accepted a
+          # state-mutation carrying no typed proof.
+          for neg in hollow-proof unbound-proof inlined-proof operation-injection; do
+            check_rejects "rust state-mutation $neg (kind layer)" \
+              "$rs" --repo-root . --mode mutation-kinds \
+              "examples/negative/state-mutation-$neg.toml"
+            check_rejects "go state-mutation $neg (kind layer)" \
+              "$go_bin" -repo-root . -mode mutation-kinds \
+              "examples/negative/state-mutation-$neg.toml"
+          done
+          # RKC02, both directions of the claim/proof split.
+          check_rejects "python mutation-claim with-proof (RKC02)" \
+            python3 validators/validate_state_mutation.py --repo-root . \
+            examples/negative/mutation-claim-with-proof.toml
+          check_rejects "rust mutation-claim with-proof (RKC02)" \
+            "$rs" --repo-root . --mode mutation-kinds \
+            examples/negative/mutation-claim-with-proof.toml
+          check_rejects "go mutation-claim with-proof (RKC02)" \
+            "$go_bin" -repo-root . -mode mutation-kinds \
+            examples/negative/mutation-claim-with-proof.toml
 
       - name: Provenance source_path containment guard (SPEC §11)
         # Behavioural guard: a static fixture cannot isolate the

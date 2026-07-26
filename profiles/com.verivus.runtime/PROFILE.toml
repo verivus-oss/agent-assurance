@@ -39,6 +39,7 @@ ontology          = "profiles/com.verivus.runtime/ontology.toml"
 contained_kinds   = [
   "api-snapshot",
   "state-mutation",
+  "mutation-claim",
 ]
 ijb_primitive     = "thing"
 ijb_class         = "structural"
@@ -87,4 +88,18 @@ presence       = "required"
 [[profile.closure_records]]
 contained_kind = "state-mutation"
 field          = "execution_proof.binds_sha256"
+presence       = "required"
+
+# mutation-claim pins. Three records, all required. There is no proof to
+# pin: the absence of `[execution_proof]` is a kind-layer invariant (RKC02),
+# since a closure stream can pin the presence of a field but never its
+# absence.
+[[profile.closure_records]]
+contained_kind = "mutation-claim"
+field          = "mutation.authorization_sha256"
+presence       = "required"
+
+[[profile.closure_records]]
+contained_kind = "mutation-claim"
+field          = "mutation.effect_sha256"
 presence       = "required"
