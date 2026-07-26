@@ -1,0 +1,46 @@
+# NEGATIVE FIXTURE: MUST be rejected by the kind layer in all three
+# implementations for RKC02.
+#
+# The sibling of `mutation-claim-with-proof.toml`, and the reason RKC02 must
+# test PRESENCE rather than well-formedness. The proof material is identical;
+# only its TOML shape differs. It sits in an array of tables rather than a
+# table, so an implementation that enforces RKC02 by asking "is
+# `execution_proof` a table?" never sees it.
+#
+# The Go primary
+# enforced RKC02 through its table accessor, which answers false both for an
+# absent key and for a key holding a non-table, so this document passed Go in
+# both auto and explicit mode while Python and Rust rejected it. The document
+# is deliberately closure-VALID, so nothing else catches it: a Go-only consumer
+# accepted a claim carrying a fully populated provider receipt.
+#
+# This is the same class as the blank-scheme and wrong-typed-proof fixtures,
+# one structural level up. Those closed "present scalar that reads as empty";
+# this closes "present key that reads as no table".
+#
+# Secondary: source_bytes is deliberately wrong (224; the capture is 184).
+
+closure_root = "sha256:f7aeefffc2ab795ba9e6003b5f2d326a23a952e449f4dd2ab677afc17ed41bb8"
+
+execution_proof = [
+  { scheme = "provider-receipt", finality_basis = "provider-acknowledged", proof_sha256 = "sha256:a5255188d6a0efd927a7bca54ac504bd3f1908fe76e75b6be3e50568d7bc38ba", binds_sha256 = "sha256:7a5604ab843c08b4c79b19ab7d6ca1b118387b1ca096948e5ff86c5d2d3fda87", proof_locator = "https://crm.example/receipts/R-1" },
+]
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "mutation-claim"
+framework_profile = "com.verivus.runtime"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "examples/captures/2026-07-26T104500Z-crm-update.capture"
+source_sha256 = "sha256:915f2d0e1bb0ba3bed9c553734ea39e70ee6cb598514c60f28e4ebf22e53d958"
+source_bytes = 224
+
+[mutation]
+performed_at = "2026-07-26T10:45:00.900Z"
+target_id = "https://crm.example/v2/contacts/C-91188"
+operation = "update"
+authorization_sha256 = "sha256:a2d9a26f89d8f861f21d2f8535e47f18cabd1fd9598837f3939b7ecd2df074a7"
+effect_sha256 = "sha256:e8bd53449c572de4fde4421e0d30e8fbea2ed0b14eb6de662694402c07546ac6"

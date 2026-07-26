@@ -122,3 +122,33 @@ negative-agreement block, now extended to assert the four new fixtures against
 Python as well as both primaries. Every one of them was a
 reference-versus-primary disagreement, so pinning only one side would let the
 pair drift apart again.
+
+## Round-3 fix verification
+
+The RKC02 bypass, reproduced before the fix and re-run after. All four shapes
+carry the forbidden field on a `mutation-claim`; the last carries a complete
+provider receipt.
+
+| `execution_proof` value | py | rs | go | go auto | closure |
+|---|---|---|---|---|---|
+| `1` | FAIL | FAIL | **PASS** to FAIL | **PASS** to FAIL | PASS |
+| `"proof:fake"` | FAIL | FAIL | **PASS** to FAIL | **PASS** to FAIL | PASS |
+| `[]` | FAIL | FAIL | **PASS** to FAIL | **PASS** to FAIL | PASS |
+| `[{ scheme = "provider-receipt", ...complete... }]` | FAIL | FAIL | **PASS** to FAIL | **PASS** to FAIL | PASS |
+
+The closure column is the point: every one of these is closure-valid, so before
+the fix a Go-only consumer accepted a claim carrying real proof material and no
+other layer would have caught it.
+
+Full suite after the fix: three positives pass all three implementations;
+**eleven** negatives are rejected by all three (nine state-mutation, two
+mutation-claim); both kind descriptors, the profile descriptor and IJB
+conformance pass; the closure sweep as CI invokes it passes at 90 files;
+`validate.yml` parses.
+
+Independently corroborated by the round-3 board rather than only by the
+initiator: Grok and Mistral both differential-tested the calendar checks across
+roughly 25 cases and found no divergence, no integer overflow and no panic, and
+all three returning reviewers re-ran the closure sweep and got 90 files. That
+is the first time a claim in this log has been reproduced by someone other than
+its author.

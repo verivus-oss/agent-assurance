@@ -286,16 +286,90 @@ is resolved by REQUIRING that none is applied, with the reasoning stated: making
 recomputation depend on a Unicode version would defeat reproducibility from
 bytes alone.
 
-### What is still open
+## Round 3 review outcome and what changed
 
-- SPEC 12.8.2 has been reviewed once, and the round-2 additions to it have not.
-- `mutation-claim` still has no conformance cases.
-- The `provider-receipt` retention decision now stands against one reviewer's
-  round-1 blocker with a second reviewer (Gemini, round 2) independently
-  reversing position and arguing FOR retention. It remains the operator's to
-  reverse.
+Three verdicts, not four: the Gemini job died on a gateway transport timeout
+with zero output (`raw_findings/r3-gemini.md`). All three that returned withheld
+approval.
+
+**Codex and Grok independently named the same blocker, and it reproduced.**
+Round 2 closed the absent/blank/wrong-typed conflation for SCALAR fields. The
+same conflation survived one structural level up, in the typed TABLE accessors,
+and RKC02 was enforced through one.
+
+`tableOf` answers false both for an absent key and for a key holding a
+non-table. That is the right answer when a table is REQUIRED and the wrong one
+when a field is FORBIDDEN. So a `mutation-claim` carrying
+`execution_proof = [{ scheme = "provider-receipt", ... }]`, a fully populated
+provider receipt in an array of tables rather than a table, passed the Go
+primary in both auto and explicit mode while Python and Rust rejected it. The
+document is closure-valid, so nothing else caught it either. Codex found the
+array-of-tables variant, which is materially worse than the bare scalar Grok
+started from: the proof material is real and complete, and only its TOML shape
+differs.
+
+Fixed with `hasKey` in Go, so RKC02 asks whether the field is PRESENT rather
+than whether it is well-formed. Regression fixture
+`examples/negative/mutation-claim-array-proof.toml`, deliberately closure-valid,
+asserted in CI against all three.
+
+**Mistral found the same class applied to the REQUIRED tables**, where the
+consequence is only a dishonest diagnostic: `mutation = 1` was reported as
+"missing required `[mutation]` table" by all three. Accept/reject parity held,
+so this was not a bypass, and Mistral scoped it correctly as such. It was still
+worth fixing, because SPEC 12.8.2 now says in as many words that a
+present-but-wrong-typed element MUST NOT be treated as absent, and the
+implementations were contradicting the repo's own new rule. All three now
+distinguish the two cases at both table sites.
+
+The pattern across rounds 2 and 3 is one bug wearing three costumes: a typed
+accessor that collapses "absent" and "present but wrong shape" into a single
+skip path. It was closed for proof scalars in round 2, for the forbidden proof
+key and both required tables in round 3.
+
+**What the board confirmed by execution rather than assertion.** Grok
+reproduced the round-2 fixes as fixed, including whitespace-only scheme and
+finality. Grok and Mistral both differential-tested the new calendar checks
+across roughly 25 cases (year 0000, month and day 00, February 29 in 1900,
+2000, 2100 and 2024, second 60 and 61, hour 24, minute 60, fractional-digit
+boundaries) and found no divergence, no overflow and no panic. Both endorsed
+the unconditional `second <= 60` reading of RFC3339 5.6 rather than
+IERS-table awareness, which would put versioned external data inside a byte
+contract. All three re-ran the CI closure sweep and got 90 files.
+
+**The SPEC 12.8.2 normalization decision survived, with a caveat.** Grok and
+Mistral both independently endorsed requiring that NO normalization is applied.
+Grok tested the escape hatch and reported that constraining a grammar to one
+encoding works for closed ASCII token vocabularies but for a free-form
+`target_id` requires forbidding raw non-ASCII or mandating percent-encoding,
+which is feasible but harsh. The caveat: Gemini raised the original objection
+and, because its job timed out, never replied to the answer.
+
+### What is still open after round 3
+
+- **The round-3 fix itself is unreviewed.** `hasKey` and the four table-site
+  changes were written in response to round 3 and have had no independent pass.
+  This is the same standing that produced the round-2 and round-3 blockers:
+  each round's fix has been the next round's defect.
+- **Gemini has not reviewed rounds 3 or the SPEC additions it objected to.**
+  Its round-3 job timed out with no output. The normalization decision it
+  contested now has two independent endorsements and no reply from the
+  objector.
+- `mutation-claim` still has no conformance cases. This has been open since
+  round 1 and no round has closed it.
+- The `provider-receipt` retention decision stands against one reviewer's
+  round-1 blocker, with the same reviewer reversing position in round 2 and
+  arguing FOR retention. It remains the operator's to reverse.
 - Vocabulary source still differs between reference and primaries: Python loads
   the closed vocabularies from the profile ontology at run time, both primaries
   compile them in. A profile that extends `execution_proof_scheme` or
   `finality_basis` will be accepted by the reference and rejected by the
   primaries until they are rebuilt. Recorded in RKM02's `enforcement_boundary`.
+  Grok named the absence of a CI lock diffing the two as a live drift hazard.
+- **Enumerated lists in CI remain a structural hazard.** Round 2 found the
+  closure sweep's `--exclude` list red because a new directory was not added to
+  it. Grok and Mistral both flagged that the kind-descriptor list at
+  `validate.yml:391` and the closure exclude list have the same shape: the
+  primaries discover `conformance/cases/*/invalid` generically while the Python
+  steps enumerate. Adding a kind will silently break a sweep again. Not fixed,
+  because it is repo-wide rather than specific to these kinds.

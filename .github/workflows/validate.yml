@@ -938,15 +938,26 @@ jobs:
               "examples/negative/state-mutation-$neg.toml"
           done
           # RKC02, both directions of the claim/proof split.
-          check_rejects "python mutation-claim with-proof (RKC02)" \
-            python3 validators/validate_state_mutation.py --repo-root . \
-            examples/negative/mutation-claim-with-proof.toml
-          check_rejects "rust mutation-claim with-proof (RKC02)" \
-            "$rs" --repo-root . --mode mutation-kinds \
-            examples/negative/mutation-claim-with-proof.toml
-          check_rejects "go mutation-claim with-proof (RKC02)" \
-            "$go_bin" -repo-root . -mode mutation-kinds \
-            examples/negative/mutation-claim-with-proof.toml
+          #
+          # array-proof carries the SAME proof material as with-proof and
+          # differs only in TOML shape: an array of tables rather than a table.
+          # RKC02 must test whether the field is
+          # PRESENT, not whether it is well-formed, and the Go primary tested
+          # well-formedness through its table accessor, so a claim carrying a
+          # fully populated provider receipt passed it in both modes. Both
+          # fixtures are closure-valid, so the kind layer is the only thing
+          # that can reject either.
+          for neg in with-proof array-proof; do
+            check_rejects "python mutation-claim $neg (RKC02)" \
+              python3 validators/validate_state_mutation.py --repo-root . \
+              "examples/negative/mutation-claim-$neg.toml"
+            check_rejects "rust mutation-claim $neg (RKC02)" \
+              "$rs" --repo-root . --mode mutation-kinds \
+              "examples/negative/mutation-claim-$neg.toml"
+            check_rejects "go mutation-claim $neg (RKC02)" \
+              "$go_bin" -repo-root . -mode mutation-kinds \
+              "examples/negative/mutation-claim-$neg.toml"
+          done
 
       - name: Provenance source_path containment guard (SPEC §11)
         # Behavioural guard: a static fixture cannot isolate the

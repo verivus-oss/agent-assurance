@@ -9,6 +9,27 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **RKC02 could be bypassed in the Go primary by shape.** RKC02 forbids a
+  `mutation-claim` from carrying `[execution_proof]`, and Go enforced it
+  through its table accessor, which answers false both for an absent key and
+  for a key holding a non-table. So a claim carrying
+  `execution_proof = [{ scheme = "provider-receipt", ... }]`, a fully populated
+  provider receipt in an array of tables, passed the Go primary in both auto
+  and explicit mode while Python and Rust rejected it. The document is
+  closure-valid, so nothing else caught it. An invariant that forbids a field
+  must ask whether the field is PRESENT, not whether it is well-formed; Go now
+  uses `hasKey`.
+
+  This is an earlier defect one structural level up. That one closed
+  absent-versus-blank-versus-wrong-typed for proof SCALARS; the same collapse
+  survived in the typed TABLE accessors.
+
+  The same class appears on the REQUIRED tables, where all three
+  implementations still reject but report `mutation = 1` as a MISSING table.
+  Not a bypass, but it contradicted the rule SPEC 12.8.2 had just gained, that
+  a present-but-wrong-typed element MUST NOT be treated as absent. All three
+  now distinguish the two cases at both table sites.
+
 - **Reference-versus-primary divergences in the mutation kinds.** Three were
   reproduced, all now closed with regression
   fixtures asserted against all three implementations.

@@ -69,6 +69,23 @@ func tableOf(v any, key string) (map[string]any, bool) {
 	return sub, ok
 }
 
+// hasKey reports whether a key is PRESENT, whatever its TOML type.
+//
+// tableOf answers false both for an absent key and for a key holding a
+// non-table, which is the right answer when a table is required and the wrong
+// one when a key is FORBIDDEN. RKC02 was enforced through
+// tableOf, so a mutation-claim carrying `execution_proof = [{ ...proof... }]`
+// declared proof material that the check never saw. An invariant that forbids
+// a field must ask whether the field is there, not whether it is well-formed.
+func hasKey(v any, key string) bool {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return false
+	}
+	_, present := m[key]
+	return present
+}
+
 func stringOf(v any, key string) (string, bool) {
 	m, ok := v.(map[string]any)
 	if !ok {
@@ -3860,7 +3877,14 @@ func mutationBoundTuple(mutation map[string]any) string {
 func checkMutationTable(path string, doc rawDoc, defects *[]string) {
 	mutation, ok := tableOf(doc, "mutation")
 	if !ok {
-		*defects = append(*defects, fmt.Sprintf("%s: missing required `[mutation]` table", path))
+		if hasKey(doc, "mutation") {
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: `mutation` is present but is not a table. A present-but-wrong-typed "+
+					"element MUST NOT be reported as absent (SPEC 12.8.2)", path))
+		} else {
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: missing required `[mutation]` table", path))
+		}
 		return
 	}
 	keys := make([]string, 0, len(mutation))
@@ -3941,8 +3965,10 @@ func validateMutationKinds(path string, doc rawDoc, repoRoot string) []string {
 	tk, _ := stringOf(meta, "template_kind")
 
 	if tk == "mutation-claim" {
-		// RKC02: a claim must not borrow the appearance of proof.
-		if _, has := tableOf(doc, "execution_proof"); has {
+		// RKC02: a claim must not borrow the appearance of proof. Presence is
+		// what is forbidden, so this asks only whether the key is there. A
+		// well-formedness test would let `execution_proof = [{ ... }]` through.
+		if hasKey(doc, "execution_proof") {
 			defects = append(defects, fmt.Sprintf(
 				"%s: a mutation-claim MUST NOT carry `[execution_proof]` (RKC02). A document "+
 					"with a proof is a state-mutation and MUST declare that template_kind, so "+
@@ -3960,10 +3986,17 @@ func validateMutationKinds(path string, doc rawDoc, repoRoot string) []string {
 	// RKM02: the proof is mandatory and complete.
 	proof, ok := tableOf(doc, "execution_proof")
 	if !ok {
-		defects = append(defects, fmt.Sprintf(
-			"%s: missing required `[execution_proof]` table (RKM02). A record of an irreversible "+
-				"state change with no execution proof is not a state-mutation; use "+
-				"mutation-claim instead", path))
+		if hasKey(doc, "execution_proof") {
+			defects = append(defects, fmt.Sprintf(
+				"%s: `execution_proof` is present but is not a table (RKM02). A "+
+					"present-but-wrong-typed element MUST NOT be reported as absent "+
+					"(SPEC 12.8.2), and proof material outside a table is not a proof", path))
+		} else {
+			defects = append(defects, fmt.Sprintf(
+				"%s: missing required `[execution_proof]` table (RKM02). A record of an "+
+					"irreversible state change with no execution proof is not a state-mutation; "+
+					"use mutation-claim instead", path))
+		}
 		return defects
 	}
 	pkeys := make([]string, 0, len(proof))

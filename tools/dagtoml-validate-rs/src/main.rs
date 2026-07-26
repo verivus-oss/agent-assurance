@@ -3891,7 +3891,15 @@ mod mutation_kinds {
     ) {
         let mutation = doc.get("mutation").and_then(|x| x.as_table());
         let Some(mutation) = mutation else {
-            defects.push(format!("{}: missing required `[mutation]` table", location));
+            if doc.get("mutation").is_some() {
+                defects.push(format!(
+                    "{}: `mutation` is present but is not a table. A present-but-wrong-typed \
+                     element MUST NOT be reported as absent (SPEC 12.8.2)",
+                    location
+                ));
+            } else {
+                defects.push(format!("{}: missing required `[mutation]` table", location));
+            }
             return;
         };
         for key in mutation.keys() {
@@ -4010,12 +4018,21 @@ mod mutation_kinds {
         // error, never a producer-attested downgrade.
         let proof = doc.get("execution_proof").and_then(|x| x.as_table());
         let Some(proof) = proof else {
-            defects.push(format!(
-                "{}: missing required `[execution_proof]` table (RKM02). A record of an \
-                 irreversible state change with no execution proof is not a state-mutation; use \
-                 mutation-claim instead",
-                location
-            ));
+            if doc.get("execution_proof").is_some() {
+                defects.push(format!(
+                    "{}: `execution_proof` is present but is not a table (RKM02). A \
+                     present-but-wrong-typed element MUST NOT be reported as absent (SPEC \
+                     12.8.2), and proof material outside a table is not a proof",
+                    location
+                ));
+            } else {
+                defects.push(format!(
+                    "{}: missing required `[execution_proof]` table (RKM02). A record of an \
+                     irreversible state change with no execution proof is not a state-mutation; \
+                     use mutation-claim instead",
+                    location
+                ));
+            }
             return defects;
         };
         for key in proof.keys() {

@@ -208,7 +208,13 @@ def _validate_mutation_table(doc: dict, path: pathlib.Path) -> list[str]:
     errors: list[str] = []
     mutation = doc.get("mutation")
     if not isinstance(mutation, dict):
-        errors.append(f"{path}: missing required `[mutation]` table")
+        if "mutation" in doc:
+            errors.append(
+                f"{path}: `mutation` is present but is not a table. A present-but-wrong-typed "
+                f"element MUST NOT be reported as absent (SPEC 12.8.2)"
+            )
+        else:
+            errors.append(f"{path}: missing required `[mutation]` table")
         mutation = {}
     else:
         check_keys(mutation, ALLOWED_MUTATION_KEYS, "mutation", errors)
@@ -290,11 +296,18 @@ def validate_one(path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
     # error, never a producer-attested downgrade.
     proof = doc.get("execution_proof")
     if not isinstance(proof, dict):
-        errors.append(
-            f"{path}: missing required `[execution_proof]` table (RKM02). A record of an "
-            f"irreversible state change with no execution proof is not a state-mutation; "
-            f"use an observation-shaped or intent-shaped kind instead"
-        )
+        if "execution_proof" in doc:
+            errors.append(
+                f"{path}: `execution_proof` is present but is not a table (RKM02). A "
+                f"present-but-wrong-typed element MUST NOT be reported as absent (SPEC 12.8.2), "
+                f"and proof material outside a table is not a proof"
+            )
+        else:
+            errors.append(
+                f"{path}: missing required `[execution_proof]` table (RKM02). A record of an "
+                f"irreversible state change with no execution proof is not a state-mutation; "
+                f"use an observation-shaped or intent-shaped kind instead"
+            )
         proof = {}
     else:
         check_keys(proof, ALLOWED_PROOF_KEYS, "execution_proof", errors)
