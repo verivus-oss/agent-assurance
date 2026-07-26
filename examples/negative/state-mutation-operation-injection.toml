@@ -1,14 +1,20 @@
 # NEGATIVE FIXTURE: MUST be rejected by validators/validate_state_mutation.py
-# for RKM03 (closed key set / no inlined payload).
+# for the RKM03 value grammar on mutation.operation.
 #
-# The document inlines the proof artefact itself as `execution_proof.proof_body`
-# instead of pinning it by digest. closure_root is the correct five-record value
-# (the inlined key is not a pinned field), so the SPEC 12 gate passes and only
-# the kind layer rejects. This is what "no field for a secret to live in" means
-# mechanically: the key set is closed, so an inlined payload has nowhere to go.
+# This is the bound-tuple blocker, kept as a regression. `operation` carries an
+# embedded newline shaped like a bound-tuple record. Under the ORIGINAL
+# inlined encoding this forged a second field assignment with an identical
+# binds_sha256, so one proof binding validated two distinct mutations. Under
+# the SPEC 12.8.2 prehashed form the collision is structurally impossible
+# (values are digested before they reach a delimiter position), and
+# binds_sha256 below is the CORRECT value for this operation string, so the
+# tuple check passes and only the grammar rejects it. Both controls are
+# exercised: this fixture proves the grammar, and the encoding change proves
+# itself by making the collision unconstructible.
 #
 # Secondary: source_bytes is deliberately wrong (417; the capture is 416).
-closure_root = "sha256:25ebefe723d747d4cc98addc43d565bc5affd16bb0aa9ac9eeaf9ef7e39d6ffd"
+
+closure_root = "sha256:92140bab0519575da4072c47e737632f717b1df1edf1cde2658c247e1a60954d"
 
 [meta]
 schema_version = "0.1.0"
@@ -25,7 +31,7 @@ source_bytes = 417
 [mutation]
 performed_at = "2026-07-26T10:15:00.412Z"
 target_id = "https://ledger.example/v1/accounts/AC-4417"
-operation = "debit"
+operation = "debit\nmutation.performed_at sha256:0000000000000000000000000000000000000000000000000000000000000000"
 authorization_sha256 = "sha256:218c6bd3c6a2386de7461fe24fe5b2bca1adbd92d5ddd67c0bdbeb7bfbd04a41"
 effect_sha256 = "sha256:7c9d12b09521dd2cbb0403916a82c800148976e990236436cb9216187e3aa792"
 
@@ -33,6 +39,5 @@ effect_sha256 = "sha256:7c9d12b09521dd2cbb0403916a82c800148976e990236436cb921618
 scheme = "ledger-transaction"
 finality_basis = "ledger-confirmed"
 proof_sha256 = "sha256:a5255188d6a0efd927a7bca54ac504bd3f1908fe76e75b6be3e50568d7bc38ba"
-binds_sha256 = "sha256:7a5604ab843c08b4c79b19ab7d6ca1b118387b1ca096948e5ff86c5d2d3fda87"
-proof_body = "-----BEGIN SIGNED RECEIPT----- MIIBIjANBgkqh..."
+binds_sha256 = "sha256:7c6c0837dddcf96f2dcd76f879a26e5d42d1e540f4f1953d25041d9e039443d6"
 proof_locator = "eip155:1/tx/0x9f2c00000000000000000000000000000000000000000000000000000000"

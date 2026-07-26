@@ -1,13 +1,10 @@
-# NEGATIVE FIXTURE: MUST be rejected by validators/validate_state_mutation.py
-# for RKM03 (closed key set / no inlined payload).
-#
-# The document inlines the proof artefact itself as `execution_proof.proof_body`
-# instead of pinning it by digest. closure_root is the correct five-record value
-# (the inlined key is not a pinned field), so the SPEC 12 gate passes and only
-# the kind layer rejects. This is what "no field for a secret to live in" means
-# mechanically: the key set is closed, so an inlined payload has nowhere to go.
-#
-# Secondary: source_bytes is deliberately wrong (417; the capture is 416).
+# Conformance case: a fully proved state-mutation. The five pinned closure
+# records (provenance.source_sha256, mutation.authorization_sha256,
+# mutation.effect_sha256, execution_proof.proof_sha256,
+# execution_proof.binds_sha256) are ALL pinned required, so this root MUST be
+# accepted by all three implementations and no smaller stream is legal for
+# this kind (frozen parity-matrix row: all-required pins present).
+
 closure_root = "sha256:25ebefe723d747d4cc98addc43d565bc5affd16bb0aa9ac9eeaf9ef7e39d6ffd"
 
 [meta]
@@ -20,7 +17,7 @@ confidentiality = "restricted"
 [provenance]
 source_path = "examples/captures/2026-07-26T101500Z-ac4417-debit.capture"
 source_sha256 = "sha256:0a10577329b53feadb5a4d5f009cbc5ebf1c40a5ff86b55254a9d489b8b2e765"
-source_bytes = 417
+source_bytes = 416
 
 [mutation]
 performed_at = "2026-07-26T10:15:00.412Z"
@@ -34,5 +31,4 @@ scheme = "ledger-transaction"
 finality_basis = "ledger-confirmed"
 proof_sha256 = "sha256:a5255188d6a0efd927a7bca54ac504bd3f1908fe76e75b6be3e50568d7bc38ba"
 binds_sha256 = "sha256:7a5604ab843c08b4c79b19ab7d6ca1b118387b1ca096948e5ff86c5d2d3fda87"
-proof_body = "-----BEGIN SIGNED RECEIPT----- MIIBIjANBgkqh..."
 proof_locator = "eip155:1/tx/0x9f2c00000000000000000000000000000000000000000000000000000000"

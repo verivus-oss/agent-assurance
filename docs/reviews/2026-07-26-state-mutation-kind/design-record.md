@@ -71,6 +71,71 @@ Run from this worktree with `PYTHONPATH=validators`:
 All three negatives also fail `validate_provenance.py` on a deliberate
 `source_bytes` mismatch, per the `examples/negative/` convention.
 
+## Round 1 review outcome and what changed
+
+Four independent reviewers (Codex, Gemini, Grok, Mistral). **All four withheld
+approval.** Verbatim verdicts in `raw_findings/`. Every blocker below was
+demonstrated by a crafted document, not asserted, and every fix is verified.
+
+**Codex, decisive blocker: the bound-tuple encoding was non-injective.** The
+original form inlined values as `<field> <value>\n`, while `operation` and
+`performed_at` accepted any non-empty string. A newline inside a value forges a
+different field assignment with an identical digest. Codex built two distinct
+valid documents sharing `sha256:136b…e645`. One `binds_sha256` bound two
+mutations, which defeats RKM04 entirely.
+
+Fixed by **prehashing every value**: each record is now
+`<field> sha256:<64 hex>\n` over the UTF-8 bytes of the value, so no
+attacker-controlled byte reaches a delimiter position and the record type
+contract becomes identical to the SPEC 12.8.1 pins. This removes the attack
+class rather than filtering for it. Value grammars (RFC3339 UTC, bare-token
+`operation`, URI-shaped `target_id`) were added as defence in depth, not as the
+control. Regression fixture: `state-mutation-operation-injection.toml`.
+
+**Grok, blocker: RKM04 had no SPEC-normative byte contract and no primary
+parity.** `spec.md` contained no mention of bound tuples at all. Fixed by
+adding **SPEC 12.8.2 Bound tuples** as normative text next to 12.8.1, including
+the prehashing requirement and its rationale, and the rule that bound tuples
+have no `when-present` form. Primary parity for the kind-layer invariants
+remains open and is recorded below.
+
+**Codex: RKM03 was bypassable.** A raw proof payload pasted into
+`proof_locator` validated cleanly, since the key was permitted with no format
+constraint. Closed key sets are necessary, not sufficient. Fixed with an
+enforced URI grammar, and `proof_locator` is now REQUIRED, since a proof pinned
+only by digest with no way to fetch it is a claim rather than evidence.
+
+**Grok: `provenance.source_sha256` was a declared required field the validator
+never checked.** A document with no `[provenance]` table passed everything.
+Fixed.
+
+**Grok: hollow proofs pass the primaries.** An `[execution_proof]` carrying only
+the two pinned digests is closure-valid in all three implementations; only the
+Python kind layer sees that no typed proof is present. This is the recorded
+RKM02 boundary and cannot be closed without porting the kind layer, so it is
+now pinned down by fixture `state-mutation-hollow-proof.toml` and wired into CI
+rather than left theoretical. My original claim that the kind "cannot be
+downgraded" was true for deletion and false for hollowing; the descriptor and
+CHANGELOG now say so.
+
+**Gemini, blocker: `provider-receipt` subverts the mandatory-proof rule**, since
+a hashed HTTP 200 satisfies the schema. Grok argued the opposite: the SPEC layer
+verifies no scheme, so removing the honest label for "counterparty said so" does
+not make weak evidence unrepresentable, it makes producers mislabel it as
+`tee-quote`. **Retained, with mitigation**, and the reasoning is recorded in the
+ontology notes so the decision is visible rather than implicit. The mitigation is
+new invariant **RKM06**: a scheme may only claim durability its evidence class
+can carry, so `provider-receipt` can never assert ledger finality and
+`tee-quote` may claim only `none`. That also closes Grok's separate finding that
+no scheme-by-finality coherence rule existed. **This one is a judgment call and
+is reversible; it is flagged for the operator.**
+
+**Mistral: `ontology_version` should stay at 1.** Rejected on evidence, 3 to 1.
+Codex, Gemini and Grok each independently confirmed the bump to 2 is correct for
+a profile already published on main. Recorded in `raw_findings/mistral.md`.
+Separately, Grok's hygiene note was accepted: `PROFILE.toml` and
+`api-snapshot-kind.toml` now also say 2.
+
 ## Known gaps, stated rather than assumed away
 
 1. **The primaries do not implement RKM03 or RKM04, and only half of RKM02.** Only the closure
@@ -80,11 +145,22 @@ All three negatives also fail `validate_provenance.py` on a deliberate
    RKV02 and RKV03 are for api-snapshot. A port is not scheduled. The split is
    recorded in RKM02's `enforcement_boundary` field rather than papered over
    with an aspirational `enforced_by_primaries`.
-2. **No conformance cases yet.** `conformance/cases/state-mutation/` should
-   mirror the api-snapshot valid/invalid split before merge.
-3. **`binds_sha256` canonical form is defined only in the Python validator and
-   the kind prose.** If this kind proceeds, the tuple's byte form belongs in
-   the spec next to SPEC 12.8, not in an implementation.
-4. **The bound tuple does not cover `provenance.source_sha256`.** That is
-   arguable: the proof binds the mutation, and the capture is separately pinned
-   into the closure. Review should confirm the boundary is right.
+2. **Conformance corpus is minimal.** `conformance/cases/state-mutation/` now
+   exists with one valid and one invalid case; the api-snapshot split is
+   richer and this should grow before merge.
+3. **CLOSED in round 1.** The bound-tuple byte form is now normative at SPEC
+   12.8.2.
+4. **The bound tuple does not cover `provenance.source_sha256`.** Both Gemini
+   and Grok examined this and independently concluded the boundary is right:
+   the capture is already a pinned closure record, and the external system
+   producing the proof has no knowledge of the agent's capture digest, so
+   including it would require the target to sign the agent's own observation.
+   Treated as resolved unless round 2 disagrees.
+5. **No companion kind for unproved mutations.** All three substantive
+   reviewers named this as the real cost of the mandatory-proof decision: a
+   producer with a genuine mutation and no proof has no kind in this profile.
+   Not addressed here because it is a product decision for the operator, not a
+   defect in this change. It is the most likely thing to block adoption.
+6. **`provider-receipt` retention is a judgment call** (see round 1 above),
+   made against one reviewer's blocker. Reversible by deleting one vocabulary
+   value and its RKM06 row.

@@ -77,7 +77,36 @@ ALLOWED_PROOF_KEYS = frozenset(
     }
 )
 
-REQUIRED_PROOF_KEYS = ("scheme", "finality_basis", "proof_sha256", "binds_sha256")
+REQUIRED_PROOF_KEYS = (
+    "scheme",
+    "finality_basis",
+    "proof_sha256",
+    "binds_sha256",
+    "proof_locator",
+)
+
+# Value grammars for the non-digest bound fields. Defence in depth behind the
+# prehashed encoding: control characters can no longer forge a tuple, but a
+# field that accepts arbitrary text is still a place to smuggle a payload.
+RFC3339_UTC_RE = re.compile(
+    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z\Z"
+)
+OPERATION_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}\Z")
+# A locator is a URI-shaped reference, never a payload. Bounded, no
+# whitespace, no control characters.
+LOCATOR_RE = re.compile(r"^[a-z][a-z0-9+.-]*:[^\s\x00-\x1f\x7f]{1,480}\Z")
+# `target_id` is a URI or URN naming the mutated resource.
+TARGET_ID_RE = re.compile(r"^[a-z][a-z0-9+.-]*:[^\s\x00-\x1f\x7f]{1,480}\Z")
+
+# RKM06: a scheme may only claim durability its own evidence class can carry.
+# A counterparty receipt cannot assert ledger finality; a TEE quote attests an
+# execution environment, not durability of the effect.
+SCHEME_FINALITY = {
+    "ledger-transaction": {"none", "ledger-confirmed", "ledger-final"},
+    "zk-receipt": {"none", "ledger-confirmed", "ledger-final"},
+    "provider-receipt": {"none", "provider-acknowledged"},
+    "tee-quote": {"none"},
+}
 
 
 def is_digest(value: object) -> bool:
@@ -101,17 +130,34 @@ def load_vocabulary(repo_root: pathlib.Path, attribute: str) -> set[str]:
 
 
 def canonical_bound_tuple(doc: dict) -> str:
-    """The SPEC 12.8 record form over the five bound fields.
+    """The SPEC 12.8.2 bound-tuple digest over the five bound fields.
 
-    One `<field> <value>\\n` record per field, bytewise sorted, concatenated.
-    Identical in shape to the closure stream, deliberately: a producer that
-    can emit a closure root can emit this with the same code path.
+    Each field emits `<field> sha256:<64 lowercase hex>\\n`, where the digest
+    is taken over the UTF-8 bytes of the field's VALUE. Records are sorted
+    bytewise and concatenated, and the tuple digest is the SHA-256 of that
+    stream.
+
+    The values are PREHASHED rather than inlined, which is the whole point of
+    this function. Inlining
+    raw values makes the encoding non-injective: a value containing a newline
+    can forge a different field/value assignment with an identical digest, so
+    one `binds_sha256` could bind two distinct mutations. That was demonstrated
+    against the first implementation, with a newline-bearing
+    `operation` and a newline-bearing `performed_at` colliding.
+
+    Prehashing removes the class of attack rather than filtering for it: every
+    record is now a fixed-width digest scalar with no attacker-controlled
+    bytes in delimiter position, and the record type contract becomes
+    identical to the SPEC 12.8.1 pinned records (digest-only). The value
+    grammars enforced in `validate_one` are defence in depth, not the primary
+    control.
     """
     records = []
     for dotted in BOUND_TUPLE_FIELDS:
         table, key = dotted.split(".", 1)
         value = doc.get(table, {}).get(key)
-        records.append(f"{dotted} {value}\n".encode())
+        value_digest = hashlib.sha256(str(value).encode("utf-8")).hexdigest()
+        records.append(f"{dotted} sha256:{value_digest}\n".encode())
     records.sort()
     return "sha256:" + hashlib.sha256(b"".join(records)).hexdigest()
 
@@ -148,9 +194,36 @@ def validate_one(path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
                 f"(RKM03: this field carries a digest, never a payload)"
             )
 
-    for key in ("performed_at", "target_id", "operation"):
-        if not isinstance(mutation.get(key), str) or not mutation.get(key):
+    for key, pattern, shape in (
+        ("performed_at", RFC3339_UTC_RE, "an RFC3339 UTC timestamp ending in Z"),
+        ("operation", OPERATION_RE, "a bare lowercase token, at most 64 characters"),
+        ("target_id", TARGET_ID_RE, "a URI or URN, no whitespace or control characters"),
+    ):
+        value = mutation.get(key)
+        if not isinstance(value, str) or not value:
             errors.append(f"{path}: mutation.{key} is required and MUST be a non-empty string")
+        elif not pattern.match(value):
+            errors.append(
+                f"{path}: mutation.{key} {value!r} must be {shape}. Unconstrained text here is "
+                f"both a payload-smuggling surface (RKM03) and, before the SPEC 12.8.2 prehashed "
+                f"encoding, was a bound-tuple forgery surface (RKM04)"
+            )
+
+    # RKM04 depends on `provenance.source_sha256` being present and pinned; the
+    # kind declares it required, so check it rather than assuming the closure
+    # layer covers every case (a document with no [provenance] at all reaches
+    # here).
+    provenance = doc.get("provenance")
+    if not isinstance(provenance, dict):
+        errors.append(
+            f"{path}: missing required `[provenance]` table. "
+            f"`provenance.source_sha256` is a required field of this kind"
+        )
+    elif not is_digest(provenance.get("source_sha256")):
+        errors.append(
+            f"{path}: provenance.source_sha256 {provenance.get('source_sha256')!r} "
+            f"is required and MUST be a digest scalar"
+        )
 
     # RKM02: the proof is mandatory and complete. An absent table is an
     # error, never a producer-attested downgrade.
@@ -187,6 +260,27 @@ def validate_one(path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
         errors.append(
             f"{path}: execution_proof.finality_basis {finality!r} is not in the closed "
             f"`finality_basis` vocabulary {sorted(finalities)}"
+        )
+
+    # RKM06: scheme and finality must be coherent.
+    if scheme in SCHEME_FINALITY and finality in finalities:
+        allowed = SCHEME_FINALITY[scheme]
+        if finality not in allowed:
+            errors.append(
+                f"{path}: execution_proof scheme {scheme!r} cannot claim "
+                f"finality_basis {finality!r} (RKM06). A {scheme} carries evidence for "
+                f"{sorted(allowed)} only: a counterparty receipt cannot assert ledger "
+                f"finality, and a TEE quote attests an execution environment rather than "
+                f"the durability of the effect"
+            )
+
+    locator = proof.get("proof_locator")
+    if locator is not None and (not isinstance(locator, str) or not LOCATOR_RE.match(locator)):
+        errors.append(
+            f"{path}: execution_proof.proof_locator {locator!r} must be a URI-shaped "
+            f"reference (scheme:rest, no whitespace or control characters, at most 480 "
+            f"characters after the scheme). A locator names where the proof can be "
+            f"fetched; it is not a place to inline the proof itself (RKM03)"
         )
 
     # RKM04: the proof must be bound to THIS mutation, not merely exist.

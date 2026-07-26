@@ -1,13 +1,17 @@
 # NEGATIVE FIXTURE: MUST be rejected by validators/validate_state_mutation.py
-# for RKM03 (closed key set / no inlined payload).
+# for RKM02 (proof completeness).
 #
-# The document inlines the proof artefact itself as `execution_proof.proof_body`
-# instead of pinning it by digest. closure_root is the correct five-record value
-# (the inlined key is not a pinned field), so the SPEC 12 gate passes and only
-# the kind layer rejects. This is what "no field for a secret to live in" means
-# mechanically: the key set is closed, so an inlined payload has nowhere to go.
+# Found by review. The [execution_proof] table carries ONLY the two pinned
+# digests, so both required closure records are present and the document is
+# deliberately closure-VALID in all three implementations. What is missing is
+# the typed proof itself: no scheme, no finality_basis, no locator. A
+# primary-only consumer therefore accepts a document that reads as a
+# state-mutation while carrying no identifiable proof at all. That is the
+# recorded enforcement boundary of RKM02, and this fixture is what keeps it
+# honest rather than theoretical.
 #
 # Secondary: source_bytes is deliberately wrong (417; the capture is 416).
+
 closure_root = "sha256:25ebefe723d747d4cc98addc43d565bc5affd16bb0aa9ac9eeaf9ef7e39d6ffd"
 
 [meta]
@@ -29,10 +33,7 @@ operation = "debit"
 authorization_sha256 = "sha256:218c6bd3c6a2386de7461fe24fe5b2bca1adbd92d5ddd67c0bdbeb7bfbd04a41"
 effect_sha256 = "sha256:7c9d12b09521dd2cbb0403916a82c800148976e990236436cb9216187e3aa792"
 
+
 [execution_proof]
-scheme = "ledger-transaction"
-finality_basis = "ledger-confirmed"
 proof_sha256 = "sha256:a5255188d6a0efd927a7bca54ac504bd3f1908fe76e75b6be3e50568d7bc38ba"
 binds_sha256 = "sha256:7a5604ab843c08b4c79b19ab7d6ca1b118387b1ca096948e5ff86c5d2d3fda87"
-proof_body = "-----BEGIN SIGNED RECEIPT----- MIIBIjANBgkqh..."
-proof_locator = "eip155:1/tx/0x9f2c00000000000000000000000000000000000000000000000000000000"

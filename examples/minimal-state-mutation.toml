@@ -7,9 +7,9 @@
 # the execution proof does not yield a smaller valid stream: it fails the
 # closure gate. Every digest below is independently recomputable, and
 # execution_proof.binds_sha256 is recomputable from this document's own
-# fields (RKM04).
+# fields under the SPEC 12.8.2 prehashed bound-tuple form (RKM04).
 
-closure_root = "sha256:f4fd826755732b642bdcf6616e1fca19e603f2456d4651b3363819a1f66ef435"
+closure_root = "sha256:25ebefe723d747d4cc98addc43d565bc5affd16bb0aa9ac9eeaf9ef7e39d6ffd"
 
 [meta]
 schema_version = "0.1.0"
@@ -34,5 +34,5 @@ effect_sha256 = "sha256:7c9d12b09521dd2cbb0403916a82c800148976e990236436cb921618
 scheme = "ledger-transaction"
 finality_basis = "ledger-confirmed"
 proof_sha256 = "sha256:a5255188d6a0efd927a7bca54ac504bd3f1908fe76e75b6be3e50568d7bc38ba"
-binds_sha256 = "sha256:bafc26b4a50b6fe2a35f69bd42eb5275b889333b5c522b79c078f5093481e52b"
+binds_sha256 = "sha256:7a5604ab843c08b4c79b19ab7d6ca1b118387b1ca096948e5ff86c5d2d3fda87"
 proof_locator = "eip155:1/tx/0x9f2c00000000000000000000000000000000000000000000000000000000"

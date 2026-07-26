@@ -881,6 +881,20 @@ jobs:
           check_rejects "python state-mutation inlined-proof (RKM03)" \
             python3 validators/validate_state_mutation.py --repo-root . \
             examples/negative/state-mutation-inlined-proof.toml
+          # Both are kept as regressions. hollow-proof
+          # carries only the two pinned digests, so it is closure-valid in all
+          # three implementations and only the kind layer sees that no typed
+          # proof is present (the recorded RKM02 boundary). operation-injection
+          # is the bound-tuple blocker: a newline-bearing operation that forged a
+          # bound-tuple collision under the old inlined encoding, now
+          # unconstructible under SPEC 12.8.2 prehashing and rejected by the
+          # RKM03 value grammar besides.
+          check_rejects "python state-mutation hollow-proof (RKM02)" \
+            python3 validators/validate_state_mutation.py --repo-root . \
+            examples/negative/state-mutation-hollow-proof.toml
+          check_rejects "python state-mutation operation-injection (RKM03 grammar)" \
+            python3 validators/validate_state_mutation.py --repo-root . \
+            examples/negative/state-mutation-operation-injection.toml
 
       - name: Provenance source_path containment guard (SPEC §11)
         # Behavioural guard: a static fixture cannot isolate the

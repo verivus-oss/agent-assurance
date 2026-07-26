@@ -91,7 +91,18 @@ inputs for `zk-receipt`, the memo or calldata commitment for
 `ledger-transaction`, the signed payload for `provider-receipt`. The tuple
 covers `mutation.target_id`, `mutation.operation`,
 `mutation.authorization_sha256`, `mutation.effect_sha256`, and
-`mutation.performed_at`, in the canonical record form of SPEC 12.8.
+`mutation.performed_at`, in the canonical form frozen at SPEC 12.8.2.
+
+Each field emits `<field> sha256:<64 hex>` plus a newline, where the digest
+is over the UTF-8 bytes of the field's VALUE; records are sorted bytewise,
+concatenated, and hashed. The values are PREHASHED, not inlined. Inlining
+them makes the encoding non-injective: a value containing a newline forges a
+different field assignment with the same digest, so one `binds_sha256` binds
+two distinct mutations. That was demonstrated against the first draft of this
+kind in review, with a newline-bearing `operation` colliding against a
+newline-bearing `performed_at`. Prehashing removes the attack class instead
+of filtering for it, and makes the record type contract identical to the
+SPEC 12.8.1 pinned records, which are digest-only for the same reason.
 
 The SPEC layer enforces that `binds_sha256` is present, well-formed, and
 equal to the digest of the tuple recomputed from the document's own fields
@@ -182,6 +193,12 @@ ijb_primitive = "constraint"
 ijb_constraint_type = "structural"
 
 [[kind.required_fields]]
+path = "execution_proof.proof_locator"
+description = "URI-shaped reference to where the proof artefact can be fetched (`scheme:rest`, no whitespace or control characters, bounded length). REQUIRED: a proof pinned only by digest, with no way to obtain the bytes, is an unverifiable claim rather than evidence. A locator names the proof; it is never a place to inline it, and the grammar is enforced so it cannot become one."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
 path = "provenance.source_sha256"
 ontology_mapping = "cites_upstream"
 description = "Digest of the whole captured interaction, as `sha256:<64 hex>`. This is the SPEC 12.8 closure input for the kind (the field carrying the `cites_upstream` ontology mapping)."
@@ -208,7 +225,7 @@ ijb_constraint_type = "structural"
 
 [[kind.hard_invariants]]
 id = "RKM03"
-statement = "No secret is inlined. Every field of `[mutation]` and `[execution_proof]` is a digest, an identifier, a closed-vocabulary token, a timestamp, or a locator. Raw request bodies, credentials, signing keys, bearer tokens, and proof payloads MUST NOT appear. A document that inlines a payload or credential where a digest scalar is required MUST be rejected."
+statement = "No secret is inlined. Every field of `[mutation]` and `[execution_proof]` is a digest, an identifier, a closed-vocabulary token, a timestamp, or a locator. Raw request bodies, credentials, signing keys, bearer tokens, and proof payloads MUST NOT appear. Closed key sets are necessary but NOT sufficient: review demonstrated that a permitted free-text field is itself a smuggling surface, by pasting a proof payload into `proof_locator` while every key remained legal. So the non-digest fields carry enforced grammars as well as closed names: `performed_at` is RFC3339 UTC, `operation` is a bare lowercase token of at most 64 characters, and `target_id` and `proof_locator` are URI-shaped with no whitespace or control characters and bounded length. A document that inlines a payload or credential in any field, permitted or not, MUST be rejected."
 enforced_by = "validators/validate_state_mutation.py"
 see_also = "profiles/com.verivus.runtime/api-snapshot-kind.toml RKV02"
 ijb_primitive = "constraint"
@@ -216,9 +233,17 @@ ijb_constraint_type = "structural"
 
 [[kind.hard_invariants]]
 id = "RKM04"
-statement = "`execution_proof.binds_sha256` MUST equal the SHA-256 of the canonical bound tuple recomputed from this document's own fields: the SPEC 12.8 record form over `mutation.target_id`, `mutation.operation`, `mutation.authorization_sha256`, `mutation.effect_sha256`, and `mutation.performed_at`, bytewise sorted and concatenated. This is what stops a proof being pointed at a mutation it does not describe. The SPEC layer proves the DOCUMENT is internally bound; it cannot prove the proof ARTEFACT carries that value, because opening the artefact needs I/O, keys, and trust roots the capability envelope denies. Confirming that the quote report data, ZK public inputs, or ledger commitment actually contains `binds_sha256` is RUNTIME-SPEC and is the consuming verifier's central obligation."
+statement = "`execution_proof.binds_sha256` MUST equal the SHA-256 of the canonical bound tuple recomputed from this document's own fields, in the form frozen at SPEC 12.8.2: one `<field> sha256:<64 lowercase hex>` record plus newline per field, the digest taken over the UTF-8 bytes of the field's VALUE, over `mutation.target_id`, `mutation.operation`, `mutation.authorization_sha256`, `mutation.effect_sha256`, and `mutation.performed_at`, bytewise sorted and concatenated. Values are PREHASHED, never inlined: inlining is non-injective, since a value carrying a newline forges a different field assignment with an identical digest, and that collision was demonstrated against the first draft of this kind. This is what stops a proof being pointed at a mutation it does not describe. The SPEC layer proves the DOCUMENT is internally bound; it cannot prove the proof ARTEFACT carries that value, because opening the artefact needs I/O, keys, and trust roots the capability envelope denies. Confirming that the quote report data, ZK public inputs, or ledger commitment actually contains `binds_sha256` is RUNTIME-SPEC and is the consuming verifier's central obligation."
 enforced_by = "validators/validate_state_mutation.py"
 see_also = "spec.md §12.8"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id = "RKM06"
+statement = "`execution_proof.finality_basis` MUST be one the declared `execution_proof.scheme` can actually carry. `ledger-transaction` and `zk-receipt` MAY claim `none`, `ledger-confirmed`, or `ledger-final`. `provider-receipt` MAY claim only `none` or `provider-acknowledged`: a counterparty acknowledgement is not evidence of ledger finality. `tee-quote` MAY claim only `none`: attesting a measured execution environment says nothing about whether the effect persisted. The vocabularies are therefore not a single linear scale, and this invariant is what stops the weakest scheme asserting the strongest durability. As everywhere else in this kind, the SPEC layer checks coherence of the CLAIM; verifying the claim against the named ledger or provider is RUNTIME-SPEC."
+enforced_by = "validators/validate_state_mutation.py"
+see_also = "profiles/com.verivus.runtime/ontology.toml [[attribute_vocabularies]] finality_basis"
 ijb_primitive = "constraint"
 ijb_constraint_type = "structural"
 
