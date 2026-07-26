@@ -3706,6 +3706,14 @@ mod mutation_kinds {
         "proof_locator",
     ];
 
+    /// The closed `finality_basis` vocabulary, mirroring the profile ontology.
+    const FINALITY_VALUES: [&str; 4] = [
+        "none",
+        "provider-acknowledged",
+        "ledger-confirmed",
+        "ledger-final",
+    ];
+
     /// RKM06 scheme-to-finality coherence.
     fn allowed_finality(scheme: &str) -> Option<&'static [&'static str]> {
         match scheme {
@@ -3730,8 +3738,27 @@ mod mutation_kinds {
         false
     }
 
+    fn days_in_month(year: u32, month: u32) -> u32 {
+        match month {
+            2 => {
+                if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) {
+                    29
+                } else {
+                    28
+                }
+            }
+            4 | 6 | 9 | 11 => 30,
+            _ => 31,
+        }
+    }
+
     /// RFC3339 UTC, `YYYY-MM-DDTHH:MM:SS[.frac]Z`. Hand-rolled: this crate
     /// carries no regex dependency by policy.
+    ///
+    /// Calendar validity is checked as well as shape. Digit positions alone
+    /// accept `2026-99-26T10:15:00Z`, and `performed_at` is a member of the
+    /// RKM04 bound tuple carrying the freshness claim, so a timestamp that
+    /// cannot correspond to any instant should not be bound.
     fn is_rfc3339_utc(s: &str) -> bool {
         let b = s.as_bytes();
         if b.len() < 20 || *b.last().unwrap() != b'Z' {
@@ -3747,7 +3774,7 @@ mod mutation_kinds {
         {
             return false;
         }
-        match b.len() {
+        let fraction_ok = match b.len() {
             20 => true,
             _ => {
                 b[19] == b'.'
@@ -3755,7 +3782,22 @@ mod mutation_kinds {
                     && b[20..b.len() - 1].iter().all(u8::is_ascii_digit)
                     && b.len() - 21 >= 1
             }
+        };
+        if !fraction_ok {
+            return false;
         }
+        let num = |r: std::ops::Range<usize>| -> u32 {
+            b[r].iter().fold(0u32, |acc, &c| acc * 10 + u32::from(c - b'0'))
+        };
+        let (year, month, day) = (num(0..4), num(5..7), num(8..10));
+        let (hour, minute, second) = (num(11..13), num(14..16), num(17..19));
+        (1..=12).contains(&month)
+            && day >= 1
+            && day <= days_in_month(year, month)
+            && hour <= 23
+            && minute <= 59
+            // Second 60 is a leap second, which RFC3339 5.6 permits.
+            && second <= 60
     }
 
     /// Bare lowercase token, at most 64 characters.
@@ -3807,6 +3849,29 @@ mod mutation_kinds {
         t?.get(key)?.as_str()
     }
 
+    /// Three-state field access.
+    ///
+    /// `str_field` collapses "absent" and "present but not a string" into
+    /// `None`. Every caller that then defaulted to `""` and skipped its check
+    /// on an empty value therefore skipped it on a wrong-typed value too, so
+    /// `scheme = 1` and `scheme = ""` both bypassed the closed-vocabulary
+    /// check and RKM06 while the Python reference rejected them.
+    enum Field<'a> {
+        Absent,
+        NotString,
+        Str(&'a str),
+    }
+
+    fn field<'a>(t: &'a toml::map::Map<String, Value>, key: &str) -> Field<'a> {
+        match t.get(key) {
+            None => Field::Absent,
+            Some(v) => match v.as_str() {
+                Some(s) => Field::Str(s),
+                None => Field::NotString,
+            },
+        }
+    }
+
     fn bound_tuple(mutation: &toml::map::Map<String, Value>) -> String {
         let mut records: Vec<Vec<u8>> = Vec::new();
         for (dotted, key) in BOUND_TUPLE_FIELDS {
@@ -3839,39 +3904,62 @@ mod mutation_kinds {
             }
         }
         for key in ["authorization_sha256", "effect_sha256"] {
-            match str_field(Some(mutation), key) {
-                Some(v) if is_digest(v) => {}
-                Some(v) => defects.push(format!(
+            match field(mutation, key) {
+                Field::Str(v) if is_digest(v) => {}
+                Field::Str(v) => defects.push(format!(
                     "{}: mutation.{} {:?} is not a digest scalar",
                     location, key, v
                 )),
-                None => defects.push(format!("{}: mutation.{} is required", location, key)),
+                Field::NotString => defects.push(format!(
+                    "{}: mutation.{} must be a string carrying a digest scalar",
+                    location, key
+                )),
+                Field::Absent => {
+                    defects.push(format!("{}: mutation.{} is required", location, key))
+                }
             }
         }
-        match str_field(Some(mutation), "performed_at") {
-            Some(v) if is_rfc3339_utc(v) => {}
-            Some(v) => defects.push(format!(
-                "{}: mutation.performed_at {:?} must be an RFC3339 UTC timestamp ending in Z",
+        match field(mutation, "performed_at") {
+            Field::Str(v) if is_rfc3339_utc(v) => {}
+            Field::Str(v) => defects.push(format!(
+                "{}: mutation.performed_at {:?} must be an RFC3339 UTC timestamp ending in Z, \
+                 naming a real instant",
                 location, v
             )),
-            None => defects.push(format!("{}: mutation.performed_at is required", location)),
+            Field::NotString => defects.push(format!(
+                "{}: mutation.performed_at must be a string",
+                location
+            )),
+            Field::Absent => {
+                defects.push(format!("{}: mutation.performed_at is required", location))
+            }
         }
-        match str_field(Some(mutation), "operation") {
-            Some(v) if is_operation(v) => {}
-            Some(v) => defects.push(format!(
+        match field(mutation, "operation") {
+            Field::Str(v) if is_operation(v) => {}
+            Field::Str(v) => defects.push(format!(
                 "{}: mutation.operation {:?} must be a bare lowercase token, at most 64 characters",
                 location, v
             )),
-            None => defects.push(format!("{}: mutation.operation is required", location)),
+            Field::NotString => {
+                defects.push(format!("{}: mutation.operation must be a string", location))
+            }
+            Field::Absent => {
+                defects.push(format!("{}: mutation.operation is required", location))
+            }
         }
-        match str_field(Some(mutation), "target_id") {
-            Some(v) if is_uri_shaped(v) => {}
-            Some(v) => defects.push(format!(
+        match field(mutation, "target_id") {
+            Field::Str(v) if is_uri_shaped(v) => {}
+            Field::Str(v) => defects.push(format!(
                 "{}: mutation.target_id {:?} must be a URI or URN with no whitespace or control \
                  characters",
                 location, v
             )),
-            None => defects.push(format!("{}: mutation.target_id is required", location)),
+            Field::NotString => {
+                defects.push(format!("{}: mutation.target_id must be a string", location))
+            }
+            Field::Absent => {
+                defects.push(format!("{}: mutation.target_id is required", location))
+            }
         }
         match doc.get("provenance").and_then(|x| x.as_table()) {
             None => defects.push(format!(
@@ -3947,64 +4035,116 @@ mod mutation_kinds {
             }
         }
         for key in ["proof_sha256", "binds_sha256"] {
-            if let Some(v) = str_field(Some(proof), key) {
-                if !is_digest(v) {
-                    defects.push(format!(
-                        "{}: execution_proof.{} {:?} is not a digest scalar",
-                        location, key, v
-                    ));
-                }
+            match field(proof, key) {
+                Field::Str(v) if is_digest(v) => {}
+                Field::Str(v) => defects.push(format!(
+                    "{}: execution_proof.{} {:?} is not a digest scalar",
+                    location, key, v
+                )),
+                Field::NotString => defects.push(format!(
+                    "{}: execution_proof.{} must be a string carrying a digest scalar",
+                    location, key
+                )),
+                // Absence is already reported against REQUIRED_PROOF_KEYS.
+                Field::Absent => {}
             }
         }
-        if let Some(loc) = str_field(Some(proof), "proof_locator") {
-            if !is_uri_shaped(loc) {
+        match field(proof, "proof_locator") {
+            Field::Str(v) if is_uri_shaped(v) => {}
+            Field::Str(v) => defects.push(format!(
+                "{}: execution_proof.proof_locator {:?} must be a URI-shaped reference. A \
+                 locator names where the proof can be fetched; it is not a place to inline \
+                 the proof itself (RKM03)",
+                location, v
+            )),
+            Field::NotString => defects.push(format!(
+                "{}: execution_proof.proof_locator must be a string carrying a URI-shaped \
+                 reference (RKM03)",
+                location
+            )),
+            Field::Absent => {}
+        }
+
+        // RKM02 vocabulary membership, then RKM06 coherence. Membership is
+        // checked with no empty-string and no wrong-type escape: an empty or
+        // non-string value is not a member of a closed vocabulary, and letting
+        // either one skip the check accepted a proof declaring no scheme at
+        // all.
+        let scheme = match field(proof, "scheme") {
+            Field::Str(v) if allowed_finality(v).is_some() => Some(v),
+            Field::Str(v) => {
                 defects.push(format!(
-                    "{}: execution_proof.proof_locator {:?} must be a URI-shaped reference. A \
-                     locator names where the proof can be fetched; it is not a place to inline \
-                     the proof itself (RKM03)",
-                    location, loc
+                    "{}: execution_proof.scheme {:?} is not in the closed \
+                     execution_proof_scheme vocabulary",
+                    location, v
+                ));
+                None
+            }
+            Field::NotString => {
+                defects.push(format!(
+                    "{}: execution_proof.scheme must be a string drawn from the closed \
+                     execution_proof_scheme vocabulary",
+                    location
+                ));
+                None
+            }
+            Field::Absent => None,
+        };
+        let finality = match field(proof, "finality_basis") {
+            Field::Str(v) if FINALITY_VALUES.contains(&v) => Some(v),
+            Field::Str(v) => {
+                defects.push(format!(
+                    "{}: execution_proof.finality_basis {:?} is not in the closed \
+                     finality_basis vocabulary",
+                    location, v
+                ));
+                None
+            }
+            Field::NotString => {
+                defects.push(format!(
+                    "{}: execution_proof.finality_basis must be a string drawn from the closed \
+                     finality_basis vocabulary",
+                    location
+                ));
+                None
+            }
+            Field::Absent => None,
+        };
+        // RKM06: a scheme may only claim durability its evidence can carry.
+        if let (Some(scheme), Some(finality)) = (scheme, finality) {
+            let allowed = allowed_finality(scheme).unwrap_or(&[]);
+            if !allowed.contains(&finality) {
+                defects.push(format!(
+                    "{}: execution_proof scheme {:?} cannot claim finality_basis {:?} \
+                     (RKM06); it carries evidence for {:?} only",
+                    location, scheme, finality, allowed
                 ));
             }
         }
 
-        // RKM06: a scheme may only claim durability its evidence can carry.
-        let scheme = str_field(Some(proof), "scheme").unwrap_or("");
-        let finality = str_field(Some(proof), "finality_basis").unwrap_or("");
-        match allowed_finality(scheme) {
-            None => {
-                if !scheme.is_empty() {
-                    defects.push(format!(
-                        "{}: execution_proof.scheme {:?} is not in the closed \
-                         execution_proof_scheme vocabulary",
-                        location, scheme
-                    ));
-                }
-            }
-            Some(allowed) => {
-                if !finality.is_empty() && !allowed.contains(&finality) {
-                    defects.push(format!(
-                        "{}: execution_proof scheme {:?} cannot claim finality_basis {:?} \
-                         (RKM06); it carries evidence for {:?} only",
-                        location, scheme, finality, allowed
-                    ));
-                }
-            }
-        }
-
         // RKM04: the proof must bind THIS mutation, not merely exist.
-        if let (Some(mutation), Some(declared)) = (
-            doc.get("mutation").and_then(|x| x.as_table()),
-            str_field(Some(proof), "binds_sha256"),
-        ) {
-            if is_digest(declared) {
-                let expected = bound_tuple(mutation);
-                if declared != expected {
-                    defects.push(format!(
-                        "{}: execution_proof.binds_sha256 {} does not equal the SPEC 12.8.2 bound \
-                         tuple recomputed from this document ({}) (RKM04). The proof does not \
-                         commit to this mutation",
-                        location, declared, expected
-                    ));
+        //
+        // Skipped unless every bound field is a string. Computing the tuple
+        // over a non-string field would hash the empty string in its place and
+        // report a mismatch against a tuple no producer wrote, burying the
+        // type defect already reported above under a bogus RKM04 failure.
+        if let Some(mutation) = doc.get("mutation").and_then(|x| x.as_table()) {
+            let all_bound_fields_are_strings = BOUND_TUPLE_FIELDS
+                .iter()
+                .all(|(_, key)| matches!(field(mutation, key), Field::Str(_)));
+            if let (true, Field::Str(declared)) =
+                (all_bound_fields_are_strings, field(proof, "binds_sha256"))
+            {
+                if is_digest(declared) {
+                    let expected = bound_tuple(mutation);
+                    if declared != expected {
+                        defects.push(format!(
+                            "{}: execution_proof.binds_sha256 {} does not equal the SPEC 12.8.2 \
+                             bound tuple recomputed from this document ({}) (RKM04). The proof \
+                             does not commit to this mutation",
+                            location, declared, expected
+                        ));
+                    }
                 }
             }
         }

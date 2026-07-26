@@ -78,6 +78,35 @@ func stringOf(v any, key string) (string, bool) {
 	return s, ok
 }
 
+// fieldState distinguishes the two cases stringOf collapses into a single
+// false. A caller that defaults a wrong-typed value to "" and then skips its
+// check on an empty value skips it on the wrong-typed value too, which is how
+// `scheme = 1` and `scheme = ""` both bypassed the closed-vocabulary check
+// while the Python reference rejected them.
+type fieldState int
+
+const (
+	fieldAbsent fieldState = iota
+	fieldNotString
+	fieldString
+)
+
+func fieldOf(v any, key string) (string, fieldState) {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return "", fieldAbsent
+	}
+	raw, present := m[key]
+	if !present {
+		return "", fieldAbsent
+	}
+	s, ok := raw.(string)
+	if !ok {
+		return "", fieldNotString
+	}
+	return s, fieldString
+}
+
 // asArray normalizes the several shapes BurntSushi/toml may decode an
 // array as into a uniform []any. TOML's `[[arrays-of-tables]]` are
 // decoded as `[]map[string]any`, while `arr = [1, 2, 3]` lands as
@@ -3685,6 +3714,28 @@ var schemeFinality = map[string][]string{
 	"tee-quote":          {"none"},
 }
 
+// finalityValues is the closed `finality_basis` vocabulary, mirroring the
+// profile ontology.
+var finalityValues = map[string]bool{
+	"none":                  true,
+	"provider-acknowledged": true,
+	"ledger-confirmed":      true,
+	"ledger-final":          true,
+}
+
+func daysInMonth(year, month int) int {
+	switch month {
+	case 2:
+		if year%4 == 0 && (year%100 != 0 || year%400 == 0) {
+			return 29
+		}
+		return 28
+	case 4, 6, 9, 11:
+		return 30
+	}
+	return 31
+}
+
 func isMutationDigest(s string) bool {
 	for _, p := range [][2]any{{"sha256:", 64}, {"sha384:", 96}, {"sha512:", 128}} {
 		prefix := p[0].(string)
@@ -3726,10 +3777,27 @@ func isRFC3339UTC(s string) bool {
 		s[16] == ':' && digits(17, 19)) {
 		return false
 	}
-	if len(s) == 20 {
-		return true
+	if len(s) != 20 &&
+		!(s[19] == '.' && len(s) <= 30 && len(s)-21 >= 1 && digits(20, len(s)-1)) {
+		return false
 	}
-	return s[19] == '.' && len(s) <= 30 && len(s)-21 >= 1 && digits(20, len(s)-1)
+	// Calendar validity, not merely digit positions: the shape check alone
+	// accepts `2026-99-26T10:15:00Z`, and performed_at is a member of the
+	// RKM04 bound tuple carrying the freshness claim.
+	num := func(a, b int) int {
+		n := 0
+		for i := a; i < b; i++ {
+			n = n*10 + int(s[i]-'0')
+		}
+		return n
+	}
+	year, month, day := num(0, 4), num(5, 7), num(8, 10)
+	hour, minute, second := num(11, 13), num(14, 16), num(17, 19)
+	if month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month) {
+		return false
+	}
+	// Second 60 is a leap second, which RFC3339 5.6 permits.
+	return hour <= 23 && minute <= 59 && second <= 60
 }
 
 func isOperationToken(s string) bool {
@@ -3808,31 +3876,45 @@ func checkMutationTable(path string, doc rawDoc, defects *[]string) {
 		}
 	}
 	for _, k := range []string{"authorization_sha256", "effect_sha256"} {
-		v, present := stringOf(mutation, k)
+		v, state := fieldOf(mutation, k)
 		switch {
-		case !present:
+		case state == fieldAbsent:
 			*defects = append(*defects, fmt.Sprintf("%s: mutation.%s is required", path, k))
+		case state == fieldNotString:
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: mutation.%s must be a string carrying a digest scalar", path, k))
 		case !isMutationDigest(v):
 			*defects = append(*defects, fmt.Sprintf(
 				"%s: mutation.%s %q is not a digest scalar", path, k, v))
 		}
 	}
-	if v, present := stringOf(mutation, "performed_at"); !present {
+	switch v, state := fieldOf(mutation, "performed_at"); {
+	case state == fieldAbsent:
 		*defects = append(*defects, fmt.Sprintf("%s: mutation.performed_at is required", path))
-	} else if !isRFC3339UTC(v) {
+	case state == fieldNotString:
 		*defects = append(*defects, fmt.Sprintf(
-			"%s: mutation.performed_at %q must be an RFC3339 UTC timestamp ending in Z", path, v))
+			"%s: mutation.performed_at must be a string", path))
+	case !isRFC3339UTC(v):
+		*defects = append(*defects, fmt.Sprintf(
+			"%s: mutation.performed_at %q must be an RFC3339 UTC timestamp ending in Z, naming "+
+				"a real instant", path, v))
 	}
-	if v, present := stringOf(mutation, "operation"); !present {
+	switch v, state := fieldOf(mutation, "operation"); {
+	case state == fieldAbsent:
 		*defects = append(*defects, fmt.Sprintf("%s: mutation.operation is required", path))
-	} else if !isOperationToken(v) {
+	case state == fieldNotString:
+		*defects = append(*defects, fmt.Sprintf("%s: mutation.operation must be a string", path))
+	case !isOperationToken(v):
 		*defects = append(*defects, fmt.Sprintf(
 			"%s: mutation.operation %q must be a bare lowercase token, at most 64 characters",
 			path, v))
 	}
-	if v, present := stringOf(mutation, "target_id"); !present {
+	switch v, state := fieldOf(mutation, "target_id"); {
+	case state == fieldAbsent:
 		*defects = append(*defects, fmt.Sprintf("%s: mutation.target_id is required", path))
-	} else if !isURIShaped(v) {
+	case state == fieldNotString:
+		*defects = append(*defects, fmt.Sprintf("%s: mutation.target_id must be a string", path))
+	case !isURIShaped(v):
 		*defects = append(*defects, fmt.Sprintf(
 			"%s: mutation.target_id %q must be a URI or URN with no whitespace or control "+
 				"characters", path, v))
@@ -3902,29 +3984,64 @@ func validateMutationKinds(path string, doc rawDoc, repoRoot string) []string {
 		}
 	}
 	for _, k := range []string{"proof_sha256", "binds_sha256"} {
-		if v, present := stringOf(proof, k); present && !isMutationDigest(v) {
+		// Absence is already reported against requiredProofKeys.
+		switch v, state := fieldOf(proof, k); {
+		case state == fieldNotString:
+			defects = append(defects, fmt.Sprintf(
+				"%s: execution_proof.%s must be a string carrying a digest scalar", path, k))
+		case state == fieldString && !isMutationDigest(v):
 			defects = append(defects, fmt.Sprintf(
 				"%s: execution_proof.%s %q is not a digest scalar", path, k, v))
 		}
 	}
-	if v, present := stringOf(proof, "proof_locator"); present && !isURIShaped(v) {
+	switch v, state := fieldOf(proof, "proof_locator"); {
+	case state == fieldNotString:
+		defects = append(defects, fmt.Sprintf(
+			"%s: execution_proof.proof_locator must be a string carrying a URI-shaped "+
+				"reference (RKM03)", path))
+	case state == fieldString && !isURIShaped(v):
 		defects = append(defects, fmt.Sprintf(
 			"%s: execution_proof.proof_locator %q must be a URI-shaped reference. A locator "+
 				"names where the proof can be fetched; it is not a place to inline the proof "+
 				"itself (RKM03)", path, v))
 	}
 
-	// RKM06 scheme-to-finality coherence.
-	scheme, _ := stringOf(proof, "scheme")
-	finality, _ := stringOf(proof, "finality_basis")
-	allowed, known := schemeFinality[scheme]
-	if !known {
-		if scheme != "" {
+	// RKM02 vocabulary membership, then RKM06 coherence. Membership is checked
+	// with no empty-string and no wrong-type escape: neither is a member of a
+	// closed vocabulary, and letting either skip the check accepted a proof
+	// declaring no scheme at all.
+	scheme, schemeOK := "", false
+	switch v, state := fieldOf(proof, "scheme"); {
+	case state == fieldNotString:
+		defects = append(defects, fmt.Sprintf(
+			"%s: execution_proof.scheme must be a string drawn from the closed "+
+				"execution_proof_scheme vocabulary", path))
+	case state == fieldString:
+		if _, known := schemeFinality[v]; known {
+			scheme, schemeOK = v, true
+		} else {
 			defects = append(defects, fmt.Sprintf(
 				"%s: execution_proof.scheme %q is not in the closed execution_proof_scheme "+
-					"vocabulary", path, scheme))
+					"vocabulary", path, v))
 		}
-	} else if finality != "" {
+	}
+	finality, finalityOK := "", false
+	switch v, state := fieldOf(proof, "finality_basis"); {
+	case state == fieldNotString:
+		defects = append(defects, fmt.Sprintf(
+			"%s: execution_proof.finality_basis must be a string drawn from the closed "+
+				"finality_basis vocabulary", path))
+	case state == fieldString:
+		if finalityValues[v] {
+			finality, finalityOK = v, true
+		} else {
+			defects = append(defects, fmt.Sprintf(
+				"%s: execution_proof.finality_basis %q is not in the closed finality_basis "+
+					"vocabulary", path, v))
+		}
+	}
+	if schemeOK && finalityOK {
+		allowed := schemeFinality[scheme]
 		okFinality := false
 		for _, a := range allowed {
 			if a == finality {
@@ -3940,8 +4057,21 @@ func validateMutationKinds(path string, doc rawDoc, repoRoot string) []string {
 	}
 
 	// RKM04: the proof must bind THIS mutation, not merely exist.
+	//
+	// Skipped unless every bound field is a string. Computing the tuple over a
+	// non-string field would hash the empty string in its place and report a
+	// mismatch against a tuple no producer wrote, burying the type defect
+	// already reported above under a bogus RKM04 failure.
 	if mutation, has := tableOf(doc, "mutation"); has {
-		if declared, present := stringOf(proof, "binds_sha256"); present && isMutationDigest(declared) {
+		allBoundFieldsAreStrings := true
+		for _, f := range boundTupleFields {
+			if _, state := fieldOf(mutation, f[1]); state != fieldString {
+				allBoundFieldsAreStrings = false
+				break
+			}
+		}
+		declared, present := stringOf(proof, "binds_sha256")
+		if allBoundFieldsAreStrings && present && isMutationDigest(declared) {
 			expected := mutationBoundTuple(mutation)
 			if declared != expected {
 				defects = append(defects, fmt.Sprintf(

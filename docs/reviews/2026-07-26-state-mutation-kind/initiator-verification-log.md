@@ -73,3 +73,52 @@ cd tools/dagtoml-validate-rs && cargo build --release
   `conformance/cases/state-mutation/` entries. Design record gap 2 stands.
 - The CI negative-agreement block added in `8290eb3` was verified by running
   its commands by hand, not by executing the workflow.
+
+## Round-2 fix verification
+
+Target: the round-2 fix commit. Both primaries rebuilt from this worktree; the
+stale prebuilt binary described above was not used.
+
+The three reproduced blockers, before and after, run across all three
+implementations:
+
+| Case | Before (py / rs / go) | After |
+|---|---|---|
+| `scheme = ""`, `finality_basis = ""` | FAIL / **PASS** / **PASS** | FAIL / FAIL / FAIL |
+| `scheme = 1`, `finality_basis = 2`, `proof_locator = 3` | FAIL / **PASS** / **PASS** | FAIL / FAIL / FAIL |
+| U+0662 leading digit in `performed_at` | **PASS** / FAIL / FAIL | FAIL / FAIL / FAIL |
+| `effect_sha256 = 12345` (diagnostic only) | FAIL / FAIL / FAIL, primaries emit a bogus RKM04 mismatch | FAIL / FAIL / FAIL, one type defect each, no RKM04 |
+| `2026-07-26T10:15:00.1Z` (Mistral's blocker) | PASS / PASS / PASS | PASS / PASS / PASS, no divergence to fix |
+
+Calendar validity, which no reviewer found:
+
+| Case | py | rs | go |
+|---|---|---|---|
+| `2026-99-26T10:15:00Z` | FAIL | FAIL | FAIL |
+| `2026-02-31T10:15:00Z` | FAIL | FAIL | FAIL |
+| `2026-07-26T99:15:00Z` | FAIL | FAIL | FAIL |
+| `2024-02-29T10:15:00Z` (real leap day) | PASS | PASS | PASS |
+
+Full suite after the fixes: three positives pass all three implementations
+(`minimal-state-mutation`, `minimal-mutation-claim`, and `minimal-api-snapshot`
+as an unrelated control); nine state-mutation negatives plus the RKC02
+claim-with-proof negative are rejected by all three; both kind descriptors,
+the abstraction classes, the profile descriptor (INV07) and IJB conformance
+pass; `validate.yml` parses.
+
+All four new negatives are **closure-valid**, verified individually, so the
+kind layer is demonstrably the only thing rejecting them. The two timestamp
+fixtures carry recomputed `binds_sha256` and `closure_root` and produce exactly
+ONE defect each, which is what proves the grammar rather than RKM04 is doing
+the work.
+
+Repo-wide closure sweep as CI invokes it: PASSED, 90 files. This is the check
+that was claimed in round 1 and was actually red, because the sweep's exclusion
+list did not name `conformance/cases/state-mutation/invalid`. Codex found it.
+The exclusion is now present and the sweep was re-run rather than assumed.
+
+Still verified by hand rather than by executing the workflow: the CI
+negative-agreement block, now extended to assert the four new fixtures against
+Python as well as both primaries. Every one of them was a
+reference-versus-primary disagreement, so pinning only one side would let the
+pair drift apart again.

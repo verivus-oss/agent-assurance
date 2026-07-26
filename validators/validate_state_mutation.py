@@ -88,8 +88,11 @@ REQUIRED_PROOF_KEYS = (
 # Value grammars for the non-digest bound fields. Defence in depth behind the
 # prehashed encoding: control characters can no longer forge a tuple, but a
 # field that accepts arbitrary text is still a place to smuggle a payload.
+# ASCII digits explicitly: `\d` on a str pattern also matches Unicode decimal
+# digits, so `\d{4}` accepts `٢026` while the Rust and Go primaries reject it.
+# Differential testing found that divergence.
 RFC3339_UTC_RE = re.compile(
-    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z\Z"
+    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z\Z"
 )
 OPERATION_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}\Z")
 # A locator is a URI-shaped reference, never a payload. Bounded, no
@@ -170,6 +173,31 @@ def check_keys(table: dict, allowed: frozenset, dotted: str, errors: list[str]) 
         )
 
 
+def _days_in_month(year: int, month: int) -> int:
+    if month == 2:
+        leap = year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
+        return 29 if leap else 28
+    return 30 if month in (4, 6, 9, 11) else 31
+
+
+def is_rfc3339_utc(value: str) -> bool:
+    """Shape AND calendar validity.
+
+    The shape check alone accepts `2026-99-26T10:15:00Z`: it constrains digit
+    positions, not what those digits can mean. `performed_at` is a member of
+    the RKM04 bound tuple and carries the freshness claim, so a timestamp that
+    cannot correspond to any instant is worth rejecting rather than binding.
+    """
+    if not RFC3339_UTC_RE.match(value):
+        return False
+    year, month, day = int(value[0:4]), int(value[5:7]), int(value[8:10])
+    hour, minute, second = int(value[11:13]), int(value[14:16]), int(value[17:19])
+    if not 1 <= month <= 12 or not 1 <= day <= _days_in_month(year, month):
+        return False
+    # Second 60 is a leap second, which RFC3339 5.6 permits.
+    return hour <= 23 and minute <= 59 and second <= 60
+
+
 def _validate_mutation_table(doc: dict, path: pathlib.Path) -> list[str]:
     """The `[mutation]` checks shared by state-mutation and mutation-claim.
 
@@ -195,15 +223,19 @@ def _validate_mutation_table(doc: dict, path: pathlib.Path) -> list[str]:
                 f"(RKM03: this field carries a digest, never a payload)"
             )
 
-    for key, pattern, shape in (
-        ("performed_at", RFC3339_UTC_RE, "an RFC3339 UTC timestamp ending in Z"),
-        ("operation", OPERATION_RE, "a bare lowercase token, at most 64 characters"),
-        ("target_id", TARGET_ID_RE, "a URI or URN, no whitespace or control characters"),
+    for key, accepts, shape in (
+        (
+            "performed_at",
+            is_rfc3339_utc,
+            "an RFC3339 UTC timestamp ending in Z, naming a real instant",
+        ),
+        ("operation", OPERATION_RE.match, "a bare lowercase token, at most 64 characters"),
+        ("target_id", TARGET_ID_RE.match, "a URI or URN, no whitespace or control characters"),
     ):
         value = mutation.get(key)
         if not isinstance(value, str) or not value:
             errors.append(f"{path}: mutation.{key} is required and MUST be a non-empty string")
-        elif not pattern.match(value):
+        elif not accepts(value):
             errors.append(
                 f"{path}: mutation.{key} {value!r} must be {shape}. Unconstrained text here is "
                 f"both a payload-smuggling surface (RKM03) and, before the SPEC 12.8.2 prehashed "

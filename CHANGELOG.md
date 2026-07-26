@@ -7,7 +7,62 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Reference-versus-primary divergences in the mutation kinds.** Three were
+  reproduced, all now closed with regression
+  fixtures asserted against all three implementations.
+
+  Two shared one root cause: both primaries reached string fields through an
+  accessor that answered identically for an absent key and for a key holding a
+  non-string, then defaulted to `""` and skipped any check keyed on a non-empty
+  value. So `scheme = ""` and `scheme = 1` each bypassed the
+  closed `execution_proof_scheme` vocabulary, RKM06, and the RKM03 locator
+  grammar, while the Python reference rejected them. That reopened the hollow
+  proof from a new direction: such a document satisfies key presence, carries
+  both pinned digests, is closure-valid, and declares no proving system at all.
+  Both ports now distinguish absent from present-but-not-a-string and check
+  vocabulary membership with no empty-string and no wrong-type escape.
+
+  The third ran the other way: Python's `\d` matches Unicode decimal
+  digits, so the REFERENCE accepted `٢026-07-26T10:15:00Z` while both ASCII
+  primaries rejected it. RFC3339 is ASCII, so Python was fixed, not the
+  primaries.
+
+  Also fixed, found by the initiator rather than the board: every
+  implementation checked the shape of `performed_at` and not its meaning, so
+  `2026-99-26T10:15:00Z` validated everywhere. That field sits inside the RKM04
+  bound tuple and carries the freshness claim, so an impossible instant was
+  being bound into the proof. All three now check month, day (against the
+  month, with the leap-year rule), hour, minute and second.
+
+  A wrong-typed bound field also made both primaries compute the bound tuple
+  over empty strings and report a mismatch against a tuple no producer wrote
+  Accept/reject parity held, but the diagnostic buried the real
+  defect; RKM04 is now skipped unless every bound field is a string, matching
+  the reference.
+
+- **CI was red on the mutation-kinds branch.** The repo-wide Python closure
+  sweep enumerates its exclusions by directory and did not name
+  `conformance/cases/state-mutation/invalid`, so a deliberately
+  closure-invalid conformance fixture failed the positive sweep. The primaries'
+  own discovery step already skipped `conformance/cases/*/invalid/`
+  generically, against a verification claim that had gone stale in the very
+  commit that introduced the fixture.
+
 ### Added
+
+- **SPEC 12.8.2 additions.** The same class of gap was found independently in
+  the new bound-tuple section. A declared field
+  that is present but not a string is now explicitly a validation error that
+  MUST NOT be coerced or read as absent. Field paths are frozen to the 12.8.1
+  pinned-record grammar, since a path containing 0x20 or 0x0A would reintroduce
+  at the label boundary the ambiguity prehashing removes at the value boundary.
+  And Unicode normalization is resolved by requiring that NONE is applied:
+  values hash as the exact UTF-8 bytes in the document, so canonically
+  equivalent NFC and NFD values produce different tuple digests. Normalizing
+  would make a verifier's recomputation depend on a Unicode version, and a
+  bound tuple must be reproducible from bytes alone.
 
 - **`mutation-claim` kind, and primary parity for both mutation kinds.** The
   companion kind is the honest home for a state change with no execution proof:

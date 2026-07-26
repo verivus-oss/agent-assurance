@@ -1295,6 +1295,24 @@ its type contract:
 - A declared field that is absent is a validation error. Bound
   tuples have no `when-present` form: a tuple with optional members
   would let a producer choose what the proof commits to.
+- A declared field that is present but is not a string is a
+  validation error. It MUST NOT be coerced, and MUST NOT be treated
+  as absent: substituting the empty string for it would compute a
+  tuple over values no producer wrote.
+- Field paths are frozen by the profile that declares them and MUST
+  match the §12.8.1 pinned-record grammar
+  `[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*`. A path containing 0x20 or 0x0A
+  would reintroduce at the label boundary exactly the ambiguity
+  prehashing removes at the value boundary.
+- Values are hashed as the exact UTF-8 bytes carried in the document,
+  with **no Unicode normalization** applied by either producer or
+  verifier. Two documents whose values are canonically equivalent but
+  differently encoded (NFC versus NFD) therefore produce different
+  tuple digests. This is deliberate: normalizing would make the
+  verifier's recomputation depend on a Unicode version, and a bound
+  tuple must be reproducible from bytes alone. A profile that needs
+  equivalent strings to bind identically MUST constrain the field's
+  grammar so that only one encoding is representable.
 
 **Prehashing is normative and load-bearing.** Inlining values makes
 the encoding non-injective: a value containing 0x0A forges a
