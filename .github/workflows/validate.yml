@@ -101,6 +101,16 @@ jobs:
           python3 conformance/runner.py \
             --rs "${RUNNER_TEMP}/dagtoml-validate-rs" \
             --go "${RUNNER_TEMP}/dagtoml-validate-go"
+          # A sidecar that matches its own case is necessary and NOT
+          # sufficient: if it also matches a different case's output it
+          # would bless the wrong defect class, and asserts far less than
+          # it appears to. That was found live, where a bare
+          # "RKM02" needle matched three other cases because the RKC02
+          # diagnostic names RKM02 in its prose. This runs the full
+          # cross-product so the corpus cannot silently weaken again.
+          python3 conformance/discrimination.py \
+            --rs "${RUNNER_TEMP}/dagtoml-validate-rs" \
+            --go "${RUNNER_TEMP}/dagtoml-validate-go"
 
       - name: Build dagtoml-rdf (required by manifest-drift gate)
         # validators/check_attribute_values.py invokes

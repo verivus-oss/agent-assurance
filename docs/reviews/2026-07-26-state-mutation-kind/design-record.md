@@ -462,6 +462,66 @@ One pre-existing case was also wrong: `required-pin-missing-proof` declared
 `source_bytes = 417` against a 416-byte capture, so it failed for two reasons
 and proved neither.
 
+## Round 5 review outcome: the corpus reviewed as an artefact
+
+Codex, Grok, Devin. Gemini timed out for the third consecutive round, this time
+with a 15 minute idle timeout set, dying at the same 5m08s as before, so the
+ceiling is inside the gateway adapter and not caller-controllable. **The board
+has been three reviewers since round 3** and the record should say so.
+
+**Two approved, one blocked, and the blocker was right.**
+
+All three reviewers plus the initiator independently ran the acid test and got
+the same result: reverting each of the four fixes this series produced turns
+the corpus red, on the case that names that defect, as a VERDICT failure rather
+than a needle miss. Sibling precision held in every run. That is the strongest
+evidence in the series that something works, four independent reproductions of
+the same table.
+
+**Codex's blocker: a needle that matched without discriminating.**
+`hollow-proof.expected.toml` asserted only `"RKM02"`, and the RKC02 diagnostic
+contains that string incidentally, since it names the invariants a proved
+record must face ("so that RKM02, RKM04 and RKM06 apply to it"). Codex proved
+the consequence by swapping the sidecar onto `array-proof`, which still passed.
+
+Grok saw the same looseness and graded it a follow-up. Codex demonstrated it
+and graded it a blocker. **Codex was right, and the difference between noticing
+a weakness and demonstrating it is what decided the severity.** This is the
+sharpest instance in five rounds of why the review asks for constructed
+evidence rather than reasoning.
+
+Running the full cross-product rather than Codex's single pair showed the
+problem was worse than reported: **four** sidecars failed to discriminate.
+`unbound-proof`'s bare `"RKM04"` matched four other cases, because both
+timestamp fixtures cite RKM04 while explaining the field is bound.
+
+Three fixes followed, only the first of which Codex asked for:
+
+1. `hollow-proof` and `unbound-proof` now pin the fields and the recomputation
+   phrase that only they report.
+2. **`error_not_contains` was added to the runner.** `hollow-proof` cannot be
+   separated from `required-pin-missing-proof` by any presence-only needle,
+   because the latter's output is a strict SUPERSET of the former's. It now
+   asserts the closure layer stayed silent, which is the case's actual claim.
+3. **`conformance/discrimination.py` runs the whole cross-product in CI.** One
+   reviewer found one instance by guessing a pair; the general check finds all
+   of them and prevents recurrence. Negative-controlled by restoring the bare
+   needle and confirming it reports all three collisions.
+
+**Grok's coverage finding, independently correct:** RKM06 was enforced in all
+three implementations with no fixture at all. It has one now
+(`scheme-finality-incoherent`), which matters because RKM06 is the mitigation
+that kept `provider-receipt` in the ontology after round 1, where a reviewer
+wanted the scheme removed. Without that invariant tested, the round-1 objection
+stands unanswered.
+
+**Devin executed this round** (round 4's dispatch had refused it `cargo`, `go`
+and `git`) and worked in a clean scratch worktree, which is the right method.
+Its approval was still too generous: it swap-tested exactly the two pairs the
+review request named as already fixed and found them fixed. Codex tested a pair
+the request did not name. Confirming what someone else already flagged is the
+weakest form of the same technique.
+
 ### What is still open
 
 - **The round-4 fix and the corpus itself are unreviewed**, which is the

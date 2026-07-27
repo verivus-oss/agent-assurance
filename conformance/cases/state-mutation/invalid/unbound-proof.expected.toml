@@ -1,8 +1,17 @@
-# Defect-class assertion. Every rejecting implementation's output
-# MUST contain each substring, so this case pins WHY the document is
-# rejected, not merely THAT it is. Exit-code agreement alone would
-# have passed the diagnostic defect, where all three
-# implementations rejected and two reported the wrong reason.
+# Defect-class assertion. Every rejecting implementation's output MUST contain
+# each substring, so this case pins WHY the document is rejected, not merely
+# THAT it is. Needles must DISCRIMINATE: a substring that another case's output
+# would also contain can bless the wrong defect class.
+#
+# A bare "RKM04" needle does NOT discriminate. It matched
+# four other cases: the two RKC02 fixtures name RKM04 in their prose, and both
+# timestamp cases cite it while explaining that the field is bound
+# ("was a bound-tuple forgery surface (RKM04)").
+#
+# The discriminator is the recomputation phrase. Python says "the digest of the
+# canonical bound tuple" where the primaries say "the SPEC 12.8.2 bound tuple",
+# so the common substring starts after that divergence.
 error_contains = [
-  "RKM04",
+  "execution_proof.binds_sha256",
+  "bound tuple recomputed from this document",
 ]

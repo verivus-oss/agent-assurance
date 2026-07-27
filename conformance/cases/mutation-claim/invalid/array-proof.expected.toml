@@ -6,3 +6,11 @@
 error_contains = [
   "RKC02",
 ]
+
+# INTENTIONALLY IDENTICAL to its sibling (array-proof / table-proof). The two
+# cases carry the same proof material and differ only in TOML shape, so they
+# produce the same RKC02 diagnostic and no textual needle can separate them.
+# They discriminate by VERDICT, not by message: reverting Go's hasKey to
+# tableOf turns array-proof red and leaves table-proof green, which is exactly
+# the bug they exist to catch. conformance/discrimination.py whitelists this
+# pair for that reason.

@@ -9,6 +9,31 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **`conformance/discrimination.py`, and `error_not_contains` in the runner.**
+  The corpus asserted less than it appeared to: a sidecar
+  that matches its own case is necessary and not sufficient, because a needle
+  can also match a DIFFERENT case's output and would then bless the wrong
+  defect class. `hollow-proof.expected.toml` asserted only `"RKM02"`, and the
+  RKC02 diagnostic contains that string incidentally while naming the
+  invariants a proved record must face. Swapping the sidecar onto
+  `mutation-claim/invalid/array-proof` left the corpus green.
+
+  Running the full cross-product showed four sidecars affected, not one:
+  `unbound-proof`'s bare `"RKM04"` matched four other cases. The new check runs
+  every sidecar against every other case in CI, with a whitelist for pairs that
+  legitimately share a defect class and discriminate by verdict instead.
+
+  `error_not_contains` exists because presence-only needles cannot separate a
+  case from one whose output is a strict SUPERSET of its own, which is the
+  relationship between `hollow-proof` and `required-pin-missing-proof`. The
+  former now asserts the closure layer stayed silent.
+
+- **An RKM06 conformance case.** The scheme-to-finality coherence invariant was
+  enforced in all three implementations with no fixture at all.
+  It is the mitigation that kept `provider-receipt` in the ontology after a
+  proposal to remove it, so leaving it untested left that objection
+  unanswered.
+
 - **A shared conformance corpus for `state-mutation` and `mutation-claim`**,
   which was independently named as the thing that ends the review cycle
   rather than another pass of it. 15 new cases (4 valid, 11
