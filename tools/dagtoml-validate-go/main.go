@@ -4059,12 +4059,12 @@ func validateMutationKinds(path string, doc rawDoc, repoRoot string) []string {
 	// closed vocabulary, and letting either skip the check accepted a proof
 	// declaring no scheme at all.
 	scheme, schemeOK := "", false
-	switch v, state := fieldOf(proof, "scheme"); {
-	case state == fieldNotString:
+	switch v, state := fieldOf(proof, "scheme"); state {
+	case fieldNotString:
 		defects = append(defects, fmt.Sprintf(
 			"%s: execution_proof.scheme must be a string drawn from the closed "+
 				"execution_proof_scheme vocabulary", path))
-	case state == fieldString:
+	case fieldString:
 		if _, known := schemeFinality[v]; known {
 			scheme, schemeOK = v, true
 		} else {
@@ -4074,12 +4074,12 @@ func validateMutationKinds(path string, doc rawDoc, repoRoot string) []string {
 		}
 	}
 	finality, finalityOK := "", false
-	switch v, state := fieldOf(proof, "finality_basis"); {
-	case state == fieldNotString:
+	switch v, state := fieldOf(proof, "finality_basis"); state {
+	case fieldNotString:
 		defects = append(defects, fmt.Sprintf(
 			"%s: execution_proof.finality_basis must be a string drawn from the closed "+
 				"finality_basis vocabulary", path))
-	case state == fieldString:
+	case fieldString:
 		if finalityValues[v] {
 			finality, finalityOK = v, true
 		} else {
