@@ -8,7 +8,7 @@
 -- schema never drifts. Treat hand-edits here as a smell.
 --
 -- Counts (verified against ontology files; matches MANIFEST.toml):
---   * 21 template kinds        (6 core + 9 agent-assurance + 3 disclosure + 1 cost + 1 com.verivus.runtime + 1 meta `kind-descriptor`)
+--   * 23 template kinds        (6 core + 9 agent-assurance + 3 disclosure + 1 cost + 3 com.verivus.runtime + 1 meta `kind-descriptor`)
 --   * 27 entity kinds          (17 core + 6 agent-assurance + 3 disclosure + 1 cost)
 --   * 31 relation rows         (26 core + 5 contract-namespaced variants)
 --                              The ontology declares 31 [[relations]] blocks,
@@ -23,13 +23,16 @@
 --                              them as separate [[relations]] entries.
 --                              The 31st row is the cross-document
 --                              `cites_upstream` marker added by SPEC §12.
---   * 48 attribute vocabularies (12 core + 27 agent-assurance + 4 disclosure + 3 cost + 2 com.verivus.runtime)
+--   * 50 attribute vocabularies (12 core + 27 agent-assurance + 4 disclosure + 3 cost + 4 com.verivus.runtime)
+--   * 152 attribute_value_allowed rows (values of every vocabulary that is
+--                              not backed by an enum type; see the note above
+--                              that INSERT)
 
 SET search_path TO dagtoml, public;
 
 -- ============================================================
--- kind_descriptor (20 rows: 6 core + 9 agent-assurance + 3 disclosure + 1 cost + 1 meta)
--- The 15th row is the `kind-descriptor` template_kind itself, declared
+-- kind_descriptor (23 rows: 6 core + 9 agent-assurance + 3 disclosure + 1 cost + 3 com.verivus.runtime + 1 meta)
+-- One row is the `kind-descriptor` template_kind itself, declared
 -- in spec.md and used as the `template_kind` of every *-kind.toml file.
 -- ============================================================
 INSERT INTO kind_descriptor (template_kind, layer, descriptor_path, requires_profile) VALUES
@@ -58,7 +61,7 @@ INSERT INTO kind_descriptor (template_kind, layer, descriptor_path, requires_pro
     ('mutation-claim',                 'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/mutation-claim-kind.toml',      'com.verivus.runtime');
 
 -- ============================================================
--- entity_kind_descriptor (24 rows: 17 core + 6 agent-assurance + 3 disclosure + 1 cost)
+-- entity_kind_descriptor (27 rows: 17 core + 6 agent-assurance + 3 disclosure + 1 cost)
 -- All are (thing, structural) per IJB conformance rules KD1.
 -- id_prefix_pattern values match the ontology's `id_prefix` (for fixed
 -- prefixes) or `id_pattern` (for regex-keyed entity kinds) verbatim.
@@ -158,7 +161,7 @@ INSERT INTO relation_descriptor
     ('cites_upstream',         ARRAY[]::TEXT[],                       ARRAY[]::TEXT[],                                       NULL,            NULL, TRUE,  TRUE,  'path', 'structural', 'core');
 
 -- ============================================================
--- attribute_vocabulary (46 rows: 12 core + 27 agent-assurance + 4 disclosure + 3 cost; agent-assurance includes subject_class/provider_id/model_family_id for gate-decision INV06)
+-- attribute_vocabulary (50 rows: 12 core + 27 agent-assurance + 4 disclosure + 3 cost + 4 com.verivus.runtime; agent-assurance includes subject_class/provider_id/model_family_id for gate-decision INV06)
 -- ============================================================
 INSERT INTO attribute_vocabulary
     (attribute, applies_to_entity, applies_to_template, ijb_constraint_type, extensible, default_value, layer, backing_enum_type) VALUES
@@ -179,7 +182,7 @@ INSERT INTO attribute_vocabulary
     ('framework_profile_namespace',      NULL, NULL, 'structural', FALSE, NULL, 'core', NULL),
     ('provenance.encryption.hash_is_over', NULL, NULL, 'structural', FALSE, NULL, 'core', NULL),
     ('closure_root.digest_algorithm',      NULL, NULL, 'structural', TRUE,  NULL, 'core', NULL),
-    -- Profile (24)
+    -- Profile: agent-assurance (27)
     ('trigger_kind',                ARRAY['rollback_trigger'], NULL, 'structural', TRUE,  NULL, 'profile:agent-assurance', NULL),
     ('likelihood',                  ARRAY['threat'],           NULL, 'structural', FALSE, NULL, 'profile:agent-assurance', 'risk_level'),
     ('impact',                      ARRAY['threat'],           NULL, 'structural', FALSE, NULL, 'profile:agent-assurance', 'risk_level'),

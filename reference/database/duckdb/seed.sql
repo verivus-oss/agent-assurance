@@ -5,12 +5,12 @@
 -- instead of PG's `ARRAY['a','b']` form.
 --
 -- Counts (CI-gated by validators/check_attribute_values.py):
---   21 kind_descriptor / 27 entity_kind_descriptor / 31 relation_descriptor /
---   48 attribute_vocabulary / 144 attribute_value_allowed
+--   23 kind_descriptor / 27 entity_kind_descriptor / 31 relation_descriptor /
+--   50 attribute_vocabulary / 152 attribute_value_allowed
 
 SET search_path = dagtoml;
 
--- kind_descriptor (20; +1 cost-record)
+-- kind_descriptor (23; +1 cost-record, +3 com.verivus.runtime)
 INSERT INTO dagtoml.kind_descriptor (template_kind, layer, descriptor_path, requires_profile) VALUES
     ('kind-descriptor',           'core', 'spec.md',                                                       NULL),
     ('implementation-dag',        'core', 'core/implementation-dag-kind.toml',                             NULL),
@@ -36,7 +36,7 @@ INSERT INTO dagtoml.kind_descriptor (template_kind, layer, descriptor_path, requ
     ('state-mutation',            'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/state-mutation-kind.toml',     'com.verivus.runtime'),
     ('mutation-claim',            'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/mutation-claim-kind.toml',     'com.verivus.runtime');
 
--- entity_kind_descriptor (24; +1 cost = COST)
+-- entity_kind_descriptor (27; +1 cost = COST)
 INSERT INTO dagtoml.entity_kind_descriptor (entity_kind, id_prefix_pattern, layer, defining_kind, ijb_primitive, ijb_class, description) VALUES
     ('intent',           'INT',           'core', 'traceability',         'thing', 'structural', 'User/business intent; top of trace.'),
     ('feature',          'FEAT',          'core', 'traceability',         'thing', 'structural', 'User-visible capability.'),
@@ -104,7 +104,7 @@ INSERT INTO dagtoml.relation_descriptor (predicate, domain, range, inverse_of, c
 
 -- relation_descriptor row count is now 31 (one per [[relations]] block in core/ontology.toml).
 
--- attribute_vocabulary (46 rows; matches postgres/seed.sql vocab set; includes agent-assurance subject_class/provider_id/model_family_id for gate-decision INV06)
+-- attribute_vocabulary (50 rows; matches postgres/seed.sql vocab set; includes agent-assurance subject_class/provider_id/model_family_id for gate-decision INV06)
 INSERT INTO dagtoml.attribute_vocabulary (attribute, applies_to_entity, applies_to_template, ijb_constraint_type, extensible, default_value, layer, backing_enum_type) VALUES
     ('requirement_kind',  ['requirement'],     NULL, 'structural', TRUE,  NULL,  'core', NULL),
     ('test_kind',         ['test'],            NULL, 'structural', TRUE,  NULL,  'core', NULL),
@@ -163,7 +163,7 @@ INSERT INTO dagtoml.attribute_vocabulary (attribute, applies_to_entity, applies_
     ('execution_proof_scheme', NULL, ['state-mutation'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
     ('finality_basis',        NULL, ['state-mutation'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL);
 
--- attribute_value_allowed (54) — identical to postgres/seed.sql.
+-- attribute_value_allowed (152), identical to postgres/seed.sql.
 INSERT INTO dagtoml.attribute_value_allowed (attribute, value) VALUES
     ('requirement_kind', 'functional'),
     ('requirement_kind', 'non_functional'),

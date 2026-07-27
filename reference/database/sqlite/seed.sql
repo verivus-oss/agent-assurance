@@ -7,17 +7,17 @@
 --   * Booleans are 0/1 integers (no native bool in SQLite).
 --
 -- Counts (CI-gated by validators/check_attribute_values.py; drift fails):
---   21 template kinds       (6 core + 9 agent-assurance + 3 disclosure + 1 cost + 1 com.verivus.runtime + 1 meta)
+--   23 template kinds       (6 core + 9 agent-assurance + 3 disclosure + 1 cost + 3 com.verivus.runtime + 1 meta)
 --   27 entity kinds         (17 core + 6 agent-assurance + 3 disclosure + 1 cost)
 --   31 relation rows        (26 core + 5 contract-namespaced variants)
---   41 attribute vocabs     (10 core + 24 agent-assurance + 4 disclosure + 3 cost)
---  144 attribute_value_allowed rows (union of every closed-and-extensible vocab's values
---                                    minus a small set held as native CHECK constraints)
+--   50 attribute vocabs     (12 core + 27 agent-assurance + 4 disclosure + 3 cost + 4 com.verivus.runtime)
+--  152 attribute_value_allowed rows (values of every vocabulary not backed by a
+--                                    native CHECK constraint)
 
 PRAGMA foreign_keys = ON;
 
 -- ============================================================
--- kind_descriptor (20 rows; +1 cost-record)
+-- kind_descriptor (23 rows; +1 cost-record, +3 com.verivus.runtime)
 -- ============================================================
 INSERT INTO dagtoml_kind_descriptor (template_kind, layer, descriptor_path, requires_profile) VALUES
     ('kind-descriptor',           'core', 'spec.md',                                                       NULL),
@@ -45,7 +45,7 @@ INSERT INTO dagtoml_kind_descriptor (template_kind, layer, descriptor_path, requ
     ('mutation-claim',            'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/mutation-claim-kind.toml',     'com.verivus.runtime');
 
 -- ============================================================
--- entity_kind_descriptor (24 rows; +1 cost = COST)
+-- entity_kind_descriptor (27 rows; +1 cost = COST)
 -- ============================================================
 INSERT INTO dagtoml_entity_kind_descriptor (entity_kind, id_prefix_pattern, layer, defining_kind, ijb_primitive, ijb_class, description) VALUES
     ('intent',           'INT',           'core', 'traceability',         'thing', 'structural', 'User/business intent; top of trace.'),
@@ -115,7 +115,7 @@ INSERT INTO dagtoml_relation_descriptor (predicate, domain, range, inverse_of, c
     ('cites_upstream',         json_array(),                               json_array(),                                               NULL,            NULL, 1, 1, 'path', 'structural', 'core');
 
 -- ============================================================
--- attribute_vocabulary (46 rows; matches postgres/seed.sql vocab set; includes agent-assurance subject_class/provider_id/model_family_id for gate-decision INV06)
+-- attribute_vocabulary (50 rows; matches postgres/seed.sql vocab set; includes agent-assurance subject_class/provider_id/model_family_id for gate-decision INV06)
 -- backing_check_constraint names the column-level CHECK list in
 -- dagtoml_entity that enforces the closed value set (e.g. 'priority',
 -- 'unit_status'). NULL = extensible vocab, checked via the
@@ -179,7 +179,7 @@ INSERT INTO dagtoml_attribute_vocabulary (attribute, applies_to_entity, applies_
     ('execution_proof_scheme', NULL, json_array('state-mutation'), 'structural', 0, NULL, 'profile:com.verivus.runtime', NULL),
     ('finality_basis',        NULL, json_array('state-mutation'), 'structural', 0, NULL, 'profile:com.verivus.runtime', NULL);
 
--- attribute_value_allowed: 54 rows, same content as the PG seed.
+-- attribute_value_allowed: 152 rows, same content as the PG seed.
 INSERT INTO dagtoml_attribute_value_allowed (attribute, value) VALUES
     ('requirement_kind', 'functional'),
     ('requirement_kind', 'non_functional'),
