@@ -345,18 +345,109 @@ encoding works for closed ASCII token vocabularies but for a free-form
 which is feasible but harsh. The caveat: Gemini raised the original objection
 and, because its job timed out, never replied to the answer.
 
-### What is still open after round 3
+## Round 4 review outcome: a split board, and the adjudication
 
-- **The round-3 fix itself is unreviewed.** `hasKey` and the four table-site
-  changes were written in response to round 3 and have had no independent pass.
-  This is the same standing that produced the round-2 and round-3 blockers:
-  each round's fix has been the next round's defect.
-- **Gemini has not reviewed rounds 3 or the SPEC additions it objected to.**
-  Its round-3 job timed out with no output. The normalization decision it
-  contested now has two independent endorsements and no reply from the
-  objector.
-- `mutation-claim` still has no conformance cases. This has been open since
-  round 1 and no round has closed it.
+Codex, Grok and Devin. Devin is new to the series and reviewed for the first
+time. **Two withheld approval and one approved**, and they disagreed about the
+same behaviour, which makes the adjudication the substance of this round.
+
+All three, plus the initiator independently before the verdicts returned
+(`initiator-kind-dispatch-r4.md`), reached the same observation. Take the
+hollow-proof negative, set `meta.template_kind = 1` or delete it, honestly
+re-root to the SPEC 12.8 one-record source-hash closure, and the document
+passes every layer in all three implementations. Kind validators dispatch on
+the selector and correctly say "not my kind"; closure pin resolution read the
+malformed selector as ABSENT and returned no pins and no errors.
+
+- **Codex: blocker.** Reproduced by execution, with the same fallback root the
+  initiator computed. Remedy asked for: reject absent OR non-string.
+- **Devin: blocker.** Found it by reading the source, having been unable to run
+  `cargo`, `go` or `git` at all. Same remedy: reject missing or non-string.
+- **Grok: approved.** Reproduced the same behaviour and argued it is partly BY
+  DESIGN, citing SPEC 12 at `spec.md:972-985`.
+
+**Grok is right about the half that matters for the remedy, and the two
+blocker-callers are wrong about it.** SPEC 12 says, in one sentence:
+
+> Producers that want a file outside the rule's scope MUST give it a
+> non-spec-reserved `template_kind` (or no `template_kind` at all).
+
+So absence is a ratified escape from conformance scope, exactly like a
+non-reserved string such as `"review-bundle"`. Rejecting absence, as both
+blockers asked, would break behaviour the spec guarantees. Grok also showed the
+control that settles the security question: with a CORRECT kind string, a
+hollow re-rooted proof still fails the required pins, so this was never a false
+accept of a document claiming to be a `state-mutation`.
+
+**But Grok is wrong to leave it entirely.** SPEC 2.3 says `template_kind` IS a
+string. A value that is present but not a string is neither of the two ratified
+escapes. It is malformed, and reading it as absent silently drops every pinned
+closure record. That is the pin-free fall-through all three implementations'
+own docstrings say does not exist.
+
+So the fix is **narrower than two reviewers demanded and broader than the third
+allowed**: a present-but-non-string `template_kind` is now a closure-layer
+error in all three; absent and non-reserved-string remain legal and are
+asserted as such in the verification log so a future change cannot quietly
+remove the escape hatch.
+
+This is the first round where the board split, and the split was productive:
+the approving reviewer supplied the reasoning that made the other two's remedy
+wrong, and the blocking reviewers supplied a defect the approving one was
+willing to file as optional hygiene.
+
+**Also fixed, found by Grok:** `scheme not in schemes` has no type guard, so a
+table-typed `scheme` or `finality_basis` raised
+`TypeError: unhashable type: 'dict'`. It exits 1, so it failed closed, but a
+traceback is not a defect report and it hid which invariant fired. The
+primaries already handled this cleanly through the round-2 three-state
+accessor.
+
+**What the board confirmed:** the round-3 RKC02 fix holds against every shape
+Grok tried, including `[[execution_proof]]` array-of-tables headers and dotted
+`execution_proof.*` keys. Codex re-ran the full suite and the CI-shaped closure
+sweep at 90 files. Grok found no further typed-accessor accept path inside
+documents that declare a correct kind string.
+
+**On whether this is converging.** Codex says structurally defect-prone; Grok
+says converging on accept-path severity but process-fragile. They agree
+completely on the remedy, and so does Devin: a shared `conformance/cases/`
+corpus that every implementation is driven from, rather than ad hoc negatives
+listed by hand in `validate.yml`. Grok assessed it case by case and concluded
+it would have caught rounds 2 and 3, but only if cases assert defect classes
+rather than bare exit codes, since round 3's diagnostic defect had correct
+exit codes throughout. That is now the top open item.
+
+### What is still open after round 4
+
+- **A shared `conformance/cases/` corpus is the top item, and all three round-4
+  reviewers independently named it as the thing that ends this cycle.** Today
+  every negative is an ad hoc fixture listed by hand in `validate.yml`, which
+  covers only what someone remembered to add. `mutation-claim` has no
+  conformance cases at all and has not since round 1. Cases must assert defect
+  CLASSES, not bare exit codes: round 3's diagnostic defect had correct exit
+  codes in all three implementations throughout.
+- **The round-4 fix itself is unreviewed**, which is the standing that produced
+  the round-2, round-3 and round-4 blockers in turn. It is also the smallest
+  fix of the series and the only one whose scope was narrowed by a reviewer's
+  argument rather than widened.
+- **Two reviewers have now been unable to execute anything.** Mistral in round
+  2 (whose blocker did not reproduce) and Devin in round 4 (whose did). Devin
+  ran with gateway `permissionMode: "auto"`, which refuses `cargo`, `go` and
+  `git`. Either dispatch it with `dangerous` or treat it as a static analyst by
+  design, but record which.
+- **Gemini has not reviewed round 3, round 4, or the SPEC 12.8.2 additions it
+  objected to.** Its round-3 job timed out with no output. The normalization
+  decision it contested now has two independent endorsements and no reply from
+  the objector.
+- **Never run end to end:** promotion from `mutation-claim` to `state-mutation`
+  is asserted in prose and has never been executed as a scripted operation
+  through all three validators (Grok, round 4).
+- **No normative consumer algorithm.** The kinds say what a producer must
+  write and what a validator must check, but not how a consumer decides whether
+  a `provider-receipt` is good enough, how scheme ranks against finality, or
+  how any of this binds to the tiers under `profiles/agent-assurance/tiers/`,
+  which do not reference these kinds at all (Grok, round 4).
 - The `provider-receipt` retention decision stands against one reviewer's
   round-1 blocker, with the same reviewer reversing position in round 2 and
   arguing FOR retention. It remains the operator's to reverse.

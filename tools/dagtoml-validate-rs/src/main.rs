@@ -4877,6 +4877,26 @@ fn pinned_closure_inputs(
     let Some(meta) = doc.get("meta").and_then(|x| x.as_table()) else {
         return (Vec::new(), Vec::new());
     };
+    // SPEC 2.3: `template_kind` IS a string. Absence is a ratified escape from
+    // conformance scope, and so is a non-spec-reserved string value (SPEC 12).
+    // A value that is PRESENT but not a string is neither. Reading it as absent
+    // drops every pinned closure record for the kind and silently degrades the
+    // document to the one-record source-hash closure, which is the pin-free
+    // fall-through the docstring above says does not exist.
+    if let Some(raw) = meta.get("template_kind") {
+        if raw.as_str().is_none() {
+            return (
+                Vec::new(),
+                vec![format!(
+                    "{}: `meta.template_kind` is present but is not a string (SPEC 2.3). A \
+                     malformed kind selector MUST NOT be read as an absent one: that drops \
+                     every pinned closure record for the kind and silently degrades the \
+                     document to a one-record source-hash closure",
+                    path.display()
+                )],
+            );
+        }
+    }
     let template_kind = meta
         .get("template_kind")
         .and_then(|x| x.as_str())

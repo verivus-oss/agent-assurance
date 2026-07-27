@@ -224,7 +224,24 @@ def pinned_closure_inputs(
     meta = data.get("meta")
     if not isinstance(meta, dict):
         return [], []
-    template_kind = meta.get("template_kind")
+    # SPEC §2.3: `template_kind` IS a string. Absence is a ratified escape from
+    # conformance scope, and so is a non-spec-reserved string value (SPEC §12:
+    # "Producers that want a file outside the rule's scope MUST give it a
+    # non-spec-reserved `template_kind` (or no `template_kind` at all)"). A
+    # value that is PRESENT but not a string is neither of those. It is
+    # malformed, and reading it as absent silently drops every pinned closure
+    # record for the kind, degrading the document to the one-record source-hash
+    # closure with no error raised. That is the pin-free fall-through this
+    # function's own docstring says does not exist.
+    raw_kind = meta.get("template_kind")
+    if raw_kind is not None and not isinstance(raw_kind, str):
+        return [], [
+            "`meta.template_kind` is present but is not a string (SPEC §2.3). A "
+            "malformed kind selector MUST NOT be read as an absent one: that drops "
+            "every pinned closure record for the kind and silently degrades the "
+            "document to a one-record source-hash closure"
+        ]
+    template_kind = raw_kind
     if not isinstance(template_kind, str):
         template_kind = meta.get("kind")  # legacy synonym
     if not isinstance(template_kind, str) or template_kind not in pin_map:

@@ -323,14 +323,32 @@ def validate_one(path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
 
     schemes = load_vocabulary(repo_root, "execution_proof_scheme")
     finalities = load_vocabulary(repo_root, "finality_basis")
+    # The type guard is load-bearing, not defensive noise: `x not in <set>`
+    # raises TypeError on an unhashable value, so a table-typed `scheme` used to
+    # abort this validator with a traceback. It exited 1, so it failed closed,
+    # but a traceback is not a defect report and it hid which invariant fired.
+    # The primaries already report these cleanly through their
+    # three-state accessor.
     scheme = proof.get("scheme")
-    if scheme is not None and scheme not in schemes:
+    if scheme is not None and not isinstance(scheme, str):
+        errors.append(
+            f"{path}: execution_proof.scheme must be a string drawn from the closed "
+            f"`execution_proof_scheme` vocabulary, got {type(scheme).__name__}"
+        )
+        scheme = None
+    elif scheme is not None and scheme not in schemes:
         errors.append(
             f"{path}: execution_proof.scheme {scheme!r} is not in the closed "
             f"`execution_proof_scheme` vocabulary {sorted(schemes)}"
         )
     finality = proof.get("finality_basis")
-    if finality is not None and finality not in finalities:
+    if finality is not None and not isinstance(finality, str):
+        errors.append(
+            f"{path}: execution_proof.finality_basis must be a string drawn from the closed "
+            f"`finality_basis` vocabulary, got {type(finality).__name__}"
+        )
+        finality = None
+    elif finality is not None and finality not in finalities:
         errors.append(
             f"{path}: execution_proof.finality_basis {finality!r} is not in the closed "
             f"`finality_basis` vocabulary {sorted(finalities)}"

@@ -2632,6 +2632,21 @@ func pinnedClosureInputs(path string, doc rawDoc, pinMap map[string][]pinnedClos
 	if !ok {
 		return nil, nil
 	}
+	// SPEC 2.3: `template_kind` IS a string. Absence is a ratified escape from
+	// conformance scope, and so is a non-spec-reserved string value (SPEC 12).
+	// A value that is PRESENT but not a string is neither. Reading it as absent
+	// drops every pinned closure record for the kind and silently degrades the
+	// document to the one-record source-hash closure, which is the pin-free
+	// fall-through the comment above says does not exist.
+	if raw, present := meta["template_kind"]; present {
+		if _, isString := raw.(string); !isString {
+			return nil, []string{fmt.Sprintf(
+				"%s: `meta.template_kind` is present but is not a string (SPEC 2.3). A "+
+					"malformed kind selector MUST NOT be read as an absent one: that drops "+
+					"every pinned closure record for the kind and silently degrades the "+
+					"document to a one-record source-hash closure", path)}
+		}
+	}
 	templateKind, ok := meta["template_kind"].(string)
 	if !ok {
 		// legacy synonym

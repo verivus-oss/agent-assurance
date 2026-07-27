@@ -152,3 +152,43 @@ roughly 25 cases and found no divergence, no integer overflow and no panic, and
 all three returning reviewers re-ran the closure sweep and got 90 files. That
 is the first time a claim in this log has been reproduced by someone other than
 its author.
+
+## Round-4 fix verification
+
+The malformed kind selector, and the two escape hatches that MUST survive it.
+This is the load-bearing table of the round-4 change: the fix is only correct
+if the bottom two rows still pass.
+
+| `meta.template_kind` | py closure | rs | go | required behaviour |
+|---|---|---|---|---|
+| `1` (integer) | REJECT | REJECT | REJECT | malformed, SPEC 2.3 |
+| `["state-mutation"]` (array) | REJECT | REJECT | REJECT | malformed, SPEC 2.3 |
+| `1` on an `api-snapshot` | REJECT | REJECT | REJECT | malformed, and predates this branch |
+| **absent** | **PASS** | **PASS** | **PASS** | **ratified escape, SPEC 12** |
+| **`"review-bundle"`** (non-reserved) | **PASS** | **PASS** | **PASS** | **ratified escape, SPEC 12** |
+
+Every one of these documents carries a full `[mutation]` table, a hollow
+`[execution_proof]`, and an honest one-record source-hash `closure_root`, so the
+selector is the only thing distinguishing them. Before the fix all five passed.
+
+The two PASS rows are asserted deliberately and should be treated as a
+regression guard, not an oversight. SPEC 12 says "Producers that want a file
+outside the rule's scope MUST give it a non-spec-reserved `template_kind` (or
+no `template_kind` at all)". A future change that makes those rows fail has
+broken behaviour the spec guarantees, and two round-4 reviewers asked for
+exactly that change.
+
+Python vocabulary crash: `scheme = { nested = "table" }` now reports
+`execution_proof.scheme must be a string drawn from the closed
+execution_proof_scheme vocabulary, got dict` instead of a `TypeError`
+traceback.
+
+Full suite after the fix: three positives pass all three implementations and
+the closure layer; **twelve** negatives are rejected (eleven at the kind layer,
+one at the closure layer); descriptors, profile descriptor and IJB pass;
+`validate.yml` parses.
+
+Repo-wide closure sweep as CI invokes it: PASSED, 90 files. That number is the
+regression check that matters most this round, because unlike every previous
+fix in this series the selector change touches the shared pin-resolution path
+used by EVERY kind in the repository, not just the two added here.

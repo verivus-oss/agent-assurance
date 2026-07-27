@@ -9,6 +9,31 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **A malformed kind selector silently dropped every pinned closure record.**
+  SPEC 2.3 says `meta.template_kind` is a
+  string. All three implementations read a present-but-NON-STRING value as
+  ABSENT: pin resolution returned no pins and no error, degrading the document
+  to the SPEC 12.8 one-record source-hash closure, while every kind validator
+  dispatched on the same value and correctly concluded "not my kind". A
+  document with `template_kind = 1`, a full `[mutation]` table, a hollow
+  `[execution_proof]`, and an honest one-record root therefore passed closure,
+  provenance and the kind layer in all three. This is the pin-free fall-through
+  that all three functions' own docstrings say does not exist. It affects every
+  kind, not only these two, and predates this branch.
+
+  The fix is deliberately narrow. SPEC 12 ratifies TWO escapes from conformance
+  scope, a non-spec-reserved `template_kind` string and no `template_kind` at
+  all, and both remain legal and are now asserted as legal so a later change
+  cannot quietly remove them. Only the malformed case, which is neither escape,
+  is rejected.
+
+- **`validate_state_mutation.py` crashed on a table-typed vocabulary value.**
+  `scheme not in schemes` raises `TypeError` on
+  an unhashable value, so a table-typed `scheme` or `finality_basis` aborted
+  the validator with a traceback. It exited 1, so it failed closed, but a
+  traceback is not a defect report and it hid which invariant fired. The
+  primaries already reported these cleanly.
+
 - **RKC02 could be bypassed in the Go primary by shape.** RKC02 forbids a
   `mutation-claim` from carrying `[execution_proof]`, and Go enforced it
   through its table accessor, which answers false both for an absent key and

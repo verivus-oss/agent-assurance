@@ -937,6 +937,24 @@ jobs:
               "$go_bin" -repo-root . -mode mutation-kinds \
               "examples/negative/state-mutation-$neg.toml"
           done
+          # Malformed kind selector (SPEC 2.3).
+          #
+          # This one is a CLOSURE-layer rejection, not a kind-layer one, and
+          # that is the point: with `template_kind = 1` every kind validator
+          # correctly says "not my kind", so the only thing that can catch the
+          # document is pin resolution refusing to read a malformed selector as
+          # an absent one. Before the fix it read it as absent, returned no pins
+          # and no error, and the document passed every layer in all three.
+          check_rejects "python state-mutation malformed-kind-selector (SPEC 2.3)" \
+            python3 validators/validate_closure_root.py --repo-root . \
+            examples/negative/state-mutation-malformed-kind-selector.toml
+          check_rejects "rust state-mutation malformed-kind-selector (SPEC 2.3)" \
+            "$rs" --repo-root . --mode provenance \
+            examples/negative/state-mutation-malformed-kind-selector.toml
+          check_rejects "go state-mutation malformed-kind-selector (SPEC 2.3)" \
+            "$go_bin" -repo-root . -mode provenance \
+            examples/negative/state-mutation-malformed-kind-selector.toml
+
           # RKC02, both directions of the claim/proof split.
           #
           # array-proof carries the SAME proof material as with-proof and
