@@ -84,47 +84,59 @@ def derive_ontology_counts(repo_root: pathlib.Path) -> dict[str, int]:
 
 # ---------- seed-file truth --------------------------------------------------
 
-def _count_tuple_rows(seed_path: pathlib.Path, table_re_str: str) -> int | None:
-    """Count tuple rows inside the named INSERT INTO block.
+def _paren_delta(line: str) -> int:
+    """Net bracket depth of a line, ignoring brackets inside quoted strings."""
+    depth, in_str, prev = 0, False, ""
+    for ch in line:
+        if ch == "'" and prev != "\\":
+            in_str = not in_str
+        elif not in_str:
+            if ch in "([":
+                depth += 1
+            elif ch in ")]":
+                depth -= 1
+        prev = ch
+    return depth
 
-    Reliable line-based counter: a tuple row in our SQL seeds always
-    begins (modulo whitespace) with `(` followed by a quoted column
-    value. This avoids both the ARRAY[...] paren-balance trap and the
-    apostrophe-inside-string trap.
-    """
-    if not seed_path.exists():
-        return None
-    txt = seed_path.read_text()
-    m = re.search(
-        rf"INSERT INTO {table_re_str}\b.*?\bVALUES",
-        txt,
-        re.DOTALL,
-    )
-    if not m:
-        return None
-    rest = txt[m.end():]
-    # Stop at the next top-level statement so we only count this block's tuples.
-    end_match = re.search(
-        r"\n\s*(?:INSERT INTO|ALTER|CREATE|DROP|COMMIT|--\s*=====)", rest
-    )
-    if end_match:
-        rest = rest[: end_match.start()]
-    count = 0
-    for line in rest.split("\n"):
-        s = line.lstrip()
-        if s.startswith("(") and "'" in s:
-            count += 1
-    return count
+
+def _split_columns(row: str) -> list[str]:
+    """Split a tuple row on top-level commas only, so commas inside quotes or
+    inside ARRAY[...] / [...] / json_array(...) literals do not split it."""
+    inner = row.strip()
+    inner = inner[1:] if inner.startswith("(") else inner
+    inner = inner.rstrip(",;").rstrip()
+    inner = inner[:-1] if inner.endswith(")") else inner
+    cols, buf, depth, in_str, prev = [], "", 0, False, ""
+    for ch in inner:
+        if ch == "'" and prev != "\\":
+            in_str = not in_str
+            buf += ch
+        elif in_str:
+            buf += ch
+        elif ch in "([":
+            depth += 1
+            buf += ch
+        elif ch in ")]":
+            depth -= 1
+            buf += ch
+        elif ch == "," and depth == 0:
+            cols.append(buf.strip())
+            buf = ""
+        else:
+            buf += ch
+        prev = ch
+    if buf.strip():
+        cols.append(buf.strip())
+    return cols
 
 
 def _tuple_rows(seed_path: pathlib.Path, table_re_str: str) -> list[str]:
-    """Return the raw tuple-row lines inside the named INSERT INTO block.
+    """Return complete tuple rows inside the named INSERT INTO block.
 
-    Same block-delimiting logic as `_count_tuple_rows`, but yields the lines
-    so callers can compare SETS rather than only counts. Counts agreeing is
-    necessary and not sufficient: testing found two vocabularies absent from
-    `attribute_value_allowed` while every declared count still agreed at 144,
-    because nothing compared the seed against the ontology by NAME.
+    Rows are joined until bracket balance returns to zero, so a row split
+    across several lines is returned whole. A line-based reader looks correct
+    against today's seeds, where every row happens to fit on one line, and
+    silently reads the wrong column the moment one is reformatted.
     """
     if not seed_path.exists():
         return []
@@ -137,51 +149,102 @@ def _tuple_rows(seed_path: pathlib.Path, table_re_str: str) -> list[str]:
         r"\n\s*(?:INSERT INTO|ALTER|CREATE|DROP|COMMIT|--\s*=====)", rest
     )
     block = rest[: end_match.start()] if end_match else rest
-    return [ln.strip() for ln in block.splitlines() if ln.strip().startswith("('")]
+
+    rows, buf, depth = [], "", 0
+    for raw in block.splitlines():
+        if not buf and not raw.strip().startswith("('"):
+            continue
+        buf = f"{buf} {raw.strip()}" if buf else raw.strip()
+        depth += _paren_delta(raw)
+        if depth <= 0:
+            rows.append(buf.strip())
+            buf, depth = "", 0
+    return rows
+
+
+def _count_tuple_rows(seed_path: pathlib.Path, table_re_str: str) -> int | None:
+    """Count tuple rows inside the named INSERT INTO block."""
+    if not seed_path.exists():
+        return None
+    return len(_tuple_rows(seed_path, table_re_str)) or None
 
 
 def derive_seed_vocab_surfaces(
     repo_root: pathlib.Path, engine: str
-) -> tuple[dict[str, bool], dict[str, int]]:
-    """Return (vocabulary -> is_backed_by_a_native_type, vocabulary -> value rows).
+) -> tuple[dict[str, str | None], dict[str, list[str]]]:
+    """Return (vocabulary -> claimed native backing or None,
+    vocabulary -> the list of values seeded for it).
 
     The last column of an `attribute_vocabulary` row names the native construct
-    that enforces a closed value set (`backing_enum_type` in postgres,
-    `backing_check_constraint` in sqlite and duckdb), or NULL. The seeds state
-    the resulting rule about themselves: `attribute_value_allowed` carries the
-    values of every vocabulary that has NO such backing.
+    that enforces a closed value set (`backing_enum_type` in postgres and
+    duckdb, `backing_check_constraint` in sqlite), or NULL. The claim is only a
+    claim: `derive_schema_native_constructs` checks whether the named construct
+    exists. A row that does not parse into 8 columns is an error rather than a
+    guess, because the permissive guess is the one that hides defects.
     """
     db_dir = repo_root / "reference" / "database" / engine
     seed = db_dir / "seed.sql"
     prefix = "dagtoml_" if engine == "sqlite" else "(?:dagtoml\\.)?"
 
-    backed: dict[str, bool] = {}
+    claims: dict[str, str | None] = {}
+    unparseable: list[str] = []
     for row in _tuple_rows(seed, f"{prefix}attribute_vocabulary"):
-        name_m = re.match(r"\('([^']+)'", row)
-        if not name_m:
+        cols = _split_columns(row)
+        if len(cols) != 8 or not cols[0].startswith("'"):
+            unparseable.append(row[:70])
             continue
-        # Trailing `),` / `);` stripped, then the final comma-separated column.
-        tail = row.rstrip().rstrip(",").rstrip(";").rstrip().rstrip(")")
-        last = tail.rsplit(",", 1)[-1].strip()
-        backed[name_m.group(1)] = last.upper() != "NULL"
+        last = cols[-1].strip()
+        claims[cols[0].strip("'")] = None if last.upper() == "NULL" else last.strip("'")
+    if unparseable:
+        raise ValueError(
+            f"{engine}: {len(unparseable)} attribute_vocabulary row(s) did not "
+            f"parse into 8 columns, so the backing column cannot be read. A "
+            f"gate that cannot tell MUST NOT guess: {unparseable[:3]}"
+        )
 
-    seeded: dict[str, int] = {}
+    seeded: dict[str, list[str]] = {}
     for row in _tuple_rows(seed, f"{prefix}attribute_value_allowed"):
-        name_m = re.match(r"\('([^']+)'", row)
-        if name_m:
-            seeded[name_m.group(1)] = seeded.get(name_m.group(1), 0) + 1
+        cols = _split_columns(row)
+        if len(cols) != 2:
+            raise ValueError(
+                f"{engine}: attribute_value_allowed row did not parse into 2 "
+                f"columns: {row[:70]}"
+            )
+        seeded.setdefault(cols[0].strip("'"), []).append(cols[1].strip("'"))
+    return claims, seeded
 
-    return backed, seeded
+
+def derive_schema_native_constructs(
+    repo_root: pathlib.Path, engine: str
+) -> dict[str, set[str]]:
+    """Return native construct name -> the value set it enforces.
+
+    Postgres and duckdb use `CREATE TYPE <name> AS ENUM (...)`. Sqlite has no
+    enum type and uses `<col> TEXT CHECK (<col> ... IN (...))`. A backing named
+    by a seed but absent here is an unverified assertion, which is exactly the
+    "promoted to engine enums" excuse in machine-readable form.
+    """
+    schema = repo_root / "reference" / "database" / engine / "schema.sql"
+    if not schema.exists():
+        return {}
+    txt = schema.read_text()
+    out: dict[str, set[str]] = {}
+    for m in re.finditer(r"CREATE TYPE\s+(\w+)\s+AS ENUM\s*\((.*?)\);", txt, re.S):
+        out[m.group(1)] = set(re.findall(r"'([^']*)'", m.group(2)))
+    for m in re.finditer(
+        r"(\w+)\s+TEXT\s+CHECK\s*\(\s*\1[^)]*?IN\s*\((.*?)\)", txt, re.S
+    ):
+        out.setdefault(m.group(1), set(re.findall(r"'([^']*)'", m.group(2))))
+    return out
 
 
 # Pre-existing gaps in the sqlite mirror, predating the mutation-kind branch.
 # These eight vocabularies carry NULL in sqlite's `backing_check_constraint`
-# column AND have no value rows AND are not named by any CHECK in
-# sqlite/schema.sql, so nothing in the sqlite mirror enforces them. Postgres
-# backs all eight with enum types. This is a baseline, not a green light: the
-# membership gate prints every entry on every run so it cannot be mistaken for
-# a clean surface. Fixing it means either naming a CHECK per vocabulary in
-# sqlite/schema.sql or seeding the values, and it is unrelated to any kind.
+# column AND have no value rows AND are named by no CHECK in sqlite/schema.sql,
+# so nothing in the sqlite mirror enforces them. Postgres backs all eight with
+# enum types. This is a baseline, not a green light: every entry is printed on
+# every run, and an entry that acquires a PARTIAL seed is checked normally
+# rather than skipped, so the baseline cannot quietly widen.
 SQLITE_MEMBERSHIP_BASELINE = {
     "adapter_id_derivation",
     "adapter_ref_syntax",
@@ -194,19 +257,29 @@ SQLITE_MEMBERSHIP_BASELINE = {
 }
 
 
-def derive_ontology_vocab_values(repo_root: pathlib.Path) -> dict[str, int]:
-    """Return vocabulary name -> number of declared values, across every
-    ontology. The set-comparison gate grades the seeds against this."""
+def derive_ontology_vocabularies(
+    repo_root: pathlib.Path,
+) -> tuple[dict[str, set[str]], list[str]]:
+    """Return (vocabulary name -> declared value set, duplicate names).
+
+    Duplicates are returned rather than silently collapsed: two ontologies
+    declaring the same vocabulary under different value sets is a defect no
+    count can see, and the previous dict-overwrite made the last one win.
+    """
     paths = [repo_root / "core" / "ontology.toml"]
     profiles_dir = repo_root / "profiles"
     if profiles_dir.exists():
         paths.extend(sorted(profiles_dir.glob("*/ontology.toml")))
-    out: dict[str, int] = {}
+    out: dict[str, set[str]] = {}
+    duplicates: list[str] = []
     for p in paths:
         d = tomllib.loads(p.read_text())
         for v in d.get("attribute_vocabularies", []):
-            out[v["attribute"]] = len(v.get("values", []))
-    return out
+            name = v["attribute"]
+            if name in out:
+                duplicates.append(f"{name} (redeclared in {p})")
+            out[name] = set(v.get("values", []))
+    return out, duplicates
 
 
 def derive_seed_counts(repo_root: pathlib.Path, engine: str) -> dict[str, int]:
@@ -455,50 +528,98 @@ def main(argv: list[str]) -> int:
                 seed_truth[k],
             )
 
-    # Counts agreeing is necessary and NOT sufficient. Testing found
-    # `execution_proof_scheme` and `finality_basis` present in
-    # `attribute_vocabulary` and absent from `attribute_value_allowed` in all
-    # three seeds, while every declared count still agreed at 144, because
-    # nothing compared the two surfaces by NAME. This does.
-    ont_vocab_values = derive_ontology_vocab_values(repo)
+    # Counts agreeing is necessary and NOT sufficient, and neither is a
+    # seed-driven name check. Testing defeated the first version of this gate
+    # three separate ways: rename a vocabulary in the seeds and the ontology
+    # name went unenforced; claim a backing type that does not exist and the
+    # values could be deleted; typo a value and the count still matched. The
+    # loop below is therefore ONTOLOGY-driven, verifies every claimed backing
+    # against the engine's schema, and compares exact value SETS.
+    ont_vocab, ont_duplicates = derive_ontology_vocabularies(repo)
+    for dup in ont_duplicates:
+        report.failures.append(
+            f"  ontology: {dup} is declared by more than one ontology, so its "
+            f"value set is ambiguous"
+        )
+
     for engine in ("postgres", "sqlite", "duckdb"):
         report.summary.append(f"\nattribute_value_allowed membership.{engine}:")
-        backed, seeded = derive_seed_vocab_surfaces(repo, engine)
-        missing, extra, wrong, baselined = [], [], [], []
-        for name, is_backed in sorted(backed.items()):
-            declared = ont_vocab_values.get(name)
-            if declared is None:
+        claims, seeded = derive_seed_vocab_surfaces(repo, engine)
+        native = derive_schema_native_constructs(repo, engine)
+        baselined: list[str] = []
+
+        for name, declared in sorted(ont_vocab.items()):
+            if name not in claims:
+                report.failures.append(
+                    f"  {engine}: {name} is declared by an ontology but has no "
+                    f"attribute_vocabulary row"
+                )
                 continue
-            rows = seeded.get(name, 0)
-            if is_backed:
-                if rows:
-                    extra.append(f"{name} ({rows} rows, but a native type backs it)")
-            elif declared == 0:
+            backing = claims[name]
+            rows = seeded.get(name, [])
+
+            if backing is not None:
+                if backing not in native:
+                    report.failures.append(
+                        f"  {engine}: {name} claims native backing {backing!r}, "
+                        f"which no CREATE TYPE or CHECK in {engine}/schema.sql "
+                        f"defines, so nothing enforces it"
+                    )
+                elif not declared <= native[backing]:
+                    missing = sorted(declared - native[backing])
+                    report.failures.append(
+                        f"  {engine}: {name} is backed by {backing!r}, which does "
+                        f"not admit {missing}"
+                    )
+                elif rows:
+                    report.failures.append(
+                        f"  {engine}: {name} has {len(rows)} value row(s) despite "
+                        f"being backed by {backing!r}"
+                    )
+                continue
+
+            if not declared:
                 continue  # open vocabulary with no enumerated values
-            elif engine == "sqlite" and name in SQLITE_MEMBERSHIP_BASELINE:
-                baselined.append(f"{name} ({declared} values)")
-            elif rows == 0:
-                missing.append(f"{name} ({declared} values declared, 0 seeded)")
-            elif rows != declared:
-                wrong.append(f"{name} (declared {declared}, seeded {rows})")
+            if engine == "sqlite" and name in SQLITE_MEMBERSHIP_BASELINE and not rows:
+                baselined.append(f"{name} ({len(declared)} values)")
+                continue
+            if not rows:
+                report.failures.append(
+                    f"  {engine}: {name} ({len(declared)} values declared) is "
+                    f"absent from attribute_value_allowed"
+                )
+            elif set(rows) != declared:
+                report.failures.append(
+                    f"  {engine}: {name} value set differs from the ontology: "
+                    f"missing {sorted(declared - set(rows))}, "
+                    f"unexpected {sorted(set(rows) - declared)}"
+                )
+            elif len(rows) != len(declared):
+                report.failures.append(
+                    f"  {engine}: {name} has duplicate value rows "
+                    f"({len(rows)} rows for {len(declared)} values)"
+                )
+
+        for name in sorted(set(claims) - set(ont_vocab)):
+            report.failures.append(
+                f"  {engine}: {name} has an attribute_vocabulary row but is "
+                f"declared by no ontology"
+            )
+        for name in sorted(set(seeded) - set(ont_vocab)):
+            report.failures.append(
+                f"  {engine}: {name} has value rows but is declared by no ontology"
+            )
+
         report.summary.append(
-            f"  {len(backed)} vocabularies, "
-            f"{sum(1 for b in backed.values() if not b)} non-backed, "
-            f"{len(seeded)} with value rows"
+            f"  {len(ont_vocab)} ontology vocabularies, "
+            f"{sum(1 for b in claims.values() if b is None)} unbacked in this "
+            f"mirror, {len(seeded)} with value rows, "
+            f"{len(native)} native constructs in schema.sql"
         )
-        for label, items in (
-            ("absent from attribute_value_allowed", missing),
-            ("seeded despite a native backing type", extra),
-            ("seeded with the wrong number of values", wrong),
-        ):
-            for item in items:
-                report.failures.append(f"  {engine}: {item} is {label}")
         for item in baselined:
             report.summary.append(
                 f"  BASELINED (pre-existing, unenforced in this mirror): {item}"
             )
-        if not (missing or extra or wrong):
-            report.summary.append("  OK, seed membership matches the ontology")
 
     report.summary.append("\nexpected_node_counts.graph (cross-checked vs ontology):")
     for src_key, ont_key in (
