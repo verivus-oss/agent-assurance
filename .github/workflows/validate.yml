@@ -396,6 +396,14 @@ jobs:
           # broke this sweep twice, once per kind added.
           python3 validators/validate_closure_root.py \
             --discover . --exclude examples/negative
+          # Same sweep, absolute path. The derived skip matches on resolved
+          # path COMPONENTS, and an earlier draft matched on a string prefix
+          # instead, which silently stopped excluding anything when --discover
+          # was absolute and reddened the sweep on 35 asserted-negative
+          # fixtures. Cheap regression guard for a defect that review missed
+          # because every invocation used exactly the form CI used.
+          python3 validators/validate_closure_root.py \
+            --discover "$(pwd)" --exclude examples/negative
 
       - name: Validate kind descriptors
         run: |

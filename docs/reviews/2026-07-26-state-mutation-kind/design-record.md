@@ -1,6 +1,7 @@
 # Design record: the `state-mutation` kind
 
-Created 2026-07-26. Status: **proposal on a branch, NOT reviewed, NOT merged.**
+Created 2026-07-26. Status: **proposal on a branch, FIVE review rounds complete,
+NOT merged.**
 The repo rule of no initiator self-approval applies: this needs an independent
 multi-LLM design review dispatched via `tools/review-request-dag.toml`, with
 evidence persisted under `docs/reviews/`, before it can land.

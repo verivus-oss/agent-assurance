@@ -586,11 +586,27 @@ def main(argv: list[str]) -> int:
         # discovery paths have always derived it (see the workflow's
         # `"/invalid/" in path` test); this closes the same gap on the Python
         # side, so adding a kind can no longer turn the positive sweep red.
+        # Matched on resolved path COMPONENTS, not on a string prefix of
+        # whatever form the caller passed. A `startswith("conformance/cases/")`
+        # test silently stops matching when `--discover` is given an absolute
+        # path, which is a legitimate invocation, and the sweep then goes red on
+        # every asserted-negative fixture. The enumerated `--exclude` form this
+        # replaced was path-form independent because it resolved both sides, so
+        # getting this wrong would have made the fix a regression on the one
+        # axis its predecessor got right.
+        def is_conformance_invalid(path: pathlib.Path) -> bool:
+            parts = path.resolve().parts
+            return any(
+                parts[i] == "conformance"
+                and parts[i + 1] == "cases"
+                and parts[i + 3] == "invalid"
+                for i in range(len(parts) - 3)
+            )
+
         kept = []
         prefixes = [pathlib.Path(prefix).resolve() for prefix in (args.exclude or [])]
         for target in targets:
-            posix = target.as_posix()
-            if posix.startswith("conformance/cases/") and "/invalid/" in posix:
+            if is_conformance_invalid(target):
                 print(f"EXCLUDED (conformance invalid tree): {target}")
                 continue
             if any(target.resolve().is_relative_to(prefix) for prefix in prefixes):
