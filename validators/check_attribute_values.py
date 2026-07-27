@@ -187,19 +187,19 @@ def derive_seed_vocab_surfaces(
     prefix = "dagtoml_" if engine == "sqlite" else "(?:dagtoml\\.)?"
 
     claims: dict[str, str | None] = {}
-    unparseable: list[str] = []
+    unparsable: list[str] = []
     for row in _tuple_rows(seed, f"{prefix}attribute_vocabulary"):
         cols = _split_columns(row)
         if len(cols) != 8 or not cols[0].startswith("'"):
-            unparseable.append(row[:70])
+            unparsable.append(row[:70])
             continue
         last = cols[-1].strip()
         claims[cols[0].strip("'")] = None if last.upper() == "NULL" else last.strip("'")
-    if unparseable:
+    if unparsable:
         raise ValueError(
-            f"{engine}: {len(unparseable)} attribute_vocabulary row(s) did not "
+            f"{engine}: {len(unparsable)} attribute_vocabulary row(s) did not "
             f"parse into 8 columns, so the backing column cannot be read. A "
-            f"gate that cannot tell MUST NOT guess: {unparseable[:3]}"
+            f"gate that cannot tell MUST NOT guess: {unparsable[:3]}"
         )
 
     seeded: dict[str, list[str]] = {}
@@ -212,6 +212,46 @@ def derive_seed_vocab_surfaces(
             )
         seeded.setdefault(cols[0].strip("'"), []).append(cols[1].strip("'"))
     return claims, seeded
+
+
+def _strip_sql_comments(txt: str) -> str:
+    """Remove `--` line comments and `/* */` block comments, respecting quotes.
+
+    The schema parse below is what makes a claimed backing "verified"
+    rather than believed. Without this, writing
+    `-- CREATE TYPE fake_enum AS ENUM (...)` in a comment was enough to satisfy
+    it, which reduces verification back to assertion with an extra step.
+    """
+    out, i, n = [], 0, len(txt)
+    in_str = in_line = in_block = False
+    while i < n:
+        ch = txt[i]
+        nxt = txt[i + 1] if i + 1 < n else ""
+        if in_line:
+            if ch == "\n":
+                in_line = False
+                out.append(ch)
+        elif in_block:
+            if ch == "*" and nxt == "/":
+                in_block = False
+                i += 1
+        elif in_str:
+            out.append(ch)
+            if ch == "'":
+                in_str = False
+        elif ch == "-" and nxt == "-":
+            in_line = True
+            i += 1
+        elif ch == "/" and nxt == "*":
+            in_block = True
+            i += 1
+        elif ch == "'":
+            in_str = True
+            out.append(ch)
+        else:
+            out.append(ch)
+        i += 1
+    return "".join(out)
 
 
 def derive_schema_native_constructs(
@@ -227,7 +267,7 @@ def derive_schema_native_constructs(
     schema = repo_root / "reference" / "database" / engine / "schema.sql"
     if not schema.exists():
         return {}
-    txt = schema.read_text()
+    txt = _strip_sql_comments(schema.read_text())
     out: dict[str, set[str]] = {}
     for m in re.finditer(r"CREATE TYPE\s+(\w+)\s+AS ENUM\s*\((.*?)\);", txt, re.S):
         out[m.group(1)] = set(re.findall(r"'([^']*)'", m.group(2)))
