@@ -30,7 +30,7 @@ const EXPECTED_COUNTS: &[(&str, i64)] = &[
     ("entity_kind_descriptor", 27),
     ("relation_descriptor", 31),
     ("attribute_vocabulary", 50),
-    ("attribute_value_allowed", 144),
+    ("attribute_value_allowed", 152),
 ];
 
 fn die(msg: impl std::fmt::Display) -> ExitCode {

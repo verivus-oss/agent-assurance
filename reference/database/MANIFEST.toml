@@ -280,7 +280,7 @@ commands = [
   "podman exec pg-test psql -U postgres -v ON_ERROR_STOP=1 -f /tmp/schema.sql",
   "podman exec pg-test psql -U postgres -v ON_ERROR_STOP=1 -f /tmp/seed.sql",
 ]
-expected_seed_counts = { kind_descriptor = 23, entity_kind_descriptor = 27, relation_descriptor = 31, attribute_vocabulary = 50, attribute_value_allowed = 144 }
+expected_seed_counts = { kind_descriptor = 23, entity_kind_descriptor = 27, relation_descriptor = 31, attribute_vocabulary = 50, attribute_value_allowed = 152 }
 
 [verification.graph]
 container_image = "docker.io/library/neo4j:5-community"
@@ -311,7 +311,7 @@ commands = [
   "tools/dagtoml-duckdb/target/release/dagtoml-duckdb --repo-root . -o /tmp/agent_assurance.duckdb",
   "tools/dagtoml-duckdb/target/release/dagtoml-duckdb verify -o /tmp/agent_assurance.duckdb",
 ]
-expected_seed_counts = { kind_descriptor = 23, entity_kind_descriptor = 27, relation_descriptor = 31, attribute_vocabulary = 50, attribute_value_allowed = 144 }
+expected_seed_counts = { kind_descriptor = 23, entity_kind_descriptor = 27, relation_descriptor = 31, attribute_vocabulary = 50, attribute_value_allowed = 152 }
 
 [verification.sqlite]
 container_image = "docker.io/library/alpine:latest"
@@ -321,4 +321,4 @@ commands = [
   "podman cp sqlite/seed.sql   sqlite-test:/tmp/seed.sql",
   "podman exec sqlite-test sh -c 'sqlite3 /tmp/d.db < /tmp/schema.sql && sqlite3 /tmp/d.db < /tmp/seed.sql'",
 ]
-expected_seed_counts = { dagtoml_kind_descriptor = 23, dagtoml_entity_kind_descriptor = 27, dagtoml_relation_descriptor = 31, dagtoml_attribute_vocabulary = 50, dagtoml_attribute_value_allowed = 144 }
+expected_seed_counts = { dagtoml_kind_descriptor = 23, dagtoml_entity_kind_descriptor = 27, dagtoml_relation_descriptor = 31, dagtoml_attribute_vocabulary = 50, dagtoml_attribute_value_allowed = 152 }

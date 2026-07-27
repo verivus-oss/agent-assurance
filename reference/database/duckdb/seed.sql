@@ -313,4 +313,15 @@ INSERT INTO dagtoml.attribute_value_allowed (attribute, value) VALUES
     ('witness_scheme', 'tee-quote'),
     ('attester_observed', 'request'),
     ('attester_observed', 'response'),
-    ('attester_observed', 'both');
+    ('attester_observed', 'both'),
+    -- Profile: com.verivus.runtime mutation vocabularies (8). Closed and
+    -- non-enum-backed, exactly like the witness pair above, so their values
+    -- belong here rather than in a CHECK list.
+    ('execution_proof_scheme', 'ledger-transaction'),
+    ('execution_proof_scheme', 'provider-receipt'),
+    ('execution_proof_scheme', 'tee-quote'),
+    ('execution_proof_scheme', 'zk-receipt'),
+    ('finality_basis', 'none'),
+    ('finality_basis', 'provider-acknowledged'),
+    ('finality_basis', 'ledger-confirmed'),
+    ('finality_basis', 'ledger-final');

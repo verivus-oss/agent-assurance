@@ -117,6 +117,98 @@ def _count_tuple_rows(seed_path: pathlib.Path, table_re_str: str) -> int | None:
     return count
 
 
+def _tuple_rows(seed_path: pathlib.Path, table_re_str: str) -> list[str]:
+    """Return the raw tuple-row lines inside the named INSERT INTO block.
+
+    Same block-delimiting logic as `_count_tuple_rows`, but yields the lines
+    so callers can compare SETS rather than only counts. Counts agreeing is
+    necessary and not sufficient: testing found two vocabularies absent from
+    `attribute_value_allowed` while every declared count still agreed at 144,
+    because nothing compared the seed against the ontology by NAME.
+    """
+    if not seed_path.exists():
+        return []
+    txt = seed_path.read_text()
+    m = re.search(rf"INSERT INTO {table_re_str}\b.*?\bVALUES", txt, re.DOTALL)
+    if not m:
+        return []
+    rest = txt[m.end():]
+    end_match = re.search(
+        r"\n\s*(?:INSERT INTO|ALTER|CREATE|DROP|COMMIT|--\s*=====)", rest
+    )
+    block = rest[: end_match.start()] if end_match else rest
+    return [ln.strip() for ln in block.splitlines() if ln.strip().startswith("('")]
+
+
+def derive_seed_vocab_surfaces(
+    repo_root: pathlib.Path, engine: str
+) -> tuple[dict[str, bool], dict[str, int]]:
+    """Return (vocabulary -> is_backed_by_a_native_type, vocabulary -> value rows).
+
+    The last column of an `attribute_vocabulary` row names the native construct
+    that enforces a closed value set (`backing_enum_type` in postgres,
+    `backing_check_constraint` in sqlite and duckdb), or NULL. The seeds state
+    the resulting rule about themselves: `attribute_value_allowed` carries the
+    values of every vocabulary that has NO such backing.
+    """
+    db_dir = repo_root / "reference" / "database" / engine
+    seed = db_dir / "seed.sql"
+    prefix = "dagtoml_" if engine == "sqlite" else "(?:dagtoml\\.)?"
+
+    backed: dict[str, bool] = {}
+    for row in _tuple_rows(seed, f"{prefix}attribute_vocabulary"):
+        name_m = re.match(r"\('([^']+)'", row)
+        if not name_m:
+            continue
+        # Trailing `),` / `);` stripped, then the final comma-separated column.
+        tail = row.rstrip().rstrip(",").rstrip(";").rstrip().rstrip(")")
+        last = tail.rsplit(",", 1)[-1].strip()
+        backed[name_m.group(1)] = last.upper() != "NULL"
+
+    seeded: dict[str, int] = {}
+    for row in _tuple_rows(seed, f"{prefix}attribute_value_allowed"):
+        name_m = re.match(r"\('([^']+)'", row)
+        if name_m:
+            seeded[name_m.group(1)] = seeded.get(name_m.group(1), 0) + 1
+
+    return backed, seeded
+
+
+# Pre-existing gaps in the sqlite mirror, predating the mutation-kind branch.
+# These eight vocabularies carry NULL in sqlite's `backing_check_constraint`
+# column AND have no value rows AND are not named by any CHECK in
+# sqlite/schema.sql, so nothing in the sqlite mirror enforces them. Postgres
+# backs all eight with enum types. This is a baseline, not a green light: the
+# membership gate prints every entry on every run so it cannot be mistaken for
+# a clean surface. Fixing it means either naming a CHECK per vocabulary in
+# sqlite/schema.sql or seeding the values, and it is unrelated to any kind.
+SQLITE_MEMBERSHIP_BASELINE = {
+    "adapter_id_derivation",
+    "adapter_ref_syntax",
+    "gate_decision_verdict",
+    "override_rule_operator",
+    "runtime_clock_policy",
+    "runtime_kind",
+    "runtime_network_policy",
+    "severity_tier",
+}
+
+
+def derive_ontology_vocab_values(repo_root: pathlib.Path) -> dict[str, int]:
+    """Return vocabulary name -> number of declared values, across every
+    ontology. The set-comparison gate grades the seeds against this."""
+    paths = [repo_root / "core" / "ontology.toml"]
+    profiles_dir = repo_root / "profiles"
+    if profiles_dir.exists():
+        paths.extend(sorted(profiles_dir.glob("*/ontology.toml")))
+    out: dict[str, int] = {}
+    for p in paths:
+        d = tomllib.loads(p.read_text())
+        for v in d.get("attribute_vocabularies", []):
+            out[v["attribute"]] = len(v.get("values", []))
+    return out
+
+
 def derive_seed_counts(repo_root: pathlib.Path, engine: str) -> dict[str, int]:
     """Return per-engine seed-row counts under
     `reference/database/<engine>/seed.sql`."""
@@ -362,6 +454,51 @@ def main(argv: list[str]) -> int:
                 mfst_block.get(f"{prefix}{k}"),
                 seed_truth[k],
             )
+
+    # Counts agreeing is necessary and NOT sufficient. Testing found
+    # `execution_proof_scheme` and `finality_basis` present in
+    # `attribute_vocabulary` and absent from `attribute_value_allowed` in all
+    # three seeds, while every declared count still agreed at 144, because
+    # nothing compared the two surfaces by NAME. This does.
+    ont_vocab_values = derive_ontology_vocab_values(repo)
+    for engine in ("postgres", "sqlite", "duckdb"):
+        report.summary.append(f"\nattribute_value_allowed membership.{engine}:")
+        backed, seeded = derive_seed_vocab_surfaces(repo, engine)
+        missing, extra, wrong, baselined = [], [], [], []
+        for name, is_backed in sorted(backed.items()):
+            declared = ont_vocab_values.get(name)
+            if declared is None:
+                continue
+            rows = seeded.get(name, 0)
+            if is_backed:
+                if rows:
+                    extra.append(f"{name} ({rows} rows, but a native type backs it)")
+            elif declared == 0:
+                continue  # open vocabulary with no enumerated values
+            elif engine == "sqlite" and name in SQLITE_MEMBERSHIP_BASELINE:
+                baselined.append(f"{name} ({declared} values)")
+            elif rows == 0:
+                missing.append(f"{name} ({declared} values declared, 0 seeded)")
+            elif rows != declared:
+                wrong.append(f"{name} (declared {declared}, seeded {rows})")
+        report.summary.append(
+            f"  {len(backed)} vocabularies, "
+            f"{sum(1 for b in backed.values() if not b)} non-backed, "
+            f"{len(seeded)} with value rows"
+        )
+        for label, items in (
+            ("absent from attribute_value_allowed", missing),
+            ("seeded despite a native backing type", extra),
+            ("seeded with the wrong number of values", wrong),
+        ):
+            for item in items:
+                report.failures.append(f"  {engine}: {item} is {label}")
+        for item in baselined:
+            report.summary.append(
+                f"  BASELINED (pre-existing, unenforced in this mirror): {item}"
+            )
+        if not (missing or extra or wrong):
+            report.summary.append("  OK, seed membership matches the ontology")
 
     report.summary.append("\nexpected_node_counts.graph (cross-checked vs ontology):")
     for src_key, ont_key in (

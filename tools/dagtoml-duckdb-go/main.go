@@ -43,7 +43,7 @@ var expectedCounts = []struct {
 	{"entity_kind_descriptor", 27},
 	{"relation_descriptor", 31},
 	{"attribute_vocabulary", 50},
-	{"attribute_value_allowed", 144},
+	{"attribute_value_allowed", 152},
 }
 
 func main() {
