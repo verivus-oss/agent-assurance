@@ -32,7 +32,9 @@ INSERT INTO dagtoml.kind_descriptor (template_kind, layer, descriptor_path, requ
     ('redaction-manifest',        'profile:disclosure',      'profiles/disclosure/redaction-manifest-kind.toml',             'disclosure'),
     ('selective-disclosure-proof','profile:disclosure',      'profiles/disclosure/selective-disclosure-proof-kind.toml',     'disclosure'),
     ('cost-record',               'profile:cost',            'profiles/cost/cost-record-kind.toml',                          'cost'),
-    ('api-snapshot',              'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/api-snapshot-kind.toml',       'com.verivus.runtime');
+    ('api-snapshot',              'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/api-snapshot-kind.toml',       'com.verivus.runtime'),
+    ('state-mutation',            'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/state-mutation-kind.toml',     'com.verivus.runtime'),
+    ('mutation-claim',            'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/mutation-claim-kind.toml',     'com.verivus.runtime');
 
 -- entity_kind_descriptor (24; +1 cost = COST)
 INSERT INTO dagtoml.entity_kind_descriptor (entity_kind, id_prefix_pattern, layer, defining_kind, ijb_primitive, ijb_class, description) VALUES
@@ -152,9 +154,14 @@ INSERT INTO dagtoml.attribute_vocabulary (attribute, applies_to_entity, applies_
     ('subject_class',       NULL, ['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL),
     ('provider_id',         NULL, ['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL),
     ('model_family_id',     NULL, ['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL),
-    -- Profile: com.verivus.runtime (2) — api-snapshot closed witness vocabularies.
-    ('witness_scheme',      NULL, ['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
-    ('attester_observed',   NULL, ['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL);
+    -- Profile: com.verivus.runtime (4) — api-snapshot closed witness vocabularies,
+    -- and the state-mutation execution-proof vocabularies. RKM06 constrains which
+    -- finality_basis each execution_proof_scheme may claim; that pairing is a kind
+    -- invariant, not a column constraint, so it is not representable here.
+    ('witness_scheme',        NULL, ['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
+    ('attester_observed',     NULL, ['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
+    ('execution_proof_scheme', NULL, ['state-mutation'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
+    ('finality_basis',        NULL, ['state-mutation'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL);
 
 -- attribute_value_allowed (54) — identical to postgres/seed.sql.
 INSERT INTO dagtoml.attribute_value_allowed (attribute, value) VALUES

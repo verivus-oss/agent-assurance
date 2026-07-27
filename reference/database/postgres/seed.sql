@@ -53,7 +53,9 @@ INSERT INTO kind_descriptor (template_kind, layer, descriptor_path, requires_pro
     ('redaction-manifest',             'profile:disclosure',      'profiles/disclosure/redaction-manifest-kind.toml',             'disclosure'),
     ('selective-disclosure-proof',     'profile:disclosure',      'profiles/disclosure/selective-disclosure-proof-kind.toml',     'disclosure'),
     ('cost-record',                    'profile:cost',            'profiles/cost/cost-record-kind.toml',                          'cost'),
-    ('api-snapshot',                   'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/api-snapshot-kind.toml',        'com.verivus.runtime');
+    ('api-snapshot',                   'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/api-snapshot-kind.toml',        'com.verivus.runtime'),
+    ('state-mutation',                 'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/state-mutation-kind.toml',      'com.verivus.runtime'),
+    ('mutation-claim',                 'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/mutation-claim-kind.toml',      'com.verivus.runtime');
 
 -- ============================================================
 -- entity_kind_descriptor (24 rows: 17 core + 6 agent-assurance + 3 disclosure + 1 cost)
@@ -218,9 +220,14 @@ INSERT INTO attribute_vocabulary
     ('subject_class',       NULL, ARRAY['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL),
     ('provider_id',         NULL, ARRAY['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL),
     ('model_family_id',     NULL, ARRAY['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL),
-    -- Profile: com.verivus.runtime (2) — api-snapshot closed witness vocabularies.
-    ('witness_scheme',      NULL, ARRAY['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
-    ('attester_observed',   NULL, ARRAY['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL);
+    -- Profile: com.verivus.runtime (4) — api-snapshot closed witness vocabularies,
+    -- and the state-mutation execution-proof vocabularies. RKM06 constrains which
+    -- finality_basis each execution_proof_scheme may claim; that pairing is a kind
+    -- invariant, not a column constraint, so it is not representable here.
+    ('witness_scheme',        NULL, ARRAY['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
+    ('attester_observed',     NULL, ARRAY['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
+    ('execution_proof_scheme', NULL, ARRAY['state-mutation'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
+    ('finality_basis',        NULL, ARRAY['state-mutation'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL);
 
 -- Allowed values for non-enum-backed (i.e., extensible) vocabularies.
 -- Enum-backed values are enforced by the Postgres enum type itself, so
