@@ -1,0 +1,36 @@
+# Conformance case: a claim carrying a proof table. MUST be REJECTED.
+#
+# RKC02 holds in both directions: a proved record must not escape RKM02, RKM04
+# and RKM06 by calling itself a claim, and a claim must not borrow the
+# appearance of proof. The closure layer cannot see this, because a stream can
+# pin the presence of a field but never its absence, so it is a kind-layer
+# rejection by design. Closure stays valid: mutation-claim pins three records
+# and none of them is in [execution_proof].
+
+closure_root = "sha256:f7aeefffc2ab795ba9e6003b5f2d326a23a952e449f4dd2ab677afc17ed41bb8"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "mutation-claim"
+framework_profile = "com.verivus.runtime"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "examples/captures/2026-07-26T104500Z-crm-update.capture"
+source_sha256 = "sha256:915f2d0e1bb0ba3bed9c553734ea39e70ee6cb598514c60f28e4ebf22e53d958"
+source_bytes = 224
+
+[mutation]
+performed_at = "2026-07-26T10:45:00.900Z"
+target_id = "https://crm.example/v2/contacts/C-91188"
+operation = "update"
+authorization_sha256 = "sha256:a2d9a26f89d8f861f21d2f8535e47f18cabd1fd9598837f3939b7ecd2df074a7"
+effect_sha256 = "sha256:e8bd53449c572de4fde4421e0d30e8fbea2ed0b14eb6de662694402c07546ac6"
+
+[execution_proof]
+scheme = "provider-receipt"
+finality_basis = "provider-acknowledged"
+proof_sha256 = "sha256:a5255188d6a0efd927a7bca54ac504bd3f1908fe76e75b6be3e50568d7bc38ba"
+binds_sha256 = "sha256:7a5604ab843c08b4c79b19ab7d6ca1b118387b1ca096948e5ff86c5d2d3fda87"
+proof_locator = "https://crm.example/receipts/R-1"

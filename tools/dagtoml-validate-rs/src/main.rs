@@ -4888,7 +4888,7 @@ fn pinned_closure_inputs(
             return (
                 Vec::new(),
                 vec![format!(
-                    "{}: `meta.template_kind` is present but is not a string (SPEC 2.3). A \
+                    "{}: `meta.template_kind` is present but is not a string (SPEC §2.3). A \
                      malformed kind selector MUST NOT be read as an absent one: that drops \
                      every pinned closure record for the kind and silently degrades the \
                      document to a one-record source-hash closure",

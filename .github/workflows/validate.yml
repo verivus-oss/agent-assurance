@@ -379,11 +379,13 @@ jobs:
             --repo-root . --mode provenance "${closure_targets[@]}"
           "${RUNNER_TEMP}/dagtoml-validate-go" \
             --repo-root . --mode provenance "${closure_targets[@]}"
+          # `conformance/cases/*/invalid/` is skipped by the validator itself,
+          # derived rather than listed: those trees are asserted-negative by
+          # construction and conformance/runner.py requires all three
+          # implementations to reject every one of them. Enumerating them here
+          # broke this sweep twice, once per kind added.
           python3 validators/validate_closure_root.py \
-            --discover . --exclude examples/negative \
-            --exclude conformance/cases/implementation-dag/invalid \
-            --exclude conformance/cases/api-snapshot/invalid \
-            --exclude conformance/cases/state-mutation/invalid
+            --discover . --exclude examples/negative
 
       - name: Validate kind descriptors
         run: |
@@ -924,18 +926,28 @@ jobs:
           # Asserted against Python too, not just the primaries: every one of
           # them was a reference-versus-primary disagreement, so pinning only
           # one side would let the pair drift apart again.
-          for neg in hollow-proof unbound-proof inlined-proof operation-injection \
-                     blank-scheme wrong-typed-proof impossible-timestamp \
-                     unicode-digit-timestamp; do
-            check_rejects "python state-mutation $neg (kind layer)" \
-              python3 validators/validate_state_mutation.py --repo-root . \
-              "examples/negative/state-mutation-$neg.toml"
-            check_rejects "rust state-mutation $neg (kind layer)" \
-              "$rs" --repo-root . --mode mutation-kinds \
-              "examples/negative/state-mutation-$neg.toml"
-            check_rejects "go state-mutation $neg (kind layer)" \
-              "$go_bin" -repo-root . -mode mutation-kinds \
-              "examples/negative/state-mutation-$neg.toml"
+          # Discovered by glob, not enumerated. The authoritative
+          # cross-implementation gate for these kinds is now
+          # conformance/cases/{state-mutation,mutation-claim}/, which asserts
+          # defect CLASSES via .expected.toml sidecars rather than exit codes
+          # alone. This loop keeps the documentation fixtures under
+          # examples/negative/ honest so they cannot rot, and adding one no
+          # longer requires remembering to list it here.
+          #
+          # malformed-kind-selector is deliberately absent: it is a
+          # closure-layer rejection, asserted separately below, because with a
+          # non-string template_kind every kind validator correctly declines to
+          # run at all.
+          for f in examples/negative/state-mutation-*.toml \
+                   examples/negative/mutation-claim-*.toml; do
+            case "$f" in *malformed-kind-selector*) continue ;; esac
+            name=$(basename "$f" .toml)
+            check_rejects "python $name (kind layer)" \
+              python3 validators/validate_state_mutation.py --repo-root . "$f"
+            check_rejects "rust $name (kind layer)" \
+              "$rs" --repo-root . --mode mutation-kinds "$f"
+            check_rejects "go $name (kind layer)" \
+              "$go_bin" -repo-root . -mode mutation-kinds "$f"
           done
           # Malformed kind selector (SPEC 2.3).
           #
@@ -955,27 +967,10 @@ jobs:
             "$go_bin" -repo-root . -mode provenance \
             examples/negative/state-mutation-malformed-kind-selector.toml
 
-          # RKC02, both directions of the claim/proof split.
-          #
-          # array-proof carries the SAME proof material as with-proof and
-          # differs only in TOML shape: an array of tables rather than a table.
-          # RKC02 must test whether the field is
-          # PRESENT, not whether it is well-formed, and the Go primary tested
-          # well-formedness through its table accessor, so a claim carrying a
-          # fully populated provider receipt passed it in both modes. Both
-          # fixtures are closure-valid, so the kind layer is the only thing
-          # that can reject either.
-          for neg in with-proof array-proof; do
-            check_rejects "python mutation-claim $neg (RKC02)" \
-              python3 validators/validate_state_mutation.py --repo-root . \
-              "examples/negative/mutation-claim-$neg.toml"
-            check_rejects "rust mutation-claim $neg (RKC02)" \
-              "$rs" --repo-root . --mode mutation-kinds \
-              "examples/negative/mutation-claim-$neg.toml"
-            check_rejects "go mutation-claim $neg (RKC02)" \
-              "$go_bin" -repo-root . -mode mutation-kinds \
-              "examples/negative/mutation-claim-$neg.toml"
-          done
+          # RKC02, both directions of the claim/proof split, is covered by the
+          # glob loop above and by conformance/cases/mutation-claim/invalid/,
+          # which asserts the defect class rather than the exit code. It used
+          # to be a third enumerated list here.
 
       - name: Provenance source_path containment guard (SPEC §11)
         # Behavioural guard: a static fixture cannot isolate the

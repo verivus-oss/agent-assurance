@@ -576,18 +576,28 @@ def main(argv: list[str]) -> int:
         targets = discover_conforming(
             [pathlib.Path(r) for r in args.discover], spec_reserved
         )
-        if args.exclude:
-            prefixes = [
-                pathlib.Path(prefix).resolve() for prefix in args.exclude
-            ]
-            kept = []
-            for target in targets:
-                resolved = target.resolve()
-                if any(resolved.is_relative_to(prefix) for prefix in prefixes):
-                    print(f"EXCLUDED (asserted-negative path): {target}")
-                    continue
-                kept.append(target)
-            targets = kept
+        # Conformance `invalid/` trees are asserted-negative by construction:
+        # conformance/runner.py requires all three implementations to REJECT
+        # every one of them. Skipping them here is therefore structural, not a
+        # per-directory decision, and it is derived rather than enumerated on
+        # purpose. Enumerating it has silently broken CI twice: once when
+        # `conformance/cases/state-mutation/invalid/` was added without being
+        # listed, and again when `mutation-claim/` was. The Rust and Go
+        # discovery paths have always derived it (see the workflow's
+        # `"/invalid/" in path` test); this closes the same gap on the Python
+        # side, so adding a kind can no longer turn the positive sweep red.
+        kept = []
+        prefixes = [pathlib.Path(prefix).resolve() for prefix in (args.exclude or [])]
+        for target in targets:
+            posix = target.as_posix()
+            if posix.startswith("conformance/cases/") and "/invalid/" in posix:
+                print(f"EXCLUDED (conformance invalid tree): {target}")
+                continue
+            if any(target.resolve().is_relative_to(prefix) for prefix in prefixes):
+                print(f"EXCLUDED (asserted-negative path): {target}")
+                continue
+            kept.append(target)
+        targets = kept
         if not targets:
             print(
                 "CLOSURE-ROOT VALIDATION: no conforming TOMLs found "

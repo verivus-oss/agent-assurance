@@ -7,7 +7,53 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- **A shared conformance corpus for `state-mutation` and `mutation-claim`**,
+  which was independently named as the thing that ends the review cycle
+  rather than another pass of it. 15 new cases (4 valid, 11
+  invalid) under `conformance/cases/`, driven through the Rust primary, the Go
+  primary and the Python reference by the existing `conformance/runner.py`.
+
+  Every invalid case carries an `error_contains` sidecar asserting the defect
+  CLASS, not the exit code. That distinction is the point: a defect was found
+  where all three implementations rejected the document and two reported
+  the wrong reason, which an exit-code corpus would have passed. The mechanism
+  was negative-controlled by planting an unmatchable substring and confirming
+  the runner fails all three implementations on it.
+
+  Cases are the accumulated regressions of the review: RKM02 hollow
+  proof, RKM04 unbound proof, RKM03 inlined payload, blank and wrong-typed
+  vocabulary tokens, an impossible calendar date, a Unicode-digit timestamp, a
+  deleted required pin, a malformed kind selector, and RKC02 in both TOML
+  shapes proof material can take. `mutation-claim` had no conformance cases at
+  all before this, which is why its RKC02 bypass survived so long.
+
+  Two `state-mutation/valid/` cases are regression guards rather than examples:
+  SPEC §12 ratifies both a non-spec-reserved `template_kind` and no
+  `template_kind` at all as escapes from conformance scope, and both are now
+  asserted MUST-ACCEPT because rejecting them was proposed and declined.
+
 ### Fixed
+
+- **CI was red on this branch for a second reason,** unnoticed for some time:
+  `conformance/cases/state-mutation/` was added without a
+  `PY_VALIDATORS` entry in `conformance/runner.py`, and an unregistered case
+  directory is a hard failure there. Both mutation kinds are now registered.
+
+- **The enumerated-exclusion hazard that caused it, twice.** The repo-wide
+  positive closure sweep listed `conformance/cases/<kind>/invalid` exclusions
+  by hand, so adding a kind turned the sweep red until someone remembered the
+  line. `validate_closure_root.py` now derives that skip from the path shape,
+  matching what the Rust and Go discovery paths always did, and the workflow's
+  per-fixture negative assertions for these kinds are discovered by glob rather
+  than listed. Verified by adding an unregistered invalid tree and confirming
+  the sweep stays green.
+
+- A pre-existing conformance case (`required-pin-missing-proof`) declared
+  `source_bytes = 417` against a 416-byte capture, so it failed for two
+  reasons at once and proved neither. Corpus cases must fail for exactly the
+  reason they name.
 
 - **A malformed kind selector silently dropped every pinned closure record.**
   SPEC 2.3 says `meta.template_kind` is a

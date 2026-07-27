@@ -39,6 +39,9 @@ import _toml11 as tomllib  # noqa: E402  (path set up immediately above)
 PY_VALIDATORS = {
     "implementation-dag": ["validators/validate_implementation_dag.py"],
     "api-snapshot": ["validators/validate_api_snapshot.py", "--repo-root", "."],
+    # Both mutation kinds share one validator; it dispatches on template_kind.
+    "state-mutation": ["validators/validate_state_mutation.py", "--repo-root", "."],
+    "mutation-claim": ["validators/validate_state_mutation.py", "--repo-root", "."],
 }
 
 # The Python closure step (SPEC 12.8 / 12.8.1) runs for EVERY fixture of

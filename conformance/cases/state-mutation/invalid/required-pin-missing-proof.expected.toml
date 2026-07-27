@@ -1,0 +1,14 @@
+# Defect-class assertion. Every rejecting implementation's output MUST contain
+# each substring, so this case pins WHY the document is rejected, not merely
+# THAT it is.
+#
+# This is the case that distinguishes a `required` pin from the api-snapshot
+# witness `when-present` pin, whose deletion yields a legal smaller stream.
+# Deleting [execution_proof] here removes two REQUIRED pins, so the failure
+# must come from the closure layer naming those records, not from some
+# incidental defect.
+error_contains = [
+  "execution_proof.proof_sha256",
+  "execution_proof.binds_sha256",
+  "SPEC §12.8.1",
+]

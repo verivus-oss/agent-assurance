@@ -1,8 +1,12 @@
-# Conformance case: deleting [execution_proof] removes two REQUIRED pins.
-# All three implementations MUST reject. This is the row that distinguishes a
-# required pin from the api-snapshot witness when-present pin, whose deletion
-# yields a legal smaller stream.
-closure_root = "sha256:ac236f9ef89ad30d472c07a26492de3c26b68883803e3f0777ccd04882eb6fc8"
+# Conformance case: a proof-shaped table carrying no proof. MUST be REJECTED.
+#
+# [execution_proof] holds only the two PINNED digests, so every required
+# closure record is present and the document is deliberately closure-VALID.
+# What is missing is the proof itself: no scheme, no finality_basis, no
+# locator. Only the kind layer can see this, which is what makes it the case
+# that motivated porting RKM02 to both primaries.
+
+closure_root = "sha256:25ebefe723d747d4cc98addc43d565bc5affd16bb0aa9ac9eeaf9ef7e39d6ffd"
 
 [meta]
 schema_version = "0.1.0"
@@ -23,3 +27,6 @@ operation = "debit"
 authorization_sha256 = "sha256:218c6bd3c6a2386de7461fe24fe5b2bca1adbd92d5ddd67c0bdbeb7bfbd04a41"
 effect_sha256 = "sha256:7c9d12b09521dd2cbb0403916a82c800148976e990236436cb9216187e3aa792"
 
+[execution_proof]
+proof_sha256 = "sha256:a5255188d6a0efd927a7bca54ac504bd3f1908fe76e75b6be3e50568d7bc38ba"
+binds_sha256 = "sha256:7a5604ab843c08b4c79b19ab7d6ca1b118387b1ca096948e5ff86c5d2d3fda87"

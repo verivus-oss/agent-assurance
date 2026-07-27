@@ -418,19 +418,67 @@ it would have caught rounds 2 and 3, but only if cases assert defect classes
 rather than bare exit codes, since round 3's diagnostic defect had correct
 exit codes throughout. That is now the top open item.
 
-### What is still open after round 4
+## The conformance corpus, built after round 4
 
-- **A shared `conformance/cases/` corpus is the top item, and all three round-4
-  reviewers independently named it as the thing that ends this cycle.** Today
-  every negative is an ad hoc fixture listed by hand in `validate.yml`, which
-  covers only what someone remembered to add. `mutation-claim` has no
-  conformance cases at all and has not since round 1. Cases must assert defect
-  CLASSES, not bare exit codes: round 3's diagnostic defect had correct exit
-  codes in all three implementations throughout.
-- **The round-4 fix itself is unreviewed**, which is the standing that produced
-  the round-2, round-3 and round-4 blockers in turn. It is also the smallest
-  fix of the series and the only one whose scope was narrowed by a reviewer's
-  argument rather than widened.
+All three round-4 reviewers named the same remedy, so it was built rather than
+reviewed again. It is `conformance/cases/{state-mutation,mutation-claim}/`,
+driven by the pre-existing `conformance/runner.py` through all three
+implementations.
+
+**Building it immediately found that CI was red for a second, separate
+reason.** `conformance/runner.py` treats a case directory with no
+`PY_VALIDATORS` entry as a hard failure, and
+`conformance/cases/state-mutation/` was added back in `cff386b` without one.
+So the conformance step had been failing since that commit, through four
+review rounds, and nobody ran it, including the initiator and including
+reviewers who reported running "the CI-shaped" checks. The lesson is narrow
+and worth stating: "I ran the CI checks" meant, in every round, a hand-picked
+subset of the workflow.
+
+That is the same enumerated-list hazard Grok and Mistral flagged in round 3,
+and it had now caused two separate CI failures on this branch. Both directions
+are fixed: `PY_VALIDATORS` gains both kinds, and the repo-wide closure sweep no
+longer enumerates `conformance/cases/<kind>/invalid` exclusions at all but
+derives them from the path shape, matching what the Rust and Go discovery paths
+always did. Verified by adding an unregistered invalid tree and confirming the
+sweep stays green.
+
+**The corpus asserts defect classes, which was Grok's specific condition.**
+Every invalid case carries an `error_contains` sidecar. Grok's argument for
+this was concrete: an exit-code corpus would have passed round 3's diagnostic
+defect, where all three implementations rejected the document and two named the
+wrong reason. The mechanism was negative-controlled by planting an unmatchable
+substring and confirming the runner fails all three implementations on it,
+because a corpus that silently asserts nothing is worse than no corpus.
+
+**Two valid cases are regression guards, not examples.**
+`escape-hatch-absent-template-kind` and `escape-hatch-non-reserved-kind` are
+asserted MUST-ACCEPT precisely because two round-4 reviewers asked for that
+behaviour to be rejected. SPEC §12 ratifies both escapes in one sentence. If a
+later change makes those cases fail, the change is wrong, and the corpus now
+says so mechanically rather than in a design document nobody re-reads.
+
+One pre-existing case was also wrong: `required-pin-missing-proof` declared
+`source_bytes = 417` against a 416-byte capture, so it failed for two reasons
+and proved neither.
+
+### What is still open
+
+- **The round-4 fix and the corpus itself are unreviewed**, which is the
+  standing that produced the round-2, round-3 and round-4 blockers in turn. The
+  corpus is the higher risk of the two: it is the artefact future changes will
+  be judged against, so a wrong assertion in it is worse than a wrong line of
+  validator code. The negative control proves the mechanism fires, not that
+  every needle is the right needle.
+- **The corpus does not yet cover the other kinds.** `api-snapshot` has cases
+  but no sidecars on most of them, and `traceability`, `review-readiness`,
+  `kind-descriptor` and `profile-descriptor` have no corpus at all. The
+  enumerated-list fix is repo-wide, but the defect-class discipline is so far
+  only applied to the two mutation kinds.
+- **Nothing forces a new kind to arrive with conformance cases.** Registering a
+  kind directory is now required (the runner fails without a `PY_VALIDATORS`
+  entry), but a kind with no directory at all is still invisible to the corpus,
+  which is exactly how `mutation-claim` reached round 3 untested.
 - **Two reviewers have now been unable to execute anything.** Mistral in round
   2 (whose blocker did not reproduce) and Devin in round 4 (whose did). Devin
   ran with gateway `permissionMode: "auto"`, which refuses `cargo`, `go` and

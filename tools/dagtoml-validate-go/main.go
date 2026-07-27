@@ -2641,7 +2641,7 @@ func pinnedClosureInputs(path string, doc rawDoc, pinMap map[string][]pinnedClos
 	if raw, present := meta["template_kind"]; present {
 		if _, isString := raw.(string); !isString {
 			return nil, []string{fmt.Sprintf(
-				"%s: `meta.template_kind` is present but is not a string (SPEC 2.3). A "+
+				"%s: `meta.template_kind` is present but is not a string (SPEC §2.3). A "+
 					"malformed kind selector MUST NOT be read as an absent one: that drops "+
 					"every pinned closure record for the kind and silently degrades the "+
 					"document to a one-record source-hash closure", path)}
