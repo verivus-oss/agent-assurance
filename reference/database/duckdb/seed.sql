@@ -67,7 +67,7 @@ INSERT INTO dagtoml.entity_kind_descriptor (entity_kind, id_prefix_pattern, laye
     ('selective_disclosure_proof', 'SDP',  'profile:disclosure', 'selective-disclosure-proof', 'thing', 'structural', 'A commitment a recipient can verify to confirm the publisher knew the omitted content.'),
     ('cost_record',                'COST', 'profile:cost',       'cost-record',                'thing', 'structural', 'Declared cost of one costed action (Stream G Cost-Witnessed Decision).');
 
--- relation_descriptor (30) — DuckDB arrays use ['a','b'] syntax.
+-- relation_descriptor (31), DuckDB arrays use ['a','b'] syntax.
 INSERT INTO dagtoml.relation_descriptor (predicate, domain, range, inverse_of, cardinality, is_acyclic, target_freeform, ijb_primitive, ijb_class, layer) VALUES
     ('derived_from',           ['intent'],                       ['intent'],                                       NULL,            NULL, FALSE, FALSE, 'path', 'structural', 'core'),
     ('realized_by',            ['intent'],                       ['feature','requirement'],                        'realizes',      NULL, FALSE, FALSE, 'path', 'structural', 'core'),

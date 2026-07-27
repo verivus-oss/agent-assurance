@@ -114,7 +114,7 @@ INSERT INTO entity_kind_descriptor
 -- ============================================================
 INSERT INTO relation_descriptor
     (predicate, domain, range, inverse_of, cardinality, is_acyclic, target_freeform, ijb_primitive, ijb_class, layer) VALUES
-    -- Traceability family (17 of the 30)
+    -- Traceability family (17 of the 31)
     ('derived_from',           ARRAY['intent'],                       ARRAY['intent'],                                       NULL,            NULL, FALSE, FALSE, 'path', 'structural', 'core'),
     ('realized_by',            ARRAY['intent'],                       ARRAY['feature','requirement'],                        'realizes',      NULL, FALSE, FALSE, 'path', 'structural', 'core'),
     ('realizes',               ARRAY['feature','code','output'],      ARRAY['intent','implementation','requirement','feature'], 'realized_by', NULL, FALSE, FALSE, 'path', 'structural', 'core'),
@@ -165,7 +165,8 @@ INSERT INTO relation_descriptor
 -- ============================================================
 INSERT INTO attribute_vocabulary
     (attribute, applies_to_entity, applies_to_template, ijb_constraint_type, extensible, default_value, layer, backing_enum_type) VALUES
-    -- Core (9)
+    -- Core: requirement, unit and review vocabularies (5 of the 12 core rows;
+    -- the disclosure-posture group below adds 5 and SPEC 13 adds 2)
     ('requirement_kind',  ARRAY['requirement'],     NULL, 'structural', TRUE,  NULL,  'core', NULL),
     ('test_kind',         ARRAY['test'],            NULL, 'structural', TRUE,  NULL,  'core', NULL),
     ('priority',          ARRAY['requirement'],     NULL, 'structural', FALSE, 'must','core', 'priority_level'),
