@@ -1,0 +1,43 @@
+# NEGATIVE FIXTURE: MUST be rejected by all three implementations for RKM03
+# (value grammar), on `mutation.performed_at` alone.
+#
+# The leading character is U+0662 ARABIC-INDIC DIGIT TWO, not ASCII `2`. Found
+# by round-2 review as a reference-versus-primary divergence running the
+# opposite way to the others: Python's `\d` matches Unicode decimal digits, so
+# the reference ACCEPTED this while both primaries, which check ASCII bytes,
+# rejected it. The primaries were right. RFC3339 is ASCII, and a timestamp that
+# parses differently depending on which implementation reads it is worthless
+# inside a bound tuple.
+#
+# `binds_sha256` and `closure_root` are RECOMPUTED for this value so the
+# grammar is the only thing that can reject the file.
+#
+# Secondary: source_bytes is deliberately wrong (417; the capture is 416).
+
+closure_root = "sha256:5098f38a5e2f10dd746680648fc1511479adca13e5c89634b256e13f637a0e37"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "state-mutation"
+framework_profile = "com.verivus.runtime"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "examples/captures/2026-07-26T101500Z-ac4417-debit.capture"
+source_sha256 = "sha256:0a10577329b53feadb5a4d5f009cbc5ebf1c40a5ff86b55254a9d489b8b2e765"
+source_bytes = 417
+
+[mutation]
+performed_at = "٢026-07-26T10:15:00.412Z"
+target_id = "https://ledger.example/v1/accounts/AC-4417"
+operation = "debit"
+authorization_sha256 = "sha256:218c6bd3c6a2386de7461fe24fe5b2bca1adbd92d5ddd67c0bdbeb7bfbd04a41"
+effect_sha256 = "sha256:7c9d12b09521dd2cbb0403916a82c800148976e990236436cb9216187e3aa792"
+
+[execution_proof]
+scheme = "tee-quote"
+finality_basis = "none"
+proof_sha256 = "sha256:a5255188d6a0efd927a7bca54ac504bd3f1908fe76e75b6be3e50568d7bc38ba"
+binds_sha256 = "sha256:3acf339d9f0ad3575bf9897d3b282eecaf962a92fc03c21db7c0b50a552dfccd"
+proof_locator = "https://tee.example/quotes/ac4417-debit"

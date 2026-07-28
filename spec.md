@@ -1265,6 +1265,72 @@ consumers can enumerate them without reading code. Additional profile
 record forms MUST preserve §12.1-§12.4 and MUST NOT suppress the
 cascade-break property of §12.2.
 
+#### 12.8.2 Bound tuples
+
+A profile MAY require a kind to commit a set of its own fields to an
+external verifier, by declaring a **bound tuple**: a digest, carried
+in the document, over a named set of that document's fields. The
+external artefact (a TEE quote's report data, a zero-knowledge
+receipt's public inputs, a ledger commitment, a signed payload)
+carries the same digest, so a verifier can confirm the artefact
+commits to THIS document's values and not merely that some artefact
+exists. Confirming that the external artefact carries the value is
+RUNTIME-SPEC; this section fixes only the bytes.
+
+The canonical form is deliberately close to §12.8.1, and identical in
+its type contract:
+
+```text
+<field> <sha256:64-lowercase-hex>\n
+```
+
+- One record per declared field, in the same shape as a pinned
+  closure record: dotted path, single 0x20, value, single 0x0A.
+- The digest is taken over the **UTF-8 bytes of the field's value**,
+  NOT over its textual form in the document. Values are therefore
+  PREHASHED, never inlined.
+- Records are sorted bytewise, concatenated, and the tuple digest is
+  the SHA-256 of that stream, expressed as `sha256:` followed by 64
+  lowercase hex digits.
+- A declared field that is absent is a validation error. Bound
+  tuples have no `when-present` form: a tuple with optional members
+  would let a producer choose what the proof commits to.
+- A declared field that is present but is not a string is a
+  validation error. It MUST NOT be coerced, and MUST NOT be treated
+  as absent: substituting the empty string for it would compute a
+  tuple over values no producer wrote.
+- Field paths are frozen by the profile that declares them and MUST
+  match the §12.8.1 pinned-record grammar
+  `[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*`. A path containing 0x20 or 0x0A
+  would reintroduce at the label boundary exactly the ambiguity
+  prehashing removes at the value boundary.
+- Values are hashed as the exact UTF-8 bytes carried in the document,
+  with **no Unicode normalization** applied by either producer or
+  verifier. Two documents whose values are canonically equivalent but
+  differently encoded (NFC versus NFD) therefore produce different
+  tuple digests. This is deliberate: normalizing would make the
+  verifier's recomputation depend on a Unicode version, and a bound
+  tuple must be reproducible from bytes alone. A profile that needs
+  equivalent strings to bind identically MUST constrain the field's
+  grammar so that only one encoding is representable.
+
+**Prehashing is normative and load-bearing.** Inlining values makes
+the encoding non-injective: a value containing 0x0A forges a
+different field-to-value assignment with an identical tuple digest,
+so one bound tuple would bind two distinct documents. Digest scalars
+are fixed-width and carry no attacker-controlled bytes in delimiter
+position, which removes the class of attack rather than filtering for
+it. Profiles MAY additionally constrain the grammar of the bound
+fields, and SHOULD do so for any field that would otherwise accept
+arbitrary text, but grammar constraints are defence in depth and MUST
+NOT be relied on in place of prehashing.
+
+A bound tuple is not a closure input. It commits a document to an
+external artefact; §12.8 and §12.8.1 commit a document to its own
+upstream inputs. A profile that wants the tuple digest to cascade
+MUST also pin it as a closure record under §12.8.1, in which case it
+appears in both streams and the two remain independently computable.
+
 ### 12.9 Interaction with other sections
 
 - §2.7 (`confidentiality`, `license`, `embargo_until`) — posture

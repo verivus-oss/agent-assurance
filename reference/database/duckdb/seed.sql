@@ -5,12 +5,12 @@
 -- instead of PG's `ARRAY['a','b']` form.
 --
 -- Counts (CI-gated by validators/check_attribute_values.py):
---   21 kind_descriptor / 27 entity_kind_descriptor / 31 relation_descriptor /
---   48 attribute_vocabulary / 144 attribute_value_allowed
+--   23 kind_descriptor / 27 entity_kind_descriptor / 31 relation_descriptor /
+--   50 attribute_vocabulary / 152 attribute_value_allowed
 
 SET search_path = dagtoml;
 
--- kind_descriptor (20; +1 cost-record)
+-- kind_descriptor (23; +1 cost-record, +3 com.verivus.runtime)
 INSERT INTO dagtoml.kind_descriptor (template_kind, layer, descriptor_path, requires_profile) VALUES
     ('kind-descriptor',           'core', 'spec.md',                                                       NULL),
     ('implementation-dag',        'core', 'core/implementation-dag-kind.toml',                             NULL),
@@ -32,9 +32,11 @@ INSERT INTO dagtoml.kind_descriptor (template_kind, layer, descriptor_path, requ
     ('redaction-manifest',        'profile:disclosure',      'profiles/disclosure/redaction-manifest-kind.toml',             'disclosure'),
     ('selective-disclosure-proof','profile:disclosure',      'profiles/disclosure/selective-disclosure-proof-kind.toml',     'disclosure'),
     ('cost-record',               'profile:cost',            'profiles/cost/cost-record-kind.toml',                          'cost'),
-    ('api-snapshot',              'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/api-snapshot-kind.toml',       'com.verivus.runtime');
+    ('api-snapshot',              'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/api-snapshot-kind.toml',       'com.verivus.runtime'),
+    ('state-mutation',            'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/state-mutation-kind.toml',     'com.verivus.runtime'),
+    ('mutation-claim',            'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/mutation-claim-kind.toml',     'com.verivus.runtime');
 
--- entity_kind_descriptor (24; +1 cost = COST)
+-- entity_kind_descriptor (27; +1 cost = COST)
 INSERT INTO dagtoml.entity_kind_descriptor (entity_kind, id_prefix_pattern, layer, defining_kind, ijb_primitive, ijb_class, description) VALUES
     ('intent',           'INT',           'core', 'traceability',         'thing', 'structural', 'User/business intent; top of trace.'),
     ('feature',          'FEAT',          'core', 'traceability',         'thing', 'structural', 'User-visible capability.'),
@@ -65,7 +67,7 @@ INSERT INTO dagtoml.entity_kind_descriptor (entity_kind, id_prefix_pattern, laye
     ('selective_disclosure_proof', 'SDP',  'profile:disclosure', 'selective-disclosure-proof', 'thing', 'structural', 'A commitment a recipient can verify to confirm the publisher knew the omitted content.'),
     ('cost_record',                'COST', 'profile:cost',       'cost-record',                'thing', 'structural', 'Declared cost of one costed action (Stream G Cost-Witnessed Decision).');
 
--- relation_descriptor (30) — DuckDB arrays use ['a','b'] syntax.
+-- relation_descriptor (31), DuckDB arrays use ['a','b'] syntax.
 INSERT INTO dagtoml.relation_descriptor (predicate, domain, range, inverse_of, cardinality, is_acyclic, target_freeform, ijb_primitive, ijb_class, layer) VALUES
     ('derived_from',           ['intent'],                       ['intent'],                                       NULL,            NULL, FALSE, FALSE, 'path', 'structural', 'core'),
     ('realized_by',            ['intent'],                       ['feature','requirement'],                        'realizes',      NULL, FALSE, FALSE, 'path', 'structural', 'core'),
@@ -102,7 +104,7 @@ INSERT INTO dagtoml.relation_descriptor (predicate, domain, range, inverse_of, c
 
 -- relation_descriptor row count is now 31 (one per [[relations]] block in core/ontology.toml).
 
--- attribute_vocabulary (46 rows; matches postgres/seed.sql vocab set; includes agent-assurance subject_class/provider_id/model_family_id for gate-decision INV06)
+-- attribute_vocabulary (50 rows; matches postgres/seed.sql vocab set; includes agent-assurance subject_class/provider_id/model_family_id for gate-decision INV06)
 INSERT INTO dagtoml.attribute_vocabulary (attribute, applies_to_entity, applies_to_template, ijb_constraint_type, extensible, default_value, layer, backing_enum_type) VALUES
     ('requirement_kind',  ['requirement'],     NULL, 'structural', TRUE,  NULL,  'core', NULL),
     ('test_kind',         ['test'],            NULL, 'structural', TRUE,  NULL,  'core', NULL),
@@ -152,11 +154,16 @@ INSERT INTO dagtoml.attribute_vocabulary (attribute, applies_to_entity, applies_
     ('subject_class',       NULL, ['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL),
     ('provider_id',         NULL, ['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL),
     ('model_family_id',     NULL, ['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL),
-    -- Profile: com.verivus.runtime (2) — api-snapshot closed witness vocabularies.
-    ('witness_scheme',      NULL, ['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
-    ('attester_observed',   NULL, ['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL);
+    -- Profile: com.verivus.runtime (4) — api-snapshot closed witness vocabularies,
+    -- and the state-mutation execution-proof vocabularies. RKM06 constrains which
+    -- finality_basis each execution_proof_scheme may claim; that pairing is a kind
+    -- invariant, not a column constraint, so it is not representable here.
+    ('witness_scheme',        NULL, ['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
+    ('attester_observed',     NULL, ['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
+    ('execution_proof_scheme', NULL, ['state-mutation'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
+    ('finality_basis',        NULL, ['state-mutation'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL);
 
--- attribute_value_allowed (54) — identical to postgres/seed.sql.
+-- attribute_value_allowed (152), identical to postgres/seed.sql.
 INSERT INTO dagtoml.attribute_value_allowed (attribute, value) VALUES
     ('requirement_kind', 'functional'),
     ('requirement_kind', 'non_functional'),
@@ -306,4 +313,15 @@ INSERT INTO dagtoml.attribute_value_allowed (attribute, value) VALUES
     ('witness_scheme', 'tee-quote'),
     ('attester_observed', 'request'),
     ('attester_observed', 'response'),
-    ('attester_observed', 'both');
+    ('attester_observed', 'both'),
+    -- Profile: com.verivus.runtime mutation vocabularies (8). Closed and
+    -- non-enum-backed, exactly like the witness pair above, so their values
+    -- belong here rather than in a CHECK list.
+    ('execution_proof_scheme', 'ledger-transaction'),
+    ('execution_proof_scheme', 'provider-receipt'),
+    ('execution_proof_scheme', 'tee-quote'),
+    ('execution_proof_scheme', 'zk-receipt'),
+    ('finality_basis', 'none'),
+    ('finality_basis', 'provider-acknowledged'),
+    ('finality_basis', 'ledger-confirmed'),
+    ('finality_basis', 'ledger-final');

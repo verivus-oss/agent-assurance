@@ -1,0 +1,29 @@
+# Minimal mutation-claim: an unproved CRM contact update.
+#
+# Three-record closure (provenance.source_sha256, mutation.authorization_sha256,
+# mutation.effect_sha256), all pinned required. There is deliberately no
+# [execution_proof]: this document is the producer's own testimony that the
+# update happened, and RKC02 forbids attaching a proof to a claim-shaped
+# record. If a receipt later arrives, this becomes a state-mutation by adding
+# the proof table, changing template_kind, and re-rooting.
+
+closure_root = "sha256:f7aeefffc2ab795ba9e6003b5f2d326a23a952e449f4dd2ab677afc17ed41bb8"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "mutation-claim"
+framework_profile = "com.verivus.runtime"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "examples/captures/2026-07-26T104500Z-crm-update.capture"
+source_sha256 = "sha256:915f2d0e1bb0ba3bed9c553734ea39e70ee6cb598514c60f28e4ebf22e53d958"
+source_bytes = 224
+
+[mutation]
+performed_at = "2026-07-26T10:45:00.900Z"
+target_id = "https://crm.example/v2/contacts/C-91188"
+operation = "update"
+authorization_sha256 = "sha256:a2d9a26f89d8f861f21d2f8535e47f18cabd1fd9598837f3939b7ecd2df074a7"
+effect_sha256 = "sha256:e8bd53449c572de4fde4421e0d30e8fbea2ed0b14eb6de662694402c07546ac6"

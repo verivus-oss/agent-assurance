@@ -224,7 +224,24 @@ def pinned_closure_inputs(
     meta = data.get("meta")
     if not isinstance(meta, dict):
         return [], []
-    template_kind = meta.get("template_kind")
+    # SPEC §2.3: `template_kind` IS a string. Absence is a ratified escape from
+    # conformance scope, and so is a non-spec-reserved string value (SPEC §12:
+    # "Producers that want a file outside the rule's scope MUST give it a
+    # non-spec-reserved `template_kind` (or no `template_kind` at all)"). A
+    # value that is PRESENT but not a string is neither of those. It is
+    # malformed, and reading it as absent silently drops every pinned closure
+    # record for the kind, degrading the document to the one-record source-hash
+    # closure with no error raised. That is the pin-free fall-through this
+    # function's own docstring says does not exist. Round-4 review found it.
+    raw_kind = meta.get("template_kind")
+    if raw_kind is not None and not isinstance(raw_kind, str):
+        return [], [
+            "`meta.template_kind` is present but is not a string (SPEC §2.3). A "
+            "malformed kind selector MUST NOT be read as an absent one: that drops "
+            "every pinned closure record for the kind and silently degrades the "
+            "document to a one-record source-hash closure"
+        ]
+    template_kind = raw_kind
     if not isinstance(template_kind, str):
         template_kind = meta.get("kind")  # legacy synonym
     if not isinstance(template_kind, str) or template_kind not in pin_map:
@@ -559,18 +576,44 @@ def main(argv: list[str]) -> int:
         targets = discover_conforming(
             [pathlib.Path(r) for r in args.discover], spec_reserved
         )
-        if args.exclude:
-            prefixes = [
-                pathlib.Path(prefix).resolve() for prefix in args.exclude
-            ]
-            kept = []
-            for target in targets:
-                resolved = target.resolve()
-                if any(resolved.is_relative_to(prefix) for prefix in prefixes):
-                    print(f"EXCLUDED (asserted-negative path): {target}")
-                    continue
-                kept.append(target)
-            targets = kept
+        # Conformance `invalid/` trees are asserted-negative by construction:
+        # conformance/runner.py requires all three implementations to REJECT
+        # every one of them. Skipping them here is therefore structural, not a
+        # per-directory decision, and it is derived rather than enumerated on
+        # purpose. Enumerating it has silently broken CI twice: once when
+        # `conformance/cases/state-mutation/invalid/` was added without being
+        # listed, and again when `mutation-claim/` was. The Rust and Go
+        # discovery paths have always derived it (see the workflow's
+        # `"/invalid/" in path` test); this closes the same gap on the Python
+        # side, so adding a kind can no longer turn the positive sweep red.
+        # Matched on resolved path COMPONENTS, not on a string prefix of
+        # whatever form the caller passed. A `startswith("conformance/cases/")`
+        # test silently stops matching when `--discover` is given an absolute
+        # path, which is a legitimate invocation, and the sweep then goes red on
+        # every asserted-negative fixture. The enumerated `--exclude` form this
+        # replaced was path-form independent because it resolved both sides, so
+        # getting this wrong would have made the fix a regression on the one
+        # axis its predecessor got right.
+        def is_conformance_invalid(path: pathlib.Path) -> bool:
+            parts = path.resolve().parts
+            return any(
+                parts[i] == "conformance"
+                and parts[i + 1] == "cases"
+                and parts[i + 3] == "invalid"
+                for i in range(len(parts) - 3)
+            )
+
+        kept = []
+        prefixes = [pathlib.Path(prefix).resolve() for prefix in (args.exclude or [])]
+        for target in targets:
+            if is_conformance_invalid(target):
+                print(f"EXCLUDED (conformance invalid tree): {target}")
+                continue
+            if any(target.resolve().is_relative_to(prefix) for prefix in prefixes):
+                print(f"EXCLUDED (asserted-negative path): {target}")
+                continue
+            kept.append(target)
+        targets = kept
         if not targets:
             print(
                 "CLOSURE-ROOT VALIDATION: no conforming TOMLs found "

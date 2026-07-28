@@ -1,0 +1,45 @@
+# NEGATIVE FIXTURE: MUST be rejected by all three implementations for RKM02
+# (vocabulary membership).
+#
+# Found by round-2 review. This is the hollow proof wearing the shape of a
+# complete one. Every required key of [execution_proof] is PRESENT, so the
+# key-presence check that closed the previous hollow-proof case passes, and
+# both pinned digests are real, so the document is deliberately closure-VALID.
+# What the proof declares is nothing: `scheme` and `finality_basis` are empty
+# strings, which are not members of their closed vocabularies.
+#
+# Before the fix, both primaries defaulted a blank value to "" and skipped the
+# vocabulary check and RKM06 on it, so this passed the Rust and Go primaries in
+# both auto and explicit mode while the Python reference rejected it. An empty
+# string is not a member of a closed vocabulary and there is no honest reading
+# under which it names a proving system.
+#
+# Secondary: source_bytes is deliberately wrong (417; the capture is 416).
+
+closure_root = "sha256:25ebefe723d747d4cc98addc43d565bc5affd16bb0aa9ac9eeaf9ef7e39d6ffd"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "state-mutation"
+framework_profile = "com.verivus.runtime"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "examples/captures/2026-07-26T101500Z-ac4417-debit.capture"
+source_sha256 = "sha256:0a10577329b53feadb5a4d5f009cbc5ebf1c40a5ff86b55254a9d489b8b2e765"
+source_bytes = 417
+
+[mutation]
+performed_at = "2026-07-26T10:15:00.412Z"
+target_id = "https://ledger.example/v1/accounts/AC-4417"
+operation = "debit"
+authorization_sha256 = "sha256:218c6bd3c6a2386de7461fe24fe5b2bca1adbd92d5ddd67c0bdbeb7bfbd04a41"
+effect_sha256 = "sha256:7c9d12b09521dd2cbb0403916a82c800148976e990236436cb9216187e3aa792"
+
+[execution_proof]
+scheme = ""
+finality_basis = ""
+proof_sha256 = "sha256:a5255188d6a0efd927a7bca54ac504bd3f1908fe76e75b6be3e50568d7bc38ba"
+binds_sha256 = "sha256:7a5604ab843c08b4c79b19ab7d6ca1b118387b1ca096948e5ff86c5d2d3fda87"
+proof_locator = "https://tee.example/quotes/ac4417-debit"

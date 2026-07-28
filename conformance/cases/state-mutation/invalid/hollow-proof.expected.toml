@@ -1,0 +1,25 @@
+# Defect-class assertion. Every rejecting implementation's output MUST contain
+# each substring, so this case pins WHY the document is rejected, not merely
+# THAT it is. Needles must DISCRIMINATE: a substring that another case's output
+# would also contain can bless the wrong defect class.
+#
+# A bare "RKM02" needle does NOT discriminate, which round-5 review proved by
+# swapping this sidecar onto mutation-claim/invalid/array-proof and watching it
+# still pass. The RKC02 diagnostic names the invariants a proved record must
+# face ("so that RKM02, RKM04 and RKM06 apply to it"), so it contains the
+# string RKM02 incidentally. required-pin-missing-proof emits a real RKM02 too.
+#
+# The discriminator is the missing FIELDS, which only this case reports.
+error_contains = [
+  "execution_proof.scheme is required",
+  "execution_proof.finality_basis is required",
+]
+
+# required-pin-missing-proof deletes [execution_proof] entirely, so its output
+# is a strict SUPERSET of this one's: it reports the same missing fields AND
+# the two missing closure pins. No presence-only needle can separate them.
+# This asserts the closure layer stayed SILENT, which is the actual claim of
+# this case: the document is closure-VALID and only the kind layer objects.
+error_not_contains = [
+  "pinned closure record",
+]

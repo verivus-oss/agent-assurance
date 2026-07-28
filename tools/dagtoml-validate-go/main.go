@@ -11,6 +11,7 @@ package main
 import (
 	"crypto/sha256"
 	"crypto/sha512"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/BurntSushi/toml"
 	pelletier "github.com/pelletier/go-toml/v2"
@@ -67,6 +69,23 @@ func tableOf(v any, key string) (map[string]any, bool) {
 	return sub, ok
 }
 
+// hasKey reports whether a key is PRESENT, whatever its TOML type.
+//
+// tableOf answers false both for an absent key and for a key holding a
+// non-table, which is the right answer when a table is required and the wrong
+// one when a key is FORBIDDEN. Round-3 review found RKC02 enforced through
+// tableOf, so a mutation-claim carrying `execution_proof = [{ ...proof... }]`
+// declared proof material that the check never saw. An invariant that forbids
+// a field must ask whether the field is there, not whether it is well-formed.
+func hasKey(v any, key string) bool {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return false
+	}
+	_, present := m[key]
+	return present
+}
+
 func stringOf(v any, key string) (string, bool) {
 	m, ok := v.(map[string]any)
 	if !ok {
@@ -74,6 +93,35 @@ func stringOf(v any, key string) (string, bool) {
 	}
 	s, ok := m[key].(string)
 	return s, ok
+}
+
+// fieldState distinguishes the two cases stringOf collapses into a single
+// false. A caller that defaults a wrong-typed value to "" and then skips its
+// check on an empty value skips it on the wrong-typed value too, which is how
+// `scheme = 1` and `scheme = ""` both bypassed the closed-vocabulary check
+// while the Python reference rejected them. Round-2 review found both.
+type fieldState int
+
+const (
+	fieldAbsent fieldState = iota
+	fieldNotString
+	fieldString
+)
+
+func fieldOf(v any, key string) (string, fieldState) {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return "", fieldAbsent
+	}
+	raw, present := m[key]
+	if !present {
+		return "", fieldAbsent
+	}
+	s, ok := raw.(string)
+	if !ok {
+		return "", fieldNotString
+	}
+	return s, fieldString
 }
 
 // asArray normalizes the several shapes BurntSushi/toml may decode an
@@ -113,6 +161,7 @@ const (
 	modeProvenance
 	modeMeta
 	modeGateDecision
+	modeMutationKinds
 	modeKindDescriptor
 	modeIJB
 	modeProvenanceBinding
@@ -138,6 +187,8 @@ func parseMode(s string) (mode, error) {
 		return modeMeta, nil
 	case "gate-decision":
 		return modeGateDecision, nil
+	case "mutation-kinds":
+		return modeMutationKinds, nil
 	case "kind-descriptor":
 		return modeKindDescriptor, nil
 	case "ijb":
@@ -2581,6 +2632,21 @@ func pinnedClosureInputs(path string, doc rawDoc, pinMap map[string][]pinnedClos
 	if !ok {
 		return nil, nil
 	}
+	// SPEC 2.3: `template_kind` IS a string. Absence is a ratified escape from
+	// conformance scope, and so is a non-spec-reserved string value (SPEC 12).
+	// A value that is PRESENT but not a string is neither. Reading it as absent
+	// drops every pinned closure record for the kind and silently degrades the
+	// document to the one-record source-hash closure, which is the pin-free
+	// fall-through the comment above says does not exist.
+	if raw, present := meta["template_kind"]; present {
+		if _, isString := raw.(string); !isString {
+			return nil, []string{fmt.Sprintf(
+				"%s: `meta.template_kind` is present but is not a string (SPEC §2.3). A "+
+					"malformed kind selector MUST NOT be read as an absent one: that drops "+
+					"every pinned closure record for the kind and silently degrades the "+
+					"document to a one-record source-hash closure", path)}
+		}
+	}
 	templateKind, ok := meta["template_kind"].(string)
 	if !ok {
 		// legacy synonym
@@ -3480,6 +3546,9 @@ func main() {
 			case "gate-decision":
 				errs = append(errs, validateGateDecision(path, doc, root)...)
 				errs = append(errs, validateIJB(path, doc, root)...)
+			case "state-mutation", "mutation-claim":
+				errs = append(errs, validateMutationKinds(path, doc, root)...)
+				errs = append(errs, validateIJB(path, doc, root)...)
 			case "":
 			default:
 				errs = append(errs, validateIJB(path, doc, root)...)
@@ -3490,6 +3559,8 @@ func main() {
 			errs = append(errs, validateDisclosure(path, doc, root)...)
 		case modeGateDecision:
 			errs = append(errs, validateGateDecision(path, doc, root)...)
+		case modeMutationKinds:
+			errs = append(errs, validateMutationKinds(path, doc, root)...)
 		case modeKindDescriptor:
 			errs = append(errs, validateKindDescriptor(path, doc, root, true)...)
 			errs = append(errs, validateAbstractionClass(path, doc, root)...)
@@ -3631,6 +3702,435 @@ func gdVocabContains(values []string, v string) bool {
 		}
 	}
 	return false
+}
+
+// Kind-layer invariants for the com.verivus.runtime mutation kinds.
+//
+// Ported from validators/validate_state_mutation.py to close the
+// primary-parity gap recorded against RKM02/RKM03/RKM04/RKM06 and RKC02.
+// Before this port a primary-only consumer accepted a hollow proof (the two
+// pinned digests with no scheme, finality or locator), because the closure
+// layer sees pins and nothing else.
+
+// boundTupleFields is the SPEC 12.8.2 tuple. Values are PREHASHED, never
+// inlined: an inlined value carrying 0x0A forges a different field assignment
+// with an identical digest.
+var boundTupleFields = [][2]string{
+	{"mutation.target_id", "target_id"},
+	{"mutation.operation", "operation"},
+	{"mutation.authorization_sha256", "authorization_sha256"},
+	{"mutation.effect_sha256", "effect_sha256"},
+	{"mutation.performed_at", "performed_at"},
+}
+
+var allowedMutationKeys = map[string]bool{
+	"performed_at": true, "target_id": true, "operation": true,
+	"authorization_sha256": true, "effect_sha256": true,
+}
+
+var allowedProofKeys = map[string]bool{
+	"scheme": true, "finality_basis": true, "proof_sha256": true,
+	"binds_sha256": true, "proof_locator": true,
+}
+
+var requiredProofKeys = []string{
+	"scheme", "finality_basis", "proof_sha256", "binds_sha256", "proof_locator",
+}
+
+// schemeFinality carries RKM06: a scheme may only claim durability its own
+// evidence class can carry.
+var schemeFinality = map[string][]string{
+	"ledger-transaction": {"none", "ledger-confirmed", "ledger-final"},
+	"zk-receipt":         {"none", "ledger-confirmed", "ledger-final"},
+	"provider-receipt":   {"none", "provider-acknowledged"},
+	"tee-quote":          {"none"},
+}
+
+// finalityValues is the closed `finality_basis` vocabulary, mirroring the
+// profile ontology.
+var finalityValues = map[string]bool{
+	"none":                  true,
+	"provider-acknowledged": true,
+	"ledger-confirmed":      true,
+	"ledger-final":          true,
+}
+
+func daysInMonth(year, month int) int {
+	switch month {
+	case 2:
+		if year%4 == 0 && (year%100 != 0 || year%400 == 0) {
+			return 29
+		}
+		return 28
+	case 4, 6, 9, 11:
+		return 30
+	}
+	return 31
+}
+
+func isMutationDigest(s string) bool {
+	for _, p := range [][2]any{{"sha256:", 64}, {"sha384:", 96}, {"sha512:", 128}} {
+		prefix := p[0].(string)
+		n := p[1].(int)
+		if strings.HasPrefix(s, prefix) {
+			hexPart := s[len(prefix):]
+			if len(hexPart) != n {
+				return false
+			}
+			for _, c := range hexPart {
+				if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+					return false
+				}
+			}
+			return true
+		}
+	}
+	return false
+}
+
+// isRFC3339UTC accepts YYYY-MM-DDTHH:MM:SS[.frac]Z. Hand-rolled to match the
+// Rust primary byte for byte rather than relying on time.Parse leniency.
+func isRFC3339UTC(s string) bool {
+	if len(s) < 20 || s[len(s)-1] != 'Z' {
+		return false
+	}
+	digits := func(a, b int) bool {
+		for i := a; i < b; i++ {
+			if s[i] < '0' || s[i] > '9' {
+				return false
+			}
+		}
+		return true
+	}
+	if !(digits(0, 4) && s[4] == '-' && digits(5, 7) && s[7] == '-' && digits(8, 10)) {
+		return false
+	}
+	if !(s[10] == 'T' && digits(11, 13) && s[13] == ':' && digits(14, 16) &&
+		s[16] == ':' && digits(17, 19)) {
+		return false
+	}
+	if len(s) != 20 &&
+		!(s[19] == '.' && len(s) <= 30 && len(s)-21 >= 1 && digits(20, len(s)-1)) {
+		return false
+	}
+	// Calendar validity, not merely digit positions: the shape check alone
+	// accepts `2026-99-26T10:15:00Z`, and performed_at is a member of the
+	// RKM04 bound tuple carrying the freshness claim.
+	num := func(a, b int) int {
+		n := 0
+		for i := a; i < b; i++ {
+			n = n*10 + int(s[i]-'0')
+		}
+		return n
+	}
+	year, month, day := num(0, 4), num(5, 7), num(8, 10)
+	hour, minute, second := num(11, 13), num(14, 16), num(17, 19)
+	if month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month) {
+		return false
+	}
+	// Second 60 is a leap second, which RFC3339 5.6 permits.
+	return hour <= 23 && minute <= 59 && second <= 60
+}
+
+func isOperationToken(s string) bool {
+	if len(s) == 0 || len(s) > 64 {
+		return false
+	}
+	c0 := s[0]
+	if !((c0 >= 'a' && c0 <= 'z') || (c0 >= '0' && c0 <= '9')) {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-') {
+			return false
+		}
+	}
+	return true
+}
+
+// isURIShaped: scheme:rest, no whitespace or control characters, bounded.
+// A locator names where a proof lives; it is never a place to inline one.
+func isURIShaped(s string) bool {
+	colon := strings.Index(s, ":")
+	if colon <= 0 {
+		return false
+	}
+	scheme, rest := s[:colon], s[colon+1:]
+	if len(rest) == 0 || len(rest) > 480 {
+		return false
+	}
+	if scheme[0] < 'a' || scheme[0] > 'z' {
+		return false
+	}
+	for i := 1; i < len(scheme); i++ {
+		c := scheme[i]
+		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '+' || c == '.' || c == '-') {
+			return false
+		}
+	}
+	for _, r := range rest {
+		if unicode.IsSpace(r) || unicode.IsControl(r) || r == 0x7f {
+			return false
+		}
+	}
+	return true
+}
+
+func mutationBoundTuple(mutation map[string]any) string {
+	records := make([]string, 0, len(boundTupleFields))
+	for _, f := range boundTupleFields {
+		value, _ := stringOf(mutation, f[1])
+		vd := sha256.Sum256([]byte(value))
+		records = append(records, fmt.Sprintf("%s sha256:%s\n", f[0], hex.EncodeToString(vd[:])))
+	}
+	sort.Strings(records)
+	sum := sha256.Sum256([]byte(strings.Join(records, "")))
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func checkMutationTable(path string, doc rawDoc, defects *[]string) {
+	mutation, ok := tableOf(doc, "mutation")
+	if !ok {
+		if hasKey(doc, "mutation") {
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: `mutation` is present but is not a table. A present-but-wrong-typed "+
+					"element MUST NOT be reported as absent (SPEC 12.8.2)", path))
+		} else {
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: missing required `[mutation]` table", path))
+		}
+		return
+	}
+	keys := make([]string, 0, len(mutation))
+	for k := range mutation {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		if !allowedMutationKeys[k] {
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: mutation.%s is not a permitted key (closed key set; payloads and "+
+					"credentials have no field to live in)", path, k))
+		}
+	}
+	for _, k := range []string{"authorization_sha256", "effect_sha256"} {
+		v, state := fieldOf(mutation, k)
+		switch {
+		case state == fieldAbsent:
+			*defects = append(*defects, fmt.Sprintf("%s: mutation.%s is required", path, k))
+		case state == fieldNotString:
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: mutation.%s must be a string carrying a digest scalar", path, k))
+		case !isMutationDigest(v):
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: mutation.%s %q is not a digest scalar", path, k, v))
+		}
+	}
+	switch v, state := fieldOf(mutation, "performed_at"); {
+	case state == fieldAbsent:
+		*defects = append(*defects, fmt.Sprintf("%s: mutation.performed_at is required", path))
+	case state == fieldNotString:
+		*defects = append(*defects, fmt.Sprintf(
+			"%s: mutation.performed_at must be a string", path))
+	case !isRFC3339UTC(v):
+		*defects = append(*defects, fmt.Sprintf(
+			"%s: mutation.performed_at %q must be an RFC3339 UTC timestamp ending in Z, naming "+
+				"a real instant", path, v))
+	}
+	switch v, state := fieldOf(mutation, "operation"); {
+	case state == fieldAbsent:
+		*defects = append(*defects, fmt.Sprintf("%s: mutation.operation is required", path))
+	case state == fieldNotString:
+		*defects = append(*defects, fmt.Sprintf("%s: mutation.operation must be a string", path))
+	case !isOperationToken(v):
+		*defects = append(*defects, fmt.Sprintf(
+			"%s: mutation.operation %q must be a bare lowercase token, at most 64 characters",
+			path, v))
+	}
+	switch v, state := fieldOf(mutation, "target_id"); {
+	case state == fieldAbsent:
+		*defects = append(*defects, fmt.Sprintf("%s: mutation.target_id is required", path))
+	case state == fieldNotString:
+		*defects = append(*defects, fmt.Sprintf("%s: mutation.target_id must be a string", path))
+	case !isURIShaped(v):
+		*defects = append(*defects, fmt.Sprintf(
+			"%s: mutation.target_id %q must be a URI or URN with no whitespace or control "+
+				"characters", path, v))
+	}
+	prov, ok := tableOf(doc, "provenance")
+	if !ok {
+		*defects = append(*defects, fmt.Sprintf(
+			"%s: missing required `[provenance]` table; provenance.source_sha256 is a required "+
+				"field of this kind", path))
+		return
+	}
+	if v, present := stringOf(prov, "source_sha256"); !present || !isMutationDigest(v) {
+		*defects = append(*defects, fmt.Sprintf(
+			"%s: provenance.source_sha256 is required and MUST be a digest scalar", path))
+	}
+}
+
+func validateMutationKinds(path string, doc rawDoc, repoRoot string) []string {
+	var defects []string
+	meta, ok := tableOf(doc, "meta")
+	if !ok {
+		return nil
+	}
+	tk, _ := stringOf(meta, "template_kind")
+
+	if tk == "mutation-claim" {
+		// RKC02: a claim must not borrow the appearance of proof. Presence is
+		// what is forbidden, so this asks only whether the key is there. A
+		// well-formedness test would let `execution_proof = [{ ... }]` through.
+		if hasKey(doc, "execution_proof") {
+			defects = append(defects, fmt.Sprintf(
+				"%s: a mutation-claim MUST NOT carry `[execution_proof]` (RKC02). A document "+
+					"with a proof is a state-mutation and MUST declare that template_kind, so "+
+					"that RKM02, RKM04 and RKM06 apply to it", path))
+		}
+		checkMutationTable(path, doc, &defects)
+		return defects
+	}
+	if tk != "state-mutation" {
+		return nil
+	}
+
+	checkMutationTable(path, doc, &defects)
+
+	// RKM02: the proof is mandatory and complete.
+	proof, ok := tableOf(doc, "execution_proof")
+	if !ok {
+		if hasKey(doc, "execution_proof") {
+			defects = append(defects, fmt.Sprintf(
+				"%s: `execution_proof` is present but is not a table (RKM02). A "+
+					"present-but-wrong-typed element MUST NOT be reported as absent "+
+					"(SPEC 12.8.2), and proof material outside a table is not a proof", path))
+		} else {
+			defects = append(defects, fmt.Sprintf(
+				"%s: missing required `[execution_proof]` table (RKM02). A record of an "+
+					"irreversible state change with no execution proof is not a state-mutation; "+
+					"use mutation-claim instead", path))
+		}
+		return defects
+	}
+	pkeys := make([]string, 0, len(proof))
+	for k := range proof {
+		pkeys = append(pkeys, k)
+	}
+	sort.Strings(pkeys)
+	for _, k := range pkeys {
+		if !allowedProofKeys[k] {
+			defects = append(defects, fmt.Sprintf(
+				"%s: execution_proof.%s is not a permitted key (RKM03 closed key set)", path, k))
+		}
+	}
+	for _, k := range requiredProofKeys {
+		if _, present := proof[k]; !present {
+			defects = append(defects, fmt.Sprintf(
+				"%s: execution_proof.%s is required (RKM02)", path, k))
+		}
+	}
+	for _, k := range []string{"proof_sha256", "binds_sha256"} {
+		// Absence is already reported against requiredProofKeys.
+		switch v, state := fieldOf(proof, k); {
+		case state == fieldNotString:
+			defects = append(defects, fmt.Sprintf(
+				"%s: execution_proof.%s must be a string carrying a digest scalar", path, k))
+		case state == fieldString && !isMutationDigest(v):
+			defects = append(defects, fmt.Sprintf(
+				"%s: execution_proof.%s %q is not a digest scalar", path, k, v))
+		}
+	}
+	switch v, state := fieldOf(proof, "proof_locator"); {
+	case state == fieldNotString:
+		defects = append(defects, fmt.Sprintf(
+			"%s: execution_proof.proof_locator must be a string carrying a URI-shaped "+
+				"reference (RKM03)", path))
+	case state == fieldString && !isURIShaped(v):
+		defects = append(defects, fmt.Sprintf(
+			"%s: execution_proof.proof_locator %q must be a URI-shaped reference. A locator "+
+				"names where the proof can be fetched; it is not a place to inline the proof "+
+				"itself (RKM03)", path, v))
+	}
+
+	// RKM02 vocabulary membership, then RKM06 coherence. Membership is checked
+	// with no empty-string and no wrong-type escape: neither is a member of a
+	// closed vocabulary, and letting either skip the check accepted a proof
+	// declaring no scheme at all.
+	scheme, schemeOK := "", false
+	switch v, state := fieldOf(proof, "scheme"); state {
+	case fieldNotString:
+		defects = append(defects, fmt.Sprintf(
+			"%s: execution_proof.scheme must be a string drawn from the closed "+
+				"execution_proof_scheme vocabulary", path))
+	case fieldString:
+		if _, known := schemeFinality[v]; known {
+			scheme, schemeOK = v, true
+		} else {
+			defects = append(defects, fmt.Sprintf(
+				"%s: execution_proof.scheme %q is not in the closed execution_proof_scheme "+
+					"vocabulary", path, v))
+		}
+	}
+	finality, finalityOK := "", false
+	switch v, state := fieldOf(proof, "finality_basis"); state {
+	case fieldNotString:
+		defects = append(defects, fmt.Sprintf(
+			"%s: execution_proof.finality_basis must be a string drawn from the closed "+
+				"finality_basis vocabulary", path))
+	case fieldString:
+		if finalityValues[v] {
+			finality, finalityOK = v, true
+		} else {
+			defects = append(defects, fmt.Sprintf(
+				"%s: execution_proof.finality_basis %q is not in the closed finality_basis "+
+					"vocabulary", path, v))
+		}
+	}
+	if schemeOK && finalityOK {
+		allowed := schemeFinality[scheme]
+		okFinality := false
+		for _, a := range allowed {
+			if a == finality {
+				okFinality = true
+				break
+			}
+		}
+		if !okFinality {
+			defects = append(defects, fmt.Sprintf(
+				"%s: execution_proof scheme %q cannot claim finality_basis %q (RKM06); it "+
+					"carries evidence for %v only", path, scheme, finality, allowed))
+		}
+	}
+
+	// RKM04: the proof must bind THIS mutation, not merely exist.
+	//
+	// Skipped unless every bound field is a string. Computing the tuple over a
+	// non-string field would hash the empty string in its place and report a
+	// mismatch against a tuple no producer wrote, burying the type defect
+	// already reported above under a bogus RKM04 failure.
+	if mutation, has := tableOf(doc, "mutation"); has {
+		allBoundFieldsAreStrings := true
+		for _, f := range boundTupleFields {
+			if _, state := fieldOf(mutation, f[1]); state != fieldString {
+				allBoundFieldsAreStrings = false
+				break
+			}
+		}
+		declared, present := stringOf(proof, "binds_sha256")
+		if allBoundFieldsAreStrings && present && isMutationDigest(declared) {
+			expected := mutationBoundTuple(mutation)
+			if declared != expected {
+				defects = append(defects, fmt.Sprintf(
+					"%s: execution_proof.binds_sha256 %s does not equal the SPEC 12.8.2 bound "+
+						"tuple recomputed from this document (%s) (RKM04). The proof does not "+
+						"commit to this mutation", path, declared, expected))
+			}
+		}
+	}
+
+	return defects
 }
 
 func validateGateDecision(path string, doc rawDoc, repoRoot string) []string {

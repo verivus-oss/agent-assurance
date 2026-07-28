@@ -1,0 +1,11 @@
+# Defect-class assertion. Needles must DISCRIMINATE: a substring that another
+# case's output would also contain can bless the wrong defect class.
+#
+# "RKM06" alone would be weak for the same reason a bare "RKM02" was: the RKC02
+# diagnostic names RKM06 in its prose. The scheme-and-finality pair is what
+# only this case reports.
+error_contains = [
+  "provider-receipt",
+  "cannot claim finality_basis",
+  "ledger-final",
+]

@@ -81,5 +81,44 @@ artifacts, artifact id prefixes, unresolved placeholders in file claims, layer o
 coherence, and the recomputed `[computed]` claims (entry points,
 max_parallel, critical-path sum, and critical-path-is-longest-path).
 
+And: `state-mutation` (3 valid, 9 invalid) and `mutation-claim` (1
+valid, 2 invalid). Every case here is a regression from the four-round
+design review of those kinds, and every invalid one carries an
+`error_contains` sidecar, because the whole point of that review was
+that exit-code agreement is not enough: round 3 found a defect where all
+three implementations rejected and two reported the wrong reason.
+
+The invalid cases cover the RKM02 hollow proof, RKM04 unbound proof,
+RKM03 inlined payload, blank and wrong-typed vocabulary tokens, an
+impossible calendar date, a Unicode-digit timestamp, a required pin
+deleted, a malformed kind selector, and RKC02 in both TOML shapes a
+proof can take (a table and an array of tables, which is the shape that
+bypassed one primary entirely).
+
+The three `state-mutation/valid/` cases include two **regression
+guards** that are easy to mistake for oversights. SPEC §12 ratifies two
+escapes from conformance scope: a non-spec-reserved `template_kind`
+string, and no `template_kind` at all. Both are asserted here as
+MUST-ACCEPT, because two independent reviewers asked for them to be
+rejected and doing so would break behaviour the spec guarantees. Only a
+`template_kind` that is present and is *not a string* is malformed
+(SPEC §2.3), and that is `invalid/malformed-kind-selector.toml`.
+
 Wanted next: corpora for `traceability`, `review-readiness`,
 `kind-descriptor`, and `profile-descriptor`.
+
+## Adding a kind
+
+`PY_VALIDATORS` in `runner.py` maps a case directory to its Python
+reference validator. A directory with no entry is a hard failure rather
+than a silent skip, which is correct, but it means **adding a case
+directory without registering it turns CI red**. That happened once:
+`conformance/cases/state-mutation/` was added in one commit and
+registered four review rounds later. If the runner reports "no Python
+reference validator registered", that is the fix.
+
+The complementary hazard is now gone. The repo-wide positive closure
+sweep used to enumerate `conformance/cases/<kind>/invalid` exclusions by
+hand and went red twice for want of a new line;
+`validate_closure_root.py` now derives that skip from the path shape,
+matching what the Rust and Go discovery paths always did.
