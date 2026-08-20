@@ -76,9 +76,13 @@ declares per SPEC 12.8.1: `snapshot.request.descriptor_sha256`
 cascade therefore runs through the capture, both components, and the
 witness: change any captured byte, either declared component digest, or
 the witness attestation, and `closure_root` changes, and every
-downstream document that cited the old root cascade-breaks. Removing
-`[snapshot.witness]` removes its record and changes the expected root,
-so witness stripping is detectable at an anchored root.
+downstream document that cited the old root cascade-breaks. Dropping
+the witness removes its record and changes the expected root, so witness
+stripping is detectable at an anchored root. Since RKV03 also requires
+`present` to be declared, the only well-formed way to drop a witness is
+to assert `present = false` and remove the attestation, which is exactly
+the case the stream catches: the record disappears, the expected root
+moves, and a stale anchored root no longer reproduces.
 
 `descriptor_sha256` and `body_sha256` are digests of sub-parts of the
 same captured artefact. The SPEC 12.8.1 fold binds their DECLARED
@@ -143,6 +147,12 @@ ijb_primitive = "constraint"
 ijb_constraint_type = "structural"
 
 [[kind.required_fields]]
+path = "snapshot.witness.present"
+description = "Boolean. Whether an independent witness observed the interaction. REQUIRED, so that an unwitnessed capture must ASSERT its own absence of a witness rather than achieve it by deleting the table. See RKV03 for what that does and does not buy."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
 path = "provenance.source_sha256"
 ontology_mapping = "cites_upstream"
 description = "Digest of the whole captured artefact, as `sha256:<64 hex>` (the closure validator requires sha256 here). This is the SPEC 12.8 closure input for the kind (the field carrying the `cites_upstream` ontology mapping), folded into `closure_root` by validate_closure_root.py."
@@ -154,6 +164,7 @@ id = "RKV01"
 statement = "`closure_root` MUST equal the SPEC 12.8 stream over the four record forms for this kind: `provenance.source_sha256` (SPEC 12.8) plus the profile-pinned `snapshot.request.descriptor_sha256`, `snapshot.response.body_sha256`, and when-present `snapshot.witness.attestation_sha256` (SPEC 12.8.1), so it cascades when the capture, either declared component digest, or the witness attestation changes, and when the witness table is removed. The gate commits to the DECLARED digest values only. `snapshot.request.descriptor_sha256` and `snapshot.response.body_sha256` are REQUIRED to equal the digests of the corresponding sub-parts of the captured artefact, but that declared-value-vs-capture consistency is a PRODUCER obligation checked by validate_api_snapshot.py for captures in the profile's DAGTOML-API-CAPTURE/1 form (and a RUNTIME-SPEC obligation for foreign, producer-defined capture formats the validator cannot parse), NOT by the closure gate: a document whose `source_sha256` names artefact X while its declared sub-digests come from Y still yields a valid `closure_root` over those declared values, so a consumer MUST NOT read closure validity as proof of sub-part-vs-capture consistency."
 enforced_by = "validators/validate_closure_root.py"
 enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+enforcement_boundary = "Two layers, recorded rather than assumed. The CLOSURE half (the four-record stream) has always run in all three implementations. The SUB-PART half (recomputing the request-descriptor and response-body digests from a DAGTOML-API-CAPTURE/1 capture) ran in the Python reference alone until the primaries were ported; it now runs in all three. The two halves are independent: a document can be closure-VALID and sub-part INCONSISTENT, which is what conformance/cases/api-snapshot/invalid/subpart-descriptor-mismatch.toml pins. For a foreign, producer-defined capture format none of the three can parse, sub-part consistency remains a RUNTIME-SPEC producer obligation, exactly like re-fetching the URL."
 see_also = "spec.md §12.8, §12.8.1"
 ijb_primitive = "constraint"
 ijb_constraint_type = "structural"
@@ -162,14 +173,16 @@ ijb_constraint_type = "structural"
 id = "RKV02"
 statement = "No secret is inlined. Every significant request-header value is carried in the canonical request descriptor as a digest, never as a raw string, and `snapshot.request.descriptor_sha256` is the digest over that canonical descriptor. A document that inlines a raw `authorization` or `cookie` value, or ANY other raw header/payload field under `[snapshot.request]` / `[snapshot.response]` / `[snapshot.witness]` (each table admits only a closed set of digest-bearing keys), or writes a header value where a digest scalar is required, MUST be rejected. The canonical request-descriptor form is normatively defined by the request-descriptor canonicalization addendum."
 enforced_by = "validators/validate_api_snapshot.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
 see_also = "docs/profiles/com.verivus.runtime/request-descriptor-canonicalization.md"
 ijb_primitive = "constraint"
 ijb_constraint_type = "structural"
 
 [[kind.hard_invariants]]
 id = "RKV03"
-statement = "When `snapshot.witness.present = true`, ALL of `snapshot.witness.scheme` (drawn from the `witness_scheme` vocabulary), `snapshot.witness.attester_id`, and `snapshot.witness.attestation_sha256` MUST be present, and `snapshot.witness.observed` (drawn from `attester_observed`) bounds what the witness covers. When `present = false` the snapshot is producer-attested only and `scheme`, `attester_id`, `attestation_sha256`, and `observed` MUST be ABSENT: because the SPEC 12.8.1 closure keys on field presence, a lingering `attestation_sha256` at `present = false` would keep the witness record in the closure stream and make the downgrade invisible at the root. The attester MUST be independent of the producing agent; verifying that independence cryptographically is RUNTIME-SPEC."
+statement = "The `[snapshot.witness]` table MUST be present and MUST carry `present` as a boolean. A document that omits the table entirely is MALFORMED, not unwitnessed: the absence of a witness MUST be ASSERTED (`present = false`) and MUST NOT be achieved by deletion. What that buys is bounded and is stated here rather than overclaimed: it does NOT stop a producer who re-roots the document from simply writing `present = false`, because nothing computed from inside a document can. What it removes is the shape in which a STRIPPED document and an honestly unwitnessed one are indistinguishable, so a downgrade becomes a positive statement inside the closed content that an auditor and a policy engine can both see, rather than a silent omission. When `snapshot.witness.present = true`, ALL of `snapshot.witness.scheme` (drawn from the `witness_scheme` vocabulary), `snapshot.witness.attester_id`, and `snapshot.witness.attestation_sha256` MUST be present, and `snapshot.witness.observed` (drawn from `attester_observed`) bounds what the witness covers. When `present = false` the snapshot is producer-attested only and `scheme`, `attester_id`, `attestation_sha256`, and `observed` MUST be ABSENT: because the SPEC 12.8.1 closure keys on field presence, a lingering `attestation_sha256` at `present = false` would keep the witness record in the closure stream and make the downgrade invisible at the root. The attester MUST be independent of the producing agent; verifying that independence cryptographically is RUNTIME-SPEC."
 enforced_by = "validators/validate_api_snapshot.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
 see_also = "profiles/com.verivus.runtime/ontology.toml [[attribute_vocabularies]]"
 ijb_primitive = "constraint"
 ijb_constraint_type = "structural"

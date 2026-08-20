@@ -47,7 +47,7 @@ mod cli {
         Meta,
         /// Force gate-decision INV01..INV06 validation.
         GateDecision,
-    MutationKinds,
+        MutationKinds,
         /// Force kind-descriptor structural validation.
         KindDescriptor,
         /// Force IJB conformance validation.
@@ -66,11 +66,13 @@ mod cli {
         RollbackPlan,
         /// Force SPEC §13 abstraction_class/capability_envelope validation.
         AbstractionClass,
+        /// Force api-snapshot kind-layer validation (RKV01/RKV02/RKV03).
+        ApiSnapshot,
     }
 
     pub fn print_usage() {
         eprintln!(
-            "usage: dagtoml-validate-rs --repo-root <path> [--mode auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class] <file.toml> ..."
+            "usage: dagtoml-validate-rs --repo-root <path> [--mode auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class|mutation-kinds|api-snapshot] <file.toml> ..."
         );
     }
 
@@ -95,7 +97,8 @@ mod cli {
                     Some("provenance") => mode = Mode::Provenance,
                     Some("meta") => mode = Mode::Meta,
                     Some("gate-decision") => mode = Mode::GateDecision,
-            Some("mutation-kinds") => mode = Mode::MutationKinds,
+                    Some("mutation-kinds") => mode = Mode::MutationKinds,
+                    Some("api-snapshot") => mode = Mode::ApiSnapshot,
                     Some("kind-descriptor") => mode = Mode::KindDescriptor,
                     Some("ijb") => mode = Mode::Ijb,
                     Some("provenance-binding") => mode = Mode::ProvenanceBinding,
@@ -107,7 +110,7 @@ mod cli {
                     Some("abstraction-class") => mode = Mode::AbstractionClass,
                     other => {
                         eprintln!(
-                            "error: --mode value must be auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class (got {:?})",
+                            "error: --mode value must be auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class|mutation-kinds|api-snapshot (got {:?})",
                             other
                         );
                         return Err(ExitCode::from(2));
@@ -3770,8 +3773,12 @@ mod mutation_kinds {
         if !(digits(0..4) && shape(4, b'-') && digits(5..7) && shape(7, b'-') && digits(8..10)) {
             return false;
         }
-        if !(shape(10, b'T') && digits(11..13) && shape(13, b':') && digits(14..16)
-            && shape(16, b':') && digits(17..19))
+        if !(shape(10, b'T')
+            && digits(11..13)
+            && shape(13, b':')
+            && digits(14..16)
+            && shape(16, b':')
+            && digits(17..19))
         {
             return false;
         }
@@ -3788,7 +3795,8 @@ mod mutation_kinds {
             return false;
         }
         let num = |r: std::ops::Range<usize>| -> u32 {
-            b[r].iter().fold(0u32, |acc, &c| acc * 10 + u32::from(c - b'0'))
+            b[r].iter()
+                .fold(0u32, |acc, &c| acc * 10 + u32::from(c - b'0'))
         };
         let (year, month, day) = (num(0..4), num(5..7), num(8..10));
         let (hour, minute, second) = (num(11..13), num(14..16), num(17..19));
@@ -3886,11 +3894,7 @@ mod mutation_kinds {
         format!("sha256:{}", super::digest_hex("sha256", &stream))
     }
 
-    fn check_mutation_table(
-        doc: &Value,
-        location: &std::path::Display,
-        defects: &mut Vec<String>,
-    ) {
+    fn check_mutation_table(doc: &Value, location: &std::path::Display, defects: &mut Vec<String>) {
         let mutation = doc.get("mutation").and_then(|x| x.as_table());
         let Some(mutation) = mutation else {
             if doc.get("mutation").is_some() {
@@ -3953,9 +3957,7 @@ mod mutation_kinds {
             Field::NotString => {
                 defects.push(format!("{}: mutation.operation must be a string", location))
             }
-            Field::Absent => {
-                defects.push(format!("{}: mutation.operation is required", location))
-            }
+            Field::Absent => defects.push(format!("{}: mutation.operation is required", location)),
         }
         match field(mutation, "target_id") {
             Field::Str(v) if is_uri_shaped(v) => {}
@@ -3967,9 +3969,7 @@ mod mutation_kinds {
             Field::NotString => {
                 defects.push(format!("{}: mutation.target_id must be a string", location))
             }
-            Field::Absent => {
-                defects.push(format!("{}: mutation.target_id is required", location))
-            }
+            Field::Absent => defects.push(format!("{}: mutation.target_id is required", location)),
         }
         match doc.get("provenance").and_then(|x| x.as_table()) {
             None => defects.push(format!(
@@ -4167,6 +4167,489 @@ mod mutation_kinds {
                 }
             }
         }
+
+        defects
+    }
+}
+
+/// Kind-layer invariants for the `com.verivus.runtime` api-snapshot kind.
+///
+/// Ported from `validators/validate_api_snapshot.py` to close the last
+/// declared primary-parity gap. Before this port the primaries carried the
+/// shared meta/provenance/IJB/closure surface for an api-snapshot and nothing
+/// else, so RKV01, RKV02 and RKV03 ran in the Python reference alone: a
+/// primary-only consumer accepted an inlined `authorization` header, an
+/// incomplete witness block, and a descriptor digest that did not match the
+/// capture it claimed to summarise.
+///
+/// The closed vocabularies are compiled in, mirroring
+/// `profiles/com.verivus.runtime/ontology.toml`, exactly as the Python
+/// reference hardcodes them. Drift between either copy and the ontology is
+/// caught by `validate_ijb_conformance.py` on the ontology itself.
+mod api_snapshot {
+    use super::*;
+
+    const WITNESS_SCHEMES: [&str; 3] = ["tls-notary", "provider-signature", "tee-quote"];
+    const ATTESTER_OBSERVED: [&str; 3] = ["request", "response", "both"];
+
+    /// Closed key sets per table. Any other key inlines a raw payload or
+    /// header value, which RKV02 forbids: the document carries only digests.
+    const ALLOWED_SNAPSHOT_KEYS: [&str; 5] =
+        ["captured_at", "source_id", "request", "response", "witness"];
+    const ALLOWED_REQUEST_KEYS: [&str; 5] = [
+        "method",
+        "url",
+        "significant_headers",
+        "descriptor_sha256",
+        "auth_context",
+    ];
+    const ALLOWED_RESPONSE_KEYS: [&str; 2] = ["status", "body_sha256"];
+    const ALLOWED_WITNESS_KEYS: [&str; 5] = [
+        "present",
+        "scheme",
+        "observed",
+        "attester_id",
+        "attestation_sha256",
+    ];
+
+    /// Header names that carry credentials or session material. The closed key
+    /// sets already reject them; naming them earns a secret-specific message
+    /// so the producer is told what they leaked, not merely that a key was
+    /// unexpected.
+    const SECRET_HEADER_NAMES: [&str; 10] = [
+        "authorization",
+        "proxy-authorization",
+        "cookie",
+        "set-cookie",
+        "x-api-key",
+        "api-key",
+        "apikey",
+        "x-auth-token",
+        "x-amz-security-token",
+        "authentication",
+    ];
+
+    const CAPTURE_MAGIC: &[u8] = b"DAGTOML-API-CAPTURE/1\n";
+
+    fn is_digest(s: &str) -> bool {
+        for (prefix, len) in [("sha256:", 64usize), ("sha384:", 96), ("sha512:", 128)] {
+            if let Some(hex) = s.strip_prefix(prefix) {
+                return hex.len() == len
+                    && hex
+                        .chars()
+                        .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c));
+            }
+        }
+        false
+    }
+
+    fn digest_field(t: &toml::map::Map<String, Value>, key: &str) -> bool {
+        t.get(key).and_then(|v| v.as_str()).is_some_and(is_digest)
+    }
+
+    fn non_empty_str(t: &toml::map::Map<String, Value>, key: &str) -> bool {
+        t.get(key)
+            .and_then(|v| v.as_str())
+            .is_some_and(|s| !s.trim().is_empty())
+    }
+
+    /// A bare lowercase header NAME: `[a-z0-9][a-z0-9-]*`. A ':' or any
+    /// whitespace means a header VALUE was inlined (RKV02).
+    fn is_header_name(s: &str) -> bool {
+        let b = s.as_bytes();
+        if b.is_empty() {
+            return false;
+        }
+        if !(b[0].is_ascii_lowercase() || b[0].is_ascii_digit()) {
+            return false;
+        }
+        b.iter()
+            .all(|&c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')
+    }
+
+    fn check_keys(
+        t: &toml::map::Map<String, Value>,
+        allowed: &[&str],
+        dotted: &str,
+        location: &std::path::Display,
+        defects: &mut Vec<String>,
+    ) {
+        for key in t.keys() {
+            if allowed.contains(&key.as_str()) {
+                continue;
+            }
+            let lowered = key.to_ascii_lowercase();
+            if SECRET_HEADER_NAMES.contains(&lowered.as_str()) {
+                defects.push(format!(
+                    "{}: {}.{} inlines a secret-bearing header; RKV02 forbids raw header \
+                     values, pin them via the canonical request descriptor digest instead",
+                    location, dotted, key
+                ));
+            } else {
+                defects.push(format!(
+                    "{}: {}.{} is not an allowed field; a raw header/payload value MUST NOT \
+                     be inlined, the document carries only digests (RKV02)",
+                    location, dotted, key
+                ));
+            }
+        }
+    }
+
+    /// RKV01 sub-part consistency for the profile's `DAGTOML-API-CAPTURE/1`
+    /// capture form.
+    ///
+    /// A capture in a foreign, producer-defined format cannot be parsed here,
+    /// so sub-part consistency for it is a RUNTIME-SPEC producer obligation,
+    /// exactly like re-fetching the URL. A capture that DECLARES this form by
+    /// carrying the magic and then lacks its section markers is malformed and
+    /// fails CLOSED: a magic header with missing markers must never let an
+    /// arbitrary descriptor_sha256 or body_sha256 through.
+    fn verify_subparts(
+        doc: &Value,
+        repo_root: &Path,
+        location: &std::path::Display,
+        defects: &mut Vec<String>,
+    ) {
+        let Some(provenance) = doc.get("provenance").and_then(|x| x.as_table()) else {
+            return;
+        };
+        let Some(source_path) = provenance.get("source_path").and_then(|v| v.as_str()) else {
+            return;
+        };
+        if source_path.trim().is_empty() || Path::new(source_path).is_absolute() {
+            // Absent or absolute: validate_provenance owns that binding.
+            return;
+        }
+        let capture = repo_root.join(source_path);
+        if !capture.is_file() {
+            // Missing: validate_provenance reports it.
+            return;
+        }
+        let Ok(data) = std::fs::read(&capture) else {
+            return;
+        };
+        if !data.starts_with(CAPTURE_MAGIC) {
+            // Foreign capture format: sub-part consistency is RUNTIME-SPEC.
+            return;
+        }
+
+        let snapshot = doc.get("snapshot").and_then(|x| x.as_table());
+        let request = snapshot
+            .and_then(|s| s.get("request"))
+            .and_then(|x| x.as_table());
+        let response = snapshot
+            .and_then(|s| s.get("response"))
+            .and_then(|x| x.as_table());
+
+        let dmark: &[u8] = b"request-descriptor:\n";
+        let smark: &[u8] = b"response-status:";
+        let bmark: &[u8] = b"response-body:\n";
+
+        // Both markers must appear SOMEWHERE, then the descriptor sub-part is
+        // everything after the first `request-descriptor:` up to the first
+        // `response-status:` that follows it. This mirrors the reference's
+        // `data.split(dmark, 1)[1].split(smark, 1)[0]` exactly, including the
+        // case where the only `response-status:` precedes the descriptor
+        // marker: the reference then takes the whole remainder, so this does
+        // too. Diverging here would be a parity gap on a malformed capture.
+        match (find(&data, dmark), find(&data, smark)) {
+            (Some(d), Some(_)) => {
+                let after = &data[d + dmark.len()..];
+                let end = find(after, smark).unwrap_or(after.len());
+                let actual = format!("sha256:{}", super::digest_hex("sha256", &after[..end]));
+                let declared = request
+                    .and_then(|r| r.get("descriptor_sha256"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                if declared != actual {
+                    defects.push(format!(
+                        "{}: snapshot.request.descriptor_sha256 {:?} does not equal the SHA-256 \
+                         of the request-descriptor sub-part of the capture ({}) (RKV01 sub-part \
+                         consistency)",
+                        location, declared, actual
+                    ));
+                }
+            }
+            _ => defects.push(malformed_capture(
+                location,
+                source_path,
+                "'request-descriptor:' / 'response-status:'",
+                "snapshot.request.descriptor_sha256",
+            )),
+        }
+
+        match find(&data, bmark) {
+            Some(b) => {
+                let body = &data[b + bmark.len()..];
+                let actual = format!("sha256:{}", super::digest_hex("sha256", body));
+                let declared = response
+                    .and_then(|r| r.get("body_sha256"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                if declared != actual {
+                    defects.push(format!(
+                        "{}: snapshot.response.body_sha256 {:?} does not equal the SHA-256 of \
+                         the response-body sub-part of the capture ({}) (RKV01 sub-part \
+                         consistency)",
+                        location, declared, actual
+                    ));
+                }
+            }
+            None => defects.push(malformed_capture(
+                location,
+                source_path,
+                "'response-body:'",
+                "snapshot.response.body_sha256",
+            )),
+        }
+    }
+
+    fn malformed_capture(
+        location: &std::path::Display,
+        source_path: &str,
+        markers: &str,
+        field: &str,
+    ) -> String {
+        format!(
+            "{}: capture {:?} carries the DAGTOML-API-CAPTURE/1 magic but lacks the {} section \
+             markers; {} cannot be verified (malformed capture) (RKV01 sub-part consistency)",
+            location, source_path, markers, field
+        )
+    }
+
+    /// First index of `needle` in `haystack`. No regex or memchr dependency by
+    /// crate policy, and the captures this runs over are small.
+    fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+        if needle.is_empty() || haystack.len() < needle.len() {
+            return None;
+        }
+        haystack
+            .windows(needle.len())
+            .position(|window| window == needle)
+    }
+
+    pub fn validate(path: &Path, doc: &Value, repo_root: &Path) -> Vec<String> {
+        let mut defects = Vec::new();
+        let location = path.display();
+        let tk = doc
+            .get("meta")
+            .and_then(|x| x.as_table())
+            .and_then(|m| m.get("template_kind"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("");
+        if tk != "api-snapshot" {
+            return defects;
+        }
+
+        let Some(snapshot) = doc.get("snapshot").and_then(|x| x.as_table()) else {
+            defects.push(format!(
+                "{}: [snapshot] table is required for an api-snapshot",
+                location
+            ));
+            return defects;
+        };
+
+        // RKV02: closed key sets, so a raw header or payload has no field to
+        // live in.
+        check_keys(
+            snapshot,
+            &ALLOWED_SNAPSHOT_KEYS,
+            "snapshot",
+            &location,
+            &mut defects,
+        );
+
+        if !non_empty_str(snapshot, "captured_at") {
+            defects.push(format!(
+                "{}: snapshot.captured_at is required (RFC3339 string)",
+                location
+            ));
+        }
+        if !non_empty_str(snapshot, "source_id") {
+            defects.push(format!(
+                "{}: snapshot.source_id is required (string)",
+                location
+            ));
+        }
+
+        let request = snapshot.get("request").and_then(|x| x.as_table());
+        match request {
+            None => defects.push(format!(
+                "{}: [snapshot.request] table is required",
+                location
+            )),
+            Some(request) => {
+                check_keys(
+                    request,
+                    &ALLOWED_REQUEST_KEYS,
+                    "snapshot.request",
+                    &location,
+                    &mut defects,
+                );
+                if request.get("method").and_then(|v| v.as_str()).is_none() {
+                    defects.push(format!(
+                        "{}: snapshot.request.method is required (string)",
+                        location
+                    ));
+                }
+                if !digest_field(request, "descriptor_sha256") {
+                    defects.push(format!(
+                        "{}: snapshot.request.descriptor_sha256 must be a digest scalar \
+                         (<algo>:<hex>) (RKV02: header values are carried in the canonical \
+                         descriptor as digests)",
+                        location
+                    ));
+                }
+            }
+        }
+
+        match snapshot.get("response").and_then(|x| x.as_table()) {
+            None => defects.push(format!(
+                "{}: [snapshot.response] table is required",
+                location
+            )),
+            Some(response) => {
+                check_keys(
+                    response,
+                    &ALLOWED_RESPONSE_KEYS,
+                    "snapshot.response",
+                    &location,
+                    &mut defects,
+                );
+                if !digest_field(response, "body_sha256") {
+                    defects.push(format!(
+                        "{}: snapshot.response.body_sha256 must be a digest scalar (<algo>:<hex>)",
+                        location
+                    ));
+                }
+            }
+        }
+
+        // significant_headers carries header NAMES only. A ':' or whitespace
+        // in an entry means a header VALUE was inlined.
+        if let Some(request) = request {
+            if let Some(sig) = request.get("significant_headers") {
+                match sig.as_array() {
+                    None => defects.push(format!(
+                        "{}: snapshot.request.significant_headers must be an array of \
+                         header-name strings",
+                        location
+                    )),
+                    Some(entries) => {
+                        for entry in entries {
+                            let ok = entry.as_str().is_some_and(is_header_name);
+                            if !ok {
+                                defects.push(format!(
+                                    "{}: snapshot.request.significant_headers entry {} must be a \
+                                     bare lowercase header name; a ':' or whitespace means a \
+                                     header VALUE was inlined (RKV02)",
+                                    location,
+                                    entry.as_str().map_or_else(
+                                        || format!("{:?}", entry),
+                                        |s| format!("{:?}", s)
+                                    )
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // RKV03: the witness conditional.
+        //
+        // The table is REQUIRED. An unwitnessed capture asserts `present =
+        // false`; it does not delete the block. That does not stop a producer
+        // who re-roots the document from writing `present = false` (nothing
+        // computed from inside a document can), but it removes the shape in
+        // which a stripped document and an honestly unwitnessed one are
+        // indistinguishable.
+        match snapshot.get("witness") {
+            None => defects.push(format!(
+                "{}: missing required `[snapshot.witness]` table (RKV03). An unwitnessed \
+                 capture MUST assert `present = false`; the absence of a witness MUST NOT \
+                 be achieved by deleting the table",
+                location
+            )),
+            Some(v) if v.as_table().is_none() => defects.push(format!(
+                "{}: `snapshot.witness` is present but is not a table (RKV03)",
+                location
+            )),
+            Some(_) => {}
+        }
+        if let Some(witness) = snapshot.get("witness").and_then(|x| x.as_table()) {
+            check_keys(
+                witness,
+                &ALLOWED_WITNESS_KEYS,
+                "snapshot.witness",
+                &location,
+                &mut defects,
+            );
+            match witness.get("present").and_then(|v| v.as_bool()) {
+                None => defects.push(format!(
+                    "{}: snapshot.witness.present must be a boolean",
+                    location
+                )),
+                Some(true) => {
+                    let scheme = witness.get("scheme").and_then(|v| v.as_str()).unwrap_or("");
+                    if !WITNESS_SCHEMES.contains(&scheme) {
+                        defects.push(format!(
+                            "{}: snapshot.witness.scheme must be one of {:?} when present=true \
+                             (RKV03)",
+                            location, WITNESS_SCHEMES
+                        ));
+                    }
+                    if !non_empty_str(witness, "attester_id") {
+                        defects.push(format!(
+                            "{}: snapshot.witness.attester_id is required when present=true \
+                             (RKV03)",
+                            location
+                        ));
+                    }
+                    if !digest_field(witness, "attestation_sha256") {
+                        defects.push(format!(
+                            "{}: snapshot.witness.attestation_sha256 must be a digest scalar \
+                             when present=true (RKV03)",
+                            location
+                        ));
+                    }
+                    let observed = witness
+                        .get("observed")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if !ATTESTER_OBSERVED.contains(&observed) {
+                        defects.push(format!(
+                            "{}: snapshot.witness.observed must be one of {:?} when present=true \
+                             (RKV03)",
+                            location, ATTESTER_OBSERVED
+                        ));
+                    }
+                }
+                Some(false) => {
+                    // Amended RKV03: SPEC 12.8.1 keys the closure on field
+                    // PRESENCE, so a lingering witness digest under
+                    // present=false would make the downgrade invisible at the
+                    // closure root.
+                    let lingering: Vec<&str> =
+                        ["scheme", "attester_id", "attestation_sha256", "observed"]
+                            .into_iter()
+                            .filter(|key| witness.contains_key(*key))
+                            .collect();
+                    if !lingering.is_empty() {
+                        defects.push(format!(
+                            "{}: snapshot.witness fields {:?} MUST be absent when present=false \
+                             (amended RKV03: the SPEC 12.8.1 closure keys on field presence, so \
+                             a lingering witness digest would make the downgrade invisible at \
+                             the closure root)",
+                            location, lingering
+                        ));
+                    }
+                }
+            }
+        }
+
+        // RKV01: sub-part consistency against the capture.
+        verify_subparts(doc, repo_root, &location, &mut defects);
 
         defects
     }
@@ -5211,6 +5694,10 @@ fn main() -> ExitCode {
                     errs.extend(mutation_kinds::validate(path, &doc, &repo_root));
                     errs.extend(ijb::validate(path, &doc, &repo_root));
                 }
+                "api-snapshot" => {
+                    errs.extend(api_snapshot::validate(path, &doc, &repo_root));
+                    errs.extend(ijb::validate(path, &doc, &repo_root));
+                }
                 "" => {}
                 _ => {
                     errs.extend(ijb::validate(path, &doc, &repo_root));
@@ -5227,6 +5714,9 @@ fn main() -> ExitCode {
             }
             cli::Mode::MutationKinds => {
                 errs.extend(mutation_kinds::validate(path, &doc, &repo_root));
+            }
+            cli::Mode::ApiSnapshot => {
+                errs.extend(api_snapshot::validate(path, &doc, &repo_root));
             }
             cli::Mode::KindDescriptor => {
                 errs.extend(kind_descriptor::validate(

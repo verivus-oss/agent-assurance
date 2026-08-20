@@ -1,0 +1,38 @@
+# NEGATIVE (RKM03 value grammar: a C1 control character in target_id).
+#
+# U+0081 sits in Unicode category Cc but OUTSIDE the C0 range, so a character
+# class written `[^\s\x00-\x1f\x7f]` lets it through while
+# `char::is_control()` and `unicode.IsControl` reject it. That was a live
+# three-way divergence: the Python reference accepted this document and both
+# primaries rejected it, on a field that is a member of the RKM04 bound tuple.
+#
+# Deliberately bound and re-rooted: binds_sha256 folds the real target_id
+# bytes and the closure root folds the real pins, so RKM04 and the closure
+# layer both stay silent and the grammar is the only thing objecting.
+closure_root = "sha256:d1e39170e51cf654e177b33ffb7bc08d31dd0dc95ca4c9ea59a0d6cb337d7d07"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "state-mutation"
+framework_profile = "com.verivus.runtime"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "examples/captures/2026-07-26T101500Z-ac4417-debit.capture"
+source_sha256 = "sha256:0a10577329b53feadb5a4d5f009cbc5ebf1c40a5ff86b55254a9d489b8b2e765"
+source_bytes = 416
+
+[mutation]
+performed_at = "2026-07-26T10:15:00.412Z"
+target_id = "https://ledger.example/v1/accounts/AC-4417\u0081"
+operation = "debit"
+authorization_sha256 = "sha256:218c6bd3c6a2386de7461fe24fe5b2bca1adbd92d5ddd67c0bdbeb7bfbd04a41"
+effect_sha256 = "sha256:7c9d12b09521dd2cbb0403916a82c800148976e990236436cb9216187e3aa792"
+
+[execution_proof]
+scheme = "ledger-transaction"
+finality_basis = "ledger-confirmed"
+proof_sha256 = "sha256:a5255188d6a0efd927a7bca54ac504bd3f1908fe76e75b6be3e50568d7bc38ba"
+binds_sha256 = "sha256:12882f3821cb86382d434b79fd467ea007fc67aa8514101a57c5c58f20c79613"
+proof_locator = "eip155:1/tx/0x9f2c00000000000000000000000000000000000000000000000000000000"

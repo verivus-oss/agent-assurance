@@ -9,6 +9,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
@@ -162,6 +163,7 @@ const (
 	modeMeta
 	modeGateDecision
 	modeMutationKinds
+	modeAPISnapshot
 	modeKindDescriptor
 	modeIJB
 	modeProvenanceBinding
@@ -189,6 +191,8 @@ func parseMode(s string) (mode, error) {
 		return modeGateDecision, nil
 	case "mutation-kinds":
 		return modeMutationKinds, nil
+	case "api-snapshot":
+		return modeAPISnapshot, nil
 	case "kind-descriptor":
 		return modeKindDescriptor, nil
 	case "ijb":
@@ -208,7 +212,7 @@ func parseMode(s string) (mode, error) {
 	case "abstraction-class":
 		return modeAbstractionClass, nil
 	}
-	return modeAuto, fmt.Errorf("invalid mode %q (want auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class)", s)
+	return modeAuto, fmt.Errorf("invalid mode %q (want auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class|mutation-kinds|api-snapshot)", s)
 }
 
 // ----------------------------------------------------------------------------
@@ -3454,7 +3458,7 @@ func main() {
 		modeStr  string
 	)
 	flag.StringVar(&repoRoot, "repo-root", "", "Repository root (required)")
-	flag.StringVar(&modeStr, "mode", "auto", "Validation mode (auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class)")
+	flag.StringVar(&modeStr, "mode", "auto", "Validation mode (auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class|mutation-kinds|api-snapshot)")
 	flag.Parse()
 
 	if repoRoot == "" {
@@ -3549,6 +3553,9 @@ func main() {
 			case "state-mutation", "mutation-claim":
 				errs = append(errs, validateMutationKinds(path, doc, root)...)
 				errs = append(errs, validateIJB(path, doc, root)...)
+			case "api-snapshot":
+				errs = append(errs, validateAPISnapshot(path, doc, root)...)
+				errs = append(errs, validateIJB(path, doc, root)...)
 			case "":
 			default:
 				errs = append(errs, validateIJB(path, doc, root)...)
@@ -3561,6 +3568,8 @@ func main() {
 			errs = append(errs, validateGateDecision(path, doc, root)...)
 		case modeMutationKinds:
 			errs = append(errs, validateMutationKinds(path, doc, root)...)
+		case modeAPISnapshot:
+			errs = append(errs, validateAPISnapshot(path, doc, root)...)
 		case modeKindDescriptor:
 			errs = append(errs, validateKindDescriptor(path, doc, root, true)...)
 			errs = append(errs, validateAbstractionClass(path, doc, root)...)
@@ -4131,6 +4140,377 @@ func validateMutationKinds(path string, doc rawDoc, repoRoot string) []string {
 	}
 
 	return defects
+}
+
+// Kind-layer invariants for the com.verivus.runtime api-snapshot kind.
+//
+// Ported from validators/validate_api_snapshot.py to close the last declared
+// primary-parity gap. Before this port the primaries carried the shared
+// meta/provenance/IJB/closure surface for an api-snapshot and nothing else, so
+// RKV01, RKV02 and RKV03 ran in the Python reference alone: a primary-only
+// consumer accepted an inlined `authorization` header, an incomplete witness
+// block, and a descriptor digest that did not match the capture it claimed to
+// summarise.
+//
+// The closed vocabularies are compiled in, mirroring
+// profiles/com.verivus.runtime/ontology.toml, exactly as the Python reference
+// hardcodes them. Drift between either copy and the ontology is caught by
+// validate_ijb_conformance.py on the ontology itself.
+
+var witnessSchemes = []string{"tls-notary", "provider-signature", "tee-quote"}
+
+var attesterObserved = []string{"request", "response", "both"}
+
+// Closed key sets per table. Any other key inlines a raw payload or header
+// value, which RKV02 forbids: the document carries only digests.
+var allowedSnapshotKeys = map[string]bool{
+	"captured_at": true, "source_id": true, "request": true,
+	"response": true, "witness": true,
+}
+
+var allowedRequestKeys = map[string]bool{
+	"method": true, "url": true, "significant_headers": true,
+	"descriptor_sha256": true, "auth_context": true,
+}
+
+var allowedResponseKeys = map[string]bool{
+	"status": true, "body_sha256": true,
+}
+
+var allowedWitnessKeys = map[string]bool{
+	"present": true, "scheme": true, "observed": true,
+	"attester_id": true, "attestation_sha256": true,
+}
+
+// secretHeaderNames carry credentials or session material. The closed key sets
+// already reject them; naming them earns a secret-specific message so the
+// producer is told what they leaked, not merely that a key was unexpected.
+var secretHeaderNames = map[string]bool{
+	"authorization": true, "proxy-authorization": true, "cookie": true,
+	"set-cookie": true, "x-api-key": true, "api-key": true, "apikey": true,
+	"x-auth-token": true, "x-amz-security-token": true, "authentication": true,
+}
+
+var captureMagic = []byte("DAGTOML-API-CAPTURE/1\n")
+
+func isSnapshotDigest(s string) bool {
+	for _, p := range [][2]any{{"sha256:", 64}, {"sha384:", 96}, {"sha512:", 128}} {
+		prefix := p[0].(string)
+		n := p[1].(int)
+		if strings.HasPrefix(s, prefix) {
+			hexPart := s[len(prefix):]
+			if len(hexPart) != n {
+				return false
+			}
+			for _, c := range hexPart {
+				if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+					return false
+				}
+			}
+			return true
+		}
+	}
+	return false
+}
+
+func snapshotDigestField(t map[string]any, key string) bool {
+	v, ok := stringOf(t, key)
+	return ok && isSnapshotDigest(v)
+}
+
+func snapshotNonEmpty(t map[string]any, key string) bool {
+	v, ok := stringOf(t, key)
+	return ok && strings.TrimSpace(v) != ""
+}
+
+// isHeaderName accepts a bare lowercase header NAME, [a-z0-9][a-z0-9-]*. A
+// ':' or any whitespace means a header VALUE was inlined (RKV02).
+func isHeaderName(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	if !((s[0] >= 'a' && s[0] <= 'z') || (s[0] >= '0' && s[0] <= '9')) {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') {
+			return false
+		}
+	}
+	return true
+}
+
+func checkSnapshotKeys(t map[string]any, allowed map[string]bool, dotted, path string, defects *[]string) {
+	keys := make([]string, 0, len(t))
+	for k := range t {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		if allowed[k] {
+			continue
+		}
+		if secretHeaderNames[strings.ToLower(k)] {
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: %s.%s inlines a secret-bearing header; RKV02 forbids raw header "+
+					"values, pin them via the canonical request descriptor digest instead",
+				path, dotted, k))
+		} else {
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: %s.%s is not an allowed field; a raw header/payload value MUST NOT "+
+					"be inlined, the document carries only digests (RKV02)",
+				path, dotted, k))
+		}
+	}
+}
+
+func malformedCapture(path, sourcePath, markers, field string) string {
+	return fmt.Sprintf(
+		"%s: capture %q carries the DAGTOML-API-CAPTURE/1 magic but lacks the %s section "+
+			"markers; %s cannot be verified (malformed capture) (RKV01 sub-part consistency)",
+		path, sourcePath, markers, field)
+}
+
+// verifySubparts is RKV01 sub-part consistency for the profile's
+// DAGTOML-API-CAPTURE/1 capture form.
+//
+// A capture in a foreign, producer-defined format cannot be parsed here, so
+// sub-part consistency for it is a RUNTIME-SPEC producer obligation, exactly
+// like re-fetching the URL. A capture that DECLARES this form by carrying the
+// magic and then lacks its section markers is malformed and fails CLOSED: a
+// magic header with missing markers must never let an arbitrary
+// descriptor_sha256 or body_sha256 through.
+func verifySubparts(path string, doc rawDoc, repoRoot string, defects *[]string) {
+	provenance, ok := tableOf(doc, "provenance")
+	if !ok {
+		return
+	}
+	sourcePath, ok := stringOf(provenance, "source_path")
+	if !ok || strings.TrimSpace(sourcePath) == "" || filepath.IsAbs(sourcePath) {
+		// Absent or absolute: validateProvenance owns that binding.
+		return
+	}
+	capture := filepath.Join(repoRoot, sourcePath)
+	info, err := os.Stat(capture)
+	if err != nil || info.IsDir() {
+		// Missing: validateProvenance reports it.
+		return
+	}
+	data, err := os.ReadFile(capture) // #nosec G304 -- repo-relative capture named by the document under review
+	if err != nil {
+		return
+	}
+	if !bytes.HasPrefix(data, captureMagic) {
+		// Foreign capture format: sub-part consistency is RUNTIME-SPEC.
+		return
+	}
+
+	snapshot, _ := tableOf(doc, "snapshot")
+	request, _ := tableOf(snapshot, "request")
+	response, _ := tableOf(snapshot, "response")
+
+	dmark := []byte("request-descriptor:\n")
+	smark := []byte("response-status:")
+	bmark := []byte("response-body:\n")
+
+	// Both markers must appear SOMEWHERE, then the descriptor sub-part is
+	// everything after the first `request-descriptor:` up to the first
+	// `response-status:` that follows it. This mirrors the reference's
+	// data.split(dmark, 1)[1].split(smark, 1)[0] exactly, including the case
+	// where the only `response-status:` precedes the descriptor marker: the
+	// reference then takes the whole remainder, so this does too. Diverging
+	// here would be a parity gap on a malformed capture.
+	d := bytes.Index(data, dmark)
+	if d < 0 || bytes.Index(data, smark) < 0 {
+		*defects = append(*defects, malformedCapture(path, sourcePath,
+			"'request-descriptor:' / 'response-status:'", "snapshot.request.descriptor_sha256"))
+	} else {
+		after := data[d+len(dmark):]
+		end := bytes.Index(after, smark)
+		if end < 0 {
+			end = len(after)
+		}
+		sum := sha256.Sum256(after[:end])
+		actual := "sha256:" + hex.EncodeToString(sum[:])
+		declared, _ := stringOf(request, "descriptor_sha256")
+		if declared != actual {
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: snapshot.request.descriptor_sha256 %q does not equal the SHA-256 of the "+
+					"request-descriptor sub-part of the capture (%s) (RKV01 sub-part consistency)",
+				path, declared, actual))
+		}
+	}
+
+	b := bytes.Index(data, bmark)
+	if b < 0 {
+		*defects = append(*defects, malformedCapture(path, sourcePath,
+			"'response-body:'", "snapshot.response.body_sha256"))
+	} else {
+		sum := sha256.Sum256(data[b+len(bmark):])
+		actual := "sha256:" + hex.EncodeToString(sum[:])
+		declared, _ := stringOf(response, "body_sha256")
+		if declared != actual {
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: snapshot.response.body_sha256 %q does not equal the SHA-256 of the "+
+					"response-body sub-part of the capture (%s) (RKV01 sub-part consistency)",
+				path, declared, actual))
+		}
+	}
+}
+
+func validateAPISnapshot(path string, doc rawDoc, repoRoot string) []string {
+	var defects []string
+
+	meta, _ := tableOf(doc, "meta")
+	if tk, _ := stringOf(meta, "template_kind"); tk != "api-snapshot" {
+		return defects
+	}
+
+	snapshot, ok := tableOf(doc, "snapshot")
+	if !ok {
+		return []string{fmt.Sprintf("%s: [snapshot] table is required for an api-snapshot", path)}
+	}
+
+	// RKV02: closed key sets, so a raw header or payload has no field to live in.
+	checkSnapshotKeys(snapshot, allowedSnapshotKeys, "snapshot", path, &defects)
+
+	if !snapshotNonEmpty(snapshot, "captured_at") {
+		defects = append(defects, fmt.Sprintf(
+			"%s: snapshot.captured_at is required (RFC3339 string)", path))
+	}
+	if !snapshotNonEmpty(snapshot, "source_id") {
+		defects = append(defects, fmt.Sprintf("%s: snapshot.source_id is required (string)", path))
+	}
+
+	request, hasRequest := tableOf(snapshot, "request")
+	if !hasRequest {
+		defects = append(defects, fmt.Sprintf("%s: [snapshot.request] table is required", path))
+	} else {
+		checkSnapshotKeys(request, allowedRequestKeys, "snapshot.request", path, &defects)
+		if _, ok := stringOf(request, "method"); !ok {
+			defects = append(defects, fmt.Sprintf(
+				"%s: snapshot.request.method is required (string)", path))
+		}
+		if !snapshotDigestField(request, "descriptor_sha256") {
+			defects = append(defects, fmt.Sprintf(
+				"%s: snapshot.request.descriptor_sha256 must be a digest scalar "+
+					"(<algo>:<hex>) (RKV02: header values are carried in the canonical "+
+					"descriptor as digests)", path))
+		}
+	}
+
+	if response, ok := tableOf(snapshot, "response"); !ok {
+		defects = append(defects, fmt.Sprintf("%s: [snapshot.response] table is required", path))
+	} else {
+		checkSnapshotKeys(response, allowedResponseKeys, "snapshot.response", path, &defects)
+		if !snapshotDigestField(response, "body_sha256") {
+			defects = append(defects, fmt.Sprintf(
+				"%s: snapshot.response.body_sha256 must be a digest scalar (<algo>:<hex>)", path))
+		}
+	}
+
+	// significant_headers carries header NAMES only. A ':' or whitespace in an
+	// entry means a header VALUE was inlined.
+	if hasRequest {
+		if raw, present := request["significant_headers"]; present {
+			entries, isArray := raw.([]any)
+			if !isArray {
+				defects = append(defects, fmt.Sprintf(
+					"%s: snapshot.request.significant_headers must be an array of "+
+						"header-name strings", path))
+			} else {
+				for _, entry := range entries {
+					s, isString := entry.(string)
+					if !isString || !isHeaderName(s) {
+						defects = append(defects, fmt.Sprintf(
+							"%s: snapshot.request.significant_headers entry %q must be a bare "+
+								"lowercase header name; a ':' or whitespace means a header "+
+								"VALUE was inlined (RKV02)", path, fmt.Sprintf("%v", entry)))
+					}
+				}
+			}
+		}
+	}
+
+	// RKV03: the witness conditional.
+	//
+	// The table is REQUIRED. An unwitnessed capture asserts `present = false`;
+	// it does not delete the block. That does not stop a producer who re-roots
+	// the document from writing `present = false` (nothing computed from inside
+	// a document can), but it removes the shape in which a stripped document and
+	// an honestly unwitnessed one are indistinguishable.
+	if !hasKey(snapshot, "witness") {
+		defects = append(defects, fmt.Sprintf(
+			"%s: missing required `[snapshot.witness]` table (RKV03). An unwitnessed "+
+				"capture MUST assert `present = false`; the absence of a witness MUST NOT "+
+				"be achieved by deleting the table", path))
+	} else if _, isTable := tableOf(snapshot, "witness"); !isTable {
+		defects = append(defects, fmt.Sprintf(
+			"%s: `snapshot.witness` is present but is not a table (RKV03)", path))
+	}
+	if witness, ok := tableOf(snapshot, "witness"); ok {
+		checkSnapshotKeys(witness, allowedWitnessKeys, "snapshot.witness", path, &defects)
+		present, isBool := witness["present"].(bool)
+		switch {
+		case !isBool:
+			defects = append(defects, fmt.Sprintf(
+				"%s: snapshot.witness.present must be a boolean", path))
+		case present:
+			scheme, _ := stringOf(witness, "scheme")
+			if !containsString(witnessSchemes, scheme) {
+				defects = append(defects, fmt.Sprintf(
+					"%s: snapshot.witness.scheme must be one of %v when present=true (RKV03)",
+					path, witnessSchemes))
+			}
+			if !snapshotNonEmpty(witness, "attester_id") {
+				defects = append(defects, fmt.Sprintf(
+					"%s: snapshot.witness.attester_id is required when present=true (RKV03)", path))
+			}
+			if !snapshotDigestField(witness, "attestation_sha256") {
+				defects = append(defects, fmt.Sprintf(
+					"%s: snapshot.witness.attestation_sha256 must be a digest scalar when "+
+						"present=true (RKV03)", path))
+			}
+			observed, _ := stringOf(witness, "observed")
+			if !containsString(attesterObserved, observed) {
+				defects = append(defects, fmt.Sprintf(
+					"%s: snapshot.witness.observed must be one of %v when present=true (RKV03)",
+					path, attesterObserved))
+			}
+		default:
+			// Amended RKV03: SPEC 12.8.1 keys the closure on field PRESENCE, so
+			// a lingering witness digest under present=false would make the
+			// downgrade invisible at the closure root.
+			var lingering []string
+			for _, key := range []string{"scheme", "attester_id", "attestation_sha256", "observed"} {
+				if _, found := witness[key]; found {
+					lingering = append(lingering, key)
+				}
+			}
+			if len(lingering) > 0 {
+				defects = append(defects, fmt.Sprintf(
+					"%s: snapshot.witness fields %v MUST be absent when present=false "+
+						"(amended RKV03: the SPEC 12.8.1 closure keys on field presence, so a "+
+						"lingering witness digest would make the downgrade invisible at the "+
+						"closure root)", path, lingering))
+			}
+		}
+	}
+
+	// RKV01: sub-part consistency against the capture.
+	verifySubparts(path, doc, repoRoot, &defects)
+
+	return defects
+}
+
+func containsString(haystack []string, needle string) bool {
+	for _, candidate := range haystack {
+		if candidate == needle {
+			return true
+		}
+	}
+	return false
 }
 
 func validateGateDecision(path string, doc rawDoc, repoRoot string) []string {

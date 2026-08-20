@@ -112,6 +112,96 @@ jobs:
             --rs "${RUNNER_TEMP}/dagtoml-validate-rs" \
             --go "${RUNNER_TEMP}/dagtoml-validate-go"
 
+      - name: Coverage audit (mutation-based, ratcheted)
+        # Every `errors.append(...)` in a profile kind-layer validator IS a check.
+        # This disables each one in turn and asks whether ANY gate in the repo
+        # notices. A check whose removal nothing detects is a check nothing tests,
+        # even when the code is correct.
+        #
+        # It exists because reading does not find these. Three independent
+        # cross-model review rounds each found a different untested check here by
+        # inspection; the first audit run found 25, of which reviewers had between
+        # them located 4. The cause is one construction defect: the corpus was
+        # built by mutating a single field of a known-good document, so every
+        # fixture inherits correct values everywhere else and any check on a
+        # commonly-correct field is structurally invisible.
+        #
+        # RATCHET, not a pass/fail line in the sand. The declared baseline in
+        # conformance/coverage-baseline.toml may only go down without a deliberate
+        # reasoned edit. Adding a check without a fixture that exercises it fails
+        # this step.
+        #
+        # Runs ~5 minutes: 45 mutations, each re-running the corpus and the
+        # negative sweep. Placed after the fast gates so it is not the first thing
+        # to fail on an unrelated break.
+        run: |
+          set -e
+          python3 conformance/coverage_audit.py \
+            --rs "${RUNNER_TEMP}/dagtoml-validate-rs" \
+            --go "${RUNNER_TEMP}/dagtoml-validate-go" \
+            --repo-root .
+
+      - name: Discrimination coverage (external assertion)
+        # WHY THIS LIVES IN CI AND NOT IN conformance/discrimination.py.
+        #
+        # discrimination.py carries its own coverage self-check, and that check
+        # works: dropping a kind from KINDS fails it. But it is a SAME-FILE
+        # oracle, so deleting the self-check block and the kind together exits 0
+        # and nothing notices. Two independent reviewers reproduced exactly that
+        # defeat path. A guard that lives in the file it guards can always be
+        # removed with the thing it guards.
+        #
+        # This step breaks that circularity. It derives the answer from the
+        # FILESYSTEM (which kinds ship sidecars) and from the SOURCE DECLARATION
+        # (which kinds KINDS lists, read via ast, never imported or executed),
+        # then compares them. It shares no code with discrimination.py, so
+        # removing that file's self-check does not disable this one. Removing
+        # THIS step is a visible change to the workflow, which is the trust root
+        # and is what review actually watches.
+        run: |
+          set -e
+          python3 - <<'PY'
+          import ast, pathlib, sys
+
+          src = pathlib.Path("conformance/discrimination.py")
+          tree = ast.parse(src.read_text())
+
+          def literal(name):
+              for node in tree.body:
+                  if isinstance(node, ast.Assign):
+                      for t in node.targets:
+                          if isinstance(t, ast.Name) and t.id == name:
+                              return ast.literal_eval(node.value)
+              raise SystemExit(f"FAIL: {name} not found in {src}. If it was renamed, "
+                               f"this assertion must be updated deliberately.")
+
+          kinds = set(literal("KINDS"))
+          validators = literal("KIND_VALIDATOR")
+
+          sidecar_kinds = {
+              side.parent.parent.name
+              for side in pathlib.Path("conformance/cases").glob("*/invalid/*.expected.toml")
+          }
+          if not sidecar_kinds:
+              raise SystemExit("FAIL: no sidecars discovered at all; the corpus or this "
+                               "assertion's glob is wrong")
+
+          uncovered = sorted(sidecar_kinds - kinds)
+          if uncovered:
+              raise SystemExit(
+                  "FAIL: these kinds ship discrimination sidecars but are absent from "
+                  f"KINDS, so nothing cross-checks them: {', '.join(uncovered)}"
+              )
+          unmapped = sorted(k for k in kinds if k not in validators)
+          if unmapped:
+              raise SystemExit(
+                  f"FAIL: KINDS entries with no KIND_VALIDATOR mapping: {', '.join(unmapped)}"
+              )
+          print("discrimination coverage OK")
+          print(f"- kinds shipping sidecars : {', '.join(sorted(sidecar_kinds))}")
+          print(f"- kinds in KINDS          : {', '.join(sorted(kinds))}")
+          PY
+
       - name: Build dagtoml-rdf (required by manifest-drift gate)
         # validators/check_attribute_values.py invokes
         # tools/dagtoml-rdf/target/release/dagtoml-rdf to compute the
@@ -865,9 +955,38 @@ jobs:
             python3 validators/validate_ijb_conformance.py \
             examples/negative/com.verivus.runtime-ontology-bad-ijb.toml
 
-          # RKV02 / RKV03 are com.verivus.runtime profile producer obligations,
-          # enforced by the Python validate_api_snapshot.py (the threat-model
-          # precedent for a profile-layer validator without a primary).
+          # RKV01 / RKV02 / RKV03 are com.verivus.runtime producer obligations
+          # that used to run in the Python reference ALONE, the last declared
+          # kind-layer parity gap in the repo. They are now implemented by both
+          # primaries, so every one of them is asserted against all three
+          # implementations rather than Python alone. Asserting only the
+          # reference is what let the gap persist: the negative agreed, so the
+          # corpus looked green while a primary-only consumer accepted an
+          # inlined `authorization` header, an incomplete witness, and a
+          # descriptor digest that did not match its own capture.
+          for impl in "rs:${RUNNER_TEMP}/dagtoml-validate-rs" \
+                      "go:${RUNNER_TEMP}/dagtoml-validate-go"; do
+            bin="${impl#*:}"
+            tag="${impl%%:*}"
+            check_rejects "${tag} api-snapshot inlined-secret (RKV02)" \
+              "$bin" --repo-root . --mode api-snapshot \
+              examples/negative/api-snapshot-inlined-secret.toml
+            check_rejects "${tag} api-snapshot raw-header (RKV02)" \
+              "$bin" --repo-root . --mode api-snapshot \
+              examples/negative/api-snapshot-raw-header.toml
+            check_rejects "${tag} api-snapshot witness-incomplete (RKV03)" \
+              "$bin" --repo-root . --mode api-snapshot \
+              examples/negative/api-snapshot-witness-incomplete.toml
+            check_rejects "${tag} api-snapshot bad-subpart-digest (RKV01)" \
+              "$bin" --repo-root . --mode api-snapshot \
+              examples/negative/api-snapshot-bad-subpart-digest.toml
+            check_rejects "${tag} api-snapshot magic-no-markers (RKV01 fail-closed)" \
+              "$bin" --repo-root . --mode api-snapshot \
+              examples/negative/api-snapshot-magic-no-markers.toml
+            check_rejects "${tag} api-snapshot witness-lingering-digest (RKV03)" \
+              "$bin" --repo-root . --mode api-snapshot \
+              examples/negative/api-snapshot-witness-lingering-digest.toml
+          done
           check_rejects "python api-snapshot inlined-secret (RKV02)" \
             python3 validators/validate_api_snapshot.py --repo-root . \
             examples/negative/api-snapshot-inlined-secret.toml

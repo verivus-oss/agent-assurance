@@ -1,0 +1,52 @@
+# NEGATIVE (RKV03: `snapshot.witness.present` is not a boolean).
+#
+# `present = "true"` is the string, not the boolean. All three implementations
+# already reject it, and until this case existed NOTHING tested that: every
+# fixture in the corpus used a real boolean, so disabling the type check in
+# Python, Rust or Go changed no verdict and the shipped oracle stayed green.
+# Round-2 cross-LLM review found it as a mutation survivor.
+#
+# Why the type check matters rather than being pedantry: `present` is the field
+# a policy engine filters on to refuse producer-only evidence. A truthy string
+# that no implementation validates is exactly how a downgrade would slip past a
+# consumer that trusts the field's shape.
+#
+# Deliberately closure-VALID: `present` is not a pinned closure record, so the
+# four-record root below is unchanged from the witnessed valid case and the
+# closure layer has nothing to say.
+
+closure_root = "sha256:013f3d34bab26a1b9d9fd77ff03aae76a3b07ee112c4995dc5ef448b2d1796db"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "api-snapshot"
+framework_profile = "com.verivus.runtime"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "examples/captures/2026-06-17T091402Z-usd-aud.capture"
+source_sha256 = "sha256:1af17db5085faf2b3078538922f462ed9a37ee3b8e0d0b11d5aa34276442eab7"
+source_bytes = 620
+
+[snapshot]
+captured_at = "2026-06-17T09:14:02.481Z"
+source_id = "https://api.exchange.example/v1/quotes/USD-AUD"
+
+[snapshot.request]
+method = "GET"
+url = "https://api.exchange.example/v1/quotes/USD-AUD?asof=2026-06-17T09:14:00Z&pair=USD-AUD"
+significant_headers = ["accept"]
+descriptor_sha256 = "sha256:1e84dff27040181e39a0eedd71497241ae153efb65ec93e4b97303a8cb041869"
+auth_context = "oauth2-client-credentials; client=verivus-quote-reader"
+
+[snapshot.response]
+status = 200
+body_sha256 = "sha256:569cc4222c936a5c39184bc0e17048c3f80bed44d457f0327db1bd58faecfebd"
+
+[snapshot.witness]
+present = "true"
+scheme = "tls-notary"
+observed = "both"
+attester_id = "notary.example/ed25519:9f86d0818411"
+attestation_sha256 = "sha256:afdb2e991b18d3b37506f893a987ba6fdc8888f7b474835bb81aeb2941e26d14"

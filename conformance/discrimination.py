@@ -43,14 +43,31 @@ ALLOWED_COLLISIONS = {
     ),
 }
 
-# Kinds whose sidecars this check covers. Others have no sidecars yet.
-KINDS = ("state-mutation", "mutation-claim")
+# Kinds whose sidecars this check covers.
+#
+# api-snapshot was NOT in this tuple when its sidecars were first written, so
+# they sat here uncovered: the cross-product never ran over them and they could
+# have blessed the wrong defect class without anything noticing. That is the
+# same failure mode this file exists to catch, one level up, so the tuple and
+# the per-kind validator map below are kept in step deliberately. Adding a kind
+# with sidecars means adding it to BOTH.
+KINDS = ("state-mutation", "mutation-claim", "api-snapshot", "implementation-dag")
+
+# The kind-layer reference validator per kind. The primaries dispatch on
+# template_kind themselves, so they need no per-kind entry.
+KIND_VALIDATOR = {
+    "state-mutation": "validators/validate_state_mutation.py",
+    "mutation-claim": "validators/validate_state_mutation.py",
+    "api-snapshot": "validators/validate_api_snapshot.py",
+    "implementation-dag": "validators/validate_implementation_dag.py",
+}
 
 
 def collect_output(case: pathlib.Path, rs: str, go: str, repo_root: str) -> str:
     text = ""
+    kind_validator = KIND_VALIDATOR[case.parent.parent.name]
     commands = [
-        [sys.executable, "validators/validate_state_mutation.py", "--repo-root", repo_root, str(case)],
+        [sys.executable, kind_validator, "--repo-root", repo_root, str(case)],
         [rs, "--repo-root", repo_root, str(case)],
         [go, "-repo-root", repo_root, str(case)],
         [sys.executable, "validators/validate_closure_root.py", "--repo-root", repo_root, str(case)],
@@ -80,6 +97,39 @@ def main() -> int:
     ]
     if not cases:
         print("error: no cases discovered", file=sys.stderr)
+        return 2
+
+    # Coverage self-check.
+    #
+    # A kind directory that ships sidecars but is absent from KINDS is silently
+    # unreviewed: the cross-product never runs over it and its sidecars could
+    # bless the wrong defect class with nothing noticing. That is the very
+    # failure this file exists to catch, one level up on itself.
+    #
+    # This guard is not defensive noise. Before it existed, reverting KINDS to
+    # drop "api-snapshot" was a live MUTATION SURVIVOR: the shipped suite still
+    # exited 0 and merely reported "14 sidecar(s) over 14 case(s)" instead of
+    # 19 over 25. A coverage fix that nothing detects the removal of is not a
+    # fix, so the coverage is now asserted rather than assumed.
+    sidecar_kinds = {
+        side.parent.parent.name
+        for side in pathlib.Path(args.cases).glob("*/invalid/*.expected.toml")
+    }
+    unreviewed = sorted(sidecar_kinds - set(KINDS))
+    if unreviewed:
+        print(
+            "error: these kinds ship discrimination sidecars but are not in KINDS, "
+            f"so their sidecars are never cross-checked: {', '.join(unreviewed)}",
+            file=sys.stderr,
+        )
+        return 2
+    unmapped = sorted(k for k in KINDS if k not in KIND_VALIDATOR)
+    if unmapped:
+        print(
+            "error: KINDS entries with no KIND_VALIDATOR mapping: "
+            f"{', '.join(unmapped)}",
+            file=sys.stderr,
+        )
         return 2
 
     outputs = {c: collect_output(c, args.rs, args.go, args.repo_root) for c in cases}

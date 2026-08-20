@@ -1,1 +1,14 @@
-error_contains = ["layer ordering"]
+# "layer ordering" alone matches cycle.toml and self-dependency.toml, because
+# both cascade into a layer-ordering complaint. The discriminator is the exact
+# offending pair: a depender and its dependency sharing layer 0 with no cycle
+# involved.
+error_contains = [
+  "U02 (layer=0) depends_on U01 (layer=0)",
+]
+
+# This is the case that isolates layer ordering from cycles. If a cycle
+# diagnostic appears, the fixture has stopped testing what it claims to.
+error_not_contains = [
+  "cycle in depends_on",
+  "depends_on includes self",
+]

@@ -9,6 +9,220 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **`conformance/coverage_audit.py`, a mutation-based coverage gate, plus a
+  ratcheted baseline.** Every `errors.append(...)` in a profile kind-layer
+  validator is a check. The audit disables each one in turn and asks whether any
+  gate in the repository notices; one that nothing notices is a check nothing
+  tests, even when the code is correct.
+
+  It exists because reading does not find these. Three independent cross-model
+  review rounds each found a different untested check in this surface by
+  inspection. The first audit run found **25 unprotected checks out of 45**,
+  meaning nine reviewer-runs had between them located four of them.
+
+  The cause is one construction defect, not 25 oversights: the corpus was built
+  by mutating a single field of a known-good document, so every fixture inherits
+  correct values everywhere else and any check on a commonly-correct field is
+  structurally invisible to the oracle.
+
+  `conformance/coverage-baseline.toml` declares the tolerated number and CI fails
+  when the real number exceeds it, so adding a check without a fixture that
+  exercises it is now a build break. It is a ratchet: the number may only fall
+  without a deliberate, reasoned edit. Same contract as `known-divergences.toml`
+  and `TOML_CONFORMANCE_SKIPS`.
+
+  One methodological note recorded because it nearly shipped: an earlier version
+  of the audit reported 28 of 28 checks as covered. That uniformity was the tell.
+  It counted "an `examples/negative` fixture is accepted by validator X" as
+  detection, but several of those are closure-layer negatives that X never
+  rejected, so the rule fired on a pre-existing condition. Detection is now
+  measured against a baseline recorded before any mutation.
+
+- **Two closed-vocabulary gaps closed**, chosen first because they are the checks
+  a policy engine actually filters on. `witness-scheme-unknown.toml` covers a
+  `witness.scheme` outside the closed vocabulary, which was unprotected because
+  every fixture carried `tls-notary`. `finality-basis-unknown.toml` covers a
+  `finality_basis` outside its vocabulary, which was unprotected for the same
+  reason. Both are closure-valid, both are rejected by all three implementations,
+  and each was verified to kill the mutant it was written for. Baseline ratcheted
+  25 to 23.
+
+- **An external CI assertion for discrimination coverage.**
+  `conformance/discrimination.py` carries its own coverage self-check, and that
+  check works: dropping a kind from `KINDS` fails it. But it is a SAME-FILE
+  oracle. Two independent reviewers reproduced the same defeat path: delete the
+  self-check and the kind together, and the script exits 0 with nothing to say. A
+  guard that lives in the file it guards can always be removed alongside the
+  thing it guards.
+
+  `.github/workflows/validate.yml` now asserts the coverage independently. It
+  derives one side from the FILESYSTEM (which kinds ship `*.expected.toml`
+  sidecars) and the other from the SOURCE DECLARATION (`KINDS` and
+  `KIND_VALIDATOR`, read with `ast` and never imported or executed), then
+  compares. It shares no code with `discrimination.py`, so neutralising or
+  deleting that file's self-check does not disable it. Verified against both
+  defeat paths: with the in-file guard neutralised and `api-snapshot` dropped,
+  `discrimination.py` exits 0 while the CI assertion reports
+  `FAIL: uncovered kinds: api-snapshot`; dropping a `KIND_VALIDATOR` mapping the
+  same way reports `FAIL: unmapped`.
+
+  This does not make the gate undeletable, and it is not claimed to. Removing the
+  CI step is still possible, but it is a visible change to the workflow, which is
+  the trust root and the thing review actually watches. The point is that the
+  guard no longer sits inside its own subject.
+
+- **`conformance/discrimination.py` coverage self-check.** Cross-LLM review
+  round 1 found the api-snapshot coverage fix was itself unprotected: reverting
+  `KINDS` to drop `api-snapshot` was a MUTATION SURVIVOR, since the shipped suite
+  still exited 0 and merely reported `14 sidecar(s) over 14 case(s)` instead of
+  19 over 25. A coverage fix whose removal nothing detects is not a fix. The
+  check now fails when a kind ships sidecars but is absent from `KINDS`, and when
+  a `KINDS` entry has no `KIND_VALIDATOR` mapping.
+
+  Writing that guard immediately found a second, pre-existing instance of the
+  same gap, and chasing it down turned up something larger. `implementation-dag`
+  ships 18 sidecars that had never been cross-checked, and the reason they could
+  not discriminate was not sidecar quality: **17 of its 18 invalid fixtures were
+  malformed.** Each carried `tier1_units = '[U01, U02]'`, a quoted STRING rather
+  than an array, so the validator iterated its characters and every fixture
+  emitted the same pile of unrelated complaints about `U`, `[` and `]`. The same
+  17 were also missing their `[computed.max_parallel]` table. All 17 derive from
+  one bad template.
+
+  That violated the corpus's own contract, that each invalid fixture "mutates
+  exactly one aspect of a known-good document, so a failure isolates one
+  semantic rule". Nothing was silently passing: after removing the unrelated
+  defect every fixture still fails for its own stated reason. The hazard was
+  latent rather than live, and it is the same class as an earlier finding in
+  this work, a fixture rejected for the wrong reason. Had cycle detection or
+  layer ordering regressed, the fixture would still have failed on
+  `tier1_units` and the regression would have been masked.
+
+  Fixed rather than exempted: `tier1_units` repaired and a correct
+  `[computed.max_parallel]` added across the 17, so 12 of 18 now emit exactly
+  one error and the other six emit only genuine cascades of their single
+  mutation. Four sidecars whose needles were too generic were rewritten with
+  direction-specific discriminators. `implementation-dag` is now covered, and
+  the check reports 37 sidecars over 43 cases, up from 19 over 25.
+
+  An earlier revision of this change added an `UNCOVERED_KINDS` exemption for
+  `implementation-dag` instead. That was wrong and is not what shipped: it
+  defeated the new guard on its first firing and handed the next contributor a
+  documented way to silence it. There is no exemption mechanism.
+
+- **`conformance/parity_sweep.py`.** The kind-layer-against-kind-layer sweep that
+  produced the zero-divergence figure now ships, so the number is reproducible
+  instead of asserted. A round-1 reviewer looked for it in `runner.py`, found 52
+  cases, and reported the figure as unverifiable; it was measuring a different
+  thing.
+
+### Fixed
+
+- **Go `--help` still omitted `mutation-kinds` and `api-snapshot`.** The earlier
+  fix replaced the first matching occurrence, which was `parseMode`'s error
+  string, so the `flag.StringVar` help text never changed while the CHANGELOG
+  claimed both primaries listed the modes. Found by cross-LLM review round 1.
+
+- **RKV03 hardening: `snapshot.witness.present` is now a required field.** An
+  `api-snapshot` that omits `[snapshot.witness]` entirely is now MALFORMED rather
+  than valid: the absence of a witness must be ASSERTED (`present = false`) and
+  cannot be achieved by deletion. Implemented in all three implementations
+  together, so the parity established for RKV01 to RKV03 holds.
+
+  What this buys is bounded, and the descriptor says so rather than overclaiming:
+  it does NOT stop a producer who re-roots the document from writing
+  `present = false`, because nothing computed from inside a document can. What it
+  removes is the shape in which a STRIPPED document and an honestly unwitnessed
+  one are indistinguishable, so a downgrade becomes a positive statement inside
+  the closed content that an auditor and a policy engine can both read.
+
+  This is a breaking change at the kind layer for documents that carried no
+  witness table. Six fixtures were updated to assert `present = false`, which
+  leaves every closure root unchanged because `present` is not a pinned record.
+  In particular `conformance/cases/api-snapshot/valid/unwitnessed-three-record.toml`
+  keeps its frozen parity-matrix property: that row is about the three-record
+  STREAM (`attestation_sha256` absent), not about the witness table's existence.
+  `witness-stripped` is now the well-formed downgrade (`present = false` plus the
+  attestation removed) against a stale four-record root, which is a stronger case
+  than deletion because the producer does the downgrade correctly and the stale
+  anchored root still fails to reproduce.
+
+  New case `conformance/cases/api-snapshot/invalid/witness-absent.toml` pins the
+  deletion vector itself. It is deliberately closure-VALID, so the kind layer is
+  demonstrably the only thing rejecting it.
+
+### Fixed
+
+- **`conformance/discrimination.py` did not cover `api-snapshot`.** `KINDS` listed
+  only the two mutation kinds and `collect_output` hardcoded
+  `validate_state_mutation.py`, so every api-snapshot sidecar sat uncovered: the
+  cross-product never ran over them and they could have blessed the wrong defect
+  class with nothing noticing. That is the exact failure mode this file exists to
+  catch, one level up. `KINDS` and a new `KIND_VALIDATOR` map now cover
+  api-snapshot, taking the check from 14 sidecars over 14 cases to 19 over 25.
+  All existing sidecars discriminate under the widened cross-product.
+
+- **Full kind-layer parity across the validator triad.** `RKV01` (sub-part
+  consistency), `RKV02` (no inlined secret or raw header value) and `RKV03`
+  (the witness conditional) were implemented in `validators/validate_api_snapshot.py`
+  ALONE. Both primaries carried only the shared meta/provenance/IJB/closure
+  surface for an `api-snapshot`, so a primary-only consumer accepted an inlined
+  `authorization` header, a witness claiming `present = true` with no attester,
+  and a `descriptor_sha256` that did not match the capture the document cites.
+  The CI negative-agreement gate did not see it: those fixtures were asserted
+  against the Python reference only, so the negatives agreed and the corpus
+  looked green. Both primaries now implement all three
+  (`tools/dagtoml-validate-rs` `mod api_snapshot`,
+  `tools/dagtoml-validate-go` `validateAPISnapshot`), reachable as
+  `--mode api-snapshot` and via the `auto` dispatch, and every api-snapshot
+  negative is now asserted against all three implementations.
+
+  An empirical sweep over all 87 fixtures that have a reference validator now
+  reports **zero** accept/reject divergences, comparing kind layer against kind
+  layer. `enforced_by_primaries` in the kind descriptors was NOT a usable audit
+  key for this: it is under-declared, marking only 24 of 97 declared invariants
+  as primary-covered while the primaries in fact implement far more, so the
+  parity claim is measured from behaviour rather than from declarations.
+
+- **Four `conformance/cases/api-snapshot/invalid/` cases pinning the ported
+  rules.** `inlined-secret-header`, `header-value-inlined`, `witness-incomplete`
+  and `subpart-descriptor-mismatch`. Every one is deliberately closure-VALID and
+  honestly re-rooted, so the closure layer stays silent and the kind layer is
+  demonstrably the only thing rejecting them; each sidecar asserts that with
+  `error_not_contains = ["pinned closure record"]`.
+
+  `subpart-descriptor-mismatch` exists because
+  `examples/negative/api-snapshot-bad-subpart-digest.toml` cannot serve as the
+  cross-implementation gate for RKV01: it is deliberately double-defective (its
+  `source_bytes` is wrong so it also fails the provenance-negative sweep), so an
+  implementation that checked only `source_bytes` rejected it for the wrong
+  reason and still looked green. The conformance case removes that escape.
+
+### Fixed
+
+- **A three-way divergence in the `state-mutation` URI value grammar.** The
+  Python reference and both primaries disagreed on `mutation.target_id` and
+  `execution_proof.proof_locator`, on two independent axes. LENGTH: the regex
+  `{1,480}` counts CODE POINTS while `str::len()` and `len()` count BYTES, so a
+  value of 241 two-byte characters (482 bytes) was accepted by the reference and
+  rejected by both primaries. CONTROL CHARACTERS: `[^\s\x00-\x1f\x7f]`
+  excludes C0 and DEL but not C1 (U+0080 to U+009F), so 31 of the 32 C1 code
+  points were accepted by the reference and rejected by both primaries (U+0085
+  agreed only because `\s` happens to cover NEL). `target_id` is a member of the
+  RKM04 bound tuple, so the grammar the descriptor calls defence in depth was the
+  one the three implementations disagreed on. The reference now uses a
+  hand-rolled `is_uri_shaped` matching the primaries on both axes, and
+  `conformance/cases/state-mutation/invalid/target-id-c1-control.toml` and
+  `proof-locator-oversize-multibyte.toml` pin both.
+
+  The primaries were the stricter side throughout, so no unsafe document could
+  ship through CI; what was broken was the triad's own guarantee that no single
+  implementation self-vouches.
+
+- **Stale `--mode` help text in both primaries.** Neither usage string listed
+  `mutation-kinds`, which both had implemented since the state-mutation kinds
+  landed. Both now list it and `api-snapshot`.
+
 - **`conformance/discrimination.py`, and `error_not_contains` in the runner.**
   Round-5 review found the corpus asserting less than it appeared to: a sidecar
   that matches its own case is necessary and not sufficient, because a needle

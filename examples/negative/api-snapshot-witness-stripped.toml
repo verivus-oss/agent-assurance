@@ -3,9 +3,12 @@
 # C02 of the closure-record-form promotion: witness stripping is
 # detectable at the closure root.
 #
-# The document is the positive minimal-api-snapshot with the ENTIRE
-# [snapshot.witness] table removed while the closure_root below is the
-# STALE four-record value (source + descriptor + body + attestation).
+# The document is the positive minimal-api-snapshot with the witness
+# DOWNGRADED the only well-formed way RKV03 now permits (`present = false`,
+# attestation removed) while the closure_root below is the STALE four-record
+# value (source + descriptor + body + attestation). Deleting the table
+# outright is covered by api-snapshot-witness-absent.toml, which RKV03
+# rejects as malformed.
 # With the attestation record gone from the stream, the expected root is
 # the three-record value, so the stale root MUST be rejected. An anchored
 # root behaves identically: the strip is visible.
@@ -45,3 +48,9 @@ auth_context = "oauth2-client-credentials; client=verivus-quote-reader"
 [snapshot.response]
 status = 200
 body_sha256 = "sha256:569cc4222c936a5c39184bc0e17048c3f80bed44d457f0327db1bd58faecfebd"
+
+# The well-formed way to drop a witness after the RKV03 hardening: assert
+# `present = false` and remove the attestation. The stale four-record root
+# above still fails to reproduce, which is the whole point of the fixture.
+[snapshot.witness]
+present = false
