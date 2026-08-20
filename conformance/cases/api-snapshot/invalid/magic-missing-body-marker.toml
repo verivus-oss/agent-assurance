@@ -1,0 +1,43 @@
+# NEGATIVE (RKV01 fail-closed: capture declares the profile format but lacks the
+# response-body marker).
+#
+# The mirror of magic-missing-descriptor-marker. The capture carries the magic
+# and a well-formed request-descriptor section whose digest matches, so the
+# descriptor guard stays silent; it has no `response-body:` section, so the body
+# digest cannot be recomputed and RKV01 must fail CLOSED.
+#
+# The pair exists because the two guards were previously only exercised together,
+# which is how both came to be unprotected while looking tested.
+#
+# Closure-VALID: the document is honestly rooted over its own declared digests.
+
+closure_root = "sha256:8dcaa265e43d42486c4871eb896dcd6e8049b729433e8c7b763632366e26068c"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "api-snapshot"
+framework_profile = "com.verivus.runtime"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "conformance/cases/api-snapshot/captures/magic-missing-body-marker.capture"
+source_sha256 = "sha256:25d64f10fa9f22bd044e7465841547bc400c0b884d1aca47dcf4296cc019a853"
+source_bytes = 284
+
+[snapshot]
+captured_at = "2026-06-17T09:14:02.481Z"
+source_id = "https://api.exchange.example/v1/quotes/USD-AUD"
+
+[snapshot.request]
+method = "GET"
+url = "https://api.exchange.example/v1/quotes/USD-AUD"
+significant_headers = ["accept"]
+descriptor_sha256 = "sha256:a463c9619e945a1a8d81f3c49a149ef2d47fd9677145ce38e568d5047f87cf27"
+
+[snapshot.response]
+status = 200
+body_sha256 = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+[snapshot.witness]
+present = false

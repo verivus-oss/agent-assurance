@@ -1,0 +1,45 @@
+# NEGATIVE (RKV03: `snapshot.witness` present but not a table).
+#
+# `witness = "present"` is a string where a table is required. Every fixture
+# supplied either a real table or nothing at all, so this branch was UNPROTECTED.
+# Found by conformance/coverage_audit.py.
+#
+# The branch exists so a present-but-wrong-typed element is never reported as an
+# absent one, the same rule SPEC 12.8.2 states for bound-tuple members.
+# Collapsing the two would let a producer supply a truthy scalar and have the
+# document read as honestly unwitnessed.
+#
+# Closure-VALID: with no witness table there is no attestation record, so the
+# three-record root below is the honest one.
+
+closure_root = "sha256:627490aebb92bc8f5a4611dfe5ad763df1ce4980599bffb3baf4d8ba3eb5c3a6"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "api-snapshot"
+framework_profile = "com.verivus.runtime"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "examples/captures/2026-06-17T091402Z-usd-aud.capture"
+source_sha256 = "sha256:1af17db5085faf2b3078538922f462ed9a37ee3b8e0d0b11d5aa34276442eab7"
+source_bytes = 620
+
+[snapshot]
+captured_at = "2026-06-17T09:14:02.481Z"
+source_id = "https://api.exchange.example/v1/quotes/USD-AUD"
+
+witness = "present"
+
+[snapshot.request]
+method = "GET"
+url = "https://api.exchange.example/v1/quotes/USD-AUD?asof=2026-06-17T09:14:00Z&pair=USD-AUD"
+significant_headers = ["accept"]
+descriptor_sha256 = "sha256:1e84dff27040181e39a0eedd71497241ae153efb65ec93e4b97303a8cb041869"
+auth_context = "oauth2-client-credentials; client=verivus-quote-reader"
+
+[snapshot.response]
+status = 200
+body_sha256 = "sha256:569cc4222c936a5c39184bc0e17048c3f80bed44d457f0327db1bd58faecfebd"
+

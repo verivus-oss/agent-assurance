@@ -1,1 +1,6 @@
-error_contains = ["inverse mismatch"]
+# "inverse mismatch" alone matches both directions of this pair. The
+# discriminator is WHICH side declares the edge: here `blocks` names a unit
+# whose depends_on omits it.
+error_contains = [
+  "U01.blocks contains `U02` but U02.depends_on is missing",
+]

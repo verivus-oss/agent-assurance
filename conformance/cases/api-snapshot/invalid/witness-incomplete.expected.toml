@@ -1,0 +1,14 @@
+# The discriminator is the pair of missing witness fields. A bare "RKV03"
+# needle would also match witness-stripped's neighbourhood.
+
+error_contains = [
+  "snapshot.witness.attester_id is required when present=true",
+  "snapshot.witness.observed must be one of",
+]
+
+# The claim of this case is that the document is closure-VALID and only the
+# kind layer objects. Asserting the closure layer stayed SILENT is what makes
+# that claim mechanical rather than asserted.
+error_not_contains = [
+  "pinned closure record",
+]

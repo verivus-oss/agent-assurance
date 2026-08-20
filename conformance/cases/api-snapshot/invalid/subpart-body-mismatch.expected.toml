@@ -1,0 +1,12 @@
+# The discriminator is the SUB-PART: `response-body` here versus
+# `request-descriptor` in subpart-descriptor-mismatch. A needle naming only
+# RKV01, or only "sub-part", would match both and bless the wrong half.
+error_contains = [
+  "does not equal the SHA-256 of the response-body sub-part",
+]
+
+# Closure-VALID by construction, so the closure layer must stay silent.
+error_not_contains = [
+  "pinned closure record",
+  "request-descriptor sub-part",
+]

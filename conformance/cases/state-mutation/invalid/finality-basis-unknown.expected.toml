@@ -1,0 +1,18 @@
+# The discriminator has to be the VALUE, and it must be quote-agnostic.
+#
+# A needle on the field plus "is not in the closed" also matches
+# blank-vocabulary-tokens.toml, which reports the same vocabulary diagnostic for
+# an empty token. discrimination.py caught that. But quoting the value as
+# Python renders it (`'probably-fine'`) then failed the runner, because the
+# reference uses {!r} while both primaries use double quotes, so no single
+# spelling matches all three. The bare token is the only form common to all.
+error_contains = [
+  "probably-fine",
+  "finality_basis",
+]
+
+# Closure-VALID by construction, and not an RKM06 coherence failure.
+error_not_contains = [
+  "pinned closure record",
+  "cannot claim finality_basis",
+]

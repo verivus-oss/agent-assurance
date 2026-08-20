@@ -42,6 +42,7 @@ import hashlib
 import pathlib
 import re
 import sys
+import unicodedata
 
 import _toml11 as tomllib  # TOML 1.1 reference shim; see validators/_toml11.py
 
@@ -95,11 +96,9 @@ RFC3339_UTC_RE = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z\Z"
 )
 OPERATION_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}\Z")
-# A locator is a URI-shaped reference, never a payload. Bounded, no
-# whitespace, no control characters.
-LOCATOR_RE = re.compile(r"^[a-z][a-z0-9+.-]*:[^\s\x00-\x1f\x7f]{1,480}\Z")
-# `target_id` is a URI or URN naming the mutated resource.
-TARGET_ID_RE = re.compile(r"^[a-z][a-z0-9+.-]*:[^\s\x00-\x1f\x7f]{1,480}\Z")
+SCHEME_RE = re.compile(r"^[a-z][a-z0-9+.-]*\Z")
+# Longest permitted `rest` (everything after the first colon), in UTF-8 BYTES.
+URI_REST_MAX_BYTES = 480
 
 # RKM06: a scheme may only claim durability its own evidence class can carry.
 # A counterparty receipt cannot assert ledger finality; a TEE quote attests an
@@ -114,6 +113,37 @@ SCHEME_FINALITY = {
 
 def is_digest(value: object) -> bool:
     return isinstance(value, str) and bool(DIGEST_RE.match(value))
+
+
+def is_uri_shaped(value: str) -> bool:
+    """`scheme:rest`, no whitespace or control characters, bounded.
+
+    Used for `target_id` and `proof_locator`. Hand-rolled rather than a regex
+    so it agrees with the Rust and Go primaries on both axes a character class
+    gets wrong:
+
+      * LENGTH is bounded in UTF-8 BYTES, matching `str::len()` in Rust and
+        `len()` in Go. A regex `{1,480}` counts CODE POINTS, so a value of 241
+        two-byte characters (482 bytes) passed the reference and was rejected
+        by both primaries.
+      * CONTROL characters are the whole Unicode Cc category, matching
+        `char::is_control()` and `unicode.IsControl`. `[^\\s\\x00-\\x1f\\x7f]`
+        excludes C0 and DEL but not C1 (U+0080 to U+009F), so 31 of the 32 C1
+        code points passed the reference and were rejected by both primaries.
+        U+0085 agreed only because `\\s` happens to cover NEL.
+
+    Both divergences were live on `target_id`, which is a member of the RKM04
+    bound tuple, so the grammar the descriptor calls defence in depth was the
+    one the three implementations disagreed on.
+    """
+    scheme, sep, rest = value.partition(":")
+    if not sep or not SCHEME_RE.match(scheme):
+        return False
+    if not rest or len(rest.encode("utf-8")) > URI_REST_MAX_BYTES:
+        return False
+    return not any(
+        char.isspace() or unicodedata.category(char) == "Cc" for char in rest
+    )
 
 
 def load_vocabulary(repo_root: pathlib.Path, attribute: str) -> set[str]:
@@ -236,7 +266,7 @@ def _validate_mutation_table(doc: dict, path: pathlib.Path) -> list[str]:
             "an RFC3339 UTC timestamp ending in Z, naming a real instant",
         ),
         ("operation", OPERATION_RE.match, "a bare lowercase token, at most 64 characters"),
-        ("target_id", TARGET_ID_RE.match, "a URI or URN, no whitespace or control characters"),
+        ("target_id", is_uri_shaped, "a URI or URN, no whitespace or control characters"),
     ):
         value = mutation.get(key)
         if not isinstance(value, str) or not value:
@@ -367,11 +397,11 @@ def validate_one(path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
             )
 
     locator = proof.get("proof_locator")
-    if locator is not None and (not isinstance(locator, str) or not LOCATOR_RE.match(locator)):
+    if locator is not None and (not isinstance(locator, str) or not is_uri_shaped(locator)):
         errors.append(
             f"{path}: execution_proof.proof_locator {locator!r} must be a URI-shaped "
             f"reference (scheme:rest, no whitespace or control characters, at most 480 "
-            f"characters after the scheme). A locator names where the proof can be "
+            f"UTF-8 bytes after the scheme). A locator names where the proof can be "
             f"fetched; it is not a place to inline the proof itself (RKM03)"
         )
 

@@ -1,0 +1,11 @@
+# Discriminator: the marker name, mirroring magic-missing-descriptor-marker.
+error_contains = [
+  "'response-body:'",
+  "malformed capture",
+]
+
+# Closure-VALID, and the descriptor guard must stay SILENT.
+error_not_contains = [
+  "pinned closure record",
+  "'request-descriptor:' / 'response-status:'",
+]

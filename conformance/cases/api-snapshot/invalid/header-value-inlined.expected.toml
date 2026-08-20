@@ -1,0 +1,13 @@
+# The discriminator is the entry diagnostic, which no other case emits.
+
+error_contains = [
+  "significant_headers entry",
+  "bare lowercase header name",
+]
+
+# The claim of this case is that the document is closure-VALID and only the
+# kind layer objects. Asserting the closure layer stayed SILENT is what makes
+# that claim mechanical rather than asserted.
+error_not_contains = [
+  "pinned closure record",
+]

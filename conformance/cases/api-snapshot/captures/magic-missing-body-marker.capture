@@ -1,0 +1,8 @@
+DAGTOML-API-CAPTURE/1
+captured-at: 2026-06-17T09:14:02.481Z
+source-id: https://api.exchange.example/v1/quotes/USD-AUD
+request-descriptor:
+method: GET
+url: https://api.exchange.example/v1/quotes/USD-AUD
+header: accept sha256:bacb769b46f6d169fb227ea026550f411d46cb
+response-status: 200

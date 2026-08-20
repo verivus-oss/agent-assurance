@@ -31,3 +31,10 @@ auth_context = "oauth2-client-credentials; client=verivus-quote-reader"
 [snapshot.response]
 status = 200
 body_sha256 = "sha256:569cc4222c936a5c39184bc0e17048c3f80bed44d457f0327db1bd58faecfebd"
+
+# The well-formed way to drop a witness after the RKV03 hardening: assert
+# `present = false` and remove the attestation. That is the stronger version
+# of this case, because the downgrade is done CORRECTLY and the stale
+# four-record root still fails to reproduce.
+[snapshot.witness]
+present = false
