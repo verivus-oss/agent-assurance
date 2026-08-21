@@ -1,7 +1,7 @@
 # Threat model for the convert-md-to-dag skill.
 
 # SHA-256 over the SPEC §12.8 source-hash closure stream.
-closure_root = "sha256:f9fb8ccb9b178fc6bf53ae33f259bf9d451b896f01490c5f79b519de84b52a93"
+closure_root = "sha256:445e8f28e80d90db181a97c505e41024b9984c63997cb7083d8a89e1386b9d95"
 
 [meta]
 schema_version    = "0.1.0"
@@ -14,8 +14,8 @@ created           = "2026-05-21"
 
 [provenance]
 source_path        = "skills/convert-md-to-dag/SKILL.md"
-source_sha256      = "sha256:588c0afa76c35363ca01a9574f72aa66f3e968926eeb8781b00a8b9736d124b8"
-source_bytes       = 3077
+source_sha256      = "sha256:bf933b98ee306efe6e264f7497140c67192642559e9e82e63830dd4aed2401fe"
+source_bytes       = 3533
 captured_at        = "2026-05-21T11:20:00Z"
 extraction_method  = "manual-analysis"
 source_description = "Skill instructions for converting Markdown files into governed DAG-TOML packages."
