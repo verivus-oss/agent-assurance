@@ -25,7 +25,7 @@ jobs:
       contents: read
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -1377,7 +1377,7 @@ jobs:
 
       - name: Source-code spellcheck (typos)
         continue-on-error: false
-        uses: crate-ci/typos@bee27e3a4fd1ea2111cf90ab89cd076c870fce14  # v1.48.0
+        uses: crate-ci/typos@8a48f81b6c64dcfea44b3633223084c4be58ac5f  # v1.49.0
 
       # --- Language-specific deep checks ---
 
@@ -1416,7 +1416,7 @@ jobs:
 
       - name: Lock-file CVE scan (osv-scanner)
         continue-on-error: false
-        uses: google/osv-scanner-action/osv-scanner-action@9a498708959aeaef5ef730655706c5a1df1edbc2  # v2.3.8
+        uses: google/osv-scanner-action/osv-scanner-action@6e4298ebc4db23e847df9b2e2de2939d6f066c67  # v2.5.1
         with:
           # osv-scanner v2 removed --skip-git (the action's default
           # already excludes .git internals via image filtering); pass
