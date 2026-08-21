@@ -42,12 +42,13 @@ readers. Three layers:
 
 All checks run via the GitHub Actions workflow `.github/workflows/validate.yml`.
 To reproduce locally (Python ≥ 3.11, plus the dependencies in
-`requirements.txt` — currently just `networkx`, used by the DAG validator —
-and the [Taplo](https://taplo.tamasfe.dev/) CLI for TOML syntax linting):
+`requirements.txt` and `requirements/toml.txt`, and the
+[Taplo](https://taplo.tamasfe.dev/) CLI for repository TOML linting):
 
 ```bash
 # One-time setup
 python3 -m pip install -r requirements.txt
+python3 -m pip install --no-binary tomli -r requirements/toml.txt
 # Install Taplo: see https://taplo.tamasfe.dev/cli/installation/ —
 # CI uses the pinned release binary from tamasfe/taplo on GitHub.
 
@@ -56,7 +57,6 @@ taplo lint
 
 # Parse every TOML in the repo with the TOML 1.1 reference parser
 # (validators/_toml11.py wraps tomli >= 2.4.0; stdlib tomllib is 1.0-only).
-# Install it first: pip install --no-binary tomli -r requirements/toml.txt
 python3 -c 'import sys, pathlib; sys.path.insert(0, "validators"); import _toml11 as tomllib; [tomllib.loads(p.read_text()) for p in pathlib.Path(".").rglob("*.toml") if not any(x.startswith(".") for x in p.parts)]'
 
 # Validate every kind descriptor (the *-kind.toml files)
