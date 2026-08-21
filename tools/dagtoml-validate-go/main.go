@@ -4322,7 +4322,7 @@ func verifySubparts(path string, doc rawDoc, repoRoot string, defects *[]string)
 	// reference then takes the whole remainder, so this does too. Diverging
 	// here would be a parity gap on a malformed capture.
 	d := bytes.Index(data, dmark)
-	if d < 0 || bytes.Index(data, smark) < 0 {
+	if d < 0 || !bytes.Contains(data, smark) {
 		*defects = append(*defects, malformedCapture(path, sourcePath,
 			"'request-descriptor:' / 'response-status:'", "snapshot.request.descriptor_sha256"))
 	} else {
