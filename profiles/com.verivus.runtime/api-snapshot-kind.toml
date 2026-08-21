@@ -7,7 +7,7 @@ closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7
 [meta]
 schema_version = "0.1.0"
 template_kind = "kind-descriptor"
-ontology_version = 2
+ontology_version = 1
 title = "API snapshot kind descriptor"
 docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
 describes_kind = "api-snapshot"
