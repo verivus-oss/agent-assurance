@@ -47,6 +47,7 @@ mod cli {
         Meta,
         /// Force gate-decision INV01..INV06 validation.
         GateDecision,
+        MutationKinds,
         /// Force kind-descriptor structural validation.
         KindDescriptor,
         /// Force IJB conformance validation.
@@ -65,11 +66,13 @@ mod cli {
         RollbackPlan,
         /// Force SPEC §13 abstraction_class/capability_envelope validation.
         AbstractionClass,
+        /// Force api-snapshot kind-layer validation (RKV01/RKV02/RKV03).
+        ApiSnapshot,
     }
 
     pub fn print_usage() {
         eprintln!(
-            "usage: dagtoml-validate-rs --repo-root <path> [--mode auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class] <file.toml> ..."
+            "usage: dagtoml-validate-rs --repo-root <path> [--mode auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class|mutation-kinds|api-snapshot] <file.toml> ..."
         );
     }
 
@@ -94,6 +97,8 @@ mod cli {
                     Some("provenance") => mode = Mode::Provenance,
                     Some("meta") => mode = Mode::Meta,
                     Some("gate-decision") => mode = Mode::GateDecision,
+                    Some("mutation-kinds") => mode = Mode::MutationKinds,
+                    Some("api-snapshot") => mode = Mode::ApiSnapshot,
                     Some("kind-descriptor") => mode = Mode::KindDescriptor,
                     Some("ijb") => mode = Mode::Ijb,
                     Some("provenance-binding") => mode = Mode::ProvenanceBinding,
@@ -105,7 +110,7 @@ mod cli {
                     Some("abstraction-class") => mode = Mode::AbstractionClass,
                     other => {
                         eprintln!(
-                            "error: --mode value must be auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class (got {:?})",
+                            "error: --mode value must be auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class|mutation-kinds|api-snapshot (got {:?})",
                             other
                         );
                         return Err(ExitCode::from(2));
@@ -3172,8 +3177,7 @@ mod profile {
         if let Ok(entries) = std::fs::read_dir(repo_root.join("profiles")) {
             for entry in entries.flatten() {
                 // Path::is_dir follows symlinks (DirEntry::file_type does
-                // not), matching the Python candidate enumeration
-                // (U10 review round 2, R2-2).
+                // not), matching the Python candidate enumeration.
                 if entry.path().is_dir() {
                     out.push(entry.path().join(&fname));
                 }
@@ -3658,6 +3662,996 @@ mod disclosure {
 // Mirrors validators/validate_gate_decision.py (Python reference).
 // CI runs both; divergence is a build break.
 // ------------------------------------------------------------
+
+/// Kind-layer invariants for the `com.verivus.runtime` mutation kinds.
+///
+/// Ported from `validators/validate_state_mutation.py` to close the
+/// primary-parity gap recorded against RKM02/RKM03/RKM04/RKM06 and RKC02.
+/// Before this port a primary-only consumer accepted a hollow proof (the two
+/// pinned digests with no scheme, finality or locator), because the closure
+/// layer sees pins and nothing else.
+mod mutation_kinds {
+    use super::*;
+
+    /// SPEC 12.8.2 bound tuple. Values are PREHASHED, never inlined: an
+    /// inlined value carrying 0x0A forges a different field assignment with
+    /// an identical digest, which is exactly the collision that blocked the
+    /// first draft of this kind.
+    const BOUND_TUPLE_FIELDS: [(&str, &str); 5] = [
+        ("mutation.target_id", "target_id"),
+        ("mutation.operation", "operation"),
+        ("mutation.authorization_sha256", "authorization_sha256"),
+        ("mutation.effect_sha256", "effect_sha256"),
+        ("mutation.performed_at", "performed_at"),
+    ];
+
+    const ALLOWED_MUTATION_KEYS: [&str; 5] = [
+        "performed_at",
+        "target_id",
+        "operation",
+        "authorization_sha256",
+        "effect_sha256",
+    ];
+
+    const ALLOWED_PROOF_KEYS: [&str; 5] = [
+        "scheme",
+        "finality_basis",
+        "proof_sha256",
+        "binds_sha256",
+        "proof_locator",
+    ];
+
+    const REQUIRED_PROOF_KEYS: [&str; 5] = [
+        "scheme",
+        "finality_basis",
+        "proof_sha256",
+        "binds_sha256",
+        "proof_locator",
+    ];
+
+    /// The closed `finality_basis` vocabulary, mirroring the profile ontology.
+    const FINALITY_VALUES: [&str; 4] = [
+        "none",
+        "provider-acknowledged",
+        "ledger-confirmed",
+        "ledger-final",
+    ];
+
+    /// RKM06 scheme-to-finality coherence.
+    fn allowed_finality(scheme: &str) -> Option<&'static [&'static str]> {
+        match scheme {
+            "ledger-transaction" | "zk-receipt" => {
+                Some(&["none", "ledger-confirmed", "ledger-final"])
+            }
+            "provider-receipt" => Some(&["none", "provider-acknowledged"]),
+            "tee-quote" => Some(&["none"]),
+            _ => None,
+        }
+    }
+
+    fn is_digest(s: &str) -> bool {
+        for (prefix, len) in [("sha256:", 64usize), ("sha384:", 96), ("sha512:", 128)] {
+            if let Some(hex) = s.strip_prefix(prefix) {
+                return hex.len() == len
+                    && hex
+                        .chars()
+                        .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c));
+            }
+        }
+        false
+    }
+
+    fn days_in_month(year: u32, month: u32) -> u32 {
+        match month {
+            2 => {
+                if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) {
+                    29
+                } else {
+                    28
+                }
+            }
+            4 | 6 | 9 | 11 => 30,
+            _ => 31,
+        }
+    }
+
+    /// RFC3339 UTC, `YYYY-MM-DDTHH:MM:SS[.frac]Z`. Hand-rolled: this crate
+    /// carries no regex dependency by policy.
+    ///
+    /// Calendar validity is checked as well as shape. Digit positions alone
+    /// accept `2026-99-26T10:15:00Z`, and `performed_at` is a member of the
+    /// RKM04 bound tuple carrying the freshness claim, so a timestamp that
+    /// cannot correspond to any instant should not be bound.
+    fn is_rfc3339_utc(s: &str) -> bool {
+        let b = s.as_bytes();
+        if b.len() < 20 || *b.last().unwrap() != b'Z' {
+            return false;
+        }
+        let shape = |i: usize, c: u8| b.get(i) == Some(&c);
+        let digits = |r: std::ops::Range<usize>| b[r].iter().all(u8::is_ascii_digit);
+        if !(digits(0..4) && shape(4, b'-') && digits(5..7) && shape(7, b'-') && digits(8..10)) {
+            return false;
+        }
+        if !(shape(10, b'T')
+            && digits(11..13)
+            && shape(13, b':')
+            && digits(14..16)
+            && shape(16, b':')
+            && digits(17..19))
+        {
+            return false;
+        }
+        let fraction_ok = match b.len() {
+            20 => true,
+            _ => {
+                b[19] == b'.'
+                    && b.len() <= 30
+                    && b[20..b.len() - 1].iter().all(u8::is_ascii_digit)
+                    && b.len() - 21 >= 1
+            }
+        };
+        if !fraction_ok {
+            return false;
+        }
+        let num = |r: std::ops::Range<usize>| -> u32 {
+            b[r].iter()
+                .fold(0u32, |acc, &c| acc * 10 + u32::from(c - b'0'))
+        };
+        let (year, month, day) = (num(0..4), num(5..7), num(8..10));
+        let (hour, minute, second) = (num(11..13), num(14..16), num(17..19));
+        (1..=12).contains(&month)
+            && day >= 1
+            && day <= days_in_month(year, month)
+            && hour <= 23
+            && minute <= 59
+            // Second 60 is a leap second, which RFC3339 5.6 permits.
+            && second <= 60
+    }
+
+    /// Bare lowercase token, at most 64 characters.
+    fn is_operation(s: &str) -> bool {
+        let b = s.as_bytes();
+        if b.is_empty() || b.len() > 64 {
+            return false;
+        }
+        if !(b[0].is_ascii_lowercase() || b[0].is_ascii_digit()) {
+            return false;
+        }
+        b.iter().all(|&c| {
+            c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'.' || c == b'_' || c == b'-'
+        })
+    }
+
+    /// URI-shaped: `scheme:rest`, no whitespace or control characters,
+    /// bounded. Used for `target_id` and `proof_locator`. A locator names
+    /// where a proof lives; it is never a place to inline one (RKM03).
+    fn is_uri_shaped(s: &str) -> bool {
+        let Some(colon) = s.find(':') else {
+            return false;
+        };
+        if colon == 0 {
+            return false;
+        }
+        let (scheme, rest) = s.split_at(colon);
+        let rest = &rest[1..];
+        if rest.is_empty() || rest.len() > 480 {
+            return false;
+        }
+        let mut chars = scheme.chars();
+        let Some(first) = chars.next() else {
+            return false;
+        };
+        if !first.is_ascii_lowercase() {
+            return false;
+        }
+        if !chars.all(|c| {
+            c.is_ascii_lowercase() || c.is_ascii_digit() || c == '+' || c == '.' || c == '-'
+        }) {
+            return false;
+        }
+        rest.chars()
+            .all(|c| !c.is_whitespace() && !c.is_control() && c != '\u{7f}')
+    }
+
+    fn str_field<'a>(t: Option<&'a toml::map::Map<String, Value>>, key: &str) -> Option<&'a str> {
+        t?.get(key)?.as_str()
+    }
+
+    /// Three-state field access.
+    ///
+    /// `str_field` collapses "absent" and "present but not a string" into
+    /// `None`. Every caller that then defaulted to `""` and skipped its check
+    /// on an empty value therefore skipped it on a wrong-typed value too, so
+    /// `scheme = 1` and `scheme = ""` both bypassed the closed-vocabulary
+    /// check and RKM06 while the Python reference rejected them.
+    enum Field<'a> {
+        Absent,
+        NotString,
+        Str(&'a str),
+    }
+
+    fn field<'a>(t: &'a toml::map::Map<String, Value>, key: &str) -> Field<'a> {
+        match t.get(key) {
+            None => Field::Absent,
+            Some(v) => match v.as_str() {
+                Some(s) => Field::Str(s),
+                None => Field::NotString,
+            },
+        }
+    }
+
+    fn bound_tuple(mutation: &toml::map::Map<String, Value>) -> String {
+        let mut records: Vec<Vec<u8>> = Vec::new();
+        for (dotted, key) in BOUND_TUPLE_FIELDS {
+            let value = mutation.get(key).and_then(|v| v.as_str()).unwrap_or("");
+            let vd = super::digest_hex("sha256", value.as_bytes());
+            records.push(format!("{dotted} sha256:{vd}\n").into_bytes());
+        }
+        records.sort();
+        let stream: Vec<u8> = records.concat();
+        format!("sha256:{}", super::digest_hex("sha256", &stream))
+    }
+
+    fn check_mutation_table(doc: &Value, location: &std::path::Display, defects: &mut Vec<String>) {
+        let mutation = doc.get("mutation").and_then(|x| x.as_table());
+        let Some(mutation) = mutation else {
+            if doc.get("mutation").is_some() {
+                defects.push(format!(
+                    "{}: `mutation` is present but is not a table. A present-but-wrong-typed \
+                     element MUST NOT be reported as absent (SPEC 12.8.2)",
+                    location
+                ));
+            } else {
+                defects.push(format!("{}: missing required `[mutation]` table", location));
+            }
+            return;
+        };
+        for key in mutation.keys() {
+            if !ALLOWED_MUTATION_KEYS.contains(&key.as_str()) {
+                defects.push(format!(
+                    "{}: mutation.{} is not a permitted key (closed key set; payloads and \
+                     credentials have no field to live in)",
+                    location, key
+                ));
+            }
+        }
+        for key in ["authorization_sha256", "effect_sha256"] {
+            match field(mutation, key) {
+                Field::Str(v) if is_digest(v) => {}
+                Field::Str(v) => defects.push(format!(
+                    "{}: mutation.{} {:?} is not a digest scalar",
+                    location, key, v
+                )),
+                Field::NotString => defects.push(format!(
+                    "{}: mutation.{} must be a string carrying a digest scalar",
+                    location, key
+                )),
+                Field::Absent => {
+                    defects.push(format!("{}: mutation.{} is required", location, key))
+                }
+            }
+        }
+        match field(mutation, "performed_at") {
+            Field::Str(v) if is_rfc3339_utc(v) => {}
+            Field::Str(v) => defects.push(format!(
+                "{}: mutation.performed_at {:?} must be an RFC3339 UTC timestamp ending in Z, \
+                 naming a real instant",
+                location, v
+            )),
+            Field::NotString => defects.push(format!(
+                "{}: mutation.performed_at must be a string",
+                location
+            )),
+            Field::Absent => {
+                defects.push(format!("{}: mutation.performed_at is required", location))
+            }
+        }
+        match field(mutation, "operation") {
+            Field::Str(v) if is_operation(v) => {}
+            Field::Str(v) => defects.push(format!(
+                "{}: mutation.operation {:?} must be a bare lowercase token, at most 64 characters",
+                location, v
+            )),
+            Field::NotString => {
+                defects.push(format!("{}: mutation.operation must be a string", location))
+            }
+            Field::Absent => defects.push(format!("{}: mutation.operation is required", location)),
+        }
+        match field(mutation, "target_id") {
+            Field::Str(v) if is_uri_shaped(v) => {}
+            Field::Str(v) => defects.push(format!(
+                "{}: mutation.target_id {:?} must be a URI or URN with no whitespace or control \
+                 characters",
+                location, v
+            )),
+            Field::NotString => {
+                defects.push(format!("{}: mutation.target_id must be a string", location))
+            }
+            Field::Absent => defects.push(format!("{}: mutation.target_id is required", location)),
+        }
+        match doc.get("provenance").and_then(|x| x.as_table()) {
+            None => defects.push(format!(
+                "{}: missing required `[provenance]` table; provenance.source_sha256 is a \
+                 required field of this kind",
+                location
+            )),
+            Some(p) => match str_field(Some(p), "source_sha256") {
+                Some(v) if is_digest(v) => {}
+                _ => defects.push(format!(
+                    "{}: provenance.source_sha256 is required and MUST be a digest scalar",
+                    location
+                )),
+            },
+        }
+    }
+
+    pub fn validate(path: &Path, doc: &Value, _repo_root: &Path) -> Vec<String> {
+        let mut defects = Vec::new();
+        let location = path.display();
+        let tk = doc
+            .get("meta")
+            .and_then(|x| x.as_table())
+            .and_then(|m| m.get("template_kind"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("");
+
+        if tk == "mutation-claim" {
+            // RKC02: a claim must not borrow the appearance of proof.
+            if doc.get("execution_proof").is_some() {
+                defects.push(format!(
+                    "{}: a mutation-claim MUST NOT carry `[execution_proof]` (RKC02). A document \
+                     with a proof is a state-mutation and MUST declare that template_kind, so \
+                     that RKM02, RKM04 and RKM06 apply to it",
+                    location
+                ));
+            }
+            check_mutation_table(doc, &location, &mut defects);
+            return defects;
+        }
+        if tk != "state-mutation" {
+            return defects;
+        }
+
+        check_mutation_table(doc, &location, &mut defects);
+
+        // RKM02: the proof is mandatory and complete. An absent table is an
+        // error, never a producer-attested downgrade.
+        let proof = doc.get("execution_proof").and_then(|x| x.as_table());
+        let Some(proof) = proof else {
+            if doc.get("execution_proof").is_some() {
+                defects.push(format!(
+                    "{}: `execution_proof` is present but is not a table (RKM02). A \
+                     present-but-wrong-typed element MUST NOT be reported as absent (SPEC \
+                     12.8.2), and proof material outside a table is not a proof",
+                    location
+                ));
+            } else {
+                defects.push(format!(
+                    "{}: missing required `[execution_proof]` table (RKM02). A record of an \
+                     irreversible state change with no execution proof is not a state-mutation; \
+                     use mutation-claim instead",
+                    location
+                ));
+            }
+            return defects;
+        };
+        for key in proof.keys() {
+            if !ALLOWED_PROOF_KEYS.contains(&key.as_str()) {
+                defects.push(format!(
+                    "{}: execution_proof.{} is not a permitted key (RKM03 closed key set)",
+                    location, key
+                ));
+            }
+        }
+        for key in REQUIRED_PROOF_KEYS {
+            if !proof.contains_key(key) {
+                defects.push(format!(
+                    "{}: execution_proof.{} is required (RKM02)",
+                    location, key
+                ));
+            }
+        }
+        for key in ["proof_sha256", "binds_sha256"] {
+            match field(proof, key) {
+                Field::Str(v) if is_digest(v) => {}
+                Field::Str(v) => defects.push(format!(
+                    "{}: execution_proof.{} {:?} is not a digest scalar",
+                    location, key, v
+                )),
+                Field::NotString => defects.push(format!(
+                    "{}: execution_proof.{} must be a string carrying a digest scalar",
+                    location, key
+                )),
+                // Absence is already reported against REQUIRED_PROOF_KEYS.
+                Field::Absent => {}
+            }
+        }
+        match field(proof, "proof_locator") {
+            Field::Str(v) if is_uri_shaped(v) => {}
+            Field::Str(v) => defects.push(format!(
+                "{}: execution_proof.proof_locator {:?} must be a URI-shaped reference. A \
+                 locator names where the proof can be fetched; it is not a place to inline \
+                 the proof itself (RKM03)",
+                location, v
+            )),
+            Field::NotString => defects.push(format!(
+                "{}: execution_proof.proof_locator must be a string carrying a URI-shaped \
+                 reference (RKM03)",
+                location
+            )),
+            Field::Absent => {}
+        }
+
+        // RKM02 vocabulary membership, then RKM06 coherence. Membership is
+        // checked with no empty-string and no wrong-type escape: an empty or
+        // non-string value is not a member of a closed vocabulary, and letting
+        // either one skip the check accepted a proof declaring no scheme at
+        // all.
+        let scheme = match field(proof, "scheme") {
+            Field::Str(v) if allowed_finality(v).is_some() => Some(v),
+            Field::Str(v) => {
+                defects.push(format!(
+                    "{}: execution_proof.scheme {:?} is not in the closed \
+                     execution_proof_scheme vocabulary",
+                    location, v
+                ));
+                None
+            }
+            Field::NotString => {
+                defects.push(format!(
+                    "{}: execution_proof.scheme must be a string drawn from the closed \
+                     execution_proof_scheme vocabulary",
+                    location
+                ));
+                None
+            }
+            Field::Absent => None,
+        };
+        let finality = match field(proof, "finality_basis") {
+            Field::Str(v) if FINALITY_VALUES.contains(&v) => Some(v),
+            Field::Str(v) => {
+                defects.push(format!(
+                    "{}: execution_proof.finality_basis {:?} is not in the closed \
+                     finality_basis vocabulary",
+                    location, v
+                ));
+                None
+            }
+            Field::NotString => {
+                defects.push(format!(
+                    "{}: execution_proof.finality_basis must be a string drawn from the closed \
+                     finality_basis vocabulary",
+                    location
+                ));
+                None
+            }
+            Field::Absent => None,
+        };
+        // RKM06: a scheme may only claim durability its evidence can carry.
+        if let (Some(scheme), Some(finality)) = (scheme, finality) {
+            let allowed = allowed_finality(scheme).unwrap_or(&[]);
+            if !allowed.contains(&finality) {
+                defects.push(format!(
+                    "{}: execution_proof scheme {:?} cannot claim finality_basis {:?} \
+                     (RKM06); it carries evidence for {:?} only",
+                    location, scheme, finality, allowed
+                ));
+            }
+        }
+
+        // RKM04: the proof must bind THIS mutation, not merely exist.
+        //
+        // Skipped unless every bound field is a string. Computing the tuple
+        // over a non-string field would hash the empty string in its place and
+        // report a mismatch against a tuple no producer wrote, burying the
+        // type defect already reported above under a bogus RKM04 failure.
+        if let Some(mutation) = doc.get("mutation").and_then(|x| x.as_table()) {
+            let all_bound_fields_are_strings = BOUND_TUPLE_FIELDS
+                .iter()
+                .all(|(_, key)| matches!(field(mutation, key), Field::Str(_)));
+            if let (true, Field::Str(declared)) =
+                (all_bound_fields_are_strings, field(proof, "binds_sha256"))
+            {
+                if is_digest(declared) {
+                    let expected = bound_tuple(mutation);
+                    if declared != expected {
+                        defects.push(format!(
+                            "{}: execution_proof.binds_sha256 {} does not equal the SPEC 12.8.2 \
+                             bound tuple recomputed from this document ({}) (RKM04). The proof \
+                             does not commit to this mutation",
+                            location, declared, expected
+                        ));
+                    }
+                }
+            }
+        }
+
+        defects
+    }
+}
+
+/// Kind-layer invariants for the `com.verivus.runtime` api-snapshot kind.
+///
+/// Ported from `validators/validate_api_snapshot.py` to close the last
+/// declared primary-parity gap. Before this port the primaries carried the
+/// shared meta/provenance/IJB/closure surface for an api-snapshot and nothing
+/// else, so RKV01, RKV02 and RKV03 ran in the Python reference alone: a
+/// primary-only consumer accepted an inlined `authorization` header, an
+/// incomplete witness block, and a descriptor digest that did not match the
+/// capture it claimed to summarise.
+///
+/// The closed vocabularies are compiled in, mirroring
+/// `profiles/com.verivus.runtime/ontology.toml`, exactly as the Python
+/// reference hardcodes them. Drift between either copy and the ontology is
+/// caught by `validate_ijb_conformance.py` on the ontology itself.
+mod api_snapshot {
+    use super::*;
+
+    const WITNESS_SCHEMES: [&str; 3] = ["tls-notary", "provider-signature", "tee-quote"];
+    const ATTESTER_OBSERVED: [&str; 3] = ["request", "response", "both"];
+
+    /// Closed key sets per table. Any other key inlines a raw payload or
+    /// header value, which RKV02 forbids: the document carries only digests.
+    const ALLOWED_SNAPSHOT_KEYS: [&str; 5] =
+        ["captured_at", "source_id", "request", "response", "witness"];
+    const ALLOWED_REQUEST_KEYS: [&str; 5] = [
+        "method",
+        "url",
+        "significant_headers",
+        "descriptor_sha256",
+        "auth_context",
+    ];
+    const ALLOWED_RESPONSE_KEYS: [&str; 2] = ["status", "body_sha256"];
+    const ALLOWED_WITNESS_KEYS: [&str; 5] = [
+        "present",
+        "scheme",
+        "observed",
+        "attester_id",
+        "attestation_sha256",
+    ];
+
+    /// Header names that carry credentials or session material. The closed key
+    /// sets already reject them; naming them earns a secret-specific message
+    /// so the producer is told what they leaked, not merely that a key was
+    /// unexpected.
+    const SECRET_HEADER_NAMES: [&str; 10] = [
+        "authorization",
+        "proxy-authorization",
+        "cookie",
+        "set-cookie",
+        "x-api-key",
+        "api-key",
+        "apikey",
+        "x-auth-token",
+        "x-amz-security-token",
+        "authentication",
+    ];
+
+    const CAPTURE_MAGIC: &[u8] = b"DAGTOML-API-CAPTURE/1\n";
+
+    fn is_digest(s: &str) -> bool {
+        for (prefix, len) in [("sha256:", 64usize), ("sha384:", 96), ("sha512:", 128)] {
+            if let Some(hex) = s.strip_prefix(prefix) {
+                return hex.len() == len
+                    && hex
+                        .chars()
+                        .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c));
+            }
+        }
+        false
+    }
+
+    fn digest_field(t: &toml::map::Map<String, Value>, key: &str) -> bool {
+        t.get(key).and_then(|v| v.as_str()).is_some_and(is_digest)
+    }
+
+    fn non_empty_str(t: &toml::map::Map<String, Value>, key: &str) -> bool {
+        t.get(key)
+            .and_then(|v| v.as_str())
+            .is_some_and(|s| !s.trim().is_empty())
+    }
+
+    /// A bare lowercase header NAME: `[a-z0-9][a-z0-9-]*`. A ':' or any
+    /// whitespace means a header VALUE was inlined (RKV02).
+    fn is_header_name(s: &str) -> bool {
+        let b = s.as_bytes();
+        if b.is_empty() {
+            return false;
+        }
+        if !(b[0].is_ascii_lowercase() || b[0].is_ascii_digit()) {
+            return false;
+        }
+        b.iter()
+            .all(|&c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')
+    }
+
+    fn check_keys(
+        t: &toml::map::Map<String, Value>,
+        allowed: &[&str],
+        dotted: &str,
+        location: &std::path::Display,
+        defects: &mut Vec<String>,
+    ) {
+        for key in t.keys() {
+            if allowed.contains(&key.as_str()) {
+                continue;
+            }
+            let lowered = key.to_ascii_lowercase();
+            if SECRET_HEADER_NAMES.contains(&lowered.as_str()) {
+                defects.push(format!(
+                    "{}: {}.{} inlines a secret-bearing header; RKV02 forbids raw header \
+                     values, pin them via the canonical request descriptor digest instead",
+                    location, dotted, key
+                ));
+            } else {
+                defects.push(format!(
+                    "{}: {}.{} is not an allowed field; a raw header/payload value MUST NOT \
+                     be inlined, the document carries only digests (RKV02)",
+                    location, dotted, key
+                ));
+            }
+        }
+    }
+
+    /// RKV01 sub-part consistency for the profile's `DAGTOML-API-CAPTURE/1`
+    /// capture form.
+    ///
+    /// A capture in a foreign, producer-defined format cannot be parsed here,
+    /// so sub-part consistency for it is a RUNTIME-SPEC producer obligation,
+    /// exactly like re-fetching the URL. A capture that DECLARES this form by
+    /// carrying the magic and then lacks its section markers is malformed and
+    /// fails CLOSED: a magic header with missing markers must never let an
+    /// arbitrary descriptor_sha256 or body_sha256 through.
+    fn verify_subparts(
+        doc: &Value,
+        repo_root: &Path,
+        location: &std::path::Display,
+        defects: &mut Vec<String>,
+    ) {
+        let Some(provenance) = doc.get("provenance").and_then(|x| x.as_table()) else {
+            return;
+        };
+        let Some(source_path) = provenance.get("source_path").and_then(|v| v.as_str()) else {
+            return;
+        };
+        if source_path.trim().is_empty() || Path::new(source_path).is_absolute() {
+            // Absent or absolute: validate_provenance owns that binding.
+            return;
+        }
+        let capture = repo_root.join(source_path);
+        if !capture.is_file() {
+            // Missing: validate_provenance reports it.
+            return;
+        }
+        let Ok(data) = std::fs::read(&capture) else {
+            return;
+        };
+        if !data.starts_with(CAPTURE_MAGIC) {
+            // Foreign capture format: sub-part consistency is RUNTIME-SPEC.
+            return;
+        }
+
+        let snapshot = doc.get("snapshot").and_then(|x| x.as_table());
+        let request = snapshot
+            .and_then(|s| s.get("request"))
+            .and_then(|x| x.as_table());
+        let response = snapshot
+            .and_then(|s| s.get("response"))
+            .and_then(|x| x.as_table());
+
+        let dmark: &[u8] = b"request-descriptor:\n";
+        let smark: &[u8] = b"response-status:";
+        let bmark: &[u8] = b"response-body:\n";
+
+        // Both markers must appear SOMEWHERE, then the descriptor sub-part is
+        // everything after the first `request-descriptor:` up to the first
+        // `response-status:` that follows it. This mirrors the reference's
+        // `data.split(dmark, 1)[1].split(smark, 1)[0]` exactly, including the
+        // case where the only `response-status:` precedes the descriptor
+        // marker: the reference then takes the whole remainder, so this does
+        // too. Diverging here would be a parity gap on a malformed capture.
+        match (find(&data, dmark), find(&data, smark)) {
+            (Some(d), Some(_)) => {
+                let after = &data[d + dmark.len()..];
+                let end = find(after, smark).unwrap_or(after.len());
+                let actual = format!("sha256:{}", super::digest_hex("sha256", &after[..end]));
+                let declared = request
+                    .and_then(|r| r.get("descriptor_sha256"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                if declared != actual {
+                    defects.push(format!(
+                        "{}: snapshot.request.descriptor_sha256 {:?} does not equal the SHA-256 \
+                         of the request-descriptor sub-part of the capture ({}) (RKV01 sub-part \
+                         consistency)",
+                        location, declared, actual
+                    ));
+                }
+            }
+            _ => defects.push(malformed_capture(
+                location,
+                source_path,
+                "'request-descriptor:' / 'response-status:'",
+                "snapshot.request.descriptor_sha256",
+            )),
+        }
+
+        match find(&data, bmark) {
+            Some(b) => {
+                let body = &data[b + bmark.len()..];
+                let actual = format!("sha256:{}", super::digest_hex("sha256", body));
+                let declared = response
+                    .and_then(|r| r.get("body_sha256"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                if declared != actual {
+                    defects.push(format!(
+                        "{}: snapshot.response.body_sha256 {:?} does not equal the SHA-256 of \
+                         the response-body sub-part of the capture ({}) (RKV01 sub-part \
+                         consistency)",
+                        location, declared, actual
+                    ));
+                }
+            }
+            None => defects.push(malformed_capture(
+                location,
+                source_path,
+                "'response-body:'",
+                "snapshot.response.body_sha256",
+            )),
+        }
+    }
+
+    fn malformed_capture(
+        location: &std::path::Display,
+        source_path: &str,
+        markers: &str,
+        field: &str,
+    ) -> String {
+        format!(
+            "{}: capture {:?} carries the DAGTOML-API-CAPTURE/1 magic but lacks the {} section \
+             markers; {} cannot be verified (malformed capture) (RKV01 sub-part consistency)",
+            location, source_path, markers, field
+        )
+    }
+
+    /// First index of `needle` in `haystack`. No regex or memchr dependency by
+    /// crate policy, and the captures this runs over are small.
+    fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+        if needle.is_empty() || haystack.len() < needle.len() {
+            return None;
+        }
+        haystack
+            .windows(needle.len())
+            .position(|window| window == needle)
+    }
+
+    pub fn validate(path: &Path, doc: &Value, repo_root: &Path) -> Vec<String> {
+        let mut defects = Vec::new();
+        let location = path.display();
+        let tk = doc
+            .get("meta")
+            .and_then(|x| x.as_table())
+            .and_then(|m| m.get("template_kind"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("");
+        if tk != "api-snapshot" {
+            return defects;
+        }
+
+        let Some(snapshot) = doc.get("snapshot").and_then(|x| x.as_table()) else {
+            defects.push(format!(
+                "{}: [snapshot] table is required for an api-snapshot",
+                location
+            ));
+            return defects;
+        };
+
+        // RKV02: closed key sets, so a raw header or payload has no field to
+        // live in.
+        check_keys(
+            snapshot,
+            &ALLOWED_SNAPSHOT_KEYS,
+            "snapshot",
+            &location,
+            &mut defects,
+        );
+
+        if !non_empty_str(snapshot, "captured_at") {
+            defects.push(format!(
+                "{}: snapshot.captured_at is required (RFC3339 string)",
+                location
+            ));
+        }
+        if !non_empty_str(snapshot, "source_id") {
+            defects.push(format!(
+                "{}: snapshot.source_id is required (string)",
+                location
+            ));
+        }
+
+        let request = snapshot.get("request").and_then(|x| x.as_table());
+        match request {
+            None => defects.push(format!(
+                "{}: [snapshot.request] table is required",
+                location
+            )),
+            Some(request) => {
+                check_keys(
+                    request,
+                    &ALLOWED_REQUEST_KEYS,
+                    "snapshot.request",
+                    &location,
+                    &mut defects,
+                );
+                if request.get("method").and_then(|v| v.as_str()).is_none() {
+                    defects.push(format!(
+                        "{}: snapshot.request.method is required (string)",
+                        location
+                    ));
+                }
+                if !digest_field(request, "descriptor_sha256") {
+                    defects.push(format!(
+                        "{}: snapshot.request.descriptor_sha256 must be a digest scalar \
+                         (<algo>:<hex>) (RKV02: header values are carried in the canonical \
+                         descriptor as digests)",
+                        location
+                    ));
+                }
+            }
+        }
+
+        match snapshot.get("response").and_then(|x| x.as_table()) {
+            None => defects.push(format!(
+                "{}: [snapshot.response] table is required",
+                location
+            )),
+            Some(response) => {
+                check_keys(
+                    response,
+                    &ALLOWED_RESPONSE_KEYS,
+                    "snapshot.response",
+                    &location,
+                    &mut defects,
+                );
+                if !digest_field(response, "body_sha256") {
+                    defects.push(format!(
+                        "{}: snapshot.response.body_sha256 must be a digest scalar (<algo>:<hex>)",
+                        location
+                    ));
+                }
+            }
+        }
+
+        // significant_headers carries header NAMES only. A ':' or whitespace
+        // in an entry means a header VALUE was inlined.
+        if let Some(request) = request {
+            if let Some(sig) = request.get("significant_headers") {
+                match sig.as_array() {
+                    None => defects.push(format!(
+                        "{}: snapshot.request.significant_headers must be an array of \
+                         header-name strings",
+                        location
+                    )),
+                    Some(entries) => {
+                        for entry in entries {
+                            let ok = entry.as_str().is_some_and(is_header_name);
+                            if !ok {
+                                defects.push(format!(
+                                    "{}: snapshot.request.significant_headers entry {} must be a \
+                                     bare lowercase header name; a ':' or whitespace means a \
+                                     header VALUE was inlined (RKV02)",
+                                    location,
+                                    entry.as_str().map_or_else(
+                                        || format!("{:?}", entry),
+                                        |s| format!("{:?}", s)
+                                    )
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // RKV03: the witness conditional.
+        //
+        // The table is REQUIRED. An unwitnessed capture asserts `present =
+        // false`; it does not delete the block. That does not stop a producer
+        // who re-roots the document from writing `present = false` (nothing
+        // computed from inside a document can), but it removes the shape in
+        // which a stripped document and an honestly unwitnessed one are
+        // indistinguishable.
+        match snapshot.get("witness") {
+            None => defects.push(format!(
+                "{}: missing required `[snapshot.witness]` table (RKV03). An unwitnessed \
+                 capture MUST assert `present = false`; the absence of a witness MUST NOT \
+                 be achieved by deleting the table",
+                location
+            )),
+            Some(v) if v.as_table().is_none() => defects.push(format!(
+                "{}: `snapshot.witness` is present but is not a table (RKV03)",
+                location
+            )),
+            Some(_) => {}
+        }
+        if let Some(witness) = snapshot.get("witness").and_then(|x| x.as_table()) {
+            check_keys(
+                witness,
+                &ALLOWED_WITNESS_KEYS,
+                "snapshot.witness",
+                &location,
+                &mut defects,
+            );
+            match witness.get("present").and_then(|v| v.as_bool()) {
+                None => defects.push(format!(
+                    "{}: snapshot.witness.present must be a boolean",
+                    location
+                )),
+                Some(true) => {
+                    let scheme = witness.get("scheme").and_then(|v| v.as_str()).unwrap_or("");
+                    if !WITNESS_SCHEMES.contains(&scheme) {
+                        defects.push(format!(
+                            "{}: snapshot.witness.scheme must be one of {:?} when present=true \
+                             (RKV03)",
+                            location, WITNESS_SCHEMES
+                        ));
+                    }
+                    if !non_empty_str(witness, "attester_id") {
+                        defects.push(format!(
+                            "{}: snapshot.witness.attester_id is required when present=true \
+                             (RKV03)",
+                            location
+                        ));
+                    }
+                    if !digest_field(witness, "attestation_sha256") {
+                        defects.push(format!(
+                            "{}: snapshot.witness.attestation_sha256 must be a digest scalar \
+                             when present=true (RKV03)",
+                            location
+                        ));
+                    }
+                    let observed = witness
+                        .get("observed")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if !ATTESTER_OBSERVED.contains(&observed) {
+                        defects.push(format!(
+                            "{}: snapshot.witness.observed must be one of {:?} when present=true \
+                             (RKV03)",
+                            location, ATTESTER_OBSERVED
+                        ));
+                    }
+                }
+                Some(false) => {
+                    // Amended RKV03: SPEC 12.8.1 keys the closure on field
+                    // PRESENCE, so a lingering witness digest under
+                    // present=false would make the downgrade invisible at the
+                    // closure root.
+                    let lingering: Vec<&str> =
+                        ["scheme", "attester_id", "attestation_sha256", "observed"]
+                            .into_iter()
+                            .filter(|key| witness.contains_key(*key))
+                            .collect();
+                    if !lingering.is_empty() {
+                        defects.push(format!(
+                            "{}: snapshot.witness fields {:?} MUST be absent when present=false \
+                             (amended RKV03: the SPEC 12.8.1 closure keys on field presence, so \
+                             a lingering witness digest would make the downgrade invisible at \
+                             the closure root)",
+                            location, lingering
+                        ));
+                    }
+                }
+            }
+        }
+
+        // RKV01: sub-part consistency against the capture.
+        verify_subparts(doc, repo_root, &location, &mut defects);
+
+        defects
+    }
+}
 
 mod gate_decision {
     use super::*;
@@ -4366,6 +5360,26 @@ fn pinned_closure_inputs(
     let Some(meta) = doc.get("meta").and_then(|x| x.as_table()) else {
         return (Vec::new(), Vec::new());
     };
+    // SPEC 2.3: `template_kind` IS a string. Absence is a ratified escape from
+    // conformance scope, and so is a non-spec-reserved string value (SPEC 12).
+    // A value that is PRESENT but not a string is neither. Reading it as absent
+    // drops every pinned closure record for the kind and silently degrades the
+    // document to the one-record source-hash closure, which is the pin-free
+    // fall-through the docstring above says does not exist.
+    if let Some(raw) = meta.get("template_kind") {
+        if raw.as_str().is_none() {
+            return (
+                Vec::new(),
+                vec![format!(
+                    "{}: `meta.template_kind` is present but is not a string (SPEC §2.3). A \
+                     malformed kind selector MUST NOT be read as an absent one: that drops \
+                     every pinned closure record for the kind and silently degrades the \
+                     document to a one-record source-hash closure",
+                    path.display()
+                )],
+            );
+        }
+    }
     let template_kind = meta
         .get("template_kind")
         .and_then(|x| x.as_str())
@@ -4674,6 +5688,14 @@ fn main() -> ExitCode {
                     errs.extend(gate_decision::validate(path, &doc, &repo_root));
                     errs.extend(ijb::validate(path, &doc, &repo_root));
                 }
+                "state-mutation" | "mutation-claim" => {
+                    errs.extend(mutation_kinds::validate(path, &doc, &repo_root));
+                    errs.extend(ijb::validate(path, &doc, &repo_root));
+                }
+                "api-snapshot" => {
+                    errs.extend(api_snapshot::validate(path, &doc, &repo_root));
+                    errs.extend(ijb::validate(path, &doc, &repo_root));
+                }
                 "" => {}
                 _ => {
                     errs.extend(ijb::validate(path, &doc, &repo_root));
@@ -4687,6 +5709,12 @@ fn main() -> ExitCode {
             }
             cli::Mode::GateDecision => {
                 errs.extend(gate_decision::validate(path, &doc, &repo_root));
+            }
+            cli::Mode::MutationKinds => {
+                errs.extend(mutation_kinds::validate(path, &doc, &repo_root));
+            }
+            cli::Mode::ApiSnapshot => {
+                errs.extend(api_snapshot::validate(path, &doc, &repo_root));
             }
             cli::Mode::KindDescriptor => {
                 errs.extend(kind_descriptor::validate(

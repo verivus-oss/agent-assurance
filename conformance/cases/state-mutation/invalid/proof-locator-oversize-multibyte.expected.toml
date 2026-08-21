@@ -1,0 +1,23 @@
+# The discriminator has to be the VALUE, not the field and not the invariant.
+#
+# The Python reference emits ONE diagnostic for every proof_locator problem,
+# so a field-level needle also matches wrong-typed-proof-fields, whose locator
+# is an integer. discrimination.py caught exactly that when this sidecar was
+# first written against the field name. Both primaries do separate the two
+# cases (a three-state accessor reports NotString distinctly), so the needle
+# has to hold for the weakest of the three, which is the reference.
+#
+# All three render the multibyte run raw, so the value prefix is a stable
+# needle across implementations and is unique to this case.
+error_contains = [
+  "eip155:éééééééééééé",
+  "must be a URI-shaped reference",
+]
+
+# The claim of this case is that the document is closure-VALID and only the
+# kind layer objects. Asserting the closure layer stayed SILENT is what makes
+# that claim mechanical rather than asserted.
+error_not_contains = [
+  "pinned closure record",
+  "bound tuple",
+]

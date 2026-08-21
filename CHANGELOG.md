@@ -7,6 +7,435 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- **`conformance/coverage_audit.py`, a mutation-based coverage gate, plus a
+  ratcheted baseline.** Every `errors.append(...)` in a profile kind-layer
+  validator is a check. The audit disables each one in turn and asks whether any
+  gate in the repository notices; one that nothing notices is a check nothing
+  tests, even when the code is correct.
+
+  It exists because reading does not find these. The first audit run found
+  **25 unprotected checks out of 45** in a surface that had been inspected
+  repeatedly, with only a handful located that way.
+
+  The cause is one construction defect, not 25 oversights: the corpus was built
+  by mutating a single field of a known-good document, so every fixture inherits
+  correct values everywhere else and any check on a commonly-correct field is
+  structurally invisible to the oracle.
+
+  `conformance/coverage-baseline.toml` declares the tolerated number and CI fails
+  when the real number exceeds it, so adding a check without a fixture that
+  exercises it is now a build break. It is a ratchet: the number may only fall
+  without a deliberate, reasoned edit. Same contract as `known-divergences.toml`
+  and `TOML_CONFORMANCE_SKIPS`.
+
+  One methodological note recorded because it nearly shipped: an earlier version
+  of the audit reported 28 of 28 checks as covered. That uniformity was the tell.
+  It counted "an `examples/negative` fixture is accepted by validator X" as
+  detection, but several of those are closure-layer negatives that X never
+  rejected, so the rule fired on a pre-existing condition. Detection is now
+  measured against a baseline recorded before any mutation.
+
+- **Two closed-vocabulary gaps closed**, chosen first because they are the checks
+  a policy engine actually filters on. `witness-scheme-unknown.toml` covers a
+  `witness.scheme` outside the closed vocabulary, which was unprotected because
+  every fixture carried `tls-notary`. `finality-basis-unknown.toml` covers a
+  `finality_basis` outside its vocabulary, which was unprotected for the same
+  reason. Both are closure-valid, both are rejected by all three implementations,
+  and each was verified to kill the mutant it was written for. Baseline ratcheted
+  25 to 23.
+
+- **An external CI assertion for discrimination coverage.**
+  `conformance/discrimination.py` carries its own coverage self-check, and that
+  check works: dropping a kind from `KINDS` fails it. But it is a SAME-FILE
+  oracle. The same defeat path is reproducible: delete the
+  self-check and the kind together, and the script exits 0 with nothing to say. A
+  guard that lives in the file it guards can always be removed alongside the
+  thing it guards.
+
+  `.github/workflows/validate.yml` now asserts the coverage independently. It
+  derives one side from the FILESYSTEM (which kinds ship `*.expected.toml`
+  sidecars) and the other from the SOURCE DECLARATION (`KINDS` and
+  `KIND_VALIDATOR`, read with `ast` and never imported or executed), then
+  compares. It shares no code with `discrimination.py`, so neutralising or
+  deleting that file's self-check does not disable it. Verified against both
+  defeat paths: with the in-file guard neutralised and `api-snapshot` dropped,
+  `discrimination.py` exits 0 while the CI assertion reports
+  `FAIL: uncovered kinds: api-snapshot`; dropping a `KIND_VALIDATOR` mapping the
+  same way reports `FAIL: unmapped`.
+
+  This does not make the gate undeletable, and it is not claimed to. Removing the
+  CI step is still possible, but it is a visible change to the workflow, which is
+  the trust root and the thing review actually watches. The point is that the
+  guard no longer sits inside its own subject.
+
+- **`conformance/discrimination.py` coverage self-check.** The api-snapshot
+  coverage fix was itself unprotected: reverting
+  `KINDS` to drop `api-snapshot` was a MUTATION SURVIVOR, since the shipped suite
+  still exited 0 and merely reported `14 sidecar(s) over 14 case(s)` instead of
+  19 over 25. A coverage fix whose removal nothing detects is not a fix. The
+  check now fails when a kind ships sidecars but is absent from `KINDS`, and when
+  a `KINDS` entry has no `KIND_VALIDATOR` mapping.
+
+  Writing that guard immediately found a second, pre-existing instance of the
+  same gap, and chasing it down turned up something larger. `implementation-dag`
+  ships 18 sidecars that had never been cross-checked, and the reason they could
+  not discriminate was not sidecar quality: **17 of its 18 invalid fixtures were
+  malformed.** Each carried `tier1_units = '[U01, U02]'`, a quoted STRING rather
+  than an array, so the validator iterated its characters and every fixture
+  emitted the same pile of unrelated complaints about `U`, `[` and `]`. The same
+  17 were also missing their `[computed.max_parallel]` table. All 17 derive from
+  one bad template.
+
+  That violated the corpus's own contract, that each invalid fixture "mutates
+  exactly one aspect of a known-good document, so a failure isolates one
+  semantic rule". Nothing was silently passing: after removing the unrelated
+  defect every fixture still fails for its own stated reason. The hazard was
+  latent rather than live, and it is the same class as an earlier finding in
+  this work, a fixture rejected for the wrong reason. Had cycle detection or
+  layer ordering regressed, the fixture would still have failed on
+  `tier1_units` and the regression would have been masked.
+
+  Fixed rather than exempted: `tier1_units` repaired and a correct
+  `[computed.max_parallel]` added across the 17, so 12 of 18 now emit exactly
+  one error and the other six emit only genuine cascades of their single
+  mutation. Four sidecars whose needles were too generic were rewritten with
+  direction-specific discriminators. `implementation-dag` is now covered, and
+  the check reports 37 sidecars over 43 cases, up from 19 over 25.
+
+  An earlier revision of this change added an `UNCOVERED_KINDS` exemption for
+  `implementation-dag` instead. That was wrong and is not what shipped: it
+  defeated the new guard on its first firing and handed the next contributor a
+  documented way to silence it. There is no exemption mechanism.
+
+- **`conformance/parity_sweep.py`.** The kind-layer-against-kind-layer sweep that
+  produced the zero-divergence figure now ships, so the number is reproducible
+  instead of asserted. Looking for it in `runner.py` gives 52 cases, which is a
+  different instrument measuring a different thing.
+
+### Fixed
+
+- **Go `--help` still omitted `mutation-kinds` and `api-snapshot`.** The earlier
+  fix replaced the first matching occurrence, which was `parseMode`'s error
+  string, so the `flag.StringVar` help text never changed while the CHANGELOG
+  claimed both primaries listed the modes.
+
+- **RKV03 hardening: `snapshot.witness.present` is now a required field.** An
+  `api-snapshot` that omits `[snapshot.witness]` entirely is now MALFORMED rather
+  than valid: the absence of a witness must be ASSERTED (`present = false`) and
+  cannot be achieved by deletion. Implemented in all three implementations
+  together, so the parity established for RKV01 to RKV03 holds.
+
+  What this buys is bounded, and the descriptor says so rather than overclaiming:
+  it does NOT stop a producer who re-roots the document from writing
+  `present = false`, because nothing computed from inside a document can. What it
+  removes is the shape in which a STRIPPED document and an honestly unwitnessed
+  one are indistinguishable, so a downgrade becomes a positive statement inside
+  the closed content that an auditor and a policy engine can both read.
+
+  This is a breaking change at the kind layer for documents that carried no
+  witness table. Six fixtures were updated to assert `present = false`, which
+  leaves every closure root unchanged because `present` is not a pinned record.
+  In particular `conformance/cases/api-snapshot/valid/unwitnessed-three-record.toml`
+  keeps its frozen parity-matrix property: that row is about the three-record
+  STREAM (`attestation_sha256` absent), not about the witness table's existence.
+  `witness-stripped` is now the well-formed downgrade (`present = false` plus the
+  attestation removed) against a stale four-record root, which is a stronger case
+  than deletion because the producer does the downgrade correctly and the stale
+  anchored root still fails to reproduce.
+
+  New case `conformance/cases/api-snapshot/invalid/witness-absent.toml` pins the
+  deletion vector itself. It is deliberately closure-VALID, so the kind layer is
+  demonstrably the only thing rejecting it.
+
+### Fixed
+
+- **`conformance/discrimination.py` did not cover `api-snapshot`.** `KINDS` listed
+  only the two mutation kinds and `collect_output` hardcoded
+  `validate_state_mutation.py`, so every api-snapshot sidecar sat uncovered: the
+  cross-product never ran over them and they could have blessed the wrong defect
+  class with nothing noticing. That is the exact failure mode this file exists to
+  catch, one level up. `KINDS` and a new `KIND_VALIDATOR` map now cover
+  api-snapshot, taking the check from 14 sidecars over 14 cases to 19 over 25.
+  All existing sidecars discriminate under the widened cross-product.
+
+- **Full kind-layer parity across the validator triad.** `RKV01` (sub-part
+  consistency), `RKV02` (no inlined secret or raw header value) and `RKV03`
+  (the witness conditional) were implemented in `validators/validate_api_snapshot.py`
+  ALONE. Both primaries carried only the shared meta/provenance/IJB/closure
+  surface for an `api-snapshot`, so a primary-only consumer accepted an inlined
+  `authorization` header, a witness claiming `present = true` with no attester,
+  and a `descriptor_sha256` that did not match the capture the document cites.
+  The CI negative-agreement gate did not see it: those fixtures were asserted
+  against the Python reference only, so the negatives agreed and the corpus
+  looked green. Both primaries now implement all three
+  (`tools/dagtoml-validate-rs` `mod api_snapshot`,
+  `tools/dagtoml-validate-go` `validateAPISnapshot`), reachable as
+  `--mode api-snapshot` and via the `auto` dispatch, and every api-snapshot
+  negative is now asserted against all three implementations.
+
+  An empirical sweep over all 87 fixtures that have a reference validator now
+  reports **zero** accept/reject divergences, comparing kind layer against kind
+  layer. `enforced_by_primaries` in the kind descriptors was NOT a usable audit
+  key for this: it is under-declared, marking only 24 of 97 declared invariants
+  as primary-covered while the primaries in fact implement far more, so the
+  parity claim is measured from behaviour rather than from declarations.
+
+- **Four `conformance/cases/api-snapshot/invalid/` cases pinning the ported
+  rules.** `inlined-secret-header`, `header-value-inlined`, `witness-incomplete`
+  and `subpart-descriptor-mismatch`. Every one is deliberately closure-VALID and
+  honestly re-rooted, so the closure layer stays silent and the kind layer is
+  demonstrably the only thing rejecting them; each sidecar asserts that with
+  `error_not_contains = ["pinned closure record"]`.
+
+  `subpart-descriptor-mismatch` exists because
+  `examples/negative/api-snapshot-bad-subpart-digest.toml` cannot serve as the
+  cross-implementation gate for RKV01: it is deliberately double-defective (its
+  `source_bytes` is wrong so it also fails the provenance-negative sweep), so an
+  implementation that checked only `source_bytes` rejected it for the wrong
+  reason and still looked green. The conformance case removes that escape.
+
+### Fixed
+
+- **A three-way divergence in the `state-mutation` URI value grammar.** The
+  Python reference and both primaries disagreed on `mutation.target_id` and
+  `execution_proof.proof_locator`, on two independent axes. LENGTH: the regex
+  `{1,480}` counts CODE POINTS while `str::len()` and `len()` count BYTES, so a
+  value of 241 two-byte characters (482 bytes) was accepted by the reference and
+  rejected by both primaries. CONTROL CHARACTERS: `[^\s\x00-\x1f\x7f]`
+  excludes C0 and DEL but not C1 (U+0080 to U+009F), so 31 of the 32 C1 code
+  points were accepted by the reference and rejected by both primaries (U+0085
+  agreed only because `\s` happens to cover NEL). `target_id` is a member of the
+  RKM04 bound tuple, so the grammar the descriptor calls defence in depth was the
+  one the three implementations disagreed on. The reference now uses a
+  hand-rolled `is_uri_shaped` matching the primaries on both axes, and
+  `conformance/cases/state-mutation/invalid/target-id-c1-control.toml` and
+  `proof-locator-oversize-multibyte.toml` pin both.
+
+  The primaries were the stricter side throughout, so no unsafe document could
+  ship through CI; what was broken was the triad's own guarantee that no single
+  implementation self-vouches.
+
+- **Stale `--mode` help text in both primaries.** Neither usage string listed
+  `mutation-kinds`, which both had implemented since the state-mutation kinds
+  landed. Both now list it and `api-snapshot`.
+
+- **`conformance/discrimination.py`, and `error_not_contains` in the runner.**
+  The corpus asserted less than it appeared to: a sidecar
+  that matches its own case is necessary and not sufficient, because a needle
+  can also match a DIFFERENT case's output and would then bless the wrong
+  defect class. `hollow-proof.expected.toml` asserted only `"RKM02"`, and the
+  RKC02 diagnostic contains that string incidentally while naming the
+  invariants a proved record must face. Swapping the sidecar onto
+  `mutation-claim/invalid/array-proof` left the corpus green.
+
+  Running the full cross-product showed four sidecars affected, not one:
+  `unbound-proof`'s bare `"RKM04"` matched four other cases. The new check runs
+  every sidecar against every other case in CI, with a whitelist for pairs that
+  legitimately share a defect class and discriminate by verdict instead.
+
+  `error_not_contains` exists because presence-only needles cannot separate a
+  case from one whose output is a strict SUPERSET of its own, which is the
+  relationship between `hollow-proof` and `required-pin-missing-proof`. The
+  former now asserts the closure layer stayed silent.
+
+- **An RKM06 conformance case.** The scheme-to-finality coherence invariant was
+  enforced in all three implementations with no fixture at all.
+  It is the mitigation that kept `provider-receipt` in the ontology after a
+  proposal to remove it, so leaving it untested left that objection
+  unanswered.
+
+- **A shared conformance corpus for `state-mutation` and `mutation-claim`**,
+  which was independently named as the thing that ends the review cycle
+  rather than another pass of it. 15 new cases (4 valid, 11
+  invalid) under `conformance/cases/`, driven through the Rust primary, the Go
+  primary and the Python reference by the existing `conformance/runner.py`.
+
+  Every invalid case carries an `error_contains` sidecar asserting the defect
+  CLASS, not the exit code. That distinction is the point: a defect was found
+  where all three implementations rejected the document and two reported
+  the wrong reason, which an exit-code corpus would have passed. The mechanism
+  was negative-controlled by planting an unmatchable substring and confirming
+  the runner fails all three implementations on it.
+
+  Cases are the accumulated regressions of the review: RKM02 hollow
+  proof, RKM04 unbound proof, RKM03 inlined payload, blank and wrong-typed
+  vocabulary tokens, an impossible calendar date, a Unicode-digit timestamp, a
+  deleted required pin, a malformed kind selector, and RKC02 in both TOML
+  shapes proof material can take. `mutation-claim` had no conformance cases at
+  all before this, which is why its RKC02 bypass survived so long.
+
+  Two `state-mutation/valid/` cases are regression guards rather than examples:
+  SPEC §12 ratifies both a non-spec-reserved `template_kind` and no
+  `template_kind` at all as escapes from conformance scope, and both are now
+  asserted MUST-ACCEPT because rejecting them was proposed and declined.
+
+### Fixed
+
+- **CI was red on this branch for a second reason,** unnoticed for some time:
+  `conformance/cases/state-mutation/` was added without a
+  `PY_VALIDATORS` entry in `conformance/runner.py`, and an unregistered case
+  directory is a hard failure there. Both mutation kinds are now registered.
+
+- **The enumerated-exclusion hazard that caused it, twice.** The repo-wide
+  positive closure sweep listed `conformance/cases/<kind>/invalid` exclusions
+  by hand, so adding a kind turned the sweep red until someone remembered the
+  line. `validate_closure_root.py` now derives that skip from the path shape,
+  matching what the Rust and Go discovery paths always did, and the workflow's
+  per-fixture negative assertions for these kinds are discovered by glob rather
+  than listed. Verified by adding an unregistered invalid tree and confirming
+  the sweep stays green.
+
+- A pre-existing conformance case (`required-pin-missing-proof`) declared
+  `source_bytes = 417` against a 416-byte capture, so it failed for two
+  reasons at once and proved neither. Corpus cases must fail for exactly the
+  reason they name.
+
+- **A malformed kind selector silently dropped every pinned closure record.**
+  SPEC 2.3 says `meta.template_kind` is a
+  string. All three implementations read a present-but-NON-STRING value as
+  ABSENT: pin resolution returned no pins and no error, degrading the document
+  to the SPEC 12.8 one-record source-hash closure, while every kind validator
+  dispatched on the same value and correctly concluded "not my kind". A
+  document with `template_kind = 1`, a full `[mutation]` table, a hollow
+  `[execution_proof]`, and an honest one-record root therefore passed closure,
+  provenance and the kind layer in all three. This is the pin-free fall-through
+  that all three functions' own docstrings say does not exist. It affects every
+  kind, not only these two, and predates this branch.
+
+  The fix is deliberately narrow. SPEC 12 ratifies TWO escapes from conformance
+  scope, a non-spec-reserved `template_kind` string and no `template_kind` at
+  all, and both remain legal and are now asserted as legal so a later change
+  cannot quietly remove them. Only the malformed case, which is neither escape,
+  is rejected.
+
+- **`validate_state_mutation.py` crashed on a table-typed vocabulary value.**
+  `scheme not in schemes` raises `TypeError` on
+  an unhashable value, so a table-typed `scheme` or `finality_basis` aborted
+  the validator with a traceback. It exited 1, so it failed closed, but a
+  traceback is not a defect report and it hid which invariant fired. The
+  primaries already reported these cleanly.
+
+- **RKC02 could be bypassed in the Go primary by shape.** RKC02 forbids a
+  `mutation-claim` from carrying `[execution_proof]`, and Go enforced it
+  through its table accessor, which answers false both for an absent key and
+  for a key holding a non-table. So a claim carrying
+  `execution_proof = [{ scheme = "provider-receipt", ... }]`, a fully populated
+  provider receipt in an array of tables, passed the Go primary in both auto
+  and explicit mode while Python and Rust rejected it. The document is
+  closure-valid, so nothing else caught it. An invariant that forbids a field
+  must ask whether the field is PRESENT, not whether it is well-formed; Go now
+  uses `hasKey`.
+
+  This is an earlier defect one structural level up. That one closed
+  absent-versus-blank-versus-wrong-typed for proof SCALARS; the same collapse
+  survived in the typed TABLE accessors.
+
+  The same class appears on the REQUIRED tables, where all three
+  implementations still reject but report `mutation = 1` as a MISSING table.
+  Not a bypass, but it contradicted the rule SPEC 12.8.2 had just gained, that
+  a present-but-wrong-typed element MUST NOT be treated as absent. All three
+  now distinguish the two cases at both table sites.
+
+- **Reference-versus-primary divergences in the mutation kinds.** Three were
+  reproduced, all now closed with regression
+  fixtures asserted against all three implementations.
+
+  Two shared one root cause: both primaries reached string fields through an
+  accessor that answered identically for an absent key and for a key holding a
+  non-string, then defaulted to `""` and skipped any check keyed on a non-empty
+  value. So `scheme = ""` and `scheme = 1` each bypassed the
+  closed `execution_proof_scheme` vocabulary, RKM06, and the RKM03 locator
+  grammar, while the Python reference rejected them. That reopened the hollow
+  proof from a new direction: such a document satisfies key presence, carries
+  both pinned digests, is closure-valid, and declares no proving system at all.
+  Both ports now distinguish absent from present-but-not-a-string and check
+  vocabulary membership with no empty-string and no wrong-type escape.
+
+  The third ran the other way: Python's `\d` matches Unicode decimal
+  digits, so the REFERENCE accepted `٢026-07-26T10:15:00Z` while both ASCII
+  primaries rejected it. RFC3339 is ASCII, so Python was fixed, not the
+  primaries.
+
+  Also fixed, found by the initiator rather than the board: every
+  implementation checked the shape of `performed_at` and not its meaning, so
+  `2026-99-26T10:15:00Z` validated everywhere. That field sits inside the RKM04
+  bound tuple and carries the freshness claim, so an impossible instant was
+  being bound into the proof. All three now check month, day (against the
+  month, with the leap-year rule), hour, minute and second.
+
+  A wrong-typed bound field also made both primaries compute the bound tuple
+  over empty strings and report a mismatch against a tuple no producer wrote
+  Accept/reject parity held, but the diagnostic buried the real
+  defect; RKM04 is now skipped unless every bound field is a string, matching
+  the reference.
+
+- **CI was red on the mutation-kinds branch.** The repo-wide Python closure
+  sweep enumerates its exclusions by directory and did not name
+  `conformance/cases/state-mutation/invalid`, so a deliberately
+  closure-invalid conformance fixture failed the positive sweep. The primaries'
+  own discovery step already skipped `conformance/cases/*/invalid/`
+  generically, against a verification claim that had gone stale in the very
+  commit that introduced the fixture.
+
+### Added
+
+- **SPEC 12.8.2 additions.** The same class of gap was found independently in
+  the new bound-tuple section. A declared field
+  that is present but not a string is now explicitly a validation error that
+  MUST NOT be coerced or read as absent. Field paths are frozen to the 12.8.1
+  pinned-record grammar, since a path containing 0x20 or 0x0A would reintroduce
+  at the label boundary the ambiguity prehashing removes at the value boundary.
+  And Unicode normalization is resolved by requiring that NONE is applied:
+  values hash as the exact UTF-8 bytes in the document, so canonically
+  equivalent NFC and NFD values produce different tuple digests. Normalizing
+  would make a verifier's recomputation depend on a Unicode version, and a
+  bound tuple must be reproducible from bytes alone.
+
+- **`mutation-claim` kind, and primary parity for both mutation kinds.** The
+  companion kind is the honest home for a state change with no execution proof:
+  identical `[mutation]` table so promotion to `state-mutation` is mechanical,
+  three pinned closure records, abstraction class `claim-record.v1`, and RKC02
+  forbidding `[execution_proof]` so the claim/proof split cannot be evaded in
+  either direction. The Rust and Go primaries now implement RKM02, RKM03,
+  RKM04, RKM06 and RKC02 (`--mode mutation-kinds`, plus auto dispatch), closing
+  the Python-only enforcement boundary recorded when the kind first landed. The
+  motivating case was a hollow proof: an `[execution_proof]` carrying only the
+  two pinned digests is closure-valid, so a primary-only consumer previously
+  accepted a state-mutation with no typed proof. All three implementations
+  agree byte for byte on the SPEC 12.8.2 bound tuple.
+
+- **`state-mutation` kind in the `com.verivus.runtime` profile (PROPOSAL,
+  pending design review).** Records one irreversible state change an agent
+  CAUSED, as distinct from `api-snapshot`, which records one interaction an
+  agent OBSERVED. The execution proof is **mandatory**: the kind's name
+  asserts execution, so a record that cannot carry a proof is not a
+  state-mutation and must use an observation-shaped or intent-shaped kind
+  instead (RKM02). New files:
+  [`profiles/com.verivus.runtime/state-mutation-kind.toml`](profiles/com.verivus.runtime/state-mutation-kind.toml),
+  [`validators/validate_state_mutation.py`](validators/validate_state_mutation.py),
+  [`examples/minimal-state-mutation.toml`](examples/minimal-state-mutation.toml)
+  plus its capture, and three negatives (`no-proof`, `unbound-proof`,
+  `inlined-proof`). The profile ontology gains two closed vocabularies,
+  `execution_proof_scheme` and `finality_basis`, bumping its
+  `ontology_version` to 2.
+
+  The structural point: the profile descriptor pins all five state-mutation
+  closure records as `required`, in deliberate contrast to the api-snapshot
+  witness pinned `when-present`. A witness may legitimately be absent, so an
+  honestly re-rooted unwitnessed capture is valid. An execution proof may
+  not, so deleting it removes two REQUIRED pins and fails the closure gate in
+  all three implementations rather than yielding a smaller valid stream. The
+  `no-proof` negative proves it. This is what makes a state-mutation
+  impossible to downgrade silently by deletion.
+
+  `RKM04` makes proof-to-mutation binding mechanical: `binds_sha256` must
+  equal the digest of the canonical bound tuple recomputed from the
+  document's own fields, so a real receipt pointed at a different mutation is
+  rejected. Whether the proof ARTEFACT actually carries that value is
+  RUNTIME-SPEC, and is the consuming verifier's central obligation.
+
 ### Changed
 
 - **Dependabot noise reduction and coverage fix.** Consolidated the seven

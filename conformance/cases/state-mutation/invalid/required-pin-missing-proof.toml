@@ -1,0 +1,25 @@
+# Conformance case: deleting [execution_proof] removes two REQUIRED pins.
+# All three implementations MUST reject. This is the row that distinguishes a
+# required pin from the api-snapshot witness when-present pin, whose deletion
+# yields a legal smaller stream.
+closure_root = "sha256:ac236f9ef89ad30d472c07a26492de3c26b68883803e3f0777ccd04882eb6fc8"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "state-mutation"
+framework_profile = "com.verivus.runtime"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "examples/captures/2026-07-26T101500Z-ac4417-debit.capture"
+source_sha256 = "sha256:0a10577329b53feadb5a4d5f009cbc5ebf1c40a5ff86b55254a9d489b8b2e765"
+source_bytes = 416
+
+[mutation]
+performed_at = "2026-07-26T10:15:00.412Z"
+target_id = "https://ledger.example/v1/accounts/AC-4417"
+operation = "debit"
+authorization_sha256 = "sha256:218c6bd3c6a2386de7461fe24fe5b2bca1adbd92d5ddd67c0bdbeb7bfbd04a41"
+effect_sha256 = "sha256:7c9d12b09521dd2cbb0403916a82c800148976e990236436cb9216187e3aa792"
+

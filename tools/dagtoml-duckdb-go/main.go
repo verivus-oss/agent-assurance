@@ -39,11 +39,11 @@ var expectedCounts = []struct {
 	table string
 	want  int64
 }{
-	{"kind_descriptor", 21},
+	{"kind_descriptor", 23},
 	{"entity_kind_descriptor", 27},
 	{"relation_descriptor", 31},
-	{"attribute_vocabulary", 48},
-	{"attribute_value_allowed", 144},
+	{"attribute_vocabulary", 50},
+	{"attribute_value_allowed", 152},
 }
 
 func main() {

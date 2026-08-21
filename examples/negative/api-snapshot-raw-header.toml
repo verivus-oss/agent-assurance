@@ -26,3 +26,8 @@ accept = "application/json"
 [snapshot.response]
 status = 200
 body_sha256 = "sha256:569cc4222c936a5c39184bc0e17048c3f80bed44d457f0327db1bd58faecfebd"
+
+# Asserted-unwitnessed so this fixture keeps isolating its headline RKV02
+# defect rather than also tripping the RKV03 required-witness rule.
+[snapshot.witness]
+present = false

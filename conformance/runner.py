@@ -39,6 +39,9 @@ import _toml11 as tomllib  # noqa: E402  (path set up immediately above)
 PY_VALIDATORS = {
     "implementation-dag": ["validators/validate_implementation_dag.py"],
     "api-snapshot": ["validators/validate_api_snapshot.py", "--repo-root", "."],
+    # Both mutation kinds share one validator; it dispatches on template_kind.
+    "state-mutation": ["validators/validate_state_mutation.py", "--repo-root", "."],
+    "mutation-claim": ["validators/validate_state_mutation.py", "--repo-root", "."],
 }
 
 # The Python closure step (SPEC 12.8 / 12.8.1) runs for EVERY fixture of
@@ -116,10 +119,11 @@ def main() -> int:
 
                 sidecar = fixture.with_suffix("").with_suffix(".expected.toml")
                 expected_substrings: list[str] = []
+                forbidden_substrings: list[str] = []
                 if sidecar.exists():
-                    expected_substrings = tomllib.loads(sidecar.read_text()).get(
-                        "error_contains", []
-                    )
+                    sidecar_doc = tomllib.loads(sidecar.read_text())
+                    expected_substrings = sidecar_doc.get("error_contains", [])
+                    forbidden_substrings = sidecar_doc.get("error_not_contains", [])
 
                 py_kind_code, py_kind_out = run_validator(
                     [sys.executable, *py_validator, str(fixture)]
@@ -172,6 +176,21 @@ def main() -> int:
                                 failures.append(
                                     f"{case_id}: {impl} rejected but output lacks "
                                     f"`{needle}`:\n{output}"
+                                )
+                                marks.append(f"{impl}:MSG")
+                        # `error_not_contains` is what lets a case discriminate
+                        # itself from another whose output is a strict SUPERSET
+                        # of its own. Presence-only needles cannot: every
+                        # substring of the smaller output also appears in the
+                        # larger one. Exactly that pair occurred,
+                        # where hollow-proof's needles all matched
+                        # required-pin-missing-proof.
+                        for needle in forbidden_substrings:
+                            if needle.lower() in output.lower():
+                                failures.append(
+                                    f"{case_id}: {impl} rejected but output contains "
+                                    f"forbidden `{needle}`, so this case is failing for "
+                                    f"a defect it does not claim:\n{output}"
                                 )
                                 marks.append(f"{impl}:MSG")
                 status = ",".join(marks) if marks else "ok"

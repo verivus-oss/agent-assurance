@@ -16,7 +16,7 @@ closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7
 [meta]
 schema_version    = "0.1.0"
 template_kind     = "profile-descriptor"
-ontology_version  = 1
+ontology_version  = 2
 title             = "Verivus Runtime Profile descriptor"
 docs              = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md#61-the-profile-descriptor-kind"
 confidentiality   = "public"
@@ -38,6 +38,8 @@ extends           = []
 ontology          = "profiles/com.verivus.runtime/ontology.toml"
 contained_kinds   = [
   "api-snapshot",
+  "state-mutation",
+  "mutation-claim",
 ]
 ijb_primitive     = "thing"
 ijb_class         = "structural"
@@ -60,3 +62,44 @@ presence       = "required"
 contained_kind = "api-snapshot"
 field          = "snapshot.witness.attestation_sha256"
 presence       = "when-present"
+
+# state-mutation pins. Every one is `required`, unlike the api-snapshot
+# witness above. A witness may legitimately be absent, so its record is
+# when-present and an honestly re-rooted unwitnessed capture stays valid.
+# An execution proof may NOT be absent (RKM02), so removing it does not
+# produce a smaller valid stream: it removes a required pin and fails the
+# closure gate in all three implementations. That is what makes a
+# state-mutation impossible to downgrade silently by deletion.
+[[profile.closure_records]]
+contained_kind = "state-mutation"
+field          = "mutation.authorization_sha256"
+presence       = "required"
+
+[[profile.closure_records]]
+contained_kind = "state-mutation"
+field          = "mutation.effect_sha256"
+presence       = "required"
+
+[[profile.closure_records]]
+contained_kind = "state-mutation"
+field          = "execution_proof.proof_sha256"
+presence       = "required"
+
+[[profile.closure_records]]
+contained_kind = "state-mutation"
+field          = "execution_proof.binds_sha256"
+presence       = "required"
+
+# mutation-claim pins. Three records, all required. There is no proof to
+# pin: the absence of `[execution_proof]` is a kind-layer invariant (RKC02),
+# since a closure stream can pin the presence of a field but never its
+# absence.
+[[profile.closure_records]]
+contained_kind = "mutation-claim"
+field          = "mutation.authorization_sha256"
+presence       = "required"
+
+[[profile.closure_records]]
+contained_kind = "mutation-claim"
+field          = "mutation.effect_sha256"
+presence       = "required"

@@ -1,0 +1,13 @@
+# Discriminator: the marker names. Its mirror case reports 'response-body:'
+# instead, so the invariant name alone would not separate them.
+error_contains = [
+  "'request-descriptor:' / 'response-status:'",
+  "malformed capture",
+]
+
+# Closure-VALID, and the body guard must stay SILENT: if it fires, this case
+# has stopped isolating the descriptor guard and the pair is worthless again.
+error_not_contains = [
+  "pinned closure record",
+  "'response-body:'",
+]

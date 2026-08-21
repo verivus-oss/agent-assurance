@@ -1,1 +1,13 @@
-error_contains = ["cycle in depends_on"]
+# The bare needle "cycle in depends_on" does NOT discriminate: self-dependency
+# cascades into the same diagnostic as `U01 -> U01`. The discriminator is the
+# two-node PATH, which only a genuine mutual cycle produces.
+error_contains = [
+  "cycle in depends_on: U01 -> U02 -> U01",
+]
+
+# A cycle also breaks layer ordering, which is a legitimate cascade of the one
+# mutation. This case is about the cycle, so it must not be confused with
+# layer-ordering.toml, whose own defect needs no cycle to exist.
+error_not_contains = [
+  "depends_on includes self",
+]

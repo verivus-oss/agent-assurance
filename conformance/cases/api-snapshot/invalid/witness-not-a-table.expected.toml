@@ -1,0 +1,11 @@
+# Discriminator: the wrong-TYPE diagnostic. witness-absent reports a missing
+# table and witness-present-not-boolean reports a wrong-typed `present` inside
+# a real table; only this case reports the table itself being wrong-typed.
+error_contains = [
+  "`snapshot.witness` is present but is not a table",
+]
+
+error_not_contains = [
+  "pinned closure record",
+  "missing required `[snapshot.witness]` table",
+]

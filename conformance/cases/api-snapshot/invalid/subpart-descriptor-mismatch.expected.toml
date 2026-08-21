@@ -1,0 +1,12 @@
+# The discriminator is the sub-part recomputation, which only RKV01 performs.
+
+error_contains = [
+  "does not equal the SHA-256 of the request-descriptor sub-part",
+]
+
+# The claim of this case is that the document is closure-VALID and only the
+# kind layer objects. Asserting the closure layer stayed SILENT is what makes
+# that claim mechanical rather than asserted.
+error_not_contains = [
+  "pinned closure record",
+]

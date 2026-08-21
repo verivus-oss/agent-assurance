@@ -1,0 +1,10 @@
+# Discriminator: the array-shape diagnostic. header-value-inlined reports the
+# per-ENTRY grammar instead, so the two do not collide.
+error_contains = [
+  "significant_headers must be an array",
+]
+
+error_not_contains = [
+  "pinned closure record",
+  "bare lowercase header name",
+]

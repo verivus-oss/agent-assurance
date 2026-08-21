@@ -71,3 +71,8 @@ consumes       = []
 [computed]
 critical_path = ["U01", "U02", "U04"]
 critical_path_loc = 160
+
+[computed.max_parallel]
+layer0 = 1
+layer1 = 2
+layer2 = 1

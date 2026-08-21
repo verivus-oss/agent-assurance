@@ -1,0 +1,48 @@
+# NEGATIVE (RKV01 fail-closed: capture declares the profile format but lacks the
+# request-descriptor marker).
+#
+# The capture carries the DAGTOML-API-CAPTURE/1 magic, so the producer is
+# claiming this profile's own capture form, but it has no `request-descriptor:`
+# section. The descriptor digest therefore CANNOT be recomputed, and RKV01 must
+# fail CLOSED rather than skip the check. A magic header with missing markers
+# must never let an arbitrary descriptor_sha256 through.
+#
+# ISOLATED DELIBERATELY. `examples/negative/api-snapshot-magic-no-markers.toml`
+# trips BOTH fail-closed guards at once, so disabling either one left that
+# fixture still rejected and both guards measured as UNPROTECTED by
+# conformance/coverage_audit.py. Here the response-body marker is present and
+# its digest is correct, so the body guard stays silent and only the descriptor
+# guard can object.
+#
+# Closure-VALID: the document is honestly rooted over its own declared digests.
+
+closure_root = "sha256:9e9dd0a228ec5890363b3acfdd0046c2a59c9e01350079f2e9fd1fb2f9a02f4f"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "api-snapshot"
+framework_profile = "com.verivus.runtime"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "conformance/cases/api-snapshot/captures/magic-missing-descriptor-marker.capture"
+source_sha256 = "sha256:5df5b8985fca6a88159921c06439a2dcaa4566186f3242ecc28be9e2d636f174"
+source_bytes = 189
+
+[snapshot]
+captured_at = "2026-06-17T09:14:02.481Z"
+source_id = "https://api.exchange.example/v1/quotes/USD-AUD"
+
+[snapshot.request]
+method = "GET"
+url = "https://api.exchange.example/v1/quotes/USD-AUD"
+significant_headers = ["accept"]
+descriptor_sha256 = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+[snapshot.response]
+status = 200
+body_sha256 = "sha256:7892328b2904273e526f4804c0f0d55aae6ba42b257f6b5cdf37e29c1163ab62"
+
+[snapshot.witness]
+present = false

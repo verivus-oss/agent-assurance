@@ -31,3 +31,11 @@ auth_context = "oauth2-client-credentials; client=verivus-quote-reader"
 [snapshot.response]
 status = 200
 body_sha256 = "sha256:569cc4222c936a5c39184bc0e17048c3f80bed44d457f0327db1bd58faecfebd"
+
+# An unwitnessed capture ASSERTS the absence of a witness (RKV03 requires
+# `present`); it does not delete the table. `present` is not a pinned closure
+# record, so the stream is still the three-record form and this root is
+# unchanged: the frozen parity-matrix row is about the STREAM, not about the
+# table's existence.
+[snapshot.witness]
+present = false

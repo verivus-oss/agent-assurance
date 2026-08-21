@@ -1,0 +1,40 @@
+# Conformance case: the kind selector is not a string. MUST be REJECTED, at
+# the CLOSURE layer.
+#
+# The deepest form of the collapse the review series chased: not a field
+# inside a kind, but the selector deciding
+# which kind's rules apply at all. Every kind validator dispatches on this
+# value and correctly says "not my kind", so RKM02/03/04/06 never run. Pin
+# resolution read the malformed value as ABSENT and returned no pins AND no
+# error, degrading the document to the one-record source-hash closure written
+# below. Before the fix this passed closure, provenance and the kind layer in
+# all three implementations while carrying a hollow proof.
+#
+# SPEC §2.3 says `template_kind` IS a string, so this is neither of the two
+# escapes SPEC §12 ratifies. Its two legal siblings are the valid/escape-hatch
+# cases, and they must keep passing.
+
+closure_root = "sha256:1eb6d51951dddfcdd8bc4632afb23b9b96cd52b56321dfdae0dc7f62c719b534"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = 1
+framework_profile = "com.verivus.runtime"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "examples/captures/2026-07-26T101500Z-ac4417-debit.capture"
+source_sha256 = "sha256:0a10577329b53feadb5a4d5f009cbc5ebf1c40a5ff86b55254a9d489b8b2e765"
+source_bytes = 416
+
+[mutation]
+performed_at = "2026-07-26T10:15:00.412Z"
+target_id = "https://ledger.example/v1/accounts/AC-4417"
+operation = "debit"
+authorization_sha256 = "sha256:218c6bd3c6a2386de7461fe24fe5b2bca1adbd92d5ddd67c0bdbeb7bfbd04a41"
+effect_sha256 = "sha256:7c9d12b09521dd2cbb0403916a82c800148976e990236436cb9216187e3aa792"
+
+[execution_proof]
+proof_sha256 = "sha256:a5255188d6a0efd927a7bca54ac504bd3f1908fe76e75b6be3e50568d7bc38ba"
+binds_sha256 = "sha256:7a5604ab843c08b4c79b19ab7d6ca1b118387b1ca096948e5ff86c5d2d3fda87"

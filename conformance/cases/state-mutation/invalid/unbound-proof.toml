@@ -1,0 +1,35 @@
+# Conformance case: a real proof pointed at a different mutation. MUST be
+# REJECTED.
+#
+# `binds_sha256` is a well-formed digest and a pinned closure record, and
+# `closure_root` is recomputed over it, so the document is closure-VALID. It
+# simply is not the SPEC §12.8.2 bound tuple of THIS document's fields. This is
+# the invariant that stops a proof being reused across mutations.
+
+closure_root = "sha256:3bcb62c616746a6db4bb86cecab4bf6390340f1fdcfe0b9a89b20d6336faa89f"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "state-mutation"
+framework_profile = "com.verivus.runtime"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "examples/captures/2026-07-26T101500Z-ac4417-debit.capture"
+source_sha256 = "sha256:0a10577329b53feadb5a4d5f009cbc5ebf1c40a5ff86b55254a9d489b8b2e765"
+source_bytes = 416
+
+[mutation]
+performed_at = "2026-07-26T10:15:00.412Z"
+target_id = "https://ledger.example/v1/accounts/AC-4417"
+operation = "debit"
+authorization_sha256 = "sha256:218c6bd3c6a2386de7461fe24fe5b2bca1adbd92d5ddd67c0bdbeb7bfbd04a41"
+effect_sha256 = "sha256:7c9d12b09521dd2cbb0403916a82c800148976e990236436cb9216187e3aa792"
+
+[execution_proof]
+scheme = "ledger-transaction"
+finality_basis = "ledger-confirmed"
+proof_sha256 = "sha256:a5255188d6a0efd927a7bca54ac504bd3f1908fe76e75b6be3e50568d7bc38ba"
+binds_sha256 = "sha256:9999999999999999999999999999999999999999999999999999999999999999"
+proof_locator = "eip155:1/tx/0x9f2c00000000000000000000000000000000000000000000000000000000"

@@ -1,0 +1,52 @@
+# NEGATIVE (RKV01: sub-part inconsistency on the RESPONSE BODY half).
+#
+# The sibling case subpart-descriptor-mismatch.toml corrupts the request
+# descriptor. This one corrupts `snapshot.response.body_sha256` and leaves the
+# descriptor correct, so the two halves of RKV01 are covered independently.
+#
+# This case exists because the body comparison was a MUTATION SURVIVOR in all
+# three implementations. Every api-snapshot
+# fixture in the corpus carried the correct `body_sha256`, so disabling the
+# body comparison in Python, Rust or Go changed no verdict anywhere and the
+# shipped oracle stayed green. Half an invariant was enforced by code that
+# nothing tested.
+#
+# Deliberately closure-VALID: `body_sha256` is a pinned closure record, so the
+# document is honestly RE-ROOTED over the corrupted value. The closure layer
+# therefore has nothing to say and only the kind layer objects.
+
+closure_root = "sha256:d01dcd940c554c545f5cc32a1a161c37b0fe168df61a9aff1d3b55099d92f1a3"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "api-snapshot"
+framework_profile = "com.verivus.runtime"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "examples/captures/2026-06-17T091402Z-usd-aud.capture"
+source_sha256 = "sha256:1af17db5085faf2b3078538922f462ed9a37ee3b8e0d0b11d5aa34276442eab7"
+source_bytes = 620
+
+[snapshot]
+captured_at = "2026-06-17T09:14:02.481Z"
+source_id = "https://api.exchange.example/v1/quotes/USD-AUD"
+
+[snapshot.request]
+method = "GET"
+url = "https://api.exchange.example/v1/quotes/USD-AUD?asof=2026-06-17T09:14:00Z&pair=USD-AUD"
+significant_headers = ["accept"]
+descriptor_sha256 = "sha256:1e84dff27040181e39a0eedd71497241ae153efb65ec93e4b97303a8cb041869"
+auth_context = "oauth2-client-credentials; client=verivus-quote-reader"
+
+[snapshot.response]
+status = 200
+body_sha256 = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+
+[snapshot.witness]
+present = true
+scheme = "tls-notary"
+observed = "both"
+attester_id = "notary.example/ed25519:9f86d0818411"
+attestation_sha256 = "sha256:afdb2e991b18d3b37506f893a987ba6fdc8888f7b474835bb81aeb2941e26d14"

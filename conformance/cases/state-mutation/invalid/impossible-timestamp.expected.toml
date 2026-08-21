@@ -1,0 +1,13 @@
+# Defect-class assertion. Every rejecting implementation's output MUST contain
+# each substring, so this case pins WHY the document is rejected, not merely
+# THAT it is. Needles must DISCRIMINATE: a substring that any rejection of this
+# document would contain asserts nothing.
+#
+# The offending value is included deliberately. Without it this sidecar would
+# be identical to unicode-digit-timestamp's, and two cases asserting the same
+# thing cannot tell each other apart.
+error_contains = [
+  "mutation.performed_at",
+  "2026-99-26T10:15:00Z",
+  "must be an RFC3339 UTC timestamp ending in Z, naming a real instant",
+]

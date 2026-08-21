@@ -1,0 +1,12 @@
+# Defect-class assertion. Every rejecting implementation's output MUST contain
+# each substring, so this case pins WHY the document is rejected, not merely
+# THAT it is. Needles must DISCRIMINATE: a substring that any rejection of this
+# document would contain asserts nothing.
+#
+# Mirror of wrong-typed-proof-fields: this value IS a string, so it must reach
+# the vocabulary check rather than the type check.
+error_contains = [
+  "execution_proof.scheme",
+  "is not in the closed",
+  "execution_proof_scheme",
+]

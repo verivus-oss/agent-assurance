@@ -244,7 +244,22 @@ def validate_one(toml_path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
                     )
 
     # --- RKV03: witness conditional -----------------------------------------
+    # The table is REQUIRED. An unwitnessed capture asserts `present = false`;
+    # it does not delete the block. That does not stop a producer who re-roots
+    # the document from writing `present = false` (nothing computed from inside
+    # a document can), but it removes the shape in which a stripped document and
+    # an honestly unwitnessed one are indistinguishable.
     witness = snapshot.get("witness")
+    if witness is None:
+        errors.append(
+            f"{toml_path}: missing required `[snapshot.witness]` table (RKV03). An "
+            f"unwitnessed capture MUST assert `present = false`; the absence of a "
+            f"witness MUST NOT be achieved by deleting the table"
+        )
+    elif not isinstance(witness, dict):
+        errors.append(
+            f"{toml_path}: `snapshot.witness` is present but is not a table (RKV03)"
+        )
     if isinstance(witness, dict):
         _check_keys(witness, ALLOWED_WITNESS_KEYS, "snapshot.witness", toml_path, errors)
         present = witness.get("present")

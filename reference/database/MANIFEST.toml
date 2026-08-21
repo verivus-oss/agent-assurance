@@ -14,7 +14,7 @@ document_kind = "reference-database-manifest"
 schema_version = "0.1.0"
 normative      = false
 human_readme   = "README.md"
-last_verified  = "2026-06-18"  # date the counts and exec verification were re-checked
+last_verified  = "2026-07-27"  # date the counts and exec verification were re-checked
 
 # Source of truth this manifest derives from. If any of these files
 # change, the counts below MUST be re-derived and the seed regenerated.
@@ -23,6 +23,12 @@ core_ontology       = "../../core/ontology.toml"
 profile_ontology    = "../../profiles/agent-assurance/ontology.toml"
 core_kind_glob      = "../../core/*-kind.toml"
 profile_kind_glob   = "../../profiles/agent-assurance/*-kind.toml"
+# The counts below are computed over EVERY profile ontology, which
+# validators/check_manifest_drift.sh discovers by globbing profiles/*/.
+# The four keys above name only the two ontologies the seed mirrors most
+# closely and have always understated the real scope.
+all_profile_ontologies = "../../profiles/*/ontology.toml"
+all_profile_kind_glob  = "../../profiles/*/*-kind.toml"
 spec                = "../../spec.md"
 
 # Counts the checked-in seed inserts and that an ingestion implementation
@@ -30,16 +36,16 @@ spec                = "../../spec.md"
 # UNWIND blocks in reference/database/graph/schema.cypher. Any drift here
 # vs. the ontology is a CI failure-in-waiting; regenerate, do not patch.
 [counts]
-template_kinds         = 21    # 6 core + 9 agent-assurance + 3 disclosure + 1 cost + 1 com.verivus.runtime + 1 meta `kind-descriptor`
+template_kinds         = 23    # 6 core + 9 agent-assurance + 3 disclosure + 1 cost + 3 com.verivus.runtime + 1 meta `kind-descriptor`
 entity_kinds           = 27    # 17 core + 6 agent-assurance + 3 disclosure + 1 cost (COST)
 relation_predicates    = 31    # one per [[relations]] block in core/ontology.toml (includes SPEC §12 `cites_upstream`)
-attribute_vocabularies = 48    # 12 core + 27 agent-assurance + 4 disclosure + 3 cost + 2 com.verivus.runtime (witness_scheme, attester_observed)
+attribute_vocabularies = 50    # 12 core + 27 agent-assurance + 4 disclosure + 3 cost + 4 com.verivus.runtime (witness_scheme, attester_observed, execution_proof_scheme, finality_basis)
 # attribute_values_declared = sum of len(values) over every
 # [[attribute_vocabularies]] block in core + every profile ontology,
 # regardless of whether each vocabulary is closed or extensible. This
 # is the ontology's documented surface — the total number of literal
 # values the spec ships in its vocabulary catalogs.
-attribute_values_declared = 208
+attribute_values_declared = 216
 
 # attribute_values_closed = same sum restricted to vocabularies with
 # `extensible = false`. This is the size of the enforcement rejection
@@ -48,7 +54,7 @@ attribute_values_declared = 208
 #   validators/validate_disclosure.py:82-105       (Python `_check_vocab`)
 # In both, `extensible = true` ⇒ accept any value (no membership
 # enforcement); `extensible = false` ⇒ reject unseen values.
-attribute_values_closed = 115
+attribute_values_closed = 123
 
 # Both numbers are CI-gated by `validators/check_attribute_values.py`
 # (invoked from `validators/check_manifest_drift.sh`). The two
@@ -274,7 +280,7 @@ commands = [
   "podman exec pg-test psql -U postgres -v ON_ERROR_STOP=1 -f /tmp/schema.sql",
   "podman exec pg-test psql -U postgres -v ON_ERROR_STOP=1 -f /tmp/seed.sql",
 ]
-expected_seed_counts = { kind_descriptor = 21, entity_kind_descriptor = 27, relation_descriptor = 31, attribute_vocabulary = 48, attribute_value_allowed = 144 }
+expected_seed_counts = { kind_descriptor = 23, entity_kind_descriptor = 27, relation_descriptor = 31, attribute_vocabulary = 50, attribute_value_allowed = 152 }
 
 [verification.graph]
 container_image = "docker.io/library/neo4j:5-community"
@@ -284,7 +290,7 @@ commands = [
   "podman exec neo-test cypher-shell -u neo4j 'MATCH (n) DETACH DELETE n'",
   "podman exec neo-test cypher-shell -u neo4j --file /tmp/schema.cypher",
 ]
-expected_node_counts = { KindDescriptor = 21, EntityKind = 27, RelationPredicate = 31 }
+expected_node_counts = { KindDescriptor = 23, EntityKind = 27, RelationPredicate = 31 }
 
 [verification.rdf]
 generator_build = "cargo build --release -p dagtoml-rdf --manifest-path tools/dagtoml-rdf/Cargo.toml"
@@ -295,8 +301,8 @@ commands = [
 ]
 # At generation, schema.ttl footer records observed counts. Drift check
 # parses the footer and compares to ontology block counts.
-expected_footer_counts = { template_kinds = 21, entity_kinds = 27, relation_predicates = 31, attribute_vocabularies = 48 }
-expected_triple_counts = { schema = 1434, shapes = 148 }
+expected_footer_counts = { template_kinds = 23, entity_kinds = 27, relation_predicates = 31, attribute_vocabularies = 50 }
+expected_triple_counts = { schema = 1476, shapes = 148 }
 
 [verification.duckdb]
 generator_build = "cargo build --release -p dagtoml-duckdb --manifest-path tools/dagtoml-duckdb/Cargo.toml"
@@ -305,7 +311,7 @@ commands = [
   "tools/dagtoml-duckdb/target/release/dagtoml-duckdb --repo-root . -o /tmp/agent_assurance.duckdb",
   "tools/dagtoml-duckdb/target/release/dagtoml-duckdb verify -o /tmp/agent_assurance.duckdb",
 ]
-expected_seed_counts = { kind_descriptor = 21, entity_kind_descriptor = 27, relation_descriptor = 31, attribute_vocabulary = 48, attribute_value_allowed = 144 }
+expected_seed_counts = { kind_descriptor = 23, entity_kind_descriptor = 27, relation_descriptor = 31, attribute_vocabulary = 50, attribute_value_allowed = 152 }
 
 [verification.sqlite]
 container_image = "docker.io/library/alpine:latest"
@@ -315,4 +321,4 @@ commands = [
   "podman cp sqlite/seed.sql   sqlite-test:/tmp/seed.sql",
   "podman exec sqlite-test sh -c 'sqlite3 /tmp/d.db < /tmp/schema.sql && sqlite3 /tmp/d.db < /tmp/seed.sql'",
 ]
-expected_seed_counts = { dagtoml_kind_descriptor = 21, dagtoml_entity_kind_descriptor = 27, dagtoml_relation_descriptor = 31, dagtoml_attribute_vocabulary = 48, dagtoml_attribute_value_allowed = 144 }
+expected_seed_counts = { dagtoml_kind_descriptor = 23, dagtoml_entity_kind_descriptor = 27, dagtoml_relation_descriptor = 31, dagtoml_attribute_vocabulary = 50, dagtoml_attribute_value_allowed = 152 }

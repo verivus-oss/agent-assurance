@@ -8,7 +8,7 @@
 -- schema never drifts. Treat hand-edits here as a smell.
 --
 -- Counts (verified against ontology files; matches MANIFEST.toml):
---   * 21 template kinds        (6 core + 9 agent-assurance + 3 disclosure + 1 cost + 1 com.verivus.runtime + 1 meta `kind-descriptor`)
+--   * 23 template kinds        (6 core + 9 agent-assurance + 3 disclosure + 1 cost + 3 com.verivus.runtime + 1 meta `kind-descriptor`)
 --   * 27 entity kinds          (17 core + 6 agent-assurance + 3 disclosure + 1 cost)
 --   * 31 relation rows         (26 core + 5 contract-namespaced variants)
 --                              The ontology declares 31 [[relations]] blocks,
@@ -23,13 +23,16 @@
 --                              them as separate [[relations]] entries.
 --                              The 31st row is the cross-document
 --                              `cites_upstream` marker added by SPEC §12.
---   * 48 attribute vocabularies (12 core + 27 agent-assurance + 4 disclosure + 3 cost + 2 com.verivus.runtime)
+--   * 50 attribute vocabularies (12 core + 27 agent-assurance + 4 disclosure + 3 cost + 4 com.verivus.runtime)
+--   * 152 attribute_value_allowed rows (values of every vocabulary that is
+--                              not backed by an enum type; see the note above
+--                              that INSERT)
 
 SET search_path TO dagtoml, public;
 
 -- ============================================================
--- kind_descriptor (20 rows: 6 core + 9 agent-assurance + 3 disclosure + 1 cost + 1 meta)
--- The 15th row is the `kind-descriptor` template_kind itself, declared
+-- kind_descriptor (23 rows: 6 core + 9 agent-assurance + 3 disclosure + 1 cost + 3 com.verivus.runtime + 1 meta)
+-- One row is the `kind-descriptor` template_kind itself, declared
 -- in spec.md and used as the `template_kind` of every *-kind.toml file.
 -- ============================================================
 INSERT INTO kind_descriptor (template_kind, layer, descriptor_path, requires_profile) VALUES
@@ -53,10 +56,12 @@ INSERT INTO kind_descriptor (template_kind, layer, descriptor_path, requires_pro
     ('redaction-manifest',             'profile:disclosure',      'profiles/disclosure/redaction-manifest-kind.toml',             'disclosure'),
     ('selective-disclosure-proof',     'profile:disclosure',      'profiles/disclosure/selective-disclosure-proof-kind.toml',     'disclosure'),
     ('cost-record',                    'profile:cost',            'profiles/cost/cost-record-kind.toml',                          'cost'),
-    ('api-snapshot',                   'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/api-snapshot-kind.toml',        'com.verivus.runtime');
+    ('api-snapshot',                   'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/api-snapshot-kind.toml',        'com.verivus.runtime'),
+    ('state-mutation',                 'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/state-mutation-kind.toml',      'com.verivus.runtime'),
+    ('mutation-claim',                 'profile:com.verivus.runtime', 'profiles/com.verivus.runtime/mutation-claim-kind.toml',      'com.verivus.runtime');
 
 -- ============================================================
--- entity_kind_descriptor (24 rows: 17 core + 6 agent-assurance + 3 disclosure + 1 cost)
+-- entity_kind_descriptor (27 rows: 17 core + 6 agent-assurance + 3 disclosure + 1 cost)
 -- All are (thing, structural) per IJB conformance rules KD1.
 -- id_prefix_pattern values match the ontology's `id_prefix` (for fixed
 -- prefixes) or `id_pattern` (for regex-keyed entity kinds) verbatim.
@@ -109,7 +114,7 @@ INSERT INTO entity_kind_descriptor
 -- ============================================================
 INSERT INTO relation_descriptor
     (predicate, domain, range, inverse_of, cardinality, is_acyclic, target_freeform, ijb_primitive, ijb_class, layer) VALUES
-    -- Traceability family (17 of the 30)
+    -- Traceability family (17 of the 31)
     ('derived_from',           ARRAY['intent'],                       ARRAY['intent'],                                       NULL,            NULL, FALSE, FALSE, 'path', 'structural', 'core'),
     ('realized_by',            ARRAY['intent'],                       ARRAY['feature','requirement'],                        'realizes',      NULL, FALSE, FALSE, 'path', 'structural', 'core'),
     ('realizes',               ARRAY['feature','code','output'],      ARRAY['intent','implementation','requirement','feature'], 'realized_by', NULL, FALSE, FALSE, 'path', 'structural', 'core'),
@@ -156,11 +161,12 @@ INSERT INTO relation_descriptor
     ('cites_upstream',         ARRAY[]::TEXT[],                       ARRAY[]::TEXT[],                                       NULL,            NULL, TRUE,  TRUE,  'path', 'structural', 'core');
 
 -- ============================================================
--- attribute_vocabulary (46 rows: 12 core + 27 agent-assurance + 4 disclosure + 3 cost; agent-assurance includes subject_class/provider_id/model_family_id for gate-decision INV06)
+-- attribute_vocabulary (50 rows: 12 core + 27 agent-assurance + 4 disclosure + 3 cost + 4 com.verivus.runtime; agent-assurance includes subject_class/provider_id/model_family_id for gate-decision INV06)
 -- ============================================================
 INSERT INTO attribute_vocabulary
     (attribute, applies_to_entity, applies_to_template, ijb_constraint_type, extensible, default_value, layer, backing_enum_type) VALUES
-    -- Core (9)
+    -- Core: requirement, unit and review vocabularies (5 of the 12 core rows;
+    -- the disclosure-posture group below adds 5 and SPEC 13 adds 2)
     ('requirement_kind',  ARRAY['requirement'],     NULL, 'structural', TRUE,  NULL,  'core', NULL),
     ('test_kind',         ARRAY['test'],            NULL, 'structural', TRUE,  NULL,  'core', NULL),
     ('priority',          ARRAY['requirement'],     NULL, 'structural', FALSE, 'must','core', 'priority_level'),
@@ -177,7 +183,7 @@ INSERT INTO attribute_vocabulary
     ('framework_profile_namespace',      NULL, NULL, 'structural', FALSE, NULL, 'core', NULL),
     ('provenance.encryption.hash_is_over', NULL, NULL, 'structural', FALSE, NULL, 'core', NULL),
     ('closure_root.digest_algorithm',      NULL, NULL, 'structural', TRUE,  NULL, 'core', NULL),
-    -- Profile (24)
+    -- Profile: agent-assurance (27)
     ('trigger_kind',                ARRAY['rollback_trigger'], NULL, 'structural', TRUE,  NULL, 'profile:agent-assurance', NULL),
     ('likelihood',                  ARRAY['threat'],           NULL, 'structural', FALSE, NULL, 'profile:agent-assurance', 'risk_level'),
     ('impact',                      ARRAY['threat'],           NULL, 'structural', FALSE, NULL, 'profile:agent-assurance', 'risk_level'),
@@ -218,9 +224,14 @@ INSERT INTO attribute_vocabulary
     ('subject_class',       NULL, ARRAY['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL),
     ('provider_id',         NULL, ARRAY['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL),
     ('model_family_id',     NULL, ARRAY['gate-decision'], 'structural', TRUE, NULL, 'profile:agent-assurance', NULL),
-    -- Profile: com.verivus.runtime (2) — api-snapshot closed witness vocabularies.
-    ('witness_scheme',      NULL, ARRAY['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
-    ('attester_observed',   NULL, ARRAY['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL);
+    -- Profile: com.verivus.runtime (4) — api-snapshot closed witness vocabularies,
+    -- and the state-mutation execution-proof vocabularies. RKM06 constrains which
+    -- finality_basis each execution_proof_scheme may claim; that pairing is a kind
+    -- invariant, not a column constraint, so it is not representable here.
+    ('witness_scheme',        NULL, ARRAY['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
+    ('attester_observed',     NULL, ARRAY['api-snapshot'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
+    ('execution_proof_scheme', NULL, ARRAY['state-mutation'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
+    ('finality_basis',        NULL, ARRAY['state-mutation'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL);
 
 -- Allowed values for non-enum-backed (i.e., extensible) vocabularies.
 -- Enum-backed values are enforced by the Postgres enum type itself, so
@@ -393,4 +404,15 @@ INSERT INTO attribute_value_allowed (attribute, value) VALUES
     ('witness_scheme', 'tee-quote'),
     ('attester_observed', 'request'),
     ('attester_observed', 'response'),
-    ('attester_observed', 'both');
+    ('attester_observed', 'both'),
+    -- Profile: com.verivus.runtime mutation vocabularies (8). Closed and
+    -- non-enum-backed, exactly like the witness pair above, so their values
+    -- belong here rather than in a CHECK list or an enum type.
+    ('execution_proof_scheme', 'ledger-transaction'),
+    ('execution_proof_scheme', 'provider-receipt'),
+    ('execution_proof_scheme', 'tee-quote'),
+    ('execution_proof_scheme', 'zk-receipt'),
+    ('finality_basis', 'none'),
+    ('finality_basis', 'provider-acknowledged'),
+    ('finality_basis', 'ledger-confirmed'),
+    ('finality_basis', 'ledger-final');

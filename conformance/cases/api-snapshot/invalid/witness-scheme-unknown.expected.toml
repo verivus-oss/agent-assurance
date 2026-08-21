@@ -1,0 +1,9 @@
+# Discriminator: the scheme vocabulary diagnostic, which no other case emits.
+error_contains = [
+  "snapshot.witness.scheme must be one of",
+]
+
+# Closure-VALID by construction.
+error_not_contains = [
+  "pinned closure record",
+]

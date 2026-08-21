@@ -1,0 +1,16 @@
+# The discriminator is the FIELD. proof-locator-oversize-multibyte exercises
+# the same grammar on the other field it governs, so the invariant name alone
+# would not separate the two.
+
+error_contains = [
+  "mutation.target_id",
+  "must be a URI or URN",
+]
+
+# The claim of this case is that the document is closure-VALID and only the
+# kind layer objects. Asserting the closure layer stayed SILENT is what makes
+# that claim mechanical rather than asserted.
+error_not_contains = [
+  "pinned closure record",
+  "bound tuple",
+]

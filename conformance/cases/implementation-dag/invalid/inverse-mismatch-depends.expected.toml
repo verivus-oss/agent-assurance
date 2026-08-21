@@ -1,1 +1,5 @@
-error_contains = ["inverse mismatch"]
+# The mirror of inverse-mismatch-blocks. Same invariant, opposite direction, so
+# the needle must name the direction or the two cases bless each other.
+error_contains = [
+  "U02.depends_on contains `U01` but U01.blocks is missing",
+]

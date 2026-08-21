@@ -9,8 +9,10 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"crypto/sha512"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"os"
@@ -20,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/BurntSushi/toml"
 	pelletier "github.com/pelletier/go-toml/v2"
@@ -67,6 +70,23 @@ func tableOf(v any, key string) (map[string]any, bool) {
 	return sub, ok
 }
 
+// hasKey reports whether a key is PRESENT, whatever its TOML type.
+//
+// tableOf answers false both for an absent key and for a key holding a
+// non-table, which is the right answer when a table is required and the wrong
+// one when a key is FORBIDDEN. RKC02 was enforced through
+// tableOf, so a mutation-claim carrying `execution_proof = [{ ...proof... }]`
+// declared proof material that the check never saw. An invariant that forbids
+// a field must ask whether the field is there, not whether it is well-formed.
+func hasKey(v any, key string) bool {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return false
+	}
+	_, present := m[key]
+	return present
+}
+
 func stringOf(v any, key string) (string, bool) {
 	m, ok := v.(map[string]any)
 	if !ok {
@@ -74,6 +94,35 @@ func stringOf(v any, key string) (string, bool) {
 	}
 	s, ok := m[key].(string)
 	return s, ok
+}
+
+// fieldState distinguishes the two cases stringOf collapses into a single
+// false. A caller that defaults a wrong-typed value to "" and then skips its
+// check on an empty value skips it on the wrong-typed value too, which is how
+// `scheme = 1` and `scheme = ""` both bypassed the closed-vocabulary check
+// while the Python reference rejected them.
+type fieldState int
+
+const (
+	fieldAbsent fieldState = iota
+	fieldNotString
+	fieldString
+)
+
+func fieldOf(v any, key string) (string, fieldState) {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return "", fieldAbsent
+	}
+	raw, present := m[key]
+	if !present {
+		return "", fieldAbsent
+	}
+	s, ok := raw.(string)
+	if !ok {
+		return "", fieldNotString
+	}
+	return s, fieldString
 }
 
 // asArray normalizes the several shapes BurntSushi/toml may decode an
@@ -113,6 +162,8 @@ const (
 	modeProvenance
 	modeMeta
 	modeGateDecision
+	modeMutationKinds
+	modeAPISnapshot
 	modeKindDescriptor
 	modeIJB
 	modeProvenanceBinding
@@ -138,6 +189,10 @@ func parseMode(s string) (mode, error) {
 		return modeMeta, nil
 	case "gate-decision":
 		return modeGateDecision, nil
+	case "mutation-kinds":
+		return modeMutationKinds, nil
+	case "api-snapshot":
+		return modeAPISnapshot, nil
 	case "kind-descriptor":
 		return modeKindDescriptor, nil
 	case "ijb":
@@ -157,7 +212,7 @@ func parseMode(s string) (mode, error) {
 	case "abstraction-class":
 		return modeAbstractionClass, nil
 	}
-	return modeAuto, fmt.Errorf("invalid mode %q (want auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class)", s)
+	return modeAuto, fmt.Errorf("invalid mode %q (want auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class|mutation-kinds|api-snapshot)", s)
 }
 
 // ----------------------------------------------------------------------------
@@ -2581,6 +2636,21 @@ func pinnedClosureInputs(path string, doc rawDoc, pinMap map[string][]pinnedClos
 	if !ok {
 		return nil, nil
 	}
+	// SPEC 2.3: `template_kind` IS a string. Absence is a ratified escape from
+	// conformance scope, and so is a non-spec-reserved string value (SPEC 12).
+	// A value that is PRESENT but not a string is neither. Reading it as absent
+	// drops every pinned closure record for the kind and silently degrades the
+	// document to the one-record source-hash closure, which is the pin-free
+	// fall-through the comment above says does not exist.
+	if raw, present := meta["template_kind"]; present {
+		if _, isString := raw.(string); !isString {
+			return nil, []string{fmt.Sprintf(
+				"%s: `meta.template_kind` is present but is not a string (SPEC §2.3). A "+
+					"malformed kind selector MUST NOT be read as an absent one: that drops "+
+					"every pinned closure record for the kind and silently degrades the "+
+					"document to a one-record source-hash closure", path)}
+		}
+	}
 	templateKind, ok := meta["template_kind"].(string)
 	if !ok {
 		// legacy synonym
@@ -2882,7 +2952,7 @@ func kindDescriptorCandidates(repoRoot, slug, profileName string) []string {
 	if entries, err := os.ReadDir(filepath.Join(repoRoot, "profiles")); err == nil {
 		for _, e := range entries {
 			// Stat follows symlinked profile directories (DirEntry.IsDir
-			// does not), matching rs/py (U10 review round 2, R2-2).
+			// does not), matching rs/py.
 			info, statErr := os.Stat(filepath.Join(repoRoot, "profiles", e.Name()))
 			if statErr != nil || !info.IsDir() {
 				continue
@@ -3388,7 +3458,7 @@ func main() {
 		modeStr  string
 	)
 	flag.StringVar(&repoRoot, "repo-root", "", "Repository root (required)")
-	flag.StringVar(&modeStr, "mode", "auto", "Validation mode (auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class)")
+	flag.StringVar(&modeStr, "mode", "auto", "Validation mode (auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class|mutation-kinds|api-snapshot)")
 	flag.Parse()
 
 	if repoRoot == "" {
@@ -3480,6 +3550,12 @@ func main() {
 			case "gate-decision":
 				errs = append(errs, validateGateDecision(path, doc, root)...)
 				errs = append(errs, validateIJB(path, doc, root)...)
+			case "state-mutation", "mutation-claim":
+				errs = append(errs, validateMutationKinds(path, doc, root)...)
+				errs = append(errs, validateIJB(path, doc, root)...)
+			case "api-snapshot":
+				errs = append(errs, validateAPISnapshot(path, doc, root)...)
+				errs = append(errs, validateIJB(path, doc, root)...)
 			case "":
 			default:
 				errs = append(errs, validateIJB(path, doc, root)...)
@@ -3490,6 +3566,10 @@ func main() {
 			errs = append(errs, validateDisclosure(path, doc, root)...)
 		case modeGateDecision:
 			errs = append(errs, validateGateDecision(path, doc, root)...)
+		case modeMutationKinds:
+			errs = append(errs, validateMutationKinds(path, doc, root)...)
+		case modeAPISnapshot:
+			errs = append(errs, validateAPISnapshot(path, doc, root)...)
 		case modeKindDescriptor:
 			errs = append(errs, validateKindDescriptor(path, doc, root, true)...)
 			errs = append(errs, validateAbstractionClass(path, doc, root)...)
@@ -3627,6 +3707,806 @@ func loadGateDecisionVocab(repoRoot, attribute string) []string {
 func gdVocabContains(values []string, v string) bool {
 	for _, x := range values {
 		if x == v {
+			return true
+		}
+	}
+	return false
+}
+
+// Kind-layer invariants for the com.verivus.runtime mutation kinds.
+//
+// Ported from validators/validate_state_mutation.py to close the
+// primary-parity gap recorded against RKM02/RKM03/RKM04/RKM06 and RKC02.
+// Before this port a primary-only consumer accepted a hollow proof (the two
+// pinned digests with no scheme, finality or locator), because the closure
+// layer sees pins and nothing else.
+
+// boundTupleFields is the SPEC 12.8.2 tuple. Values are PREHASHED, never
+// inlined: an inlined value carrying 0x0A forges a different field assignment
+// with an identical digest.
+var boundTupleFields = [][2]string{
+	{"mutation.target_id", "target_id"},
+	{"mutation.operation", "operation"},
+	{"mutation.authorization_sha256", "authorization_sha256"},
+	{"mutation.effect_sha256", "effect_sha256"},
+	{"mutation.performed_at", "performed_at"},
+}
+
+var allowedMutationKeys = map[string]bool{
+	"performed_at": true, "target_id": true, "operation": true,
+	"authorization_sha256": true, "effect_sha256": true,
+}
+
+var allowedProofKeys = map[string]bool{
+	"scheme": true, "finality_basis": true, "proof_sha256": true,
+	"binds_sha256": true, "proof_locator": true,
+}
+
+var requiredProofKeys = []string{
+	"scheme", "finality_basis", "proof_sha256", "binds_sha256", "proof_locator",
+}
+
+// schemeFinality carries RKM06: a scheme may only claim durability its own
+// evidence class can carry.
+var schemeFinality = map[string][]string{
+	"ledger-transaction": {"none", "ledger-confirmed", "ledger-final"},
+	"zk-receipt":         {"none", "ledger-confirmed", "ledger-final"},
+	"provider-receipt":   {"none", "provider-acknowledged"},
+	"tee-quote":          {"none"},
+}
+
+// finalityValues is the closed `finality_basis` vocabulary, mirroring the
+// profile ontology.
+var finalityValues = map[string]bool{
+	"none":                  true,
+	"provider-acknowledged": true,
+	"ledger-confirmed":      true,
+	"ledger-final":          true,
+}
+
+func daysInMonth(year, month int) int {
+	switch month {
+	case 2:
+		if year%4 == 0 && (year%100 != 0 || year%400 == 0) {
+			return 29
+		}
+		return 28
+	case 4, 6, 9, 11:
+		return 30
+	}
+	return 31
+}
+
+func isMutationDigest(s string) bool {
+	for _, p := range [][2]any{{"sha256:", 64}, {"sha384:", 96}, {"sha512:", 128}} {
+		prefix := p[0].(string)
+		n := p[1].(int)
+		if strings.HasPrefix(s, prefix) {
+			hexPart := s[len(prefix):]
+			if len(hexPart) != n {
+				return false
+			}
+			for _, c := range hexPart {
+				if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+					return false
+				}
+			}
+			return true
+		}
+	}
+	return false
+}
+
+// isRFC3339UTC accepts YYYY-MM-DDTHH:MM:SS[.frac]Z. Hand-rolled to match the
+// Rust primary byte for byte rather than relying on time.Parse leniency.
+func isRFC3339UTC(s string) bool {
+	if len(s) < 20 || s[len(s)-1] != 'Z' {
+		return false
+	}
+	digits := func(a, b int) bool {
+		for i := a; i < b; i++ {
+			if s[i] < '0' || s[i] > '9' {
+				return false
+			}
+		}
+		return true
+	}
+	if !(digits(0, 4) && s[4] == '-' && digits(5, 7) && s[7] == '-' && digits(8, 10)) {
+		return false
+	}
+	if !(s[10] == 'T' && digits(11, 13) && s[13] == ':' && digits(14, 16) &&
+		s[16] == ':' && digits(17, 19)) {
+		return false
+	}
+	if len(s) != 20 &&
+		!(s[19] == '.' && len(s) <= 30 && len(s)-21 >= 1 && digits(20, len(s)-1)) {
+		return false
+	}
+	// Calendar validity, not merely digit positions: the shape check alone
+	// accepts `2026-99-26T10:15:00Z`, and performed_at is a member of the
+	// RKM04 bound tuple carrying the freshness claim.
+	num := func(a, b int) int {
+		n := 0
+		for i := a; i < b; i++ {
+			n = n*10 + int(s[i]-'0')
+		}
+		return n
+	}
+	year, month, day := num(0, 4), num(5, 7), num(8, 10)
+	hour, minute, second := num(11, 13), num(14, 16), num(17, 19)
+	if month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month) {
+		return false
+	}
+	// Second 60 is a leap second, which RFC3339 5.6 permits.
+	return hour <= 23 && minute <= 59 && second <= 60
+}
+
+func isOperationToken(s string) bool {
+	if len(s) == 0 || len(s) > 64 {
+		return false
+	}
+	c0 := s[0]
+	if !((c0 >= 'a' && c0 <= 'z') || (c0 >= '0' && c0 <= '9')) {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-') {
+			return false
+		}
+	}
+	return true
+}
+
+// isURIShaped: scheme:rest, no whitespace or control characters, bounded.
+// A locator names where a proof lives; it is never a place to inline one.
+func isURIShaped(s string) bool {
+	colon := strings.Index(s, ":")
+	if colon <= 0 {
+		return false
+	}
+	scheme, rest := s[:colon], s[colon+1:]
+	if len(rest) == 0 || len(rest) > 480 {
+		return false
+	}
+	if scheme[0] < 'a' || scheme[0] > 'z' {
+		return false
+	}
+	for i := 1; i < len(scheme); i++ {
+		c := scheme[i]
+		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '+' || c == '.' || c == '-') {
+			return false
+		}
+	}
+	for _, r := range rest {
+		if unicode.IsSpace(r) || unicode.IsControl(r) || r == 0x7f {
+			return false
+		}
+	}
+	return true
+}
+
+func mutationBoundTuple(mutation map[string]any) string {
+	records := make([]string, 0, len(boundTupleFields))
+	for _, f := range boundTupleFields {
+		value, _ := stringOf(mutation, f[1])
+		vd := sha256.Sum256([]byte(value))
+		records = append(records, fmt.Sprintf("%s sha256:%s\n", f[0], hex.EncodeToString(vd[:])))
+	}
+	sort.Strings(records)
+	sum := sha256.Sum256([]byte(strings.Join(records, "")))
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func checkMutationTable(path string, doc rawDoc, defects *[]string) {
+	mutation, ok := tableOf(doc, "mutation")
+	if !ok {
+		if hasKey(doc, "mutation") {
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: `mutation` is present but is not a table. A present-but-wrong-typed "+
+					"element MUST NOT be reported as absent (SPEC 12.8.2)", path))
+		} else {
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: missing required `[mutation]` table", path))
+		}
+		return
+	}
+	keys := make([]string, 0, len(mutation))
+	for k := range mutation {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		if !allowedMutationKeys[k] {
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: mutation.%s is not a permitted key (closed key set; payloads and "+
+					"credentials have no field to live in)", path, k))
+		}
+	}
+	for _, k := range []string{"authorization_sha256", "effect_sha256"} {
+		v, state := fieldOf(mutation, k)
+		switch {
+		case state == fieldAbsent:
+			*defects = append(*defects, fmt.Sprintf("%s: mutation.%s is required", path, k))
+		case state == fieldNotString:
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: mutation.%s must be a string carrying a digest scalar", path, k))
+		case !isMutationDigest(v):
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: mutation.%s %q is not a digest scalar", path, k, v))
+		}
+	}
+	switch v, state := fieldOf(mutation, "performed_at"); {
+	case state == fieldAbsent:
+		*defects = append(*defects, fmt.Sprintf("%s: mutation.performed_at is required", path))
+	case state == fieldNotString:
+		*defects = append(*defects, fmt.Sprintf(
+			"%s: mutation.performed_at must be a string", path))
+	case !isRFC3339UTC(v):
+		*defects = append(*defects, fmt.Sprintf(
+			"%s: mutation.performed_at %q must be an RFC3339 UTC timestamp ending in Z, naming "+
+				"a real instant", path, v))
+	}
+	switch v, state := fieldOf(mutation, "operation"); {
+	case state == fieldAbsent:
+		*defects = append(*defects, fmt.Sprintf("%s: mutation.operation is required", path))
+	case state == fieldNotString:
+		*defects = append(*defects, fmt.Sprintf("%s: mutation.operation must be a string", path))
+	case !isOperationToken(v):
+		*defects = append(*defects, fmt.Sprintf(
+			"%s: mutation.operation %q must be a bare lowercase token, at most 64 characters",
+			path, v))
+	}
+	switch v, state := fieldOf(mutation, "target_id"); {
+	case state == fieldAbsent:
+		*defects = append(*defects, fmt.Sprintf("%s: mutation.target_id is required", path))
+	case state == fieldNotString:
+		*defects = append(*defects, fmt.Sprintf("%s: mutation.target_id must be a string", path))
+	case !isURIShaped(v):
+		*defects = append(*defects, fmt.Sprintf(
+			"%s: mutation.target_id %q must be a URI or URN with no whitespace or control "+
+				"characters", path, v))
+	}
+	prov, ok := tableOf(doc, "provenance")
+	if !ok {
+		*defects = append(*defects, fmt.Sprintf(
+			"%s: missing required `[provenance]` table; provenance.source_sha256 is a required "+
+				"field of this kind", path))
+		return
+	}
+	if v, present := stringOf(prov, "source_sha256"); !present || !isMutationDigest(v) {
+		*defects = append(*defects, fmt.Sprintf(
+			"%s: provenance.source_sha256 is required and MUST be a digest scalar", path))
+	}
+}
+
+func validateMutationKinds(path string, doc rawDoc, repoRoot string) []string {
+	var defects []string
+	meta, ok := tableOf(doc, "meta")
+	if !ok {
+		return nil
+	}
+	tk, _ := stringOf(meta, "template_kind")
+
+	if tk == "mutation-claim" {
+		// RKC02: a claim must not borrow the appearance of proof. Presence is
+		// what is forbidden, so this asks only whether the key is there. A
+		// well-formedness test would let `execution_proof = [{ ... }]` through.
+		if hasKey(doc, "execution_proof") {
+			defects = append(defects, fmt.Sprintf(
+				"%s: a mutation-claim MUST NOT carry `[execution_proof]` (RKC02). A document "+
+					"with a proof is a state-mutation and MUST declare that template_kind, so "+
+					"that RKM02, RKM04 and RKM06 apply to it", path))
+		}
+		checkMutationTable(path, doc, &defects)
+		return defects
+	}
+	if tk != "state-mutation" {
+		return nil
+	}
+
+	checkMutationTable(path, doc, &defects)
+
+	// RKM02: the proof is mandatory and complete.
+	proof, ok := tableOf(doc, "execution_proof")
+	if !ok {
+		if hasKey(doc, "execution_proof") {
+			defects = append(defects, fmt.Sprintf(
+				"%s: `execution_proof` is present but is not a table (RKM02). A "+
+					"present-but-wrong-typed element MUST NOT be reported as absent "+
+					"(SPEC 12.8.2), and proof material outside a table is not a proof", path))
+		} else {
+			defects = append(defects, fmt.Sprintf(
+				"%s: missing required `[execution_proof]` table (RKM02). A record of an "+
+					"irreversible state change with no execution proof is not a state-mutation; "+
+					"use mutation-claim instead", path))
+		}
+		return defects
+	}
+	pkeys := make([]string, 0, len(proof))
+	for k := range proof {
+		pkeys = append(pkeys, k)
+	}
+	sort.Strings(pkeys)
+	for _, k := range pkeys {
+		if !allowedProofKeys[k] {
+			defects = append(defects, fmt.Sprintf(
+				"%s: execution_proof.%s is not a permitted key (RKM03 closed key set)", path, k))
+		}
+	}
+	for _, k := range requiredProofKeys {
+		if _, present := proof[k]; !present {
+			defects = append(defects, fmt.Sprintf(
+				"%s: execution_proof.%s is required (RKM02)", path, k))
+		}
+	}
+	for _, k := range []string{"proof_sha256", "binds_sha256"} {
+		// Absence is already reported against requiredProofKeys.
+		switch v, state := fieldOf(proof, k); {
+		case state == fieldNotString:
+			defects = append(defects, fmt.Sprintf(
+				"%s: execution_proof.%s must be a string carrying a digest scalar", path, k))
+		case state == fieldString && !isMutationDigest(v):
+			defects = append(defects, fmt.Sprintf(
+				"%s: execution_proof.%s %q is not a digest scalar", path, k, v))
+		}
+	}
+	switch v, state := fieldOf(proof, "proof_locator"); {
+	case state == fieldNotString:
+		defects = append(defects, fmt.Sprintf(
+			"%s: execution_proof.proof_locator must be a string carrying a URI-shaped "+
+				"reference (RKM03)", path))
+	case state == fieldString && !isURIShaped(v):
+		defects = append(defects, fmt.Sprintf(
+			"%s: execution_proof.proof_locator %q must be a URI-shaped reference. A locator "+
+				"names where the proof can be fetched; it is not a place to inline the proof "+
+				"itself (RKM03)", path, v))
+	}
+
+	// RKM02 vocabulary membership, then RKM06 coherence. Membership is checked
+	// with no empty-string and no wrong-type escape: neither is a member of a
+	// closed vocabulary, and letting either skip the check accepted a proof
+	// declaring no scheme at all.
+	scheme, schemeOK := "", false
+	switch v, state := fieldOf(proof, "scheme"); state {
+	case fieldNotString:
+		defects = append(defects, fmt.Sprintf(
+			"%s: execution_proof.scheme must be a string drawn from the closed "+
+				"execution_proof_scheme vocabulary", path))
+	case fieldString:
+		if _, known := schemeFinality[v]; known {
+			scheme, schemeOK = v, true
+		} else {
+			defects = append(defects, fmt.Sprintf(
+				"%s: execution_proof.scheme %q is not in the closed execution_proof_scheme "+
+					"vocabulary", path, v))
+		}
+	}
+	finality, finalityOK := "", false
+	switch v, state := fieldOf(proof, "finality_basis"); state {
+	case fieldNotString:
+		defects = append(defects, fmt.Sprintf(
+			"%s: execution_proof.finality_basis must be a string drawn from the closed "+
+				"finality_basis vocabulary", path))
+	case fieldString:
+		if finalityValues[v] {
+			finality, finalityOK = v, true
+		} else {
+			defects = append(defects, fmt.Sprintf(
+				"%s: execution_proof.finality_basis %q is not in the closed finality_basis "+
+					"vocabulary", path, v))
+		}
+	}
+	if schemeOK && finalityOK {
+		allowed := schemeFinality[scheme]
+		okFinality := false
+		for _, a := range allowed {
+			if a == finality {
+				okFinality = true
+				break
+			}
+		}
+		if !okFinality {
+			defects = append(defects, fmt.Sprintf(
+				"%s: execution_proof scheme %q cannot claim finality_basis %q (RKM06); it "+
+					"carries evidence for %v only", path, scheme, finality, allowed))
+		}
+	}
+
+	// RKM04: the proof must bind THIS mutation, not merely exist.
+	//
+	// Skipped unless every bound field is a string. Computing the tuple over a
+	// non-string field would hash the empty string in its place and report a
+	// mismatch against a tuple no producer wrote, burying the type defect
+	// already reported above under a bogus RKM04 failure.
+	if mutation, has := tableOf(doc, "mutation"); has {
+		allBoundFieldsAreStrings := true
+		for _, f := range boundTupleFields {
+			if _, state := fieldOf(mutation, f[1]); state != fieldString {
+				allBoundFieldsAreStrings = false
+				break
+			}
+		}
+		declared, present := stringOf(proof, "binds_sha256")
+		if allBoundFieldsAreStrings && present && isMutationDigest(declared) {
+			expected := mutationBoundTuple(mutation)
+			if declared != expected {
+				defects = append(defects, fmt.Sprintf(
+					"%s: execution_proof.binds_sha256 %s does not equal the SPEC 12.8.2 bound "+
+						"tuple recomputed from this document (%s) (RKM04). The proof does not "+
+						"commit to this mutation", path, declared, expected))
+			}
+		}
+	}
+
+	return defects
+}
+
+// Kind-layer invariants for the com.verivus.runtime api-snapshot kind.
+//
+// Ported from validators/validate_api_snapshot.py to close the last declared
+// primary-parity gap. Before this port the primaries carried the shared
+// meta/provenance/IJB/closure surface for an api-snapshot and nothing else, so
+// RKV01, RKV02 and RKV03 ran in the Python reference alone: a primary-only
+// consumer accepted an inlined `authorization` header, an incomplete witness
+// block, and a descriptor digest that did not match the capture it claimed to
+// summarise.
+//
+// The closed vocabularies are compiled in, mirroring
+// profiles/com.verivus.runtime/ontology.toml, exactly as the Python reference
+// hardcodes them. Drift between either copy and the ontology is caught by
+// validate_ijb_conformance.py on the ontology itself.
+
+var witnessSchemes = []string{"tls-notary", "provider-signature", "tee-quote"}
+
+var attesterObserved = []string{"request", "response", "both"}
+
+// Closed key sets per table. Any other key inlines a raw payload or header
+// value, which RKV02 forbids: the document carries only digests.
+var allowedSnapshotKeys = map[string]bool{
+	"captured_at": true, "source_id": true, "request": true,
+	"response": true, "witness": true,
+}
+
+var allowedRequestKeys = map[string]bool{
+	"method": true, "url": true, "significant_headers": true,
+	"descriptor_sha256": true, "auth_context": true,
+}
+
+var allowedResponseKeys = map[string]bool{
+	"status": true, "body_sha256": true,
+}
+
+var allowedWitnessKeys = map[string]bool{
+	"present": true, "scheme": true, "observed": true,
+	"attester_id": true, "attestation_sha256": true,
+}
+
+// secretHeaderNames carry credentials or session material. The closed key sets
+// already reject them; naming them earns a secret-specific message so the
+// producer is told what they leaked, not merely that a key was unexpected.
+var secretHeaderNames = map[string]bool{
+	"authorization": true, "proxy-authorization": true, "cookie": true,
+	"set-cookie": true, "x-api-key": true, "api-key": true, "apikey": true,
+	"x-auth-token": true, "x-amz-security-token": true, "authentication": true,
+}
+
+var captureMagic = []byte("DAGTOML-API-CAPTURE/1\n")
+
+func isSnapshotDigest(s string) bool {
+	for _, p := range [][2]any{{"sha256:", 64}, {"sha384:", 96}, {"sha512:", 128}} {
+		prefix := p[0].(string)
+		n := p[1].(int)
+		if strings.HasPrefix(s, prefix) {
+			hexPart := s[len(prefix):]
+			if len(hexPart) != n {
+				return false
+			}
+			for _, c := range hexPart {
+				if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+					return false
+				}
+			}
+			return true
+		}
+	}
+	return false
+}
+
+func snapshotDigestField(t map[string]any, key string) bool {
+	v, ok := stringOf(t, key)
+	return ok && isSnapshotDigest(v)
+}
+
+func snapshotNonEmpty(t map[string]any, key string) bool {
+	v, ok := stringOf(t, key)
+	return ok && strings.TrimSpace(v) != ""
+}
+
+// isHeaderName accepts a bare lowercase header NAME, [a-z0-9][a-z0-9-]*. A
+// ':' or any whitespace means a header VALUE was inlined (RKV02).
+func isHeaderName(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	if !((s[0] >= 'a' && s[0] <= 'z') || (s[0] >= '0' && s[0] <= '9')) {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') {
+			return false
+		}
+	}
+	return true
+}
+
+func checkSnapshotKeys(t map[string]any, allowed map[string]bool, dotted, path string, defects *[]string) {
+	keys := make([]string, 0, len(t))
+	for k := range t {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		if allowed[k] {
+			continue
+		}
+		if secretHeaderNames[strings.ToLower(k)] {
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: %s.%s inlines a secret-bearing header; RKV02 forbids raw header "+
+					"values, pin them via the canonical request descriptor digest instead",
+				path, dotted, k))
+		} else {
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: %s.%s is not an allowed field; a raw header/payload value MUST NOT "+
+					"be inlined, the document carries only digests (RKV02)",
+				path, dotted, k))
+		}
+	}
+}
+
+func malformedCapture(path, sourcePath, markers, field string) string {
+	return fmt.Sprintf(
+		"%s: capture %q carries the DAGTOML-API-CAPTURE/1 magic but lacks the %s section "+
+			"markers; %s cannot be verified (malformed capture) (RKV01 sub-part consistency)",
+		path, sourcePath, markers, field)
+}
+
+// verifySubparts is RKV01 sub-part consistency for the profile's
+// DAGTOML-API-CAPTURE/1 capture form.
+//
+// A capture in a foreign, producer-defined format cannot be parsed here, so
+// sub-part consistency for it is a RUNTIME-SPEC producer obligation, exactly
+// like re-fetching the URL. A capture that DECLARES this form by carrying the
+// magic and then lacks its section markers is malformed and fails CLOSED: a
+// magic header with missing markers must never let an arbitrary
+// descriptor_sha256 or body_sha256 through.
+func verifySubparts(path string, doc rawDoc, repoRoot string, defects *[]string) {
+	provenance, ok := tableOf(doc, "provenance")
+	if !ok {
+		return
+	}
+	sourcePath, ok := stringOf(provenance, "source_path")
+	if !ok || strings.TrimSpace(sourcePath) == "" || filepath.IsAbs(sourcePath) {
+		// Absent or absolute: validateProvenance owns that binding.
+		return
+	}
+	capture := filepath.Join(repoRoot, sourcePath)
+	info, err := os.Stat(capture)
+	if err != nil || info.IsDir() {
+		// Missing: validateProvenance reports it.
+		return
+	}
+	data, err := os.ReadFile(capture) // #nosec G304 -- repo-relative capture named by the document under review
+	if err != nil {
+		return
+	}
+	if !bytes.HasPrefix(data, captureMagic) {
+		// Foreign capture format: sub-part consistency is RUNTIME-SPEC.
+		return
+	}
+
+	snapshot, _ := tableOf(doc, "snapshot")
+	request, _ := tableOf(snapshot, "request")
+	response, _ := tableOf(snapshot, "response")
+
+	dmark := []byte("request-descriptor:\n")
+	smark := []byte("response-status:")
+	bmark := []byte("response-body:\n")
+
+	// Both markers must appear SOMEWHERE, then the descriptor sub-part is
+	// everything after the first `request-descriptor:` up to the first
+	// `response-status:` that follows it. This mirrors the reference's
+	// data.split(dmark, 1)[1].split(smark, 1)[0] exactly, including the case
+	// where the only `response-status:` precedes the descriptor marker: the
+	// reference then takes the whole remainder, so this does too. Diverging
+	// here would be a parity gap on a malformed capture.
+	d := bytes.Index(data, dmark)
+	if d < 0 || !bytes.Contains(data, smark) {
+		*defects = append(*defects, malformedCapture(path, sourcePath,
+			"'request-descriptor:' / 'response-status:'", "snapshot.request.descriptor_sha256"))
+	} else {
+		after := data[d+len(dmark):]
+		end := bytes.Index(after, smark)
+		if end < 0 {
+			end = len(after)
+		}
+		sum := sha256.Sum256(after[:end])
+		actual := "sha256:" + hex.EncodeToString(sum[:])
+		declared, _ := stringOf(request, "descriptor_sha256")
+		if declared != actual {
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: snapshot.request.descriptor_sha256 %q does not equal the SHA-256 of the "+
+					"request-descriptor sub-part of the capture (%s) (RKV01 sub-part consistency)",
+				path, declared, actual))
+		}
+	}
+
+	b := bytes.Index(data, bmark)
+	if b < 0 {
+		*defects = append(*defects, malformedCapture(path, sourcePath,
+			"'response-body:'", "snapshot.response.body_sha256"))
+	} else {
+		sum := sha256.Sum256(data[b+len(bmark):])
+		actual := "sha256:" + hex.EncodeToString(sum[:])
+		declared, _ := stringOf(response, "body_sha256")
+		if declared != actual {
+			*defects = append(*defects, fmt.Sprintf(
+				"%s: snapshot.response.body_sha256 %q does not equal the SHA-256 of the "+
+					"response-body sub-part of the capture (%s) (RKV01 sub-part consistency)",
+				path, declared, actual))
+		}
+	}
+}
+
+func validateAPISnapshot(path string, doc rawDoc, repoRoot string) []string {
+	var defects []string
+
+	meta, _ := tableOf(doc, "meta")
+	if tk, _ := stringOf(meta, "template_kind"); tk != "api-snapshot" {
+		return defects
+	}
+
+	snapshot, ok := tableOf(doc, "snapshot")
+	if !ok {
+		return []string{fmt.Sprintf("%s: [snapshot] table is required for an api-snapshot", path)}
+	}
+
+	// RKV02: closed key sets, so a raw header or payload has no field to live in.
+	checkSnapshotKeys(snapshot, allowedSnapshotKeys, "snapshot", path, &defects)
+
+	if !snapshotNonEmpty(snapshot, "captured_at") {
+		defects = append(defects, fmt.Sprintf(
+			"%s: snapshot.captured_at is required (RFC3339 string)", path))
+	}
+	if !snapshotNonEmpty(snapshot, "source_id") {
+		defects = append(defects, fmt.Sprintf("%s: snapshot.source_id is required (string)", path))
+	}
+
+	request, hasRequest := tableOf(snapshot, "request")
+	if !hasRequest {
+		defects = append(defects, fmt.Sprintf("%s: [snapshot.request] table is required", path))
+	} else {
+		checkSnapshotKeys(request, allowedRequestKeys, "snapshot.request", path, &defects)
+		if _, ok := stringOf(request, "method"); !ok {
+			defects = append(defects, fmt.Sprintf(
+				"%s: snapshot.request.method is required (string)", path))
+		}
+		if !snapshotDigestField(request, "descriptor_sha256") {
+			defects = append(defects, fmt.Sprintf(
+				"%s: snapshot.request.descriptor_sha256 must be a digest scalar "+
+					"(<algo>:<hex>) (RKV02: header values are carried in the canonical "+
+					"descriptor as digests)", path))
+		}
+	}
+
+	if response, ok := tableOf(snapshot, "response"); !ok {
+		defects = append(defects, fmt.Sprintf("%s: [snapshot.response] table is required", path))
+	} else {
+		checkSnapshotKeys(response, allowedResponseKeys, "snapshot.response", path, &defects)
+		if !snapshotDigestField(response, "body_sha256") {
+			defects = append(defects, fmt.Sprintf(
+				"%s: snapshot.response.body_sha256 must be a digest scalar (<algo>:<hex>)", path))
+		}
+	}
+
+	// significant_headers carries header NAMES only. A ':' or whitespace in an
+	// entry means a header VALUE was inlined.
+	if hasRequest {
+		if raw, present := request["significant_headers"]; present {
+			entries, isArray := raw.([]any)
+			if !isArray {
+				defects = append(defects, fmt.Sprintf(
+					"%s: snapshot.request.significant_headers must be an array of "+
+						"header-name strings", path))
+			} else {
+				for _, entry := range entries {
+					s, isString := entry.(string)
+					if !isString || !isHeaderName(s) {
+						defects = append(defects, fmt.Sprintf(
+							"%s: snapshot.request.significant_headers entry %q must be a bare "+
+								"lowercase header name; a ':' or whitespace means a header "+
+								"VALUE was inlined (RKV02)", path, fmt.Sprintf("%v", entry)))
+					}
+				}
+			}
+		}
+	}
+
+	// RKV03: the witness conditional.
+	//
+	// The table is REQUIRED. An unwitnessed capture asserts `present = false`;
+	// it does not delete the block. That does not stop a producer who re-roots
+	// the document from writing `present = false` (nothing computed from inside
+	// a document can), but it removes the shape in which a stripped document and
+	// an honestly unwitnessed one are indistinguishable.
+	if !hasKey(snapshot, "witness") {
+		defects = append(defects, fmt.Sprintf(
+			"%s: missing required `[snapshot.witness]` table (RKV03). An unwitnessed "+
+				"capture MUST assert `present = false`; the absence of a witness MUST NOT "+
+				"be achieved by deleting the table", path))
+	} else if _, isTable := tableOf(snapshot, "witness"); !isTable {
+		defects = append(defects, fmt.Sprintf(
+			"%s: `snapshot.witness` is present but is not a table (RKV03)", path))
+	}
+	if witness, ok := tableOf(snapshot, "witness"); ok {
+		checkSnapshotKeys(witness, allowedWitnessKeys, "snapshot.witness", path, &defects)
+		present, isBool := witness["present"].(bool)
+		switch {
+		case !isBool:
+			defects = append(defects, fmt.Sprintf(
+				"%s: snapshot.witness.present must be a boolean", path))
+		case present:
+			scheme, _ := stringOf(witness, "scheme")
+			if !containsString(witnessSchemes, scheme) {
+				defects = append(defects, fmt.Sprintf(
+					"%s: snapshot.witness.scheme must be one of %v when present=true (RKV03)",
+					path, witnessSchemes))
+			}
+			if !snapshotNonEmpty(witness, "attester_id") {
+				defects = append(defects, fmt.Sprintf(
+					"%s: snapshot.witness.attester_id is required when present=true (RKV03)", path))
+			}
+			if !snapshotDigestField(witness, "attestation_sha256") {
+				defects = append(defects, fmt.Sprintf(
+					"%s: snapshot.witness.attestation_sha256 must be a digest scalar when "+
+						"present=true (RKV03)", path))
+			}
+			observed, _ := stringOf(witness, "observed")
+			if !containsString(attesterObserved, observed) {
+				defects = append(defects, fmt.Sprintf(
+					"%s: snapshot.witness.observed must be one of %v when present=true (RKV03)",
+					path, attesterObserved))
+			}
+		default:
+			// Amended RKV03: SPEC 12.8.1 keys the closure on field PRESENCE, so
+			// a lingering witness digest under present=false would make the
+			// downgrade invisible at the closure root.
+			var lingering []string
+			for _, key := range []string{"scheme", "attester_id", "attestation_sha256", "observed"} {
+				if _, found := witness[key]; found {
+					lingering = append(lingering, key)
+				}
+			}
+			if len(lingering) > 0 {
+				defects = append(defects, fmt.Sprintf(
+					"%s: snapshot.witness fields %v MUST be absent when present=false "+
+						"(amended RKV03: the SPEC 12.8.1 closure keys on field presence, so a "+
+						"lingering witness digest would make the downgrade invisible at the "+
+						"closure root)", path, lingering))
+			}
+		}
+	}
+
+	// RKV01: sub-part consistency against the capture.
+	verifySubparts(path, doc, repoRoot, &defects)
+
+	return defects
+}
+
+func containsString(haystack []string, needle string) bool {
+	for _, candidate := range haystack {
+		if candidate == needle {
 			return true
 		}
 	}

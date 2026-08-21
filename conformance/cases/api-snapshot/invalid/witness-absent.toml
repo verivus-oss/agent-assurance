@@ -1,0 +1,68 @@
+# Conformance case (invalid): the `[snapshot.witness]` table deleted outright.
+#
+# This is the case the RKV03 required-witness hardening exists for. Before it,
+# a document with no witness table was VALID and byte-indistinguishable in
+# shape from an honestly unwitnessed capture, so a downgrade could be achieved
+# by deletion and left no assertion behind for an auditor or a policy engine to
+# read. Now the absence of a witness must be ASSERTED (`present = false`).
+#
+# Deliberately closure-VALID: `present` is not a pinned closure record, so the
+# three-record root below is the honest one for this document and the closure
+# layer has nothing to say. Only the kind layer objects, in all three
+# implementations. Contrast witness-stripped.toml, which performs the downgrade
+# CORRECTLY and is caught by the stale root instead.
+#
+# PROVENANCE OF THESE BYTES, recorded so the relationship is checkable from the
+# repository rather than asserted.
+#
+# The document body below (everything from `closure_root` onward) is
+# BYTE-IDENTICAL to the frozen valid row `valid/unwitnessed-three-record.toml`
+# as it stood at commit ce4df2a, before the RKV03 hardening. Verify with:
+#
+#   diff <(git show ce4df2a:conformance/cases/api-snapshot/valid/unwitnessed-three-record.toml \
+#          | sed -n '/^closure_root/,$p') \
+#        <(sed -n '/^closure_root/,$p' conformance/cases/api-snapshot/invalid/witness-absent.toml)
+#
+# So the original frozen bytes are preserved here, as the INVALID case they
+# became under RKV03, while the valid row keeps asserting the three-record
+# stream with `present = false`. The freeze was about the STREAM, and nothing
+# about it has been discarded.
+
+# What this does NOT buy, stated so the fixture is not read as more than it is:
+# a producer who re-roots the document can simply write `present = false`. No
+# check computed from inside a document can prevent that. What is removed is
+# the silent-omission shape, not the forgery.
+
+# Conformance case: an unwitnessed snapshot. The when-present pinned
+# record (snapshot.witness.attestation_sha256) is absent, so the stream
+# is the three-record form and this root MUST be accepted by all three
+# implementations (frozen parity-matrix row: when-present absent).
+
+closure_root = "sha256:627490aebb92bc8f5a4611dfe5ad763df1ce4980599bffb3baf4d8ba3eb5c3a6"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "api-snapshot"
+framework_profile = "com.verivus.runtime"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality = "restricted"
+
+[provenance]
+source_path = "examples/captures/2026-06-17T091402Z-usd-aud.capture"
+source_sha256 = "sha256:1af17db5085faf2b3078538922f462ed9a37ee3b8e0d0b11d5aa34276442eab7"
+source_bytes = 620
+
+[snapshot]
+captured_at = "2026-06-17T09:14:02.481Z"
+source_id = "https://api.exchange.example/v1/quotes/USD-AUD"
+
+[snapshot.request]
+method = "GET"
+url = "https://api.exchange.example/v1/quotes/USD-AUD?asof=2026-06-17T09:14:00Z&pair=USD-AUD"
+significant_headers = ["accept"]
+descriptor_sha256 = "sha256:1e84dff27040181e39a0eedd71497241ae153efb65ec93e4b97303a8cb041869"
+auth_context = "oauth2-client-credentials; client=verivus-quote-reader"
+
+[snapshot.response]
+status = 200
+body_sha256 = "sha256:569cc4222c936a5c39184bc0e17048c3f80bed44d457f0327db1bd58faecfebd"

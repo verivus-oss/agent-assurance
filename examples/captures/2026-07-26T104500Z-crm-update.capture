@@ -1,0 +1,9 @@
+DAGTOML-API-CAPTURE/1
+captured-at: 2026-07-26T10:45:00.900Z
+--- request ---
+PATCH /v2/contacts/C-91188 HTTP/1.1
+host: crm.example
+accept: application/json
+--- response ---
+HTTP/1.1 200 OK
+{"id":"C-91188","status":"updated"}

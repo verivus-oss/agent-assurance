@@ -1,0 +1,248 @@
+# Kind descriptor for `template_kind = "mutation-claim"`.
+# Verivus runtime profile (com.verivus.runtime) artifact.
+
+# Empty-closure sentinel, SHA-256(""), required by SPEC §12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version = "0.1.0"
+template_kind = "kind-descriptor"
+ontology_version = 2
+title = "Mutation claim kind descriptor"
+docs = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+describes_kind = "mutation-claim"
+framework_profile = "com.verivus.runtime"
+authoritative_in = "this file"
+confidentiality = "public"
+license = "Apache-2.0"
+
+[kind]
+name = "mutation-claim"
+summary = "Producer-attested record that a state change was performed, carrying NO execution proof and therefore asserting nothing that a reader may rely on beyond the producer's own word."
+prose = """
+A mutation-claim is the honest home for a state change with no execution
+proof. It exists because `state-mutation` requires one (RKM02), and a
+format that leaves a real operational case with nowhere to go does not
+make that case disappear: it makes producers mislabel it.
+
+The two kinds carry an IDENTICAL `[mutation]` table, so promoting a claim
+to a proved record is a mechanical operation once the proof arrives:
+add `[execution_proof]`, change `template_kind`, recompute the root. The
+lifecycle is expected to be async (submit, acknowledge, confirm), and this
+kind is what a producer emits in the window before a receipt exists.
+
+WHAT THIS KIND ASSERTS, AND WHAT IT DOES NOT
+
+It asserts: the producing agent claims it performed `operation` against
+`target_id` at `performed_at`, under the authorization pinned by
+`authorization_sha256`, and claims the result is pinned by
+`effect_sha256`.
+
+It does NOT assert: that the operation actually executed, that it settled,
+that the authorization was valid, or that any third party observed any of
+it. A consumer MUST treat a mutation-claim as producer testimony. It is
+tamper-EVIDENT once anchored (the closure cascades exactly as elsewhere),
+and it is not tamper-PROOF, because nothing in it is independently
+attested. A conformance profile that requires evidence of execution MUST
+reject this kind outright rather than accept it at a lower tier: the
+distinction between claim and proof is the whole point of the split.
+
+ROOT SHAPE
+
+ closure_root = "sha256:..."          # SPEC 12.8 stream, three records
+
+ [meta]
+ schema_version = "0.1.0"
+ template_kind = "mutation-claim"
+ framework_profile = "com.verivus.runtime"
+ confidentiality = "restricted"
+
+ [provenance]
+ source_path = "captures/2026-07-26T104500Z-crm-update.capture"
+ source_sha256 = "sha256:..."
+ source_bytes = 384
+
+ [mutation]
+ performed_at = "2026-07-26T10:45:00.900Z"
+ target_id = "https://crm.example/v2/contacts/C-91188"
+ operation = "update"
+ authorization_sha256 = "sha256:..."
+ effect_sha256 = "sha256:..."
+
+CLOSURE LAYERING
+
+The profile pins `mutation.authorization_sha256` and
+`mutation.effect_sha256` as `required` closure records, alongside the
+SPEC-layer `provenance.source_sha256`. There is no proof to pin, so the
+stream is three records rather than five.
+
+The absence of `[execution_proof]` is enforced at the kind layer (RKC02),
+not by the closure stream, because you cannot pin the absence of a field.
+That is the deliberate inverse of `state-mutation`, where the proof pins
+are `required` precisely so deletion is caught by the closure gate. Here
+the risk runs the other way: a producer might attach a proof to a
+claim-shaped record and hope a consumer reads the presence of the table as
+strength without the claim/proof distinction being enforced. RKC02 forbids
+that: if a proof exists, the document MUST be a `state-mutation` and MUST
+satisfy every invariant that kind carries.
+"""
+references = [
+ "spec.md",
+ "core/ontology.toml",
+ "profiles/com.verivus.runtime/ontology.toml",
+ "profiles/com.verivus.runtime/state-mutation-kind.toml",
+]
+ijb_primitive = "thing"
+ijb_class = "structural"
+
+[[kind.required_fields]]
+path = "meta.template_kind"
+must_equal = "mutation-claim"
+description = "Identifies this file as a mutation-claim."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "meta.framework_profile"
+must_equal = "com.verivus.runtime"
+description = "Selects the Verivus runtime profile."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "mutation.performed_at"
+description = "RFC3339 UTC timestamp at which the producer claims the mutation was performed."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "mutation.target_id"
+description = "Stable identifier (URI or URN) of the system or resource the producer claims to have changed."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "mutation.operation"
+description = "Bare lowercase token naming the operation, at most 64 characters. Same grammar as the state-mutation field, so promotion needs no rewriting."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "mutation.authorization_sha256"
+description = "Digest of the artefact that authorized the mutation. Pinned into the closure stream, so re-authorizing under a different manifest cascade-breaks the claim."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "mutation.effect_sha256"
+description = "Digest of the canonical record of the claimed resulting state transition."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.required_fields]]
+path = "provenance.source_sha256"
+ontology_mapping = "cites_upstream"
+description = "Digest of the whole captured interaction. The SPEC 12.8 closure input for the kind."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id = "RKC01"
+statement = "`closure_root` MUST equal the SPEC 12.8 stream over the three pinned records declared for this kind: `provenance.source_sha256`, `mutation.authorization_sha256`, and `mutation.effect_sha256`, all pinned `required`. As with every SPEC 12 closure this commits to the DECLARED digests and proves internal consistency, not authenticity. For this kind the point bears repeating, because there is no witness and no proof: closure validity means the document has not drifted since it was rooted, and nothing more."
+enforced_by = "validators/validate_state_mutation.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also = "spec.md §12.8.1"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id = "RKC02"
+statement = "An `[execution_proof]` table MUST NOT be present, and no `execution_proof.*` key may appear. A document that carries a proof is a `state-mutation` and MUST use that template_kind, so that it is held to RKM02, RKM04 and RKM06 rather than presenting proof-shaped fields no invariant governs. This is what keeps the claim/proof distinction meaningful in both directions: a proved record cannot escape its obligations by calling itself a claim, and a claim cannot borrow the appearance of proof."
+enforced_by = "validators/validate_state_mutation.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also = "profiles/com.verivus.runtime/state-mutation-kind.toml RKM02"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id = "RKC03"
+statement = "No secret is inlined. `[mutation]` carries a closed key set identical to the state-mutation one, and the non-digest fields carry the same enforced grammars: `performed_at` is RFC3339 UTC, `operation` is a bare lowercase token of at most 64 characters, and `target_id` is URI-shaped with no whitespace or control characters and bounded length. Closed key sets alone are not sufficient, since a permitted free-text field is itself a smuggling surface."
+enforced_by = "validators/validate_state_mutation.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also = "profiles/com.verivus.runtime/state-mutation-kind.toml RKM03"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.hard_invariants]]
+id = "RKC04"
+statement = "Every entity prefix and relation predicate used in this kind's instance files resolves to an `ijb_primitive` declared in the loaded ontology set. A mutation-claim introduces no entity prefixes of its own, so in practice this reduces to the core `cites_upstream` binding on `provenance.source_sha256`."
+enforced_by = "validators/validate_ijb_conformance.py"
+see_also = "foundations/ijb/core-specification.md"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[[kind.example]]
+name = "minimal mutation claim"
+file = "examples/minimal-mutation-claim.toml"
+inline_summary = "An unproved CRM contact update: three-record closure over the captured interaction, the authorizing manifest, and the resulting state record, with no execution proof and no claim of execution."
+ijb_primitive = "observed"
+
+[kind.relation_to_ontology]
+entities_introduced = []
+ontology_entries = "core/ontology.toml [[relations]] cites_upstream and [[attribute_vocabularies]] closure_root.digest_algorithm"
+attribute_vocabularies = []
+predicates_used = ["cites_upstream (CORE; applied via the provenance.source_sha256 required field's ontology_mapping)"]
+note = "This kind introduces NO profile vocabulary of its own. It deliberately has no scheme or finality field, because it makes no claim those vocabularies could describe. Adding one would be the first step back toward a graduated proof tier inside a kind whose whole purpose is to carry none."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+# ============================================================================
+# SPEC §13, abstraction class plus capability envelope
+# ============================================================================
+
+[kind.abstraction_class]
+id = "claim-record.v1"
+description = "Producer-attested claim record: a flat, single-subject, digest-pinned assertion by the producing agent that it performed a state change, carrying NO independent evidence of any kind. Distinct from `observation-record.v1`, which pins what was observed of an external interaction, and from `execution-record.v1`, which carries a mandatory execution proof binding the authorization to the effect. A claim record is testimony: it is tamper-evident once anchored and it is not tamper-proof, and a consumer MUST NOT treat it as evidence that the operation occurred. No I/O outside the canonical-form text serialisation; no networking; no process spawn."
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope]
+spec_version = "0.1.0"
+ijb_primitive = "constraint"
+ijb_constraint_type = "structural"
+
+[kind.capability_envelope.cpu_bounds]
+max_cpu_ms = 100
+max_cpu_percent = 5
+
+[kind.capability_envelope.memory_bounds]
+max_bytes = 1048576
+
+[kind.capability_envelope.filesystem]
+denied = true
+
+[kind.capability_envelope.sockets]
+denied = true
+
+[kind.capability_envelope.http]
+denied = true
+
+[kind.capability_envelope.clocks]
+wall_clock_allowed = false
+monotonic_clock_allowed = false
+precision_cap_ms = 0
+
+[kind.capability_envelope.random]
+entropy_source = "none"
+
+[kind.capability_envelope.environment]
+denied = true
+
+[kind.capability_envelope.process_spawn]
+denied = true
+
+[kind.capability_envelope.ipc]
+denied = true
+
+[kind.capability_envelope.crypto_keys]
+denied = true

@@ -1,0 +1,12 @@
+# The discriminator is the TYPE diagnostic. witness-absent reports a missing
+# table and witness-incomplete reports missing fields inside a present one;
+# only this case reports a present-but-wrong-typed `present`.
+error_contains = [
+  "snapshot.witness.present must be a boolean",
+]
+
+# Closure-VALID by construction, so the closure layer must stay silent.
+error_not_contains = [
+  "pinned closure record",
+  "missing required `[snapshot.witness]` table",
+]

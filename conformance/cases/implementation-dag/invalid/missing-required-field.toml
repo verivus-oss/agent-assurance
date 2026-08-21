@@ -12,7 +12,7 @@ spec           = "docs/planning/01_spec.md"
 decomposition  = "docs/planning/03_IMPLEMENTATION_PLAN.md"
 created        = "2026-06-04"
 total_units    = 2
-tier1_units    = '[U01, U02]'
+tier1_units    = ["U01", "U02"]
 tier2_units    = []
 tier3_units    = []
 
@@ -39,3 +39,7 @@ blocks         = []
 files_modify   = ["src/a.rs"]
 produces       = []
 consumes       = []
+
+[computed.max_parallel]
+layer0 = 1
+layer1 = 1
