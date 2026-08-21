@@ -116,6 +116,12 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- `com.verivus.runtime` returns to `ontology_version = 1`. The two new
+  vocabularies moved it to `2`, but `core/ontology.md` and `spec.md` section 8
+  both hold both version pins frozen until the first public release, and
+  `schema_version` is still `0.1.0`. Core and the other three profiles never
+  moved, so one profile at `2` was drift rather than policy.
+
 - **Go `--help` still omitted `mutation-kinds` and `api-snapshot`.** The earlier
   fix replaced the first matching occurrence, which was `parseMode`'s error
   string, so the `flag.StringVar` help text never changed while the CHANGELOG
