@@ -57,21 +57,28 @@ provenance.
 7. Record traceability to the original Markdown path and hash in every
    TOML artifact's `[provenance]` table.
 8. Run local validators.
-9. If `llm` / `llm-cli-gateway` is available, request at least three
-   model reviews before finalizing. If unavailable, record the tool
-   absence as a review blocker instead of pretending the gate passed.
+9. If a multi-model gateway such as `llm-cli-gateway` is available,
+   request at least three model reviews before finalizing. If
+   unavailable, record the tool absence as a review blocker instead of
+   pretending the gate passed.
 
-## Multi-LLM Review Command
+## Multi-LLM Review Gate
 
-Use this command shape when the local gateway exists:
+When a multi-model gateway such as `llm-cli-gateway` is available, submit
+the whole generated package for review:
 
-```sh
-llm review \
-  --files "implementation_dag.toml,contract_declaration.toml,review_readiness.toml,traceability.toml,threat_model.toml,rollback_plan.toml" \
-  --models "claude-3.5-sonnet,gpt-4o,grok-3" \
-  --criteria "review_readiness.toml"
-```
+- **Inputs:** every generated TOML file in the package.
+- **Criteria:** the gates and blocking conditions declared in
+  `review_readiness.toml`.
+- **Reviewers:** at least three distinct models, preferring models from
+  different vendors so that one vendor's blind spot cannot clear the gate
+  on its own.
 
-The final package must either cite review evidence from at least three
-different models or keep the multi-LLM gate blocked with a concrete
-reason.
+Do not hardcode model identifiers in this skill; they go stale. Resolve
+the available models from the gateway at review time, and record the
+exact identifiers that produced each review alongside the findings.
+
+Each reviewer MUST check claims against the generated files themselves,
+never against a summary of them. The final package must either cite
+review evidence naming at least three distinct models, or keep the
+multi-LLM gate blocked with a concrete reason.

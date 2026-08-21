@@ -444,6 +444,26 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **`skills/convert-md-to-dag/SKILL.md`: de-hardcoded the multi-LLM review
+  gate, and re-captured the package provenance.** The "Multi-LLM Review
+  Command" section prescribed a `llm review --models
+  "claude-3.5-sonnet,gpt-4o,grok-3"` invocation. The model identifiers had
+  gone stale, and pinning them in the skill is what made staleness
+  inevitable. The section is now "Multi-LLM Review Gate" and states the
+  required inputs, criteria, and reviewer count without naming models:
+  resolve the available models from the gateway at review time and record
+  the identifiers that produced each review in the evidence. Reviewers must
+  check claims against the generated files rather than a summary.
+
+  Editing the source Markdown invalidated the package that cites it, which
+  is the §12 binding working as intended. All six generated TOML files had
+  their `[provenance].source_sha256` and `source_bytes` re-captured
+  (`3077` to `3533` bytes) and their `closure_root` recomputed, plus
+  `[meta].source_hash` in `traceability.toml`. Verified with the Rust and
+  Go primaries (`--mode auto` and `--mode provenance-binding`), the Python
+  reference validators, IJB conformance, `taplo lint`, and the repo-wide
+  closure-root gate (92 files).
+
 - **Dependabot noise reduction and coverage fix.** Consolidated the seven
   per-directory `cargo`/`gomod` update entries (four cargo, three gomod)
   in [`.github/dependabot.yml`](.github/dependabot.yml) into one `cargo`
