@@ -187,6 +187,10 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- Go stdlib pin moves 1.26.5 to 1.26.6 in `tools/dagtoml-duckdb-go` and
+  `tools/dagtoml-rdf-go`, with the CI `go-version` pin tracking it. 1.26.5
+  carries 16 known stdlib advisories that `osv-scanner` fails the build on.
+
 - **Stale version comment on the no-ai-attribution checkout pin.** The
   SHA-pinned `actions/checkout` reference in
   `.github/workflows/no-ai-attribution.yml` was annotated `# v4` while
