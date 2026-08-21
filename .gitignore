@@ -85,3 +85,7 @@ tools/werner-style-policy.toml
 
 # Compiled Go validator binary built at the repo root (e.g. `go build -o go-validator`).
 /go-validator
+
+# Local Claude Code guidance file. Per-developer operational notes; kept
+# out of the public spec repo (no need to land this publicly).
+/CLAUDE.md
