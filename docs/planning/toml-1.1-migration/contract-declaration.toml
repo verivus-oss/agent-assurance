@@ -47,11 +47,11 @@ verified_by = ["TEST:conformance::existing-conforming-docs-still-validate"]
 [[contracts]]
 id          = "C03"
 domain      = "spec_normative_disposition_of_1.1_features"
-statement   = "Each TOML 1.1 feature that newly becomes parseable (hex/`\\x` escapes, seconds-less local times, and any other 1.1 additions) MUST be explicitly permitted or forbidden by spec.md before the harness is flipped. A feature may not be admitted into the conforming surface by parser default alone."
+statement   = "Each TOML 1.1 feature that newly becomes parseable (hex/`\\x` escapes, seconds-less local times, and any other 1.1 additions) MUST have an explicit disposition in spec.md before the harness is flipped. A feature may not be admitted into the conforming surface by parser default alone."
 applies_to  = ["toml-1.1-migration"]
 must_name   = [
-  "the per-feature permit/forbid disposition in spec.md",
-  "the rationale for any feature forbidden despite being 1.1-valid",
+  "the per-feature disposition in spec.md",
+  "the rationale and constraints for each 1.1 feature disposition",
 ]
 verified_by = ["TEST:spec-1.1-feature-disposition-covers-all-additions"]
 depends_on  = ["C01"]

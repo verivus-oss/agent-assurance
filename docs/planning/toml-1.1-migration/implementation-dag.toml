@@ -2,18 +2,17 @@
 # conformance stack. Self-contained planning document (no upstream
 # evidence), so it carries the empty-closure sentinel.
 #
-# The load-bearing constraint this DAG encodes: the three primary
-# parsers are NOT all on the same TOML version today. The Rust `toml`
-# crate has a 1.1 line (`1.1.x+spec-1.1.0`, already in tools/dagtoml-rdf),
-# and the Go validator already links BurntSushi/toml v1.6.0 (1.1 default)
-# at runtime via go.mod — but the Rust *validator* (toml 0.8) and the
-# Python reference (stdlib `tomllib`) are still TOML 1.0, and the
-# conformance evidence/harness is still 1.0-era. So the repo is latently
-# split (see U01). The whole repo invariant is that rs/go/py AGREE on
-# every fixture, so 1.1 cannot land piecemeal in one parser alone. The
-# DAG therefore gates every parser bump behind a parity spike (U01) and
-# an explicit go/no-go decision (U02): if any primary cannot reach 1.1,
-# the migration stops at U02 rather than introducing a divergence.
+# The load-bearing constraint this DAG encoded at migration start: the
+# three primary parsers were not all on the same TOML version. The Rust
+# `toml` crate had a 1.1 line (`1.1.x+spec-1.1.0`, already in
+# tools/dagtoml-rdf), and the Go validator already linked
+# BurntSushi/toml v1.6.0 (1.1 default) at runtime via go.mod, but the
+# Rust validator and Python reference still used TOML 1.0-era parsers and
+# evidence. The whole repo invariant is that rs/go/py AGREE on every
+# fixture, so 1.1 could not land piecemeal in one parser alone. The DAG
+# therefore gates every parser bump behind a parity spike (U01) and an
+# explicit go/no-go decision (U02): if any primary cannot reach 1.1, the
+# migration stops at U02 rather than introducing a divergence.
 
 # Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
 closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -138,7 +137,7 @@ consumes       = ["ART:rust-primary-1.1", "ART:go-primary-1.1", "ART:python-refe
 
 [units.U07]
 name           = "spec-document-1.1-audit"
-summary        = "Audit spec.md and every canonical example/kind/profile document for TOML 1.1 features that newly become valid (hex `\\x` escapes, seconds-less local times, etc.), and decide per feature whether the spec permits or forbids it. Update spec.md normatively. DONE: enumerated the complete set of TOML 1.1.0 syntactic additions from the toml-test version.go delta (FIVE: seconds-optional times; `\\xHH` hex escapes; `\\e` ESC escape; newlines in inline tables; trailing commas in inline tables) and added normative spec.md §9.2: parsers conform to TOML 1.1.0 (for cross-impl parity) but the conforming-DOCUMENT surface stays TOML 1.0 syntax — all five features FORBIDDEN, with per-feature rationale grounded in the canonical-form/SHA-binding ethos (§12), plus a default-forbid catch-all so no future feature enters by parser default alone (R4/C03). Verified no existing repo document uses any 1.1-only feature (all dates are quoted strings — no native TOML date/time values — and inline tables appear only in the TOML 1.0 single-line form, not the forbidden 1.1 multi-line/trailing-comma variants), so the disposition invalidates nothing (R3/C02)."
+summary        = "Audit spec.md and every canonical example/kind/profile document for TOML 1.1 features that newly become valid (hex `\\x` escapes, seconds-less local times, etc.), and decide the explicit spec disposition for each feature. Update spec.md normatively. DONE: enumerated the complete set of TOML 1.1.0 syntactic additions from the toml-test version.go delta (FIVE: seconds-optional times; `\\xHH` hex escapes; `\\e` ESC escape; newlines in inline tables; trailing commas in inline tables) and added normative spec.md §9.2: parsers and conforming documents use TOML 1.1.0, all five 1.1 additions are PERMITTED by the syntax surface, decoded values remain subject to DAG-TOML semantic rules, and tools that display string values must render C0 control characters safely. Future TOML-version additions remain outside the conforming surface until spec.md and the cross-implementation evidence are updated deliberately (R4/C03). Every TOML 1.0 document valid before the migration remains valid after it (R3/C02)."
 layer          = 4
 tier           = 3
 status         = "done"

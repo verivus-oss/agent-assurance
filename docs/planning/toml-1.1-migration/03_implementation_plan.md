@@ -45,9 +45,9 @@ therefore on the path.
 
 - **The spec audit (U07) precedes final verification (U08), not the
   harness flip.** Subtle but important: U06 makes the parsers *capable*
-  of 1.1; U07 decides which 1.1 features the *spec* actually permits
-  (R4). A feature can be parser-valid yet spec-forbidden. U08 then
-  verifies the whole stack agrees on the resulting surface.
+  of 1.1; U07 records which 1.1 features the *spec* permits and any
+  constraints on decoded values or tool rendering (R4). U08 then verifies
+  the whole stack agrees on the resulting surface.
 
 ## Per-unit notes
 

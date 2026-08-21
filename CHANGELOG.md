@@ -748,19 +748,21 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 - **TOML 1.1 migration U07 — spec.md 1.1-feature disposition (§9.2).** Added
   normative [`spec.md`](spec.md) §9.2 "TOML language version and 1.1 feature
-  disposition" (R4 / contract C03). It separates the *parser* conformance
-  version (TOML 1.1.0, for cross-implementation parity) from the conforming-
-  *document* syntax surface, which **remains TOML 1.0**. Every syntactic
-  feature TOML 1.1.0 adds over 1.0.0 — seconds-optional times, `\xHH` hex
-  escapes, the `\e` (ESC) escape, newlines in inline tables, and trailing
-  commas in inline tables — is **forbidden**, each with a rationale grounded
-  in the canonical-form / SHA-binding ethos (§12), plus a default-forbid
-  catch-all so no future 1.1+ addition enters the conforming surface by
-  parser default alone. No existing conforming document uses any 1.1-only
-  feature (all dates are quoted strings — no native TOML date/time values
-  appear — and the inline tables documents do use are all the TOML 1.0
-  single-line form, not the forbidden 1.1 multi-line / trailing-comma
-  variants), so the disposition invalidates nothing.
+  disposition" (R4 / contract C03). Parser conformance and the conforming
+  *document* syntax surface are both TOML **1.1.0**: an implementation MUST
+  NOT reject a document solely because it uses TOML 1.1.0 syntax. Every
+  syntactic feature TOML 1.1.0 adds over 1.0.0 (seconds-optional times,
+  `\xHH` hex escapes, the `\e` (ESC) escape, newlines in inline tables, and
+  trailing commas in inline tables) is **permitted** by the syntax surface.
+  Decoded values remain subject to the semantic rules, field types, and
+  kind-descriptor constraints stated elsewhere in this specification, and
+  tools that render DAG-TOML string values to terminals, logs, reports, or
+  review UIs MUST escape, replace, or otherwise safely display C0 control
+  characters rather than emitting them raw. A future-version catch-all keeps
+  TOML 1.2.0 and later syntactic additions outside the conforming surface
+  until §9.2 and the matching cross-implementation evidence are updated
+  deliberately. Every document valid before the 1.1 parser adoption remains
+  valid after it, so the disposition invalidates nothing.
 
 - **TOML 1.1 migration U08 — cross-implementation verification (complete).**
   Ran the full cross-implementation verification at TOML 1.1 and recorded the
