@@ -211,9 +211,14 @@ One predicate belongs to neither table above. It is not a traceability
 edge and not a review-readiness edge: it is the cross-kind marker that
 binds a declared field into the brittleness graph of
 [spec.md §12](../spec.md#12-the-closure-root-rule-brittleness-propagation).
-It is numbered 3.5 rather than inserted after §3.2 so that the §3.3 and
-§3.4 anchors already cited from the profile ontology files keep
-resolving.
+It is numbered 3.5 rather than inserted after §3.2 because three profile
+ontology files cite this document's §3.3 by section number
+(`profiles/agent-assurance/ontology.toml`, `profiles/cost/ontology.toml`,
+`profiles/disclosure/ontology.toml`, each on the line
+`# Profile predicates MUST be namespaced per core/ontology.md §3.3`).
+Inserting a new §3.3 here would silently retarget all three at a
+different subsection. Appending after §3.4 leaves every existing
+citation resolving where it did.
 
 | Predicate | Field name | Source entity | Allowed target entities | Cardinality | Inverse |
 |---|---|---|---|---|---|
