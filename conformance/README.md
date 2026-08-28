@@ -62,31 +62,61 @@ it as a regression in the validator, not a candidate for this file.
 
 ## Coverage
 
-Current corpus: `api-snapshot` (2 valid, 6 invalid) covering the SPEC
-12.8/12.8.1 profile-pinned closure stream: the four-record positive, the
-witness-strip stale-root rejection (contract C02 of the
-closure-record-form promotion), a missing required pinned record, and a
-malformed pinned digest. The runner also executes the Python closure
-validator (`validate_closure_root.py`) on EVERY fixture of every kind,
-so closure parity is exercised on all three implementations, not only
-via the rs/go auto modes; the Python verdict is the combination of the
-kind validator and the closure step. Invalid cases are excluded from
-the repo-wide positive closure sweep (they are asserted-negative here).
+Counts below are as of `38cd729` and are prose, not a gate. Re-derive
+them from the tree rather than trusting this section:
 
-Also: `implementation-dag` (3 valid, 18 invalid) covering
-required fields, status/tier vocabularies, self-dependencies, unknown
-references, the `blocks`/`depends_on` inverse invariant, dependency
-cycles, single-producer artifacts, consumed-but-never-produced
-artifacts, artifact id prefixes, unresolved placeholders in file claims, layer ordering, `meta.total_units`
-coherence, and the recomputed `[computed]` claims (entry points,
-max_parallel, critical-path sum, and critical-path-is-longest-path).
+```sh
+for d in conformance/cases/*/; do
+  printf '%-20s valid=%-3s invalid=%-3s sidecars=%s\n' "$(basename "$d")" \
+    "$(ls "$d"valid/*.toml 2>/dev/null | wc -l)" \
+    "$(ls "$d"invalid/*.toml 2>/dev/null | grep -vc '\.expected\.toml')" \
+    "$(ls "$d"invalid/*.expected.toml 2>/dev/null | wc -l)"
+done
+```
 
-And: `state-mutation` (3 valid, 9 invalid) and `mutation-claim` (1
-valid, 2 invalid). Every case here is a regression from the design review
-of those kinds, and every invalid one carries an
-`error_contains` sidecar, because the whole point of that review was
-that exit-code agreement is not enough: a defect was found where all
-three implementations rejected and two reported the wrong reason.
+| Kind | valid | invalid | `error_contains` sidecars |
+|---|---:|---:|---:|
+| `api-snapshot` | 2 | 18 | 12 |
+| `implementation-dag` | 3 | 18 | 18 |
+| `state-mutation` | 3 | 13 | 13 |
+| `mutation-claim` | 1 | 2 | 2 |
+
+`api-snapshot` covers the SPEC 12.8/12.8.1 profile-pinned closure
+stream and the capture-binding surface around it: the four-record
+positive and an unwitnessed three-record positive; the witness-strip
+stale-root rejection (contract C02 of the closure-record-form
+promotion) plus absent, incomplete, wrong-typed, non-boolean and
+unknown-scheme witness variants; a missing required pinned record, a
+malformed pinned digest and a trailing-newline digest; a missing and an
+unresolvable `framework_profile`; subpart body and descriptor digest
+mismatches; both magic-marker fail-closed capture guards; an inlined
+secret header, an inlined header value, and a non-array
+`significant_headers`. Six of its invalid cases predate the sidecar
+convention and still assert by exit code alone; adding sidecars to
+those is open work.
+
+The runner also executes the Python closure validator
+(`validate_closure_root.py`) on EVERY fixture of every kind, so closure
+parity is exercised on all three implementations, not only via the
+rs/go auto modes; the Python verdict is the combination of the kind
+validator and the closure step. Invalid cases are excluded from the
+repo-wide positive closure sweep (they are asserted-negative here).
+
+`implementation-dag` covers required fields, status/tier vocabularies,
+self-dependencies, unknown references, the `blocks`/`depends_on`
+inverse invariant, dependency cycles, single-producer artifacts,
+consumed-but-never-produced artifacts, artifact id prefixes,
+unresolved placeholders in file claims, layer ordering,
+`meta.total_units` coherence, and the recomputed `[computed]` claims
+(entry points, max_parallel, critical-path sum, and
+critical-path-is-longest-path).
+
+`state-mutation` and `mutation-claim` are every one of them a
+regression from the design review of those kinds, and every invalid one
+carries an `error_contains` sidecar, because the whole point of that
+review was that exit-code agreement is not enough: a defect was found
+where all three implementations rejected and two reported the wrong
+reason.
 
 The invalid cases cover the RKM02 hollow proof, RKM04 unbound proof,
 RKM03 inlined payload, blank and wrong-typed vocabulary tokens, an

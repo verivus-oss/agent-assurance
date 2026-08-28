@@ -116,6 +116,67 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- **The documented pre-commit closure-root command failed on a clean tree.**
+  `CONTRIBUTING.md` instructs contributors to run
+  `validate_closure_root.py --discover .` before `git commit` and adds "do not
+  commit if it is red"; `README.md` lists the same command under Local
+  Validation. Both omitted `--exclude examples/negative`. The instruction was
+  correct when written: CI ran the bare `--discover .` form too, until #56
+  (`1016bd0`) made the `api-snapshot` closure negatives deliberately
+  closure-invalid and added the flag to the workflow without adding it to
+  either document. Since then the documented command has exited 1 on an
+  unmodified tree, currently on five asserted-negative fixtures that the
+  negative-agreement step proves invalid instead. A contributor following the
+  instruction saw a red gate on a healthy repository, which is the fastest way
+  to teach people to skip a gate. Both documents now carry the flag CI uses.
+
+- **Four count surfaces in the reference-database and ontology prose had
+  drifted from the ontology.** None of them is gated: `check_manifest_drift.sh`
+  compares `MANIFEST.toml` to the ontology and passes, and prose that restates
+  those numbers sits outside its reach. Corrected against the tree at
+  `38cd729`:
+
+  - `reference/database/README.md` claimed 15 template kinds (5 core + 9
+    profile), 23 entity kinds, 30 relation predicates, and 29 attribute
+    vocabularies, plus "the 14 kinds" in the JSONB design principle. Every one
+    was wrong: the figures are 23 (6 core), 27, 31, and 50. The file also
+    named only two of the five ontologies as its derivation source, which is
+    where 29 rather than 50 came from.
+  - `core/ontology.md` section 3 called its predicate tables "authoritative
+    for `ontology_version = 1`" while listing 30 of the 31 `[[relations]]`
+    blocks. The missing one was `cites_upstream`, the marker that binds a
+    descriptor field into the SPEC section 12 `closure_root` digest. It is now
+    documented in a new section 3.5, numbered after 3.4 rather than inserted
+    after 3.2 so the section 3.3 anchors cited from three profile ontology
+    files keep resolving.
+  - `reference/database/graph/schema.cypher` carried header comments written
+    to make its known seed gap legible; the comments had themselves gone stale
+    twice while the data stood still. They stated 21 template kinds against
+    the ontology's 23, "1 com.verivus.runtime" against three, and an
+    `expected_node_counts` of 21/27/31 against MANIFEST's 23/27/31. The
+    comments now name the eight absent template kinds and four absent entity
+    kinds explicitly and defer every total to `MANIFEST.toml`.
+  - `conformance/README.md` reported the corpus as `api-snapshot` 2 valid / 6
+    invalid and `state-mutation` 3 / 9; the tree holds 2 / 18 and 3 / 13. The
+    section is now a table with a re-derivation command beside it, and it
+    records that six `api-snapshot` invalid cases still assert by exit code
+    alone with no `error_contains` sidecar.
+
+  Each corrected surface now states that `MANIFEST.toml` or the TOML ontology
+  is the source of truth and that the prose is a restatement, so the next
+  reader knows which side to believe.
+
+- **ISS-002's figures were certifying a stale file as fixed.** The issue's
+  acceptance criterion required "a clean Neo4j load of `schema.cypher` contains
+  20 KindDescriptor nodes"; the ontology declared 23 by `38cd729`, so meeting
+  the criterion as written would have left three kinds unseeded and closed the
+  issue anyway. The criterion now binds to
+  `MANIFEST.toml [verification.graph].expected_node_counts` at the closing
+  commit rather than to a copied number, the missing-kind list is refreshed
+  from five to eight, and the resolution steps tell the fixer to re-derive both
+  lists from the tree instead of copying them out of the issue. Observations
+  dated to commit `9996826` are kept as written and marked as such.
+
 - `com.verivus.runtime` returns to `ontology_version = 1`. The two new
   vocabularies moved it to `2`, but `core/ontology.md` and `spec.md` section 8
   both hold both version pins frozen until the first public release, and
