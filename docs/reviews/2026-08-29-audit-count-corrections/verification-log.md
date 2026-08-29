@@ -1,7 +1,13 @@
 # Verification log: audit count corrections and the commit-citation gate
 
 Initiator-side verification for the branch `docs/audit-count-corrections`,
-landed as PR #98 against issue #97. Measured at `315d884`, base `703f59e`.
+landed as PR #98 against issue #97, and merged as `f64bfa0`.
+
+Every commit named here is one this repository carries. The measurements were
+taken on the branch head, but that head does not survive: pull requests here
+are squash-merged, so every branch commit is discarded at merge and no
+pre-merge SHA is a durable citation. The figures below were re-confirmed
+against `f64bfa0`, which is the commit a reader can check.
 
 Per `CONTRIBUTING.md` Review Discipline section 1, the author of these
 commits must not issue the approving verdict. This file records what was run
@@ -26,7 +32,7 @@ Section 3.5 is numbered after 3.4 rather than inserted after 3.2, because
 `profiles/agent-assurance/ontology.toml`, `profiles/cost/ontology.toml` and
 `profiles/disclosure/ontology.toml` cite the section 3.3 anchor.
 
-## Gate results at `315d884`
+## Gate results at `f64bfa0`
 
 Working tree carried one untracked local build artifact and no modifications.
 
@@ -52,7 +58,8 @@ Canonical examples through all three implementations:
 `minimal-implementation-dag.toml` and `minimal-traceability.toml`, rs=0 go=0
 py=0. `validate_ijb_conformance.py core/ontology.toml` exit 0.
 
-GitHub Actions: all thirteen checks pass at `315d884`.
+GitHub Actions: all thirteen checks pass on the pull request, and all five
+workflows pass on `f64bfa0` after merge.
 
 ## Controls on `check_commit_citations.py`
 
@@ -140,5 +147,29 @@ and the whole file was exempt.
 
 ## Not covered
 
-No independent review has been obtained for the last four commits, `8c88f52`
-through `315d884`. Three of them exist only because CI rejected the gate.
+The four commits added after the branch's review rounds had no independent
+review of their own before merge. Three of them exist only because CI rejected
+the gate.
+
+Two limits of the gate this session added, both found after merge and neither
+fixed by it:
+
+- Its scanned population is `docs/issues/` and `validators/`. This file is
+  under `docs/reviews/`, which CONTRIBUTING.md names as the home of persisted
+  review evidence and which the gate does not read. The two stale citations
+  corrected in this file were therefore invisible to it.
+- Its token rule was sound only in a population containing no UUIDs. A UUID is
+  hyphen-separated hex, and hyphens are non-word characters, so each segment
+  satisfied the rule. The scanned trees contain no UUID today, which is a
+  property of their current contents and not a guarantee. Now excluded, with
+  the precondition stated in the checker rather than left implicit. Measured
+  on one planted gateway job id:
+
+  ```
+  before   two phantom citations reported, exit 1
+  after    none reported, exit 0
+  ```
+
+  A real unresolvable SHA on the same line as a job id is still reported, and
+  so is one written immediately after it, so the exclusion does not swallow
+  its neighbours.

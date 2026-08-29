@@ -46,6 +46,18 @@ not by reasoning:
     written out: this file is inside the scanned tree, and naming them is how
     the first draft of this rule broke.
 
+UUIDs are excluded, and this is a PRECONDITION rather than a nicety. A UUID
+is hyphen-separated hex and a hyphen is a non-word character, so every one of
+its five segments satisfies the rule above on its own: the 8, 12 and any
+letter-bearing 4-character group all match. A single gateway job id pasted
+into a scanned file would therefore report two or three phantom citations.
+The scanned trees contain no UUID today, but that is a fact about their
+current contents, not a guarantee, so the rule excludes any match falling
+inside a UUID rather than relying on the population staying clean. This is
+also what would have to hold before `docs/reviews/` could be scanned: it
+carries several hundred gateway job ids, and most of what a naive run flags
+there is a UUID segment rather than a citation.
+
 A recorded entry permits a SHA only at the sites its `cited` list names. The
 same SHA appearing anywhere else is a NEW unresolvable citation and fails,
 which is the property the gate exists to enforce. That also makes `cited`
@@ -73,6 +85,12 @@ SCAN_DIRS = ("docs/issues", "validators")
 # (ruff S607) and would also let PATH decide which binary runs.
 GIT = shutil.which("git")
 TOKEN = re.compile(r"(?<![A-Za-z0-9_])([0-9a-fA-F]{7,40})(?![A-Za-z0-9_])")
+# Matched only to be EXCLUDED. See the token rule above: every segment of a
+# UUID satisfies TOKEN, so without this a job id reads as several citations.
+UUID = re.compile(
+    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
 
 
 class Infrastructure(Exception):
@@ -193,7 +211,8 @@ def main() -> int:
         scanned += 1
         rel = path.relative_to(root).as_posix()
         for lineno, line in enumerate(text.splitlines(), 1):
-            for m in TOKEN.finditer(line):
+            masked = UUID.sub(lambda m: "\u0000" * (m.end() - m.start()), line)
+            for m in TOKEN.finditer(masked):
                 found.setdefault(m.group(1).lower(), []).append(f"{rel}:{lineno}")
 
     if scanned == 0:
