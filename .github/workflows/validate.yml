@@ -31,6 +31,14 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          # Full history. The "Commit citations resolve" step below asks git
+          # to resolve every commit cited as evidence in docs/issues/ and
+          # validators/, and the default shallow clone carries none of them:
+          # on a depth-1 checkout all 17 citations report as unresolvable,
+          # which is a false report rather than a finding. The checker also
+          # refuses to run on a shallow clone, so this is the second half of
+          # that pair, not the only guard.
+          fetch-depth: 0
           # Wipe the auth token from .git/config after checkout so it
           # cannot be picked up by later steps (zizmor artipacked).
           persist-credentials: false
@@ -281,6 +289,25 @@ jobs:
           install -m 0755 "${RUNNER_TEMP}/duckdb/duckdb" "${RUNNER_TEMP}/duckdb-cli"
           CONTAINER_RUNTIME=docker DUCKDB_CLI="${RUNNER_TEMP}/duckdb-cli" \
             bash validators/check_state_mutation_seed_roundtrip.sh
+
+      - name: Commit citations resolve (docs/issues + validators)
+        # Issue prose and validator messages cite commits as evidence. The
+        # repository's own rule is that a claim naming a commit must name one a
+        # reader can resolve, and nothing checked that until now. This fails on
+        # any commit-shaped token in docs/issues/ or validators/ that git cannot
+        # resolve and that is not recorded, with a reason, in
+        # validators/unresolvable-commit-citations.toml.
+        #
+        # The thirteen recorded entries are cited from ISS-001 through
+        # ISS-005, the issues README, and two validator files: a message in
+        # check_attribute_values.py and this check's own docstring. Eleven are
+        # pre-mint, from before root commit eccdcab (2026-05-27). The other
+        # two postdate it and were made on a branch that was squash-merged and
+        # deleted. A recorded SHA is permitted only at the sites its
+        # `cited` list names, so the same SHA appearing anywhere new is a new
+        # unresolvable citation and fails. The baseline ratchets down: an
+        # entry that starts resolving, or stops being cited, is also a failure.
+        run: python3 validators/check_commit_citations.py --repo-root .
 
       - name: Safe-tools policy (no unsafe Rust or Go under tools/)
         # Rust crates under tools/ MUST carry #![forbid(unsafe_code)];

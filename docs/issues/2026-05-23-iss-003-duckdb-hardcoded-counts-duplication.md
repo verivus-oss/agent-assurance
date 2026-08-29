@@ -8,6 +8,15 @@ opened_in_commit: 9996826
 classification: maintenance hygiene / mirror-pattern rot
 ---
 
+> **Commit citations in this issue predate the repository.** This repository's
+> root commit is `eccdcab` (2026-05-27). The commits cited below were made
+> against the pre-mint tree and cannot be resolved here, so the claims that
+> rest on them cannot be checked against the code they name. The citations are
+> kept because they are the record as written. They are enumerated with reasons
+> in [`validators/unresolvable-commit-citations.toml`](../../validators/unresolvable-commit-citations.toml)
+> and gated by `validators/check_commit_citations.py`, which fails on any new
+> unresolvable citation.
+
 ## Symptom
 
 Two files in `tools/` carry hand-maintained constant arrays that

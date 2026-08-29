@@ -10,6 +10,15 @@ closed_by: 4176bf9
 classification: §5 hard-invariant conformance / CI coverage gap
 ---
 
+> **The commits cited in this issue cannot be resolved here.** Unlike
+> ISS-001 through ISS-004 they postdate the repository's root commit, so the
+> re-mint is not the reason. They were made on
+> `fix/2026-05-29-five-weaknesses`, which was squash-merged and deleted, and
+> no ref reaches the originals. The claims that rest on them cannot be
+> checked against the code they name. The citations are kept because they are
+> the record as written, and are enumerated with reasons in
+> [`validators/unresolvable-commit-citations.toml`](../../validators/unresolvable-commit-citations.toml).
+
 ## Symptom
 
 `tools/claim-analysis-agent-gated-dag.toml` fails the reference

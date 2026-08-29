@@ -87,7 +87,7 @@ empty-closure sentinel
 Run the validator locally before `git commit`:
 
 ```sh
-python3 validators/validate_closure_root.py --discover .
+python3 validators/validate_closure_root.py --discover . --exclude examples/negative
 ```
 
 Do not commit if it is red. The same validator runs in CI
@@ -137,7 +137,7 @@ Run the §12 closure-root gate after adding or modifying any spec-reserved
 `[meta].template_kind` file (see Review Discipline section 2):
 
 ```sh
-python3 validators/validate_closure_root.py --discover .
+python3 validators/validate_closure_root.py --discover . --exclude examples/negative
 ```
 
 Run the structural implementation-dag validator after editing any operational

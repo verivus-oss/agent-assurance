@@ -13,9 +13,9 @@ recurring:
 2. *"My system already speaks property-graph; what do the nodes and edges
    look like?"* — answered by [`graph/schema.cypher`](graph/schema.cypher).
 
-Both schemas are **derived from** the ontology files (`core/ontology.toml`,
-`profiles/agent-assurance/ontology.toml`) and the `*-kind.toml` descriptors
-in `core/` and `profiles/agent-assurance/`. They are not parallel
+Both schemas are **derived from** the ontology files (`core/ontology.toml`
+plus every `profiles/<name>/ontology.toml`) and the `*-kind.toml` descriptors
+in `core/` and `profiles/<name>/`. They are not parallel
 vocabulary — every table, enum, column, node label, and relationship type
 traces back to a declaration in the spec, and the ontology files remain
 the source of truth.
@@ -34,7 +34,7 @@ the source of truth.
    as proper tables. Kind-specific payload — fields that vary per
    `template_kind` and add no graph-traversal value — lives in a
    `payload JSONB` column on the entity row. This keeps the schema small
-   and stable across the 14 kinds without losing data fidelity. Promote
+   and stable across the 23 kinds without losing data fidelity. Promote
    a JSONB field to a generated column when an index would help.
 
 3. **Open at the edges where the spec is open.** `requirement_kind`,
@@ -68,15 +68,36 @@ the source of truth.
 
 ## What's modelled and what isn't
 
-**In:** all 15 template kinds (5 core + 9 profile + the meta
-`kind-descriptor` template kind that every `*-kind.toml` file declares),
-all 23 entity kinds (17 core + 6 profile), all 30 core relation
-predicates (with `contract:`-namespaced variants for predicate names
-the ontology declares more than once with different domain/range
-tuples — `contract:depends_on`, `contract:supersedes`,
-`contract:verified_by`), all 29 attribute vocabularies (5 core + 24
-profile), the optional `[provenance]` table (spec.md §11), and the
-universal `[meta]` shape.
+**In:** all 23 template kinds (6 core + 9 agent-assurance + 3 disclosure
++ 1 cost + 3 com.verivus.runtime + the meta `kind-descriptor` template
+kind that every `*-kind.toml` file declares), all 27 entity kinds
+(17 core + 6 agent-assurance + 3 disclosure + 1 cost), all 31 core
+relation predicates (with `contract:`-namespaced variants for predicate
+names the ontology declares more than once with different domain/range
+tuples: `contract:depends_on`, `contract:supersedes`,
+`contract:verified_by`), all 50 attribute vocabularies (12 core +
+27 agent-assurance + 4 disclosure + 3 cost + 4 com.verivus.runtime),
+the optional `[provenance]` table (spec.md §11), and the universal
+`[meta]` shape.
+
+Those four counts restate four of the six keys in `[counts]` in
+[`MANIFEST.toml`](MANIFEST.toml); the other two,
+`attribute_values_declared` and `attribute_values_closed`, are gated there
+too but are not restated here.
+[`validators/check_manifest_drift.sh`](../../validators/check_manifest_drift.sh)
+re-derives all six from the ontology files on every push. MANIFEST.toml is
+the machine-readable source of truth; this paragraph is prose that MUST
+move with it. If the two disagree, MANIFEST.toml is correct and this file
+is stale.
+
+**Modelled, but not yet seeded in every engine.** The Postgres, SQLite,
+and DuckDB seeds carry the full registry above. The Neo4j seed in
+[`graph/schema.cypher`](graph/schema.cypher) does not: its `UNWIND`
+blocks list 15 template kinds and 23 entity kinds against the 23 and 27
+declared by the ontology. Relation predicates are at parity (31). This
+is tracked as
+[ISS-002](../../docs/issues/2026-05-23-iss-002-graph-cypher-seed-incomplete.md)
+and is a property of that one seed file, not of the schema it seeds.
 
 **Out:** runtime concerns (queues, gate-decision signature verification,
 adapter-registry trust-anchor resolution, evidence-bundle Merkle
@@ -107,7 +128,7 @@ A reference ingestion path:
 Both schemas ship seed data that mirrors the ontology declarations
 (entity kinds, relation predicates, attribute vocabularies, allowed
 values). A reference loader would generate the seed inserts from
-`core/ontology.toml` and `profiles/agent-assurance/ontology.toml` at
+`core/ontology.toml` and every `profiles/<name>/ontology.toml` at
 build time so the schema never drifts from the spec. The seed snippets
 in `postgres/seed.sql` and the `MERGE` blocks at the bottom of
 `graph/schema.cypher` are checked-in *examples* of what such a loader

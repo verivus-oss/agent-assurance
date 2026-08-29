@@ -114,7 +114,90 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   instead of asserted. Looking for it in `runner.py` gives 52 cases, which is a
   different instrument measuring a different thing.
 
+### Added
+
+- **`validators/check_commit_citations.py` and its baseline.** Issue prose and
+  validator messages cite commits as evidence; nothing checked that those
+  citations resolve. The check scans `docs/issues/` and `validators/` for
+  commit-shaped tokens, resolves each against the repository, and fails on any
+  that git cannot resolve and that is not recorded in
+  `validators/unresolvable-commit-citations.toml`. It runs in CI before the
+  safe-tools step.
+
+  Thirteen do not resolve, for two different reasons. Eleven are cited from
+  ISS-001 through ISS-004, the issues README, and one message in
+  `check_attribute_values.py`; those four issues were opened on 2026-05-23 or
+  2026-05-24, before the repository's root commit `eccdcab` (2026-05-27), and
+  cite the pre-mint tree. The other two are ISS-005's, which postdate the mint
+  but were made on a branch that was squash-merged and deleted, so no ref
+  reaches them. They were recorded as resolving until CI, on a fresh clone,
+  showed otherwise: `git rev-parse` reads the object store, and a local clone
+  can still hold objects no ref reaches.
+
+  `.gitleaks.toml` is new, and exists only because of this baseline: gitleaks
+  reads the recorded hex alphabet as a generic API key, since the TOML key is
+  named `token` and the value has entropy 4.0. The allowlist is scoped to that
+  literal rather than to the file, because `condition = "AND"` is not honoured
+  by gitleaks 8.30.1 and a path-scoped entry exempted the whole file. It sets
+  `[extend] useDefault = true`, without which a config file silently replaces
+  every default rule and the scan can no longer fail.
+
+  Two details in the token rule were forced by measurement. The boundary is a
+  word boundary, not a hex boundary: `feedback` contains the 7-hex prefix
+  `feedbac`, and a hex-only boundary reports a phantom citation in every file
+  that says "feedback". And pure-digit tokens are not skipped: `9996826` is a
+  real abbreviated SHA cited in three issues and a validator, and is also a
+  valid decimal number.
+
+  The baseline ratchets down. An entry that starts resolving, or stops being
+  cited, fails the check, as does an unused `not_a_commit` ignore.
+
+- **Each affected issue now says so at the point of use.** ISS-001 through
+  ISS-004 carry a note that their cited commits predate `eccdcab` and cannot be
+  resolved here, so the claims resting on them cannot be checked against the
+  code they name. ISS-001 and ISS-004 are marked closed by commits that do not
+  resolve; the note applies to those closures. `docs/issues/README.md` records
+  the same, and its convention list now requires a `closed_by` SHA to resolve.
+
+  This does not fix the citations. The pre-mint history is not in this
+  repository. It stops the gap being silent.
+
 ### Fixed
+
+- **`--exclude examples/negative` added to the documented closure-root
+  command.** `CONTRIBUTING.md` (two call sites) and `README.md` (one) told
+  contributors to run `validate_closure_root.py --discover .` before
+  committing. Without the flag that command exits 1 on an unmodified tree:
+  5 errors across 4 asserted-negative fixtures. CI has passed the flag since
+  #56 (`1016bd0`).
+
+- **Four count surfaces corrected against the tree at `38cd729`.** None is
+  gated: `check_manifest_drift.sh` compares `MANIFEST.toml` to the ontology
+  and reads no prose.
+
+  - `reference/database/README.md`: template kinds, entity kinds, relation
+    predicates and attribute vocabularies were 15 / 23 / 30 / 29, plus "the
+    14 kinds" in design principle 2. They are 23 / 27 / 31 / 50 and 23. The
+    derivation source is widened from two ontologies to all five.
+  - `core/ontology.md` section 3: the tables listed 30 of the 31
+    `[[relations]]` blocks. `cites_upstream` is now documented in a new
+    section 3.5, numbered after 3.4 so the section 3.3 anchors cited from
+    `profiles/agent-assurance`, `profiles/cost` and `profiles/disclosure`
+    `ontology.toml` keep resolving.
+  - `reference/database/graph/schema.cypher` header comments: 21 template
+    kinds and `expected_node_counts` 21 / 27 / 31, against 23 and
+    23 / 27 / 31. The eight absent template kinds and four absent entity
+    kinds are now named individually. Seed data is unchanged; see ISS-002.
+  - `conformance/README.md`: `api-snapshot` 2 valid / 6 invalid and
+    `state-mutation` 3 / 9, against 2 / 18 and 3 / 13. Now a table with the
+    re-derivation command beside it. Six `api-snapshot` invalid cases carry
+    no `error_contains` sidecar.
+
+- **ISS-002 refreshed.** Its acceptance criterion asked for 20
+  `KindDescriptor` nodes against an ontology declaring 23, so meeting it
+  would have closed the issue over a three-kind-short seed. It now binds to
+  `MANIFEST.toml [verification.graph].expected_node_counts` at the closing
+  commit. The missing-kind list goes from five to eight. Status stays `open`.
 
 - `com.verivus.runtime` returns to `ontology_version = 1`. The two new
   vocabularies moved it to `2`, but `core/ontology.md` and `spec.md` section 8
