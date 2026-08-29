@@ -53,7 +53,7 @@ role  = "closed_by for ISS-001 and opened_in_commit for ISS-004. ISS-001's closu
 
 [[unresolvable]]
 sha   = "79fe0aa"
-cited = ["docs/issues/2026-05-24-iss-004-spec-reserved-kind-files-must-land-with-closure-root.md"]
+cited = ["docs/issues/2026-05-24-iss-004-spec-reserved-kind-files-must-land-with-closure-root.md", "docs/issues/README.md"]
 role  = "closed_by for ISS-004. Same limitation as ISS-001's closure."
 
 [[unresolvable]]
