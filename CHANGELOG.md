@@ -180,8 +180,15 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   `MANIFEST.toml [verification.graph].expected_node_counts` at the closing
   commit rather than to a copied number, the missing-kind list is refreshed
   from five to eight, and the resolution steps tell the fixer to re-derive both
-  lists from the tree instead of copying them out of the issue. Observations
-  dated to commit `9996826` are kept as written and marked as such.
+  lists from the tree instead of copying them out of the issue. The issue's
+  narrative of what the gate reported when it was opened is dropped rather
+  than restated: it was anchored to commit `9996826`, which does not resolve
+  in this repository (nor does `884f290`, cited from ISS-001, ISS-004 and
+  `docs/issues/README.md`). The root commit `eccdcab` is dated 2026-05-27
+  and both issues are dated before it, so those SHAs belong to history this
+  repository does not carry. That is a separate pre-existing defect, it
+  wants its own issue, and this entry only stops adding new references
+  to it.
 
 - `com.verivus.runtime` returns to `ontology_version = 1`. The two new
   vocabularies moved it to `2`, but `core/ontology.md` and `spec.md` section 8

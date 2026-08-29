@@ -17,11 +17,11 @@ database implementations the spec ships (postgres / sqlite / duckdb /
 cypher). Three of those four are at parity with the ontology; the
 Cypher seed is **stale by data**, not just by count comments.
 
-Figures below are re-derived at `38cd729` (2026-08-29). The gap has
-widened twice since the issue was opened, once for `api-snapshot` and
-again for the `state-mutation` / `mutation-claim` pair, so treat any
-number here as valid only for the commit it names. `MANIFEST.toml`
-`[counts]` is the gated source of truth.
+Every figure below was re-derived from the tree at `38cd729` and is
+valid only for that commit. The gap has widened twice since the issue was
+opened, once for `api-snapshot` and again for the `state-mutation` /
+`mutation-claim` pair. `MANIFEST.toml` `[counts]` is the gated source of
+truth; re-derive before acting on any number here.
 
 | UNWIND block | Cypher seed | Ontology at 38cd729 | At open (2026-05-23) |
 |---|---:|---:|---:|
@@ -56,23 +56,16 @@ blocks, so its three kinds add template-kind rows only.
 merged it into the Cypher UNWIND block during that work. That row is
 present and this block remains at parity.
 
-Observed at commit `9996826` (issue open): the count-mirror gate
-(`validators/check_attribute_values.py`) reported clean against
+At `38cd729` the count-mirror gate
+(`validators/check_attribute_values.py`) reports clean against
 `MANIFEST.toml [verification.graph].expected_node_counts = {
-KindDescriptor = 20, EntityKind = 27, RelationPredicate = 31 }`, while
-the actual UNWIND data did not match those expectations.
-
-Re-confirmed at `38cd729`: the same gate still reports clean, now
-against `expected_node_counts = { KindDescriptor = 23, EntityKind = 27,
-RelationPredicate = 31 }`, and the UNWIND data still lists 15 / 23 / 31.
-The gate cross-checks `expected_node_counts` against the ontology, not
-against the Cypher data, so the Cypher data drift stays invisible to it
-no matter how far the two diverge. The file's own header comments had also
-gone numerically stale by 38cd729 and were corrected there; the corrected
-comments defer every total to `MANIFEST.toml` for that reason, and the
-`git diff` for that commit is the record of exactly what moved. Those
-comments are documentation, not a gate, and correcting them does not close
-this issue.
+KindDescriptor = 23, EntityKind = 27, RelationPredicate = 31 }`, while the
+UNWIND data lists 15 / 23 / 31. The gate cross-checks
+`expected_node_counts` against the ontology, not against the Cypher data,
+so this drift stays invisible to it however far the two diverge. That is
+the whole of the problem; the header comments above those UNWIND blocks
+are documentation rather than a gate, and no edit to them closes this
+issue.
 
 ## Why it matters
 
