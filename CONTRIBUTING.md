@@ -96,6 +96,36 @@ line ~180); a red CI is the symptom, not the prevention. See
 [ISS-004](docs/issues/2026-05-24-iss-004-spec-reserved-kind-files-must-land-with-closure-root.md)
 for the issue history and the worked counter-example.
 
+### 3. Changes land as merge commits; history is never rewritten
+
+`main` accepts exactly one merge method: a merge commit. Squash and rebase
+merging are disabled in the repository settings and by the
+`main-branch-protection` ruleset (`allowed_merge_methods = ["merge"]`).
+
+Both of the other methods rewrite the commits they land, and that breaks the
+rule stated above: a claim naming a commit MUST name one a reader can
+resolve. Evidence written while work is in progress cites commits on the
+branch it was written on, and squash and rebase discard every one of those at
+merge. The citation is valid when CI checks it and dead the moment it lands,
+which means no pre-merge check can catch it.
+
+This is not hypothetical. The verification log under
+`docs/reviews/2026-08-29-audit-count-corrections/` cited the branch head it
+was measured at, and the squash merge that landed it destroyed that commit in
+the same operation. Citing the base commit instead does not fix it, because
+the base is not the tree the measurement was taken on.
+
+Two consequences worth knowing:
+
+- **`main` is no longer linear.** For the curated one-line-per-change view
+  that squash used to give, use `git log --first-parent main`.
+- **Do not delete a branch merged before 2026-08-30.** Those landed as squash
+  commits, so the branch ref is the only thing keeping their commits
+  reachable in a clone. GitHub retains them under `refs/pull/<n>/head`, but a
+  normal clone fetches none of those, so deleting the branch removes the
+  lineage from the artifact itself. Branches merged after that date are safe
+  to delete: their commits are ancestors of `main`.
+
 ### Agent-specific note on auto-memory
 
 Agent-based contributors (e.g. provider-specific agent CLI, Codex, Gemini, Grok) may

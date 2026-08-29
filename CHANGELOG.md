@@ -7,6 +7,25 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- **`main` accepts merge commits only.** Squash and rebase merging are
+  disabled in the repository settings and in the `main-branch-protection`
+  ruleset, and `required_linear_history` was removed from that ruleset and
+  from the branch protection duplicating it, because it forbids merge
+  commits.
+
+  Both rewritten-history methods discard the commits they land, so evidence
+  written during a change cites commits that stop existing at merge. The
+  citation is valid when CI checks it and dead once it lands, which means no
+  pre-merge check can catch it. That is what happened to the verification log
+  of the preceding audit session.
+
+  `non_fast_forward` and deletion protection are separate rules and were not
+  touched. `SECURITY.md` is amended in the same change rather than left
+  describing the old posture. `git log --first-parent main` gives the curated
+  view that squash used to produce.
+
 ### Added
 
 - **`conformance/coverage_audit.py`, a mutation-based coverage gate, plus a
