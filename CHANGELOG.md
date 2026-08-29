@@ -116,78 +116,40 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
-- **The documented pre-commit closure-root command failed on a clean tree.**
-  `CONTRIBUTING.md` instructs contributors to run
-  `validate_closure_root.py --discover .` before `git commit` and adds "do not
-  commit if it is red"; `README.md` lists the same command under Local
-  Validation. Both omitted `--exclude examples/negative`. The instruction was
-  correct when written: CI ran the bare `--discover .` form too, until #56
-  (`1016bd0`) made the `api-snapshot` closure negatives deliberately
-  closure-invalid and added the flag to the workflow without adding it to
-  either document. Since then the documented command has exited 1 on an
-  unmodified tree: at the commit that fixes it, five errors across four
-  asserted-negative fixtures, one of which
-  (`examples/negative/state-mutation-no-proof.toml`) fails two separate
-  pinned-record checks and so contributes two of the five. The
-  negative-agreement step proves all four invalid instead. A contributor
-  following the instruction saw a red gate on a healthy repository, which is
-  the fastest way to teach people to skip a gate. Both documents now carry
-  the flag CI uses.
+- **`--exclude examples/negative` added to the documented closure-root
+  command.** `CONTRIBUTING.md` (two call sites) and `README.md` (one) told
+  contributors to run `validate_closure_root.py --discover .` before
+  committing. Without the flag that command exits 1 on an unmodified tree:
+  5 errors across 4 asserted-negative fixtures. CI has passed the flag since
+  #56 (`1016bd0`).
 
-- **Four count surfaces in the reference-database and ontology prose had
-  drifted from the ontology.** None of them is gated: `check_manifest_drift.sh`
-  compares `MANIFEST.toml` to the ontology and passes, and prose that restates
-  those numbers sits outside its reach. Corrected against the tree at
-  `38cd729`:
+- **Four count surfaces corrected against the tree at `38cd729`.** None is
+  gated: `check_manifest_drift.sh` compares `MANIFEST.toml` to the ontology
+  and reads no prose.
 
-  - `reference/database/README.md` claimed 15 template kinds (5 core + 9
-    profile), 23 entity kinds, 30 relation predicates, and 29 attribute
-    vocabularies, plus "the 14 kinds" in the JSONB design principle. Every one
-    was wrong: the figures are 23 (6 core), 27, 31, and 50. Separately, the
-    file named two of the five ontologies as its derivation source. The 29
-    does not correspond to those two either: they have summed to 39 for the
-    whole of this repository's history, so where 29 came from is not
-    recoverable here and this entry no longer guesses.
-  - `core/ontology.md` section 3 called its predicate tables "authoritative
-    for `ontology_version = 1`" while listing 30 of the 31 `[[relations]]`
-    blocks. The missing one was `cites_upstream`, the marker that binds a
-    descriptor field into the SPEC section 12 `closure_root` digest. It is now
-    documented in a new section 3.5, numbered after 3.4 rather than inserted
-    after 3.2 so the section 3.3 anchors cited from three profile ontology
-    files keep resolving.
-  - `reference/database/graph/schema.cypher` carried header comments written
-    to make its known seed gap legible; the comments had themselves gone stale
-    while the data stood still. They stated 21 template kinds against
-    the ontology's 23, "1 com.verivus.runtime" against three, and an
-    `expected_node_counts` of 21/27/31 against MANIFEST's 23/27/31. The
-    comments now name the eight absent template kinds and four absent entity
-    kinds explicitly, and the template-kind, entity-kind and relation-predicate
-    block headers each name their `MANIFEST.toml [counts]` key as the gated
-    source for the total that header states.
-  - `conformance/README.md` reported the corpus as `api-snapshot` 2 valid / 6
-    invalid and `state-mutation` 3 / 9; the tree holds 2 / 18 and 3 / 13. The
-    section is now a table with a re-derivation command beside it, and it
-    records that six `api-snapshot` invalid cases still assert by exit code
-    alone with no `error_contains` sidecar.
+  - `reference/database/README.md`: template kinds, entity kinds, relation
+    predicates and attribute vocabularies were 15 / 23 / 30 / 29, plus "the
+    14 kinds" in design principle 2. They are 23 / 27 / 31 / 50 and 23. The
+    derivation source is widened from two ontologies to all five.
+  - `core/ontology.md` section 3: the tables listed 30 of the 31
+    `[[relations]]` blocks. `cites_upstream` is now documented in a new
+    section 3.5, numbered after 3.4 so the section 3.3 anchors cited from
+    `profiles/agent-assurance`, `profiles/cost` and `profiles/disclosure`
+    `ontology.toml` keep resolving.
+  - `reference/database/graph/schema.cypher` header comments: 21 template
+    kinds and `expected_node_counts` 21 / 27 / 31, against 23 and
+    23 / 27 / 31. The eight absent template kinds and four absent entity
+    kinds are now named individually. Seed data is unchanged; see ISS-002.
+  - `conformance/README.md`: `api-snapshot` 2 valid / 6 invalid and
+    `state-mutation` 3 / 9, against 2 / 18 and 3 / 13. Now a table with the
+    re-derivation command beside it. Six `api-snapshot` invalid cases carry
+    no `error_contains` sidecar.
 
-  Three of the four corrected surfaces now name `MANIFEST.toml` or the TOML
-  ontology as the source of truth and themselves as a restatement.
-  `conformance/README.md` names neither: its counts come from the fixture
-  tree, so it ships the command that re-derives them instead.
-
-- **ISS-002's figures were certifying a stale file as fixed.** The issue's
-  acceptance criterion required "a clean Neo4j load of `schema.cypher` contains
-  20 KindDescriptor nodes"; the ontology declared 23 by `38cd729`, so meeting
-  the criterion as written would have left three kinds unseeded and closed the
-  issue anyway. The criterion now binds to
+- **ISS-002 refreshed.** Its acceptance criterion asked for 20
+  `KindDescriptor` nodes against an ontology declaring 23, so meeting it
+  would have closed the issue over a three-kind-short seed. It now binds to
   `MANIFEST.toml [verification.graph].expected_node_counts` at the closing
-  commit rather than to a copied number, the missing-kind list is refreshed
-  from five to eight, and the resolution steps tell the fixer to re-derive both
-  lists from the tree instead of copying them out of the issue. The issue's
-  account of what the gate reported when it was opened is dropped rather
-  than restated, because it was anchored to `9996826`, a commit that does
-  not resolve in this repository. Unresolvable commit citations are a
-  pre-existing condition here and are not addressed by this change.
+  commit. The missing-kind list goes from five to eight. Status stays `open`.
 
 - `com.verivus.runtime` returns to `ontology_version = 1`. The two new
   vocabularies moved it to `2`, but `core/ontology.md` and `spec.md` section 8
