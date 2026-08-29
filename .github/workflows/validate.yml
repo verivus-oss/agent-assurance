@@ -31,6 +31,14 @@ jobs:
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
+          # Full history. The "Commit citations resolve" step below asks git
+          # to resolve every commit cited as evidence in docs/issues/ and
+          # validators/, and the default shallow clone carries none of them:
+          # on a depth-1 checkout all 17 citations report as unresolvable,
+          # which is a false report rather than a finding. The checker also
+          # refuses to run on a shallow clone, so this is the second half of
+          # that pair, not the only guard.
+          fetch-depth: 0
           # Wipe the auth token from .git/config after checkout so it
           # cannot be picked up by later steps (zizmor artipacked).
           persist-credentials: false

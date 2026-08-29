@@ -95,6 +95,21 @@ def tracked_files(root: pathlib.Path, dirs: tuple[str, ...]) -> list[pathlib.Pat
     return [root / p for p in proc.stdout.split("\0") if p]
 
 
+def is_shallow(root: pathlib.Path) -> bool:
+    """True when the clone lacks history, which makes every lookup a lie.
+
+    A shallow checkout resolves almost nothing, so the check would report
+    every citation as broken. That is a false report, not a finding, and it
+    is the exact failure this gate exists to prevent elsewhere.
+    """
+    # Safe: fixed absolute binary path, list-args invocation, no shell.
+    proc = subprocess.run(  # nosec B603  # noqa: S603
+        [GIT, "rev-parse", "--is-shallow-repository"],
+        cwd=root, capture_output=True, text=True, check=False,
+    )
+    return proc.stdout.strip() == "true"
+
+
 def resolves(root: pathlib.Path, sha: str) -> bool:
     # Safe: fixed absolute binary path, list-args invocation, no shell.
     return subprocess.run(  # nosec B603  # noqa: S603
@@ -117,6 +132,16 @@ def main() -> int:
         print("error: git not found on PATH; this check resolves citations "
               "against the repository and cannot run without it.",
               file=sys.stderr)
+        return 2
+
+    if is_shallow(root):
+        print(
+            "error: shallow clone. Every citation would report as "
+            "unresolvable because the commits are absent, not because the "
+            "citations are wrong. Check out full history "
+            "(actions/checkout with fetch-depth: 0) and run again.",
+            file=sys.stderr,
+        )
         return 2
 
     baseline_path = root / args.baseline
