@@ -134,6 +134,14 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   showed otherwise: `git rev-parse` reads the object store, and a local clone
   can still hold objects no ref reaches.
 
+  `.gitleaks.toml` is new, and exists only because of this baseline: gitleaks
+  reads the recorded hex alphabet as a generic API key, since the TOML key is
+  named `token` and the value has entropy 4.0. The allowlist is scoped to that
+  literal rather than to the file, because `condition = "AND"` is not honoured
+  by gitleaks 8.30.1 and a path-scoped entry exempted the whole file. It sets
+  `[extend] useDefault = true`, without which a config file silently replaces
+  every default rule and the scan can no longer fail.
+
   Two details in the token rule were forced by measurement. The boundary is a
   word boundary, not a hex boundary: `feedback` contains the 7-hex prefix
   `feedbac`, and a hex-only boundary reports a phantom citation in every file
