@@ -114,6 +114,43 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   instead of asserted. Looking for it in `runner.py` gives 52 cases, which is a
   different instrument measuring a different thing.
 
+### Added
+
+- **`validators/check_commit_citations.py` and its baseline.** Issue prose and
+  validator messages cite commits as evidence; nothing checked that those
+  citations resolve. The check scans `docs/issues/` and `validators/` for
+  commit-shaped tokens, resolves each against the repository, and fails on any
+  that git cannot resolve and that is not recorded in
+  `validators/unresolvable-commit-citations.toml`. It runs in CI before the
+  safe-tools step.
+
+  Eleven do not resolve. They are cited from ISS-001 through ISS-004, the
+  issues README, and one message in `check_attribute_values.py`. All four
+  issues were opened on 2026-05-23 or 2026-05-24, before the repository's root
+  commit `eccdcab` (2026-05-27), and cite commits from the pre-mint tree.
+  ISS-005, opened 2026-06-01, cites `91e050a` and `4176bf9`; both resolve. The
+  split is exactly the mint boundary.
+
+  Two details in the token rule were forced by measurement. The boundary is a
+  word boundary, not a hex boundary: `feedback` contains the 7-hex prefix
+  `feedbac`, and a hex-only boundary reports a phantom citation in every file
+  that says "feedback". And pure-digit tokens are not skipped: `9996826` is a
+  real abbreviated SHA cited in three issues and a validator, and is also a
+  valid decimal number.
+
+  The baseline ratchets down. An entry that starts resolving, or stops being
+  cited, fails the check, as does an unused `not_a_commit` ignore.
+
+- **Each affected issue now says so at the point of use.** ISS-001 through
+  ISS-004 carry a note that their cited commits predate `eccdcab` and cannot be
+  resolved here, so the claims resting on them cannot be checked against the
+  code they name. ISS-001 and ISS-004 are marked closed by commits that do not
+  resolve; the note applies to those closures. `docs/issues/README.md` records
+  the same, and its convention list now requires a `closed_by` SHA to resolve.
+
+  This does not fix the citations. The pre-mint history is not in this
+  repository. It stops the gap being silent.
+
 ### Fixed
 
 - **`--exclude examples/negative` added to the documented closure-root

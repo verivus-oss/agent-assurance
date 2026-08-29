@@ -1,0 +1,97 @@
+# Commit SHAs cited in tracked prose that do not resolve in this repository.
+#
+# Consumed by validators/check_commit_citations.py, which fails CI on any
+# commit-shaped token in docs/issues/ or validators/ that git cannot resolve
+# and that is not recorded here.
+#
+# THE CONTRACT, the same one conformance/known-divergences.toml and
+# conformance/coverage-baseline.toml carry: this is a record of a known,
+# bounded gap, not permission for it. Adding an entry is a deliberate act that
+# needs a reason stated in the entry. Removing one is the expected direction of
+# travel. A new unresolvable citation is a build break, which is the whole
+# point: the repository's own rule is that a claim naming a commit must name
+# one a reader can resolve.
+#
+# WHY THESE EXIST
+#
+# The repository was re-minted. Its root commit is `eccdcab`, "Mint
+# agent-assurance spec", dated 2026-05-27, and it carries no history before
+# that date. ISS-001 through ISS-004 were opened on 2026-05-23 and 2026-05-24,
+# against the pre-mint tree, and cite commits from it. ISS-005, opened
+# 2026-06-01, cites `91e050a` and `4176bf9`, and both resolve. The split is
+# exactly the mint boundary.
+#
+# The issues themselves are not wrong. Their technical content has been
+# re-derived and holds. What is unavailable is the ability to follow a cited
+# commit and check the claim against it, which is the property this repository
+# exists to guarantee. Each affected issue now says so at the point of use.
+
+[meta]
+document_kind  = "unresolvable-commit-citations"
+schema_version = "0.1.0"
+normative      = false
+last_verified  = "2026-08-29"
+root_commit    = "eccdcab"       # first commit this repository carries
+root_committed = "2026-05-27"
+
+# Commit-shaped tokens that are NOT commit citations. Each needs a reason.
+[[not_a_commit]]
+token  = "0123456789abcdef"
+file   = "validators/validate_provenance.py"
+reason = "The lowercase hex alphabet, used as a membership set when validating that a digest contains only hex characters. Not a citation."
+
+# Commit citations that do not resolve. Every one predates `eccdcab`.
+[[unresolvable]]
+sha   = "9996826"
+cited = ["docs/issues/2026-05-23-iss-001-self-approval-discipline.md", "docs/issues/2026-05-23-iss-002-graph-cypher-seed-incomplete.md", "docs/issues/2026-05-23-iss-003-duckdb-hardcoded-counts-duplication.md", "validators/check_attribute_values.py", "validators/check_commit_citations.py"]
+role  = "opened_in_commit for ISS-001, ISS-002 and ISS-003; the count-mirror split is attributed to it in prose and in a validator message"
+
+[[unresolvable]]
+sha   = "884f290"
+cited = ["docs/issues/2026-05-23-iss-001-self-approval-discipline.md", "docs/issues/2026-05-24-iss-004-spec-reserved-kind-files-must-land-with-closure-root.md", "docs/issues/README.md"]
+role  = "closed_by for ISS-001 and opened_in_commit for ISS-004. ISS-001's closure cannot be verified from this repository."
+
+[[unresolvable]]
+sha   = "79fe0aa"
+cited = ["docs/issues/2026-05-24-iss-004-spec-reserved-kind-files-must-land-with-closure-root.md"]
+role  = "closed_by for ISS-004. Same limitation as ISS-001's closure."
+
+[[unresolvable]]
+sha   = "bc2a7c5"
+cited = ["docs/issues/2026-05-23-iss-001-self-approval-discipline.md"]
+role  = "ISS-001 evidence: a SPEC section 12 fold merged on initiator approval"
+
+[[unresolvable]]
+sha   = "dc3a7b0"
+cited = ["docs/issues/2026-05-23-iss-001-self-approval-discipline.md"]
+role  = "ISS-001 evidence: a review-blocker resolution merged on initiator approval"
+
+[[unresolvable]]
+sha   = "5c145c8"
+cited = ["docs/issues/2026-05-23-iss-001-self-approval-discipline.md"]
+role  = "ISS-001 evidence: a scope tightening merged on initiator approval"
+
+[[unresolvable]]
+sha   = "20c6207"
+cited = ["docs/issues/2026-05-23-iss-001-self-approval-discipline.md"]
+role  = "ISS-001 evidence: the round-3 fixes commit"
+
+[[unresolvable]]
+sha   = "47b6acd"
+cited = ["docs/issues/2026-05-23-iss-001-self-approval-discipline.md", "docs/issues/2026-05-24-iss-004-spec-reserved-kind-files-must-land-with-closure-root.md"]
+role  = "ISS-004 evidence: added three spec-reserved-kind files; also one of the four commits ISS-001 lists as dispatched for independent review"
+
+[[unresolvable]]
+sha   = "320a901"
+cited = ["docs/issues/2026-05-23-iss-001-self-approval-discipline.md", "docs/issues/2026-05-24-iss-004-spec-reserved-kind-files-must-land-with-closure-root.md"]
+role  = "ISS-004 evidence: the commit after 47b6acd, which did not touch the section 12 surface; also in ISS-001's four-commit list"
+
+[[unresolvable]]
+sha   = "d027178"
+cited = ["docs/issues/2026-05-23-iss-001-self-approval-discipline.md", "docs/issues/2026-05-24-iss-004-spec-reserved-kind-files-must-land-with-closure-root.md"]
+role  = "ISS-004 evidence: the commit that finally added the closure roots; also in ISS-001's four-commit list"
+
+[[unresolvable]]
+sha   = "32936b1"
+cited = ["docs/issues/2026-05-23-iss-001-self-approval-discipline.md"]
+role  = "ISS-001: the fourth of the four commits dispatched for independent review"

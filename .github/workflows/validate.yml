@@ -282,6 +282,21 @@ jobs:
           CONTAINER_RUNTIME=docker DUCKDB_CLI="${RUNNER_TEMP}/duckdb-cli" \
             bash validators/check_state_mutation_seed_roundtrip.sh
 
+      - name: Commit citations resolve (docs/issues + validators)
+        # Issue prose and validator messages cite commits as evidence. The
+        # repository's own rule is that a claim naming a commit must name one a
+        # reader can resolve, and nothing checked that until now. This fails on
+        # any commit-shaped token in docs/issues/ or validators/ that git cannot
+        # resolve and that is not recorded, with a reason, in
+        # validators/unresolvable-commit-citations.toml.
+        #
+        # The eleven recorded entries are cited from ISS-001 through ISS-004,
+        # the issues README, and one message in check_attribute_values.py. All
+        # four issues were opened before the repository's root commit eccdcab
+        # (2026-05-27). The baseline ratchets down: an
+        # entry that starts resolving, or stops being cited, is also a failure.
+        run: python3 validators/check_commit_citations.py --repo-root .
+
       - name: Safe-tools policy (no unsafe Rust or Go under tools/)
         # Rust crates under tools/ MUST carry #![forbid(unsafe_code)];
         # Go modules under tools/ MUST NOT import "unsafe". Dependencies'
