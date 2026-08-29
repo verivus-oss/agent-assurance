@@ -65,9 +65,10 @@ At `38cd729` the count-mirror gate
 KindDescriptor = 23, EntityKind = 27, RelationPredicate = 31 }`, while the
 UNWIND data lists 15 / 23 / 31. The gate cross-checks
 `expected_node_counts` against the ontology, not against the Cypher data,
-so this drift stays invisible to it however far the two diverge: no
-validator, conformance script or CI step reads `schema.cypher` at all. The
-defect itself is the absent seed rows named above. The header comments
+so this drift stays invisible to it however far the two diverge: nothing
+under `validators/` or `conformance/` opens `schema.cypher`, by name or by
+glob, so no gate compares its rows to anything. The defect itself is the
+absent seed rows named above. The header comments
 over those UNWIND blocks are documentation rather than a gate, so no edit
 to them closes this issue either.
 

@@ -161,17 +161,19 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
     the ontology's 23, "1 com.verivus.runtime" against three, and an
     `expected_node_counts` of 21/27/31 against MANIFEST's 23/27/31. The
     comments now name the eight absent template kinds and four absent entity
-    kinds explicitly, and name the matching `MANIFEST.toml [counts]` key as
-    the gated source for each total they state.
+    kinds explicitly, and the template-kind, entity-kind and relation-predicate
+    block headers each name their `MANIFEST.toml [counts]` key as the gated
+    source for the total that header states.
   - `conformance/README.md` reported the corpus as `api-snapshot` 2 valid / 6
     invalid and `state-mutation` 3 / 9; the tree holds 2 / 18 and 3 / 13. The
     section is now a table with a re-derivation command beside it, and it
     records that six `api-snapshot` invalid cases still assert by exit code
     alone with no `error_contains` sidecar.
 
-  Each corrected surface now states that `MANIFEST.toml` or the TOML ontology
-  is the source of truth and that the prose is a restatement, so the next
-  reader knows which side to believe.
+  Three of the four corrected surfaces now name `MANIFEST.toml` or the TOML
+  ontology as the source of truth and themselves as a restatement.
+  `conformance/README.md` names neither: its counts come from the fixture
+  tree, so it ships the command that re-derives them instead.
 
 - **ISS-002's figures were certifying a stale file as fixed.** The issue's
   acceptance criterion required "a clean Neo4j load of `schema.cypher` contains
