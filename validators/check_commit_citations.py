@@ -60,6 +60,7 @@ from __future__ import annotations
 import argparse
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
 
@@ -67,20 +68,37 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import _toml11 as tomllib  # noqa: E402
 
 SCAN_DIRS = ("docs/issues", "validators")
+# Absolute path, resolved once. A bare "git" is a partial executable path
+# (ruff S607) and would also let PATH decide which binary runs.
+GIT = shutil.which("git")
 TOKEN = re.compile(r"(?<![A-Za-z0-9_])([0-9a-fA-F]{7,40})(?![A-Za-z0-9_])")
 
 
+class Infrastructure(Exception):
+    """The check could not be run at all, as distinct from finding a defect."""
+
+
 def tracked_files(root: pathlib.Path, dirs: tuple[str, ...]) -> list[pathlib.Path]:
-    out = subprocess.run(
-        ["git", "ls-files", "-z", *dirs],
-        cwd=root, capture_output=True, text=True, check=True,
-    ).stdout
-    return [root / p for p in out.split("\0") if p]
+    # Safe: fixed absolute binary path, list-args invocation, no shell.
+    proc = subprocess.run(  # nosec B603  # noqa: S603
+        [GIT, "ls-files", "-z", *dirs],
+        cwd=root, capture_output=True, text=True, check=False,
+    )
+    if proc.returncode != 0:
+        # Most often: --repo-root does not name a git repository. Report it
+        # as an infrastructure error rather than letting a traceback out,
+        # so it is never mistaken for "scanned the tree and found nothing".
+        raise Infrastructure(
+            f"git ls-files failed under {root} (exit {proc.returncode}): "
+            + (proc.stderr.strip() or "no stderr")
+        )
+    return [root / p for p in proc.stdout.split("\0") if p]
 
 
 def resolves(root: pathlib.Path, sha: str) -> bool:
-    return subprocess.run(
-        ["git", "rev-parse", "--verify", "--quiet", f"{sha}^{{commit}}"],
+    # Safe: fixed absolute binary path, list-args invocation, no shell.
+    return subprocess.run(  # nosec B603  # noqa: S603
+        [GIT, "rev-parse", "--verify", "--quiet", f"{sha}^{{commit}}"],
         cwd=root, capture_output=True,
     ).returncode == 0
 
@@ -95,6 +113,12 @@ def main() -> int:
     args = ap.parse_args()
     root = pathlib.Path(args.repo_root).resolve()
 
+    if GIT is None:
+        print("error: git not found on PATH; this check resolves citations "
+              "against the repository and cannot run without it.",
+              file=sys.stderr)
+        return 2
+
     baseline_path = root / args.baseline
     if not baseline_path.is_file():
         print(f"error: missing baseline {baseline_path}", file=sys.stderr)
@@ -106,10 +130,16 @@ def main() -> int:
     }
     ignored = {e["token"].lower() for e in baseline.get("not_a_commit", [])}
 
+    try:
+        tracked = tracked_files(root, SCAN_DIRS)
+    except Infrastructure as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
     found: dict[str, list[str]] = {}
     scanned = 0
     undecodable: list[str] = []
-    for path in tracked_files(root, SCAN_DIRS):
+    for path in tracked:
         if path == baseline_path:
             continue
         try:
