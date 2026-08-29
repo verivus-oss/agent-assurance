@@ -67,12 +67,12 @@ against `expected_node_counts = { KindDescriptor = 23, EntityKind = 27,
 RelationPredicate = 31 }`, and the UNWIND data still lists 15 / 23 / 31.
 The gate cross-checks `expected_node_counts` against the ontology, not
 against the Cypher data, so the Cypher data drift stays invisible to it
-no matter how far the two diverge. Three numeric statements in the file's
-own header comments had also gone stale by 38cd729 (the entity-kind total
-in the modelling-choices block, and the declared template-kind total and
-the quoted `expected_node_counts` in the template-kind block) and were
-corrected there. Those comments are documentation, not a gate, and
-correcting them does not close this issue.
+no matter how far the two diverge. The file's own header comments had also
+gone numerically stale by 38cd729 and were corrected there; the corrected
+comments defer every total to `MANIFEST.toml` for that reason, and the
+`git diff` for that commit is the record of exactly what moved. Those
+comments are documentation, not a gate, and correcting them does not close
+this issue.
 
 ## Why it matters
 

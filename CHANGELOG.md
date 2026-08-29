@@ -143,9 +143,11 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   - `reference/database/README.md` claimed 15 template kinds (5 core + 9
     profile), 23 entity kinds, 30 relation predicates, and 29 attribute
     vocabularies, plus "the 14 kinds" in the JSONB design principle. Every one
-    was wrong: the figures are 23 (6 core), 27, 31, and 50. The file also
-    named only two of the five ontologies as its derivation source, which is
-    where 29 rather than 50 came from.
+    was wrong: the figures are 23 (6 core), 27, 31, and 50. Separately, the
+    file named two of the five ontologies as its derivation source. The 29
+    does not correspond to those two either: they have summed to 39 for the
+    whole of this repository's history, so where 29 came from is not
+    recoverable here and this entry no longer guesses.
   - `core/ontology.md` section 3 called its predicate tables "authoritative
     for `ontology_version = 1`" while listing 30 of the 31 `[[relations]]`
     blocks. The missing one was `cites_upstream`, the marker that binds a

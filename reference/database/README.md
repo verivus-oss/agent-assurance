@@ -80,13 +80,15 @@ tuples: `contract:depends_on`, `contract:supersedes`,
 the optional `[provenance]` table (spec.md §11), and the universal
 `[meta]` shape.
 
-Those five numbers are a restatement of `[counts]` in
-[`MANIFEST.toml`](MANIFEST.toml), which
+Those four counts restate four of the six keys in `[counts]` in
+[`MANIFEST.toml`](MANIFEST.toml); the other two,
+`attribute_values_declared` and `attribute_values_closed`, are gated there
+too but are not restated here.
 [`validators/check_manifest_drift.sh`](../../validators/check_manifest_drift.sh)
-re-derives from the ontology files on every push. MANIFEST.toml is the
-machine-readable source of truth; this paragraph is prose that MUST move
-with it. If the two disagree, MANIFEST.toml is correct and this file is
-stale.
+re-derives all six from the ontology files on every push. MANIFEST.toml is
+the machine-readable source of truth; this paragraph is prose that MUST
+move with it. If the two disagree, MANIFEST.toml is correct and this file
+is stale.
 
 **Modelled, but not yet seeded in every engine.** The Postgres, SQLite,
 and DuckDB seeds carry the full registry above. The Neo4j seed in
