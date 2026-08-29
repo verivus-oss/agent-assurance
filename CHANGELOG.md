@@ -125,10 +125,14 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   (`1016bd0`) made the `api-snapshot` closure negatives deliberately
   closure-invalid and added the flag to the workflow without adding it to
   either document. Since then the documented command has exited 1 on an
-  unmodified tree, currently on five asserted-negative fixtures that the
-  negative-agreement step proves invalid instead. A contributor following the
-  instruction saw a red gate on a healthy repository, which is the fastest way
-  to teach people to skip a gate. Both documents now carry the flag CI uses.
+  unmodified tree: at the commit that fixes it, five errors across four
+  asserted-negative fixtures, one of which
+  (`examples/negative/state-mutation-no-proof.toml`) fails two separate
+  pinned-record checks and so contributes two of the five. The
+  negative-agreement step proves all four invalid instead. A contributor
+  following the instruction saw a red gate on a healthy repository, which is
+  the fastest way to teach people to skip a gate. Both documents now carry
+  the flag CI uses.
 
 - **Four count surfaces in the reference-database and ontology prose had
   drifted from the ontology.** None of them is gated: `check_manifest_drift.sh`
