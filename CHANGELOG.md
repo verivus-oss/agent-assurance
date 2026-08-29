@@ -157,11 +157,12 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
     files keep resolving.
   - `reference/database/graph/schema.cypher` carried header comments written
     to make its known seed gap legible; the comments had themselves gone stale
-    twice while the data stood still. They stated 21 template kinds against
+    while the data stood still. They stated 21 template kinds against
     the ontology's 23, "1 com.verivus.runtime" against three, and an
     `expected_node_counts` of 21/27/31 against MANIFEST's 23/27/31. The
     comments now name the eight absent template kinds and four absent entity
-    kinds explicitly and defer every total to `MANIFEST.toml`.
+    kinds explicitly, and name the matching `MANIFEST.toml [counts]` key as
+    the gated source for each total they state.
   - `conformance/README.md` reported the corpus as `api-snapshot` 2 valid / 6
     invalid and `state-mutation` 3 / 9; the tree holds 2 / 18 and 3 / 13. The
     section is now a table with a re-derivation command beside it, and it
@@ -181,14 +182,10 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   commit rather than to a copied number, the missing-kind list is refreshed
   from five to eight, and the resolution steps tell the fixer to re-derive both
   lists from the tree instead of copying them out of the issue. The issue's
-  narrative of what the gate reported when it was opened is dropped rather
-  than restated: it was anchored to commit `9996826`, which does not resolve
-  in this repository (nor does `884f290`, cited from ISS-001, ISS-004 and
-  `docs/issues/README.md`). The root commit `eccdcab` is dated 2026-05-27
-  and both issues are dated before it, so those SHAs belong to history this
-  repository does not carry. That is a separate pre-existing defect, it
-  wants its own issue, and this entry only stops adding new references
-  to it.
+  account of what the gate reported when it was opened is dropped rather
+  than restated, because it was anchored to `9996826`, a commit that does
+  not resolve in this repository. Unresolvable commit citations are a
+  pre-existing condition here and are not addressed by this change.
 
 - `com.verivus.runtime` returns to `ontology_version = 1`. The two new
   vocabularies moved it to `2`, but `core/ontology.md` and `spec.md` section 8

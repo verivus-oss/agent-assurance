@@ -17,8 +17,11 @@ database implementations the spec ships (postgres / sqlite / duckdb /
 cypher). Three of those four are at parity with the ontology; the
 Cypher seed is **stale by data**, not just by count comments.
 
-Every figure below was re-derived from the tree at `38cd729` and is
-valid only for that commit. The gap has widened twice since the issue was
+The `Cypher seed` and `Ontology at 38cd729` columns below were re-derived
+from the tree at that commit. The `At open` column is not a re-derivation:
+it reproduces the `Ontology truth` column of this file's own text at
+`38cd729`, whose template-kind figure of 20 does not match the ontology
+there, which declares 23. The gap has widened twice since the issue was
 opened, once for `api-snapshot` and again for the `state-mutation` /
 `mutation-claim` pair. `MANIFEST.toml` `[counts]` is the gated source of
 truth; re-derive before acting on any number here.
@@ -62,10 +65,11 @@ At `38cd729` the count-mirror gate
 KindDescriptor = 23, EntityKind = 27, RelationPredicate = 31 }`, while the
 UNWIND data lists 15 / 23 / 31. The gate cross-checks
 `expected_node_counts` against the ontology, not against the Cypher data,
-so this drift stays invisible to it however far the two diverge. That is
-the whole of the problem; the header comments above those UNWIND blocks
-are documentation rather than a gate, and no edit to them closes this
-issue.
+so this drift stays invisible to it however far the two diverge: no
+validator, conformance script or CI step reads `schema.cypher` at all. The
+defect itself is the absent seed rows named above. The header comments
+over those UNWIND blocks are documentation rather than a gate, so no edit
+to them closes this issue either.
 
 ## Why it matters
 

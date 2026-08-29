@@ -108,9 +108,9 @@ CREATE INDEX instance_file_template_kind_idx IF NOT EXISTS
 // The gap is invisible to CI by construction: check_attribute_values.py
 // compares MANIFEST.toml's expected_node_counts against the ontology, never
 // against these UNWIND rows. A green build is not evidence that this seed
-// is current. These comments have themselves gone stale twice while the
-// data stood still, which is why ISS-002 Safeguard A (a row-count gate on
-// this file) is the fix rather than another comment.
+// is current. These comments have themselves gone stale while the data
+// stood still, which is why ISS-002 Safeguard A (a row-count gate on this
+// file) is the fix rather than another comment.
 UNWIND [
     {template_kind: 'kind-descriptor',          layer: 'core'},
     {template_kind: 'implementation-dag',       layer: 'core'},
