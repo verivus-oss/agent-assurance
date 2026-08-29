@@ -18,8 +18,10 @@
 # agent-assurance spec", dated 2026-05-27, and it carries no history before
 # that date. ISS-001 through ISS-004 were opened on 2026-05-23 and 2026-05-24,
 # against the pre-mint tree, and cite commits from it. ISS-005, opened
-# 2026-06-01, cites `91e050a` and `4176bf9`, and both resolve. The split is
-# exactly the mint boundary.
+# 2026-06-01, is a separate case: its two citations postdate the mint, but
+# were made on `fix/2026-05-29-five-weaknesses`, a branch that was
+# squash-merged and deleted, so no ref in the published repository reaches
+# them either. The mint is therefore not the whole story.
 #
 # The issues themselves are not wrong. Their technical content has been
 # re-derived and holds. What is unavailable is the ability to follow a cited
@@ -90,6 +92,23 @@ role  = "ISS-004 evidence: the commit after 47b6acd, which did not touch the sec
 sha   = "d027178"
 cited = ["docs/issues/2026-05-23-iss-001-self-approval-discipline.md", "docs/issues/2026-05-24-iss-004-spec-reserved-kind-files-must-land-with-closure-root.md"]
 role  = "ISS-004 evidence: the commit that finally added the closure roots; also in ISS-001's four-commit list"
+
+# Cited in ISS-005. These POSTDATE `eccdcab`, so the mint is not the reason.
+# They were made on `fix/2026-05-29-five-weaknesses`, which was squash-merged
+# and deleted; the originals survive in no ref. They still resolve in a clone
+# that holds the pre-squash objects, which is how they were first recorded
+# here as resolving. `git for-each-ref --contains <sha>` distinguishes the two
+# cases; `git rev-parse` alone does not, because it reads the object store
+# rather than the refs.
+[[unresolvable]]
+sha   = "91e050a"
+cited = ["docs/issues/2026-06-01-iss-005-tools-dags-unvalidated-inv01-mismatch.md"]
+role  = "opened_in_commit for ISS-005"
+
+[[unresolvable]]
+sha   = "4176bf9"
+cited = ["docs/issues/2026-06-01-iss-005-tools-dags-unvalidated-inv01-mismatch.md", "docs/issues/README.md"]
+role  = "closed_by for ISS-005. Its closing note names the deleted branch the commit was made on."
 
 [[unresolvable]]
 sha   = "32936b1"

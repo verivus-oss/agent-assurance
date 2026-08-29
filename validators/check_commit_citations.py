@@ -6,9 +6,10 @@ that can be resolved and checked. Prose under `docs/issues/` and messages in
 `validators/` cite commits as evidence, and nothing verified that those
 citations point at anything.
 
-This scans both trees for commit-shaped tokens, resolves each against the
-repository, and fails on any that git cannot resolve unless
+This scans both trees for commit-shaped tokens, checks each is reachable
+from HEAD, and fails on any that is not unless
 `validators/unresolvable-commit-citations.toml` records it with a reason.
+See `resolves` for why the test is reachability and not object existence.
 
 USAGE
     python3 validators/check_commit_citations.py [--repo-root .]
@@ -111,9 +112,26 @@ def is_shallow(root: pathlib.Path) -> bool:
 
 
 def resolves(root: pathlib.Path, sha: str) -> bool:
+    """True when a reader of this history can follow the citation.
+
+    The test is REACHABILITY FROM HEAD, not object existence. `git rev-parse`
+    reads the object store, and a working clone can hold objects that no ref
+    reaches: commits from a branch that was squash-merged and deleted, or
+    fetched and later pruned. Those resolve for whoever happens to hold them
+    and for nobody else, so a rev-parse check reports a citation as good on
+    the author's machine and bad in CI. That is not a hypothetical; it is how
+    ISS-005's two citations were first recorded here as resolving.
+
+    Reachability from HEAD gives the same answer everywhere, because HEAD is
+    the history the document actually ships in: this branch locally, and the
+    pull request's merge commit in CI. A commit that is not an ancestor of
+    HEAD is not in the history a reader receives, whatever a local object
+    store still holds.
+    """
     # Safe: fixed absolute binary path, list-args invocation, no shell.
+    # Exit 0 = ancestor, 1 = not, 128 = no such object. Only 0 is resolvable.
     return subprocess.run(  # nosec B603  # noqa: S603
-        [GIT, "rev-parse", "--verify", "--quiet", f"{sha}^{{commit}}"],
+        [GIT, "merge-base", "--is-ancestor", f"{sha}^{{commit}}", "HEAD"],
         cwd=root, capture_output=True,
     ).returncode == 0
 

@@ -298,11 +298,12 @@ jobs:
         # resolve and that is not recorded, with a reason, in
         # validators/unresolvable-commit-citations.toml.
         #
-        # The eleven recorded entries are cited from ISS-001 through ISS-004,
-        # the issues README, and two validator files: a message in
-        # check_attribute_values.py and this check's own docstring. All four
-        # issues were opened before the repository's root commit eccdcab
-        # (2026-05-27). A recorded SHA is permitted only at the sites its
+        # The thirteen recorded entries are cited from ISS-001 through
+        # ISS-005, the issues README, and two validator files: a message in
+        # check_attribute_values.py and this check's own docstring. Eleven are
+        # pre-mint, from before root commit eccdcab (2026-05-27). The other
+        # two postdate it and were made on a branch that was squash-merged and
+        # deleted. A recorded SHA is permitted only at the sites its
         # `cited` list names, so the same SHA appearing anywhere new is a new
         # unresolvable citation and fails. The baseline ratchets down: an
         # entry that starts resolving, or stops being cited, is also a failure.

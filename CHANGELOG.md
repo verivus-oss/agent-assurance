@@ -124,12 +124,15 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   `validators/unresolvable-commit-citations.toml`. It runs in CI before the
   safe-tools step.
 
-  Eleven do not resolve. They are cited from ISS-001 through ISS-004, the
-  issues README, and one message in `check_attribute_values.py`. All four
-  issues were opened on 2026-05-23 or 2026-05-24, before the repository's root
-  commit `eccdcab` (2026-05-27), and cite commits from the pre-mint tree.
-  ISS-005, opened 2026-06-01, cites `91e050a` and `4176bf9`; both resolve. The
-  split is exactly the mint boundary.
+  Thirteen do not resolve, for two different reasons. Eleven are cited from
+  ISS-001 through ISS-004, the issues README, and one message in
+  `check_attribute_values.py`; those four issues were opened on 2026-05-23 or
+  2026-05-24, before the repository's root commit `eccdcab` (2026-05-27), and
+  cite the pre-mint tree. The other two are ISS-005's, which postdate the mint
+  but were made on a branch that was squash-merged and deleted, so no ref
+  reaches them. They were recorded as resolving until CI, on a fresh clone,
+  showed otherwise: `git rev-parse` reads the object store, and a local clone
+  can still hold objects no ref reaches.
 
   Two details in the token rule were forced by measurement. The boundary is a
   word boundary, not a hex boundary: `feedback` contains the 7-hex prefix
