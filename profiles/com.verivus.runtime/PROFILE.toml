@@ -90,6 +90,35 @@ contained_kind = "state-mutation"
 field          = "execution_proof.binds_sha256"
 presence       = "required"
 
+# SPEC 12.8.2 bound tuple for `state-mutation`. `execution_proof.binds_sha256`
+# is the digest of the canonical stream over the fields named below, and the
+# closure record above pins that digest.
+#
+# WHY THIS IS DECLARED HERE. The field set is compiled into all three
+# implementations, and until this declaration existed it was named nowhere a
+# machine could read: changing the tuple meant editing the Python reference,
+# the Rust primary and the Go primary, with nothing comparing the three. The
+# implementations still each carry their own copy, deliberately, because a
+# tuple read from a producer-supplied descriptor could be shrunk by the
+# producer, and because three independent encodings are what make a divergence
+# detectable at all. This declaration is the fourth statement they are all
+# checked against, by `validators/check_bound_tuple_drift.py`, on the same
+# contract as the EXPECTED_COUNTS mirrors in `check_attribute_values.py`.
+#
+# Field ORDER here is not semantic. SPEC 12.8.2 sorts the records bytewise
+# before hashing, so the digest depends on the set and its values, never on
+# the order they are written in.
+[[profile.bound_tuples]]
+contained_kind = "state-mutation"
+digest_field   = "execution_proof.binds_sha256"
+fields = [
+  "mutation.target_id",
+  "mutation.operation",
+  "mutation.authorization_sha256",
+  "mutation.effect_sha256",
+  "mutation.performed_at",
+]
+
 # mutation-claim pins. Three records, all required. There is no proof to
 # pin: the absence of `[execution_proof]` is a kind-layer invariant (RKC02),
 # since a closure stream can pin the presence of a field but never its
