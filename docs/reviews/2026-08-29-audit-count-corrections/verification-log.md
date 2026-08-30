@@ -4,9 +4,11 @@ Initiator-side verification for the branch `docs/audit-count-corrections`,
 landed as PR #98 against issue #97, and merged as `f64bfa0`.
 
 Every commit named here is one this repository carries. The measurements were
-taken on the branch head, but that head does not survive: pull requests here
-are squash-merged, so every branch commit is discarded at merge and no
-pre-merge SHA is a durable citation. The figures below were re-confirmed
+taken on the branch head, but that head did not survive: this pull request was
+squash-merged, so every branch commit was discarded at merge and no pre-merge
+SHA was durable. That is no longer true of new work. `main` accepts merge
+commits only as of 2026-08-30, so a branch commit cited today remains an
+ancestor of `main` after merge. The figures below were re-confirmed
 against `f64bfa0`, which is the commit a reader can check.
 
 Per `CONTRIBUTING.md` Review Discipline section 1, the author of these

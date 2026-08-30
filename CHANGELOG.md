@@ -19,12 +19,33 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   run flags there is a UUID segment, not a citation.
 
 - **Two stale commit citations in the audit session's verification log.** It
-  cited the branch head it was measured at. Pull requests here are
-  squash-merged, so every branch commit is discarded at merge and no pre-merge
-  SHA is a durable citation. It now cites the merge commit `f64bfa0`. The gate
+  cited the branch head it was measured at. Pull requests were
+  squash-merged when it was written, so every branch commit was discarded at
+  merge and no pre-merge SHA was durable. The merge policy is changed in this
+  same release (see the Changed entry below), but the correction stands: that
+  citation had already died. It now cites the merge commit `f64bfa0`. The gate
   added in that same session did not catch this: its scanned population is
   `docs/issues/` and `validators/`, and `CONTRIBUTING.md` puts persisted review
   evidence under `docs/reviews/`, which the gate does not read.
+
+### Changed
+
+- **`main` accepts merge commits only.** Squash and rebase merging are
+  disabled in the repository settings and in the `main-branch-protection`
+  ruleset, and `required_linear_history` was removed from that ruleset and
+  from the branch protection duplicating it, because it forbids merge
+  commits.
+
+  Both rewritten-history methods discard the commits they land, so evidence
+  written during a change cites commits that stop existing at merge. The
+  citation is valid when CI checks it and dead once it lands, which means no
+  pre-merge check can catch it. That is what happened to the verification log
+  of the preceding audit session.
+
+  `non_fast_forward` and deletion protection are separate rules and were not
+  touched. `SECURITY.md` is amended in the same change rather than left
+  describing the old posture. `git log --first-parent main` gives the curated
+  view that squash used to produce.
 
 ### Added
 

@@ -46,10 +46,20 @@ This repository runs the following defensive controls:
   on every push, every pull request, and on a weekly schedule. See
   [`.github/workflows/codeql.yml`](.github/workflows/codeql.yml).
 - **Branch protection ruleset** `main-branch-protection` enforces
-  `non_fast_forward`, `required_linear_history`, no `deletion`, and a
-  pull-request rule that requires one approving review,
-  `require_code_owner_review`, `required_review_thread_resolution`, and
-  `dismiss_stale_reviews_on_push`.
+  `non_fast_forward`, no `deletion`, and a pull-request rule that requires
+  one approving review, `require_code_owner_review`,
+  `required_review_thread_resolution`, `dismiss_stale_reviews_on_push`, and
+  `allowed_merge_methods = ["merge"]`. Squash and rebase merging are also
+  disabled at the repository level, so a merge commit is the only way a
+  change reaches `main`.
+
+  `required_linear_history` was removed on 2026-08-30, from this ruleset and
+  from the branch protection that duplicated it. It forbids merge commits,
+  and a merge commit is what keeps a cited commit resolvable: squash and
+  rebase both discard the commits they land, so any evidence citing them
+  dies at merge. Force-push and deletion protection are separate rules,
+  `non_fast_forward` and `deletion`, and neither was touched. See the merge
+  policy in [CONTRIBUTING.md](CONTRIBUTING.md) for the full reasoning.
 - **`signing-approvers` team** holds `maintain` permission on this
   repository and reviews changes touching signing material.
 - **Sigstore-signed release tags.** Annotated tags are signed with
