@@ -7,6 +7,27 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **`check_commit_citations.py` excluded UUIDs from its token rule.** A UUID is
+  hyphen-separated hex and a hyphen is a non-word character, so every segment
+  satisfied the rule on its own: one gateway job id pasted into a scanned file
+  reported two phantom citations. The scanned trees contain no UUID today, but
+  that is a fact about their current contents rather than a guarantee, and the
+  precondition was neither stated nor enforced. It is now both. This is also
+  what has to hold before `docs/reviews/` can be scanned: most of what a naive
+  run flags there is a UUID segment, not a citation.
+
+- **Two stale commit citations in the audit session's verification log.** It
+  cited the branch head it was measured at. Pull requests were
+  squash-merged when it was written, so every branch commit was discarded at
+  merge and no pre-merge SHA was durable. The merge policy is changed in this
+  same release (see the Changed entry below), but the correction stands: that
+  citation had already died. It now cites the merge commit `f64bfa0`. The gate
+  added in that same session did not catch this: its scanned population is
+  `docs/issues/` and `validators/`, and `CONTRIBUTING.md` puts persisted review
+  evidence under `docs/reviews/`, which the gate does not read.
+
 ### Changed
 
 - **`main` accepts merge commits only.** Squash and rebase merging are
