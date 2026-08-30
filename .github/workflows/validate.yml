@@ -940,6 +940,52 @@ jobs:
             examples/negative/profile-descriptor-bad-closure-record.toml \
             --repo-root .
 
+          # INV08 (SPEC 12.8.2): profile-declared bound-tuple declarations.
+          # The fixture carries an out-of-union contained_kind, closure_root
+          # inside a tuple, a meta.* posture path as the digest carrier, a
+          # repeated field, a digest_field that is a member of its own fields,
+          # an unknown key, an empty tuple, and two tuples for one kind; all
+          # three implementations must reject it.
+          check_rejects "rust profile-descriptor bound-tuples" \
+            "$rs" --repo-root . --mode profile \
+            examples/negative/profile-descriptor-bad-bound-tuple.toml
+          check_rejects "go profile-descriptor bound-tuples" \
+            "$go_bin" --repo-root . --mode profile \
+            examples/negative/profile-descriptor-bad-bound-tuple.toml
+          check_rejects "python profile-descriptor bound-tuples" \
+            python3 validators/validate_profile_descriptor.py \
+            examples/negative/profile-descriptor-bad-bound-tuple.toml \
+            --repo-root .
+
+          # RESOLUTION, not just a verdict. The fixture above carries eight
+          # INV08 violations, and `check_rejects` only reads the exit code, so
+          # dropping a single INV08 rule from one implementation leaves seven
+          # violations and an unchanged exit 1. Measured before this assertion
+          # was written: removing the closure_root-in-fields rule from the
+          # reference left exit 1 and moved the count from 8 to 7.
+          #
+          # So compare the COUNT, and compare the three against each other. A
+          # rule silently lost from one implementation moves that count and
+          # breaks the build. Adding or removing an INV08 rule changes this
+          # number deliberately, the same ratchet as TOML_CONFORMANCE_SKIPS.
+          expected_inv08=8
+          bt_fixture=examples/negative/profile-descriptor-bad-bound-tuple.toml
+          rs_inv08=$("$rs" --repo-root . --mode profile "$bt_fixture" 2>&1 \
+            | grep -c 'INV08' || true)
+          go_inv08=$("$go_bin" --repo-root . --mode profile "$bt_fixture" 2>&1 \
+            | grep -c 'INV08' || true)
+          py_inv08=$(python3 validators/validate_profile_descriptor.py \
+            "$bt_fixture" --repo-root . 2>&1 | grep -c 'INV08' || true)
+          echo "--- INV08 violation counts: rs=${rs_inv08} go=${go_inv08} py=${py_inv08} (expect ${expected_inv08}) ---"
+          if [ "${rs_inv08}" != "${expected_inv08}" ] || \
+             [ "${go_inv08}" != "${expected_inv08}" ] || \
+             [ "${py_inv08}" != "${expected_inv08}" ]; then
+            echo "REGRESSION: INV08 violation counts disagree with each other or with ${expected_inv08}."
+            echo "  An implementation has gained or lost a rule, or the fixture changed."
+            exit 1
+          fi
+          echo "  ok: all three report ${expected_inv08} INV08 violations"
+
           # Gate-decision separation-of-duty boundary: a "pass" verdict
           # carrying non-empty (string-typed) failed_constraint_refs must
           # be rejected by all three. Pins the Rust/Go divergence fixed in

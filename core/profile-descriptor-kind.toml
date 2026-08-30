@@ -228,6 +228,15 @@ see_also    = "spec.md §12.8.1"
 ijb_primitive       = "constraint"
 ijb_constraint_type = "structural"
 
+[[kind.hard_invariants]]
+id          = "INV08"
+statement   = "Every `[[profile.bound_tuples]]` entry (profile-declared bound tuples, SPEC 12.8.2) carries exactly `contained_kind` / `digest_field` / `fields`; `contained_kind` is a member of the post-`extends`-union `contained_kinds` and declares at most one tuple after that union; `digest_field` and every member of `fields` match `^[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*$`; `digest_field` is not `closure_root`, not a `meta.*` path, and not a SPEC 12.9 posture field; `fields` is a non-empty array of non-empty strings that repeats nothing; and neither `digest_field` nor `closure_root` appears in `fields`, because a profile pins `digest_field` into the closure stream and a tuple over `closure_root` would make each depend on the other."
+enforced_by = "validators/validate_profile_descriptor.py"
+enforced_by_primaries = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go"]
+see_also    = "spec.md §12.8.2"
+ijb_primitive       = "constraint"
+ijb_constraint_type = "structural"
+
 [[kind.example]]
 name           = "agent-assurance profile descriptor"
 file           = "profiles/agent-assurance/PROFILE.toml"
