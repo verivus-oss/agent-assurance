@@ -7,6 +7,36 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- **The SPEC 12.8.2 bound-tuple field set is now declared where a machine can
+  read it, and all three implementations are compared against it.**
+  `profiles/com.verivus.runtime/PROFILE.toml` gains a
+  `[[profile.bound_tuples]]` table naming the `contained_kind`, the
+  `digest_field` carrying the tuple digest, and the fields themselves.
+  `validators/check_bound_tuple_drift.py` compares that declaration against
+  the copy compiled into the Python reference, the Rust primary and the Go
+  primary, and runs in CI.
+
+  A field outside the tuple is not committed to by the external proof, so two
+  documents differing only in that field share one digest. The set was
+  compiled into three implementations and named nowhere machine-readable: a
+  partial edit left two of them computing a different digest than the third
+  over the same document, with nothing comparing them.
+
+  The implementations keep their own copies deliberately. Reading the set from
+  a producer-supplied descriptor would let a producer choose what its own
+  document commits to, and three independent encodings are what make a
+  divergence observable at all. The declaration is a fourth statement they are
+  measured against, on the same contract as the `EXPECTED_COUNTS` mirrors in
+  `check_attribute_values.py`. Declaration order is not compared, because
+  SPEC 12.8.2 sorts records bytewise before hashing.
+
+  The gate fails closed on its own instruments: a missing source file, a
+  constant it cannot locate, a block that parses to zero fields, an absent
+  declaration, or a second declared tuple are all infrastructure errors and
+  exit 2, never a pass.
+
 ### Fixed
 
 - **`check_commit_citations.py` excluded UUIDs from its token rule.** A UUID is

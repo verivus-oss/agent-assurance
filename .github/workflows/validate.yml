@@ -290,6 +290,19 @@ jobs:
           CONTAINER_RUNTIME=docker DUCKDB_CLI="${RUNNER_TEMP}/duckdb-cli" \
             bash validators/check_state_mutation_seed_roundtrip.sh
 
+      - name: Bound-tuple field sets agree (declaration vs all three)
+        # SPEC 12.8.2 bound tuples are compiled into the Python reference, the
+        # Rust primary and the Go primary. A field outside the tuple is not
+        # committed to by the external proof, so a partial edit leaves two
+        # implementations computing a different digest than the third over the
+        # same document, silently. The field set is declared in the profile
+        # descriptor and this compares all three against it. The
+        # implementations keep their own copies deliberately: reading the set
+        # from a producer-supplied descriptor would let a producer shrink its
+        # own tuple, and three independent encodings are what make a divergence
+        # visible at all. Same contract as the EXPECTED_COUNTS mirrors.
+        run: python3 validators/check_bound_tuple_drift.py --repo-root .
+
       - name: Commit citations resolve (docs/issues + validators)
         # Issue prose and validator messages cite commits as evidence. The
         # repository's own rule is that a claim naming a commit must name one a
