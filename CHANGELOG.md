@@ -9,6 +9,40 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- **INV08: the profile-declared bound tuple is now a hard invariant, enforced
+  by all three profile-descriptor validators.** #104 added the
+  `[[profile.bound_tuples]]` declaration and a drift gate comparing it to the
+  three compiled copies, but the declaration's own shape was checked by that
+  one Python gate and the triad did not know the key existed.
+
+  INV08 requires exactly `contained_kind` / `digest_field` / `fields`; a
+  `contained_kind` inside the post-`extends`-union `contained_kinds` declaring
+  at most one tuple after that union; the frozen path grammar on `digest_field`
+  and every member of `fields`; a `digest_field` that is not `closure_root`,
+  not a `meta.*` path and not a SPEC 12.9 posture field; and a non-empty
+  `fields` that repeats nothing and contains neither `digest_field` nor
+  `closure_root`.
+
+  The last two are soundness rules rather than hygiene. A tuple containing its
+  own `digest_field` would have to commit to itself. A tuple containing
+  `closure_root` is unsatisfiable in the other direction: a profile pins
+  `digest_field` into the closure stream, so `closure_root` would depend on the
+  tuple digest while the tuple digest depended on `closure_root`.
+
+  `examples/negative/profile-descriptor-bad-bound-tuple.toml` carries eight
+  violations and is rejected by the Rust primary, the Go primary and the Python
+  reference in the CI negative-agreement step.
+
+- **The negative-agreement step now asserts the INV08 violation COUNT, not
+  only the verdict.** A fixture carrying eight violations, checked by exit code
+  alone, cannot detect one rule being dropped: seven violations remain and the
+  exit code does not move. Measured before the assertion was written, removing
+  the closure-root rule from the reference left exit 1 and moved the count from
+  8 to 7. CI now compares the count across all three implementations, so a rule
+  silently lost from one of them is a build break.
+
+### Added
+
 - **The SPEC 12.8.2 bound-tuple field set is now declared where a machine can
   read it, and all three implementations are compared against it.**
   `profiles/com.verivus.runtime/PROFILE.toml` gains a

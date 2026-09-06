@@ -1303,6 +1303,9 @@ its type contract:
   producer choose what its own document commits to, and independent
   encodings are what make a divergence between implementations
   observable. The declaration is what they are measured against.
+  The declaration's own well-formedness is INV08 of
+  `core/profile-descriptor-kind.toml`, enforced by the reference
+  validator and both primaries.
 - Declaration order carries no meaning, because the records are sorted
   bytewise before hashing. Two profiles declaring the same set in
   different orders declare the same tuple.

@@ -2799,6 +2799,7 @@ mod profile {
     const CLOSURE_RECORD_PRESENCE: &[&str] = &["required", "when-present"];
     const CLOSURE_RECORD_FORBIDDEN_FIELDS: &[&str] = &["closure_root", "provenance.source_sha256"];
     const POSTURE_FIELDS: &[&str] = &["confidentiality", "license", "embargo_until"];
+    const BOUND_TUPLE_KEYS: &[&str] = &["contained_kind", "digest_field", "fields"];
 
     /// Frozen path grammar `^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$`,
     /// hand-rolled (no regex dependency): one or more dot-separated
@@ -2884,6 +2885,227 @@ mod profile {
     }
 
     /// INV07 (spec.md §12.8.1): profile-pinned closure records.
+    /// Union `bound_tuples` across the `extends` graph rooted at `name`.
+    fn effective_bound_tuples(
+        name: &str,
+        local_profile: &toml::map::Map<String, Value>,
+        descriptors: &BTreeMap<String, (PathBuf, Value)>,
+    ) -> Vec<toml::map::Map<String, Value>> {
+        let mut tuples: Vec<toml::map::Map<String, Value>> = Vec::new();
+        let mut seen: BTreeSet<String> = BTreeSet::new();
+        let mut stack: Vec<String> = vec![name.to_string()];
+        while let Some(node) = stack.pop() {
+            if !seen.insert(node.clone()) {
+                continue;
+            }
+            let profile: Option<&toml::map::Map<String, Value>> = if node == name {
+                Some(local_profile)
+            } else {
+                descriptors
+                    .get(&node)
+                    .and_then(|(_, doc)| doc.get("profile"))
+                    .and_then(|v| v.as_table())
+            };
+            let Some(profile) = profile else { continue };
+            if let Some(arr) = profile.get("bound_tuples").and_then(|x| x.as_array()) {
+                for entry in arr {
+                    if let Some(t) = entry.as_table() {
+                        tuples.push(t.clone());
+                    }
+                }
+            }
+            if let Some(arr) = profile.get("extends").and_then(|x| x.as_array()) {
+                for child in arr {
+                    if let Some(c) = child.as_str() {
+                        stack.push(c.to_string());
+                    }
+                }
+            }
+        }
+        tuples
+    }
+
+    /// INV08 (spec.md §12.8.2): profile-declared bound tuples.
+    fn check_bound_tuples(
+        descriptor_path: &Path,
+        name: &str,
+        profile: &toml::map::Map<String, Value>,
+        descriptors: &BTreeMap<String, (PathBuf, Value)>,
+    ) -> Vec<String> {
+        let mut errors: Vec<String> = Vec::new();
+        let bound_tuples: &[Value] = match profile.get("bound_tuples") {
+            None => &[],
+            Some(v) => match v.as_array() {
+                Some(a) => a.as_slice(),
+                None => {
+                    return vec![format!(
+                        "{}: [profile].bound_tuples must be an array of tables (INV08)",
+                        descriptor_path.display()
+                    )];
+                }
+            },
+        };
+
+        for (index, entry) in bound_tuples.iter().enumerate() {
+            let place = format!(
+                "{}: [[profile.bound_tuples]] entry {}",
+                descriptor_path.display(),
+                index
+            );
+            let Some(table) = entry.as_table() else {
+                errors.push(format!("{} must be a table (INV08)", place));
+                continue;
+            };
+            let mut unknown: Vec<&str> = table
+                .keys()
+                .map(|k| k.as_str())
+                .filter(|k| !BOUND_TUPLE_KEYS.contains(k))
+                .collect();
+            unknown.sort_unstable();
+            if !unknown.is_empty() {
+                errors.push(format!(
+                    "{} carries unknown keys {:?} (INV08: exactly contained_kind / digest_field / fields)",
+                    place, unknown
+                ));
+            }
+            let mut bad_shape = false;
+            for key in ["contained_kind", "digest_field"] {
+                let ok = table
+                    .get(key)
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|s| !s.is_empty());
+                if !ok {
+                    errors.push(format!(
+                        "{}.{} must be a non-empty string (INV08)",
+                        place, key
+                    ));
+                    bad_shape = true;
+                }
+            }
+            let fields: Vec<&str> = match table.get("fields").and_then(|v| v.as_array()) {
+                Some(a) if !a.is_empty() => {
+                    let strs: Vec<&str> = a.iter().filter_map(|v| v.as_str()).collect();
+                    if strs.len() != a.len() || strs.iter().any(|s| s.is_empty()) {
+                        errors.push(format!(
+                            "{}.fields must contain only non-empty strings (INV08)",
+                            place
+                        ));
+                        bad_shape = true;
+                        Vec::new()
+                    } else {
+                        strs
+                    }
+                }
+                _ => {
+                    errors.push(format!(
+                        "{}.fields must be a non-empty array of strings (INV08: a tuple over no fields commits to nothing)",
+                        place
+                    ));
+                    bad_shape = true;
+                    Vec::new()
+                }
+            };
+            if bad_shape {
+                continue;
+            }
+
+            let digest_field = table
+                .get("digest_field")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if !closure_record_field_ok(digest_field) {
+                errors.push(format!(
+                    "{}.digest_field `{}` does not match the frozen path grammar ^[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*$ (INV08)",
+                    place, digest_field
+                ));
+            } else if digest_field == "closure_root"
+                || digest_field.split('.').next() == Some("meta")
+                || POSTURE_FIELDS.contains(&digest_field)
+            {
+                errors.push(format!(
+                    "{}.digest_field `{}` is a forbidden carrier (INV08: not closure_root, no meta.* path, no §12.9 posture field)",
+                    place, digest_field
+                ));
+            }
+
+            for field in &fields {
+                if !closure_record_field_ok(field) {
+                    errors.push(format!(
+                        "{}.fields member `{}` does not match the frozen path grammar ^[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*$ (INV08)",
+                        place, field
+                    ));
+                }
+            }
+            let mut repeated: BTreeSet<&str> = BTreeSet::new();
+            for field in &fields {
+                if fields.iter().filter(|f| *f == field).count() > 1 {
+                    repeated.insert(field);
+                }
+            }
+            if !repeated.is_empty() {
+                let listed: Vec<&str> = repeated.into_iter().collect();
+                errors.push(format!(
+                    "{}.fields repeats {:?} (INV08: the tuple is a set of fields, and a repeat contributes one record while reading as two)",
+                    place, listed
+                ));
+            }
+            if fields.contains(&digest_field) {
+                errors.push(format!(
+                    "{}.digest_field `{}` is also one of its own `fields` (INV08: the digest cannot commit to itself)",
+                    place, digest_field
+                ));
+            }
+            if fields.contains(&"closure_root") {
+                errors.push(format!(
+                    "{}.fields includes `closure_root` (INV08: a profile pins the digest_field into the closure stream, so a tuple over closure_root makes each depend on the other and neither computable)",
+                    place
+                ));
+            }
+        }
+
+        let (effective_kinds, _) = effective_profile_sets(name, profile, descriptors);
+        for (index, entry) in bound_tuples.iter().enumerate() {
+            let Some(table) = entry.as_table() else {
+                continue;
+            };
+            if let Some(ck) = table.get("contained_kind").and_then(|v| v.as_str()) {
+                if !ck.is_empty() && !effective_kinds.contains(ck) {
+                    errors.push(format!(
+                        "{}: [[profile.bound_tuples]] entry {}.contained_kind `{}` is not in the post-extends-union contained_kinds (INV08)",
+                        descriptor_path.display(),
+                        index,
+                        ck
+                    ));
+                }
+            }
+        }
+
+        let effective_tuples = effective_bound_tuples(name, profile, descriptors);
+        let mut kinds: Vec<String> = Vec::new();
+        for t in &effective_tuples {
+            if let Some(ck) = t.get("contained_kind").and_then(|v| v.as_str()) {
+                if !ck.is_empty() {
+                    kinds.push(ck.to_string());
+                }
+            }
+        }
+        let mut duplicated: BTreeSet<String> = BTreeSet::new();
+        for ck in &kinds {
+            if kinds.iter().filter(|k| *k == ck).count() > 1 {
+                duplicated.insert(ck.clone());
+            }
+        }
+        for ck in duplicated {
+            errors.push(format!(
+                "{}: `{}` declares more than one bound tuple after the extends union (INV08: a kind carries at most one, because a document has one digest_field per tuple and two declarations for one kind cannot both be the tuple it commits to)",
+                descriptor_path.display(),
+                ck
+            ));
+        }
+
+        errors
+    }
+
     fn check_closure_records(
         descriptor_path: &Path,
         name: &str,
@@ -3374,6 +3596,14 @@ mod profile {
 
         // INV07: profile-pinned closure records (spec.md §12.8.1)
         errors.extend(check_closure_records(
+            descriptor_path,
+            name,
+            profile,
+            descriptors,
+        ));
+
+        // INV08: profile-declared bound tuples (spec.md §12.8.2)
+        errors.extend(check_bound_tuples(
             descriptor_path,
             name,
             profile,

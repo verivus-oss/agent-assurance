@@ -1,0 +1,82 @@
+# NEGATIVE FIXTURE: MUST be rejected by the profile-descriptor
+# validators (INV08, SPEC 12.8.2). Five independent violations, one per
+# entry where possible so a single rule relaxing does not hide the rest:
+#   1. bound_tuples[0].contained_kind names a kind that is NOT in this
+#      profile's post-extends-union contained_kinds, and its `fields`
+#      includes `closure_root`, which a profile pins the digest_field
+#      into, so each would depend on the other.
+#   2. bound_tuples[1].digest_field is a meta.* posture path, and it
+#      repeats a member of its own `fields`.
+#   3. bound_tuples[2].digest_field is also one of its own `fields`, so
+#      the digest would have to commit to itself, and it carries an
+#      unknown key.
+#   4. bound_tuples[3].fields is empty, so the tuple commits to nothing.
+#   5. bound_tuples[1] and bound_tuples[2] both declare a tuple for
+#      `state-mutation`, and a kind carries at most one.
+# Everything else about the descriptor is deliberately valid so the
+# rejection isolates INV08.
+
+# Empty-closure sentinel: SHA-256("") as required by SPEC 12.1.
+closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+[meta]
+schema_version   = "0.1.0"
+template_kind    = "profile-descriptor"
+ontology_version = 1
+docs          = "https://github.com/verivus-oss/agent-assurance/blob/main/spec.md"
+confidentiality   = "public"
+license           = "Apache-2.0"
+title          = "NEGATIVE: profile descriptor with invalid bound_tuples declarations"
+
+[meta.ijb_field_primitives]
+template_kind     = { ijb_primitive = "scope",      ijb_class = "structural" }
+schema_version    = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+ontology_version  = { ijb_primitive = "constraint", ijb_constraint_type = "structural" }
+confidentiality   = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+license           = { ijb_primitive = "constraint", ijb_constraint_type = "policy" }
+
+[profile]
+name            = "com.example.badtuples"
+namespace       = "com.example"
+owner           = "example"
+license         = "Apache-2.0"
+extends         = []
+ontology        = "core/ontology.toml"
+contained_kinds = ["state-mutation"]
+ijb_primitive   = "thing"
+ijb_class       = "structural"
+
+# 1. out-of-union contained_kind, and closure_root inside the tuple.
+[[profile.bound_tuples]]
+contained_kind = "api-snapshot"
+digest_field   = "execution_proof.binds_sha256"
+fields = [
+  "mutation.target_id",
+  "closure_root",
+]
+
+# 2. meta.* posture path as the digest carrier, and a repeated field.
+[[profile.bound_tuples]]
+contained_kind = "state-mutation"
+digest_field   = "meta.confidentiality"
+fields = [
+  "mutation.target_id",
+  "mutation.target_id",
+]
+
+# 3. digest_field is a member of its own fields, plus an unknown key.
+#    Also the second tuple declared for `state-mutation`.
+[[profile.bound_tuples]]
+contained_kind = "state-mutation"
+digest_field   = "execution_proof.binds_sha256"
+presence       = "required"
+fields = [
+  "mutation.operation",
+  "execution_proof.binds_sha256",
+]
+
+# 4. an empty tuple commits to nothing.
+[[profile.bound_tuples]]
+contained_kind = "state-mutation"
+digest_field   = "execution_proof.binds_sha256"
+fields = []
