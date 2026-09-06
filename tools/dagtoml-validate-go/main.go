@@ -2810,6 +2810,7 @@ var (
 	closureRecordFieldRE         = regexp.MustCompile(`^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$`)
 	closureRecordForbiddenFields = []string{"closure_root", "provenance.source_sha256"}
 	postureFields                = []string{"confidentiality", "license", "embargo_until"}
+	boundTupleKeys               = []string{"contained_kind", "digest_field", "fields"}
 )
 
 func stringInSlice(s string, set []string) bool {
@@ -3020,6 +3021,196 @@ func effectiveProfileSets(name string, localProfile map[string]any, descriptors 
 	}
 	visit(name)
 	return kinds, records
+}
+
+// effectiveBoundTuples unions `bound_tuples` across the `extends` graph
+// rooted at name. Separate from effectiveProfileSets so that function keeps
+// the shape the reference and the Rust primary mirror.
+func effectiveBoundTuples(name string, localProfile map[string]any, descriptors map[string]descriptor) []map[string]any {
+	var tuples []map[string]any
+	seen := map[string]bool{}
+	var visit func(node string)
+	visit = func(node string) {
+		if seen[node] {
+			return
+		}
+		seen[node] = true
+		var profile map[string]any
+		if node == name {
+			profile = localProfile
+		} else {
+			d, ok := descriptors[node]
+			if !ok {
+				return
+			}
+			profile, _ = d.doc["profile"].(map[string]any)
+		}
+		if profile == nil {
+			return
+		}
+		if arr, ok := asArray(profile["bound_tuples"]); ok {
+			for _, entry := range arr {
+				if t, ok := entry.(map[string]any); ok {
+					tuples = append(tuples, t)
+				}
+			}
+		}
+		if arr, ok := asArray(profile["extends"]); ok {
+			for _, child := range arr {
+				if c, ok := child.(string); ok {
+					visit(c)
+				}
+			}
+		}
+	}
+	visit(name)
+	return tuples
+}
+
+// checkBoundTuples enforces INV08 (spec.md §12.8.2):
+// profile-declared bound tuples.
+func checkBoundTuples(path, name string, profile map[string]any, descriptors map[string]descriptor) []string {
+	var errs []string
+	var boundTuples []any
+	if raw, present := profile["bound_tuples"]; present {
+		arr, ok := asArray(raw)
+		if !ok {
+			return []string{fmt.Sprintf(
+				"%s: [profile].bound_tuples must be an array of tables (INV08)", path)}
+		}
+		boundTuples = arr
+	}
+
+	for index, entry := range boundTuples {
+		place := fmt.Sprintf("%s: [[profile.bound_tuples]] entry %d", path, index)
+		table, ok := entry.(map[string]any)
+		if !ok {
+			errs = append(errs, fmt.Sprintf("%s must be a table (INV08)", place))
+			continue
+		}
+		var unknown []string
+		for k := range table {
+			if !stringInSlice(k, boundTupleKeys) {
+				unknown = append(unknown, k)
+			}
+		}
+		if len(unknown) > 0 {
+			sort.Strings(unknown)
+			errs = append(errs, fmt.Sprintf(
+				"%s carries unknown keys %v (INV08: exactly contained_kind / digest_field / fields)",
+				place, unknown))
+		}
+		badShape := false
+		for _, key := range []string{"contained_kind", "digest_field"} {
+			if s, ok := table[key].(string); !ok || s == "" {
+				errs = append(errs, fmt.Sprintf(
+					"%s.%s must be a non-empty string (INV08)", place, key))
+				badShape = true
+			}
+		}
+		var fields []string
+		if arr, ok := asArray(table["fields"]); ok && len(arr) > 0 {
+			for _, v := range arr {
+				if str, ok := v.(string); ok && str != "" {
+					fields = append(fields, str)
+				}
+			}
+			if len(fields) != len(arr) {
+				errs = append(errs, fmt.Sprintf(
+					"%s.fields must contain only non-empty strings (INV08)", place))
+				badShape = true
+			}
+		} else {
+			errs = append(errs, fmt.Sprintf(
+				"%s.fields must be a non-empty array of strings (INV08: a tuple over no fields commits to nothing)",
+				place))
+			badShape = true
+		}
+		if badShape {
+			continue
+		}
+
+		digestField, _ := table["digest_field"].(string)
+		if !closureRecordFieldRE.MatchString(digestField) {
+			errs = append(errs, fmt.Sprintf(
+				"%s.digest_field `%s` does not match the frozen path grammar ^[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*$ (INV08)",
+				place, digestField))
+		} else if digestField == "closure_root" ||
+			strings.SplitN(digestField, ".", 2)[0] == "meta" ||
+			stringInSlice(digestField, postureFields) {
+			errs = append(errs, fmt.Sprintf(
+				"%s.digest_field `%s` is a forbidden carrier (INV08: not closure_root, no meta.* path, no §12.9 posture field)",
+				place, digestField))
+		}
+
+		for _, field := range fields {
+			if !closureRecordFieldRE.MatchString(field) {
+				errs = append(errs, fmt.Sprintf(
+					"%s.fields member `%s` does not match the frozen path grammar ^[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*$ (INV08)",
+					place, field))
+			}
+		}
+		counts := map[string]int{}
+		for _, field := range fields {
+			counts[field]++
+		}
+		var repeated []string
+		for field, n := range counts {
+			if n > 1 {
+				repeated = append(repeated, field)
+			}
+		}
+		if len(repeated) > 0 {
+			sort.Strings(repeated)
+			errs = append(errs, fmt.Sprintf(
+				"%s.fields repeats %v (INV08: the tuple is a set of fields, and a repeat contributes one record while reading as two)",
+				place, repeated))
+		}
+		if stringInSlice(digestField, fields) {
+			errs = append(errs, fmt.Sprintf(
+				"%s.digest_field `%s` is also one of its own `fields` (INV08: the digest cannot commit to itself)",
+				place, digestField))
+		}
+		if stringInSlice("closure_root", fields) {
+			errs = append(errs, fmt.Sprintf(
+				"%s.fields includes `closure_root` (INV08: a profile pins the digest_field into the closure stream, so a tuple over closure_root makes each depend on the other and neither computable)",
+				place))
+		}
+	}
+
+	effectiveKinds, _ := effectiveProfileSets(name, profile, descriptors)
+	for index, entry := range boundTuples {
+		table, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		if ck, ok := table["contained_kind"].(string); ok && ck != "" && !effectiveKinds[ck] {
+			errs = append(errs, fmt.Sprintf(
+				"%s: [[profile.bound_tuples]] entry %d.contained_kind `%s` is not in the post-extends-union contained_kinds (INV08)",
+				path, index, ck))
+		}
+	}
+
+	kindCounts := map[string]int{}
+	for _, t := range effectiveBoundTuples(name, profile, descriptors) {
+		if ck, ok := t["contained_kind"].(string); ok && ck != "" {
+			kindCounts[ck]++
+		}
+	}
+	var duplicated []string
+	for ck, n := range kindCounts {
+		if n > 1 {
+			duplicated = append(duplicated, ck)
+		}
+	}
+	sort.Strings(duplicated)
+	for _, ck := range duplicated {
+		errs = append(errs, fmt.Sprintf(
+			"%s: `%s` declares more than one bound tuple after the extends union (INV08: a kind carries at most one, because a document has one digest_field per tuple and two declarations for one kind cannot both be the tuple it commits to)",
+			path, ck))
+	}
+
+	return errs
 }
 
 // checkClosureRecords enforces INV07 (spec.md §12.8.1):
@@ -3233,6 +3424,8 @@ func validateProfileDescriptor(path string, doc rawDoc, repoRoot string, descrip
 	}
 	// INV07: profile-pinned closure records (spec.md §12.8.1)
 	errs = append(errs, checkClosureRecords(path, name, profile, descriptors)...)
+	// INV08: profile-declared bound tuples (spec.md §12.8.2)
+	errs = append(errs, checkBoundTuples(path, name, profile, descriptors)...)
 	return errs
 }
 

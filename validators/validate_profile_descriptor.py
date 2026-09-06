@@ -22,6 +22,14 @@ This validator enforces the hard invariants INV01..INV05 listed in
   INV05 — every entry of `contained_kinds` resolves to a `*-kind.toml`
           under repo root whose `[meta].describes_kind` matches the entry.
 
+  INV08: `bound_tuples` entries (spec.md §12.8.2) are well-formed:
+          exactly the keys contained_kind/digest_field/fields;
+          contained_kind is in the post-`extends`-union contained_kinds
+          and declares at most one tuple; digest_field and every member
+          of fields match the frozen path grammar; fields is non-empty
+          and repeats nothing; and neither digest_field nor closure_root
+          appears in fields.
+
   INV07: `closure_records` entries (spec.md §12.8.1) are well-formed:
           exactly the keys contained_kind/field/presence; contained_kind
           is in the post-`extends`-union contained_kinds; field matches
@@ -74,6 +82,8 @@ CLOSURE_RECORD_FORBIDDEN_FIELDS = (
     "provenance.source_sha256",
 )
 POSTURE_FIELDS = ("confidentiality", "license", "embargo_until")
+
+BOUND_TUPLE_KEYS = ("contained_kind", "digest_field", "fields")
 
 
 def parse_args() -> argparse.Namespace:
@@ -184,6 +194,160 @@ def effective_profile_sets(
 
     visit(name)
     return kinds, records
+
+
+def effective_bound_tuples(
+    name: str,
+    descriptors: dict[str, tuple[pathlib.Path, dict]],
+) -> list[tuple[str, dict]]:
+    """Union `bound_tuples` across the `extends` graph rooted at `name`.
+
+    Separate from effective_profile_sets so that function keeps the shape
+    the two primaries mirror. Returns [(declaring_profile, tuple), ...].
+    """
+    tuples: list[tuple[str, dict]] = []
+    seen: set[str] = set()
+
+    def visit(node: str) -> None:
+        if node in seen or node not in descriptors:
+            return
+        seen.add(node)
+        _, doc = descriptors[node]
+        profile = doc.get("profile") or {}
+        declared = profile.get("bound_tuples")
+        if isinstance(declared, list):
+            for entry in declared:
+                if isinstance(entry, dict):
+                    tuples.append((node, entry))
+        for child in profile.get("extends", []) or []:
+            if isinstance(child, str):
+                visit(child)
+
+    visit(name)
+    return tuples
+
+
+def check_bound_tuples(
+    descriptor_path: pathlib.Path,
+    name: str,
+    profile: dict,
+    descriptors: dict[str, tuple[pathlib.Path, dict]],
+) -> list[str]:
+    """INV08 (spec.md §12.8.2): profile-declared bound tuples."""
+    errors: list[str] = []
+    bound_tuples = profile.get("bound_tuples")
+    if bound_tuples is None:
+        bound_tuples = []
+    if not isinstance(bound_tuples, list):
+        return [
+            f"{descriptor_path}: [profile].bound_tuples must be an array "
+            f"of tables (INV08)"
+        ]
+
+    for index, entry in enumerate(bound_tuples):
+        where = f"{descriptor_path}: [[profile.bound_tuples]] entry {index}"
+        if not isinstance(entry, dict):
+            errors.append(f"{where} must be a table (INV08)")
+            continue
+        unknown = sorted(set(entry) - set(BOUND_TUPLE_KEYS))
+        if unknown:
+            errors.append(
+                f"{where} carries unknown keys {unknown} (INV08: exactly "
+                f"contained_kind / digest_field / fields)"
+            )
+        bad_shape = False
+        for key in ("contained_kind", "digest_field"):
+            value = entry.get(key)
+            if not isinstance(value, str) or not value:
+                errors.append(f"{where}.{key} must be a non-empty string (INV08)")
+                bad_shape = True
+        fields = entry.get("fields")
+        if not isinstance(fields, list) or not fields:
+            errors.append(
+                f"{where}.fields must be a non-empty array of strings (INV08: "
+                f"a tuple over no fields commits to nothing)"
+            )
+            bad_shape = True
+        elif not all(isinstance(f, str) and f for f in fields):
+            errors.append(
+                f"{where}.fields must contain only non-empty strings (INV08)"
+            )
+            bad_shape = True
+        if bad_shape:
+            continue
+
+        digest_field = entry["digest_field"]
+        if not CLOSURE_RECORD_FIELD_RE.match(digest_field):
+            errors.append(
+                f"{where}.digest_field `{digest_field}` does not match the "
+                r"frozen path grammar ^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$ "
+                f"(INV08)"
+            )
+        elif (
+            digest_field == "closure_root"
+            or digest_field.split(".")[0] == "meta"
+            or digest_field in POSTURE_FIELDS
+        ):
+            errors.append(
+                f"{where}.digest_field `{digest_field}` is a forbidden carrier "
+                f"(INV08: not closure_root, no meta.* path, no §12.9 posture "
+                f"field)"
+            )
+
+        for field in fields:
+            if not CLOSURE_RECORD_FIELD_RE.match(field):
+                errors.append(
+                    f"{where}.fields member `{field}` does not match the "
+                    r"frozen path grammar ^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$ "
+                    f"(INV08)"
+                )
+        if len(set(fields)) != len(fields):
+            duplicated = sorted({f for f in fields if fields.count(f) > 1})
+            errors.append(
+                f"{where}.fields repeats {duplicated} (INV08: the tuple is a "
+                f"set of fields, and a repeat contributes one record while "
+                f"reading as two)"
+            )
+        if digest_field in fields:
+            errors.append(
+                f"{where}.digest_field `{digest_field}` is also one of its own "
+                f"`fields` (INV08: the digest cannot commit to itself)"
+            )
+        if "closure_root" in fields:
+            errors.append(
+                f"{where}.fields includes `closure_root` (INV08: a profile "
+                f"pins the digest_field into the closure stream, so a tuple "
+                f"over closure_root makes each depend on the other and neither "
+                f"computable)"
+            )
+
+    effective_kinds, _ = effective_profile_sets(name, descriptors)
+    for index, entry in enumerate(bound_tuples):
+        if not isinstance(entry, dict):
+            continue
+        contained_kind = entry.get("contained_kind")
+        if isinstance(contained_kind, str) and contained_kind:
+            if contained_kind not in effective_kinds:
+                errors.append(
+                    f"{descriptor_path}: [[profile.bound_tuples]] entry "
+                    f"{index}.contained_kind `{contained_kind}` is not in the "
+                    f"post-extends-union contained_kinds (INV08)"
+                )
+
+    kinds: list[str] = []
+    for _, entry in effective_bound_tuples(name, descriptors):
+        ck = entry.get("contained_kind")
+        if isinstance(ck, str) and ck:
+            kinds.append(ck)
+    for ck in sorted({k for k in kinds if kinds.count(k) > 1}):
+        errors.append(
+            f"{descriptor_path}: `{ck}` declares more than one bound tuple "
+            f"after the extends union (INV08: a kind carries at most one, "
+            f"because a document has one digest_field per tuple and two "
+            f"declarations for one kind cannot both be the tuple it commits to)"
+        )
+
+    return errors
 
 
 def check_closure_records(
@@ -436,6 +600,7 @@ def validate_one(
 
     # INV07: profile-pinned closure records (spec.md §12.8.1)
     errors.extend(check_closure_records(descriptor_path, name, profile, descriptors))
+    errors.extend(check_bound_tuples(descriptor_path, name, profile, descriptors))
 
     return errors
 

@@ -16,8 +16,9 @@
 //   * Every entity carries an :Entity base label plus a kind-specific
 //     label (:Requirement, :Unit, etc.). This lets cross-kind queries
 //     run against (:Entity) while kind-specific queries stay typed.
-//   * Every entity carries an :IjbThing label (all 23 entity kinds are
-//     IJB primitive 'thing' — 17 core + 6 profile). Edges carry an
+//   * Every entity carries an :IjbThing label (all 27 entity kinds are
+//     IJB primitive 'thing': 17 core + 6 agent-assurance + 3 disclosure
+//     + 1 cost). Edges carry an
 //     ijb_primitive='path' tag in their properties — Cypher relationship-
 //     type labels can't be queried alongside a structural marker without
 //     an extra hop, so it lives in properties.
@@ -82,17 +83,32 @@ CREATE INDEX instance_file_template_kind_idx IF NOT EXISTS
 // ============================================================
 // 2. Registry seed
 //    (Snapshot of the ontology declarations; regenerate from
-//     core/ontology.toml + profiles/agent-assurance/ontology.toml.)
+//     core/ontology.toml + every profiles/<name>/ontology.toml.)
 // ============================================================
 
-// Template kinds — ontology declares 21 (6 core + 9 agent-assurance + 3 disclosure + 1 cost + 1 com.verivus.runtime + 1 meta).
-// NOTE: the UNWIND data below currently lists only 15. The graph schema's
-// seed data has not been updated to include the disclosure (3) + cost (1) +
-// com.verivus.runtime api-snapshot (1) + profile-descriptor (1) kinds. This
-// remains a tracked follow-up: the property-graph seed is illustrative, and
-// `validators/check_attribute_values.py` compares MANIFEST.toml's
-// expected_node_counts (now 21/27/31 at HEAD) to the ontology, not to these
-// UNWIND rows. api-snapshot joins the existing disclosure/cost deferral.
+// Template kinds. The ontology declares 23 (6 core + 9 agent-assurance
+// + 3 disclosure + 1 cost + 3 com.verivus.runtime + 1 meta). That total is
+// prose; `MANIFEST.toml [counts].template_kinds` is the gated source of
+// truth, re-derived from core/*-kind.toml and profiles/*/*-kind.toml by
+// `validators/check_manifest_drift.sh` on every push.
+//
+// The UNWIND data below lists 15. These eight declared kinds are absent
+// from this seed:
+//     profile-descriptor          core
+//     disclosure-attestation      profile:disclosure
+//     redaction-manifest          profile:disclosure
+//     selective-disclosure-proof  profile:disclosure
+//     cost-record                 profile:cost
+//     api-snapshot                profile:com.verivus.runtime
+//     state-mutation              profile:com.verivus.runtime
+//     mutation-claim              profile:com.verivus.runtime
+//
+// Tracked as ISS-002
+// (docs/issues/2026-05-23-iss-002-graph-cypher-seed-incomplete.md).
+// The gap is invisible to CI by construction: check_attribute_values.py
+// compares MANIFEST.toml's expected_node_counts against the ontology, never
+// against these UNWIND rows. A green build is not evidence that this seed
+// is current. ISS-002 Safeguard A proposes a row-count gate on this file.
 UNWIND [
     {template_kind: 'kind-descriptor',          layer: 'core'},
     {template_kind: 'implementation-dag',       layer: 'core'},
@@ -113,8 +129,16 @@ UNWIND [
 MERGE (k:KindDescriptor {template_kind: row.template_kind})
 SET k.layer = row.layer;
 
-// Entity kinds — ontology declares 27 (17 core + 6 agent-assurance + 3 disclosure + 1 cost).
-// UNWIND data lists only 23 (disclosure DISC/RED/SDP + cost COST missing); follow-up regen needed.
+// Entity kinds. The ontology declares 27 (17 core + 6 agent-assurance
+// + 3 disclosure + 1 cost); `MANIFEST.toml [counts].entity_kinds` is the
+// gated source of truth. The UNWIND data below lists 23. These four
+// declared entity kinds are absent from this seed:
+//     disclosure_attestation      DISC   profile:disclosure
+//     redaction                   RED    profile:disclosure
+//     selective_disclosure_proof  SDP    profile:disclosure
+//     cost_record                 COST   profile:cost
+// profiles/com.verivus.runtime declares no entity kinds, so it adds none
+// here. Same tracking issue as the template-kind gap above (ISS-002).
 UNWIND [
     {entity_kind: 'intent',           id_prefix: 'INT',         layer: 'core'},
     {entity_kind: 'feature',          id_prefix: 'FEAT',        layer: 'core'},
@@ -146,8 +170,10 @@ SET k.id_prefix_pattern = row.id_prefix,
     k.ijb_primitive     = 'thing',
     k.ijb_class         = 'structural';
 
-// Relation predicates — ontology declares 31 (30 + SPEC §12 `cites_upstream`).
-// UNWIND data lists 31 verbatim. (Was 30 pre-§12, brought to 31 by the §12 commit.)
+// Relation predicates. The ontology declares 31 (30 plus the SPEC §12
+// `cites_upstream` predicate); `MANIFEST.toml [counts].relation_predicates`
+// is the gated source of truth. The UNWIND data below lists all 31, so
+// this block is at parity with the ontology.
 // One per [[relations]] block in
 // core/ontology.toml). Predicate names that appear more than once in
 // the ontology with different domain/range tuples are namespaced as

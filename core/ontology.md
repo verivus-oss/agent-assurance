@@ -115,7 +115,13 @@ can enumerate the full core predicate set without reading
 profile-specific code, and can detect profile-defined predicates by
 their namespace prefix.
 
-The following table is authoritative for `ontology_version = 1`.
+Three tables enumerate the vocabulary: §3.1 (traceability and DAG,
+20 predicates), §3.2 (review-readiness, 10), and §3.5 (the
+cross-document closure-root marker, 1). Together they are authoritative
+for `ontology_version = 1`, and they correspond one-to-one with the 31
+`[[relations]]` blocks in [`ontology.toml`](ontology.toml). The TOML is
+the machine-readable source: where the two disagree, the TOML is
+correct and this file is stale.
 
 ### 3.1 Traceability and DAG relations
 
@@ -198,6 +204,42 @@ inverse consistency where both ends are present in the same document.
 | `verifies` | `verified_by` | when both ends are in the same document |
 | `implements` | `implemented_by` | when both ends are in the same document |
 | `depends_on` | `blocks` | **MUST match exactly** (DAG hard invariant) |
+
+### 3.5 Cross-document closure-root relation
+
+One predicate belongs to neither table above. It is not a traceability
+edge and not a review-readiness edge: it is the cross-kind marker that
+binds a declared field into the brittleness graph of
+[spec.md §12](../spec.md#12-the-closure-root-rule-brittleness-propagation).
+It is numbered 3.5 rather than inserted after §3.2 because three profile
+ontology files cite this document's §3.3 by section number
+(`profiles/agent-assurance/ontology.toml`, `profiles/cost/ontology.toml`,
+`profiles/disclosure/ontology.toml`, each on the line
+`# Profile predicates MUST be namespaced per core/ontology.md §3.3`).
+Inserting a new §3.3 here would silently retarget all three at a
+different subsection. Appending after §3.4 leaves every existing
+citation resolving where it did.
+
+| Predicate | Field name | Source entity | Allowed target entities | Cardinality | Inverse |
+|---|---|---|---|---|---|
+| cites upstream | `cites_upstream` | unconstrained label | unconstrained label | 0..* | none |
+
+`cites_upstream` is applied by a **kind descriptor**, not by an instance
+document. A `[[kind.required_fields]]` entry (or the analogous mapping
+inside `[[kind.required_sections]]`) sets
+`ontology_mapping = "cites_upstream"` to declare that the field carries
+an upstream artifact reference (a SHA-256 digest, a document URI, a
+signed-envelope pointer) which MUST flow into that document's
+root-level `closure_root` digest per `spec.md §12.1`.
+
+Both ends are typed `unconstrained_label` deliberately. Concrete
+artifact entity kinds are profile-defined, but the closure-root rule
+fires uniformly across every conforming kind, so constraining either
+end here would make the ontology narrower than the rule it encodes.
+
+Adding this predicate is what took the core vocabulary from 30 to 31.
+It is still a **closed** core predicate under §3.3: profiles may not
+add unnamespaced predicates alongside it.
 
 ---
 

@@ -1,0 +1,35 @@
+# gitleaks configuration.
+#
+# Consumed by the "Secret scan (gitleaks)" step in
+# .github/workflows/validate.yml, which runs `gitleaks detect --source .`
+# with no --config flag. gitleaks then reads this file from the source root.
+#
+# THE CONTRACT, the same one conformance/known-divergences.toml and
+# validators/unresolvable-commit-citations.toml carry: an entry records one
+# known false positive with a stated reason. It is not permission for a class
+# of them. Removing an entry is the expected direction of travel.
+
+# WITHOUT THIS BLOCK gitleaks REPLACES its default rule set with the rules in
+# this file, of which there are none, and then reports no leaks on any input.
+# A secret scan that cannot fail is worse than none, because it reports green.
+# That risk is why the commit adding this file carries a planted-secret
+# control rather than a claim.
+[extend]
+useDefault = true
+
+# Scoped to the LITERAL, not to a path. An earlier draft also carried `paths`
+# for the file the literal appears in, with `condition = "AND"`. Measured with
+# a planted secret, that condition is not honoured by gitleaks 8.30.1: the
+# path matched on its own and exempted the whole file, so a real credential
+# written into it would not have been reported. The regex alone exempts
+# sixteen specific characters and nothing else.
+[[allowlists]]
+description = """
+The lowercase hex alphabet. validators/unresolvable-commit-citations.toml
+records it as a commit-shaped token that is not a commit citation; it is the
+membership set validate_provenance.py uses to check that a digest contains
+only hex characters. gitleaks reads it as a generic-api-key because the TOML
+key is named `token` and the value has entropy 4.0. It is public arithmetic
+and carries no secret.
+"""
+regexes = ['''^0123456789abcdef$''']

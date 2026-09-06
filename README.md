@@ -189,7 +189,8 @@ python3 validators/validate_traceability.py examples/minimal-traceability.toml
 python3 validators/validate_review_readiness.py \
   examples/minimal-review-readiness/review_readiness.toml
 python3 validators/validate_ijb_conformance.py core/ontology.toml
-python3 validators/validate_closure_root.py --discover .         # SPEC §12
+python3 validators/validate_closure_root.py \
+  --discover . --exclude examples/negative                       # SPEC §12
 python3 validators/validate_abstraction_class.py --repo-root . \
   core/*-kind.toml profiles/*/*-kind.toml                        # SPEC §13
 ```

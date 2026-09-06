@@ -1293,6 +1293,22 @@ its type contract:
   `[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*`. A path containing 0x20 or 0x0A
   would reintroduce at the label boundary exactly the ambiguity
   prehashing removes at the value boundary.
+- A profile that declares a bound tuple MUST declare its field set in
+  the profile descriptor, as a `[[profile.bound_tuples]]` table naming
+  the `contained_kind`, the `digest_field` that carries the tuple
+  digest, and the `fields` themselves. The declaration is the
+  machine-readable statement of what the tuple commits to. It does NOT
+  replace an implementation's own copy: an implementation that read
+  its tuple from a producer-supplied descriptor would let that
+  producer choose what its own document commits to, and independent
+  encodings are what make a divergence between implementations
+  observable. The declaration is what they are measured against.
+  The declaration's own well-formedness is INV08 of
+  `core/profile-descriptor-kind.toml`, enforced by the reference
+  validator and both primaries.
+- Declaration order carries no meaning, because the records are sorted
+  bytewise before hashing. Two profiles declaring the same set in
+  different orders declare the same tuple.
 - Values are hashed as the exact UTF-8 bytes carried in the document,
   with **no Unicode normalization** applied by either producer or
   verifier. Two documents whose values are canonically equivalent but
