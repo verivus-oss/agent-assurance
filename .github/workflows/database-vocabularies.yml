@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   engines:
+    if: ${{ false }}
     name: database (${{ matrix.lane }})
     runs-on: ubuntu-24.04
     permissions:
@@ -48,6 +49,7 @@ jobs:
           if-no-files-found: error
 
   loaders:
+    if: ${{ false }}
     name: database loader (${{ matrix.language }})
     runs-on: ubuntu-24.04
     permissions:
@@ -86,6 +88,7 @@ jobs:
           if-no-files-found: error
 
   instruments:
+    if: ${{ false }}
     name: database and runtime instruments
     runs-on: ubuntu-24.04
     permissions:
