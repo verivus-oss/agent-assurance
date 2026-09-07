@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import threading
+from unittest.mock import patch
 
 from _contract import bundle_digest, bundle_entries
 from _storage import Store, StorageError
@@ -82,7 +83,39 @@ def initialize_checks(store: Store, work: Path) -> list[dict]:
         raise AssertionError("initialization acknowledgement loss did not reconcile committed state")
     outcomes.append({"check": "initialization-commit-acknowledgement-loss", "outcome": "reconciled"})
     reset_private()
-    if len(outcomes) != 3:
+    digest = bundle_digest(store.root)
+    for phase in ("existing", "after-probes", "before-publish", "reconciliation"):
+        reset_private()
+        candidate = store
+        def concurrent_publication(subject, expected):
+            if expected != digest:
+                raise AssertionError("probe received a different bundle")
+            subject.insert("reference_contract", {"singleton_id": 1, "contract_bundle_sha256": digest, "projection_version": 1})
+            return []
+        if phase == "existing":
+            concurrent_publication(store, digest)
+        if phase == "reconciliation":
+            candidate = LoseInitializationAcknowledgement(store.engine, store.connection, store.root, reconnect=store.reconnect)
+        sequence = [digest, digest, "f" * 64] if phase == "reconciliation" else [digest, "f" * 64]
+        from contextlib import nullcontext
+        probe_context = patch("_sql_probes.probe_constraints", side_effect=concurrent_publication) if phase == "after-probes" else nullcontext()
+        with probe_context, patch("_storage.bundle_digest", side_effect=sequence):
+            try:
+                candidate.initialize(exclusive_unpublished=True)
+            except StorageError as exc:
+                expected_code = "commit-outcome-unknown" if phase == "reconciliation" else "bundle-changed"
+                if exc.code != expected_code:
+                    raise AssertionError("bundle-change control failed for the wrong reason") from exc
+                if phase == "reconciliation" and (exc.context != {"operation": "initialize", "contract_bundle_sha256": digest}
+                                                  or not isinstance(exc.__cause__, StorageError) or exc.__cause__.code != "bundle-changed"):
+                    raise AssertionError("indeterminate initialization lost identity or bundle-change cause")
+                outcomes.append({"check": "initialization-bundle-change-" + phase, "outcome": expected_code})
+            else:
+                raise AssertionError("initialization returned success after bundle changed: " + phase)
+            finally:
+                store.connection = candidate.connection
+        reset_private()
+    if len(outcomes) != 7:
         raise AssertionError("initialization concurrency check population changed")
     return outcomes
 

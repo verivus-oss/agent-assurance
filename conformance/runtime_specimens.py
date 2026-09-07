@@ -164,7 +164,9 @@ def specimens(root: Path) -> list[Specimen]:
     add(gate, "repository/missing-subject-catalog", False, "required-input",
         lambda doc: doc["decision"].update(subject_class="downstream-change"), root_mode="malformed-ontology")
     add(gate, "repository/missing-provider-catalog", False, "required-input",
-        lambda doc: doc["decision"].update(attribution), root_mode="malformed-ontology")
+        lambda doc: doc["decision"].update(attribution), "INV06", root_mode="missing-provider")
+    add(gate, "repository/missing-family-catalog", False, "required-input",
+        lambda doc: doc["decision"].update(attribution), "INV06", root_mode="missing-family")
     if len({case.name for case in result}) != len(result) or not result:
         raise AssertionError("specimen identities are missing or duplicated")
     return result
@@ -196,6 +198,13 @@ def prepare_roots(root, work):
             ontology.write_text(prefix + tail.replace('extensible  = false', 'extensible  = true', 1))
         elif mode == "missing-core":
             (candidate / "core/ontology.toml").unlink()
+        elif mode in {"missing-provider", "missing-family"}:
+            attribute = "provider_id" if mode == "missing-provider" else "model_family_id"
+            marker = f'attribute   = "{attribute}"'
+            require(text.count(marker) == 1)
+            # Keep the rest of the ontology, including verdict, loadable.
+            # Renaming one declaration isolates an absent required catalog.
+            ontology.write_text(text.replace(marker, f'attribute   = "test-only-{attribute}"'))
         else:
             require(mode == "malformed-ontology")
             ontology.write_text("malformed ontology = [")

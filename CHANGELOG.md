@@ -20,6 +20,12 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   and redaction_reason are policy constraints.
 - Replace SQL-text inference with executed engine receipts, explicit storage
   ownership and residual ledgers, and stricter conformance fixture discovery.
+- Allowed-value queries now return all 216 declared pairs instead of the former
+  152-row catalogs. The new runtime-document relationship restricts deletion of
+  its parent instance; rebuild populated databases side by side to adopt the
+  private initialization and ingestion format. MANIFEST replaces `closed_enums`
+  and `closed_checks` with informational native-type and column-constraint hints;
+  field enforcement is declared separately in `vocabulary-storage.toml`.
 - Apply closure discovery exclusions below the explicitly selected root, so
   absolute checkouts within hidden storage retain their conforming documents.
 - Keep malformed numeric timezone offsets out of optional SQL timestamp indexes

@@ -55,11 +55,14 @@ def boundary_checks(root, work, rs, go, strace):
                                   env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
             text = trace.read_text() if trace.is_file() else ""
             executions = re.findall(r"\bexecve(?:at)?\(", text)
-            network = re.findall(r"\b(?:socket|socketpair|connect|bind|listen|accept|accept4|sendto|sendmsg|recvfrom|recvmsg)\(", text)
+            # The trace selection contains only network, execution, and open calls.
+            names = re.findall(r"(?:^|\n)(?:\[pid +[0-9]+\] +|[0-9]+ +)?([a-zA-Z0-9_]+)\(", text)
+            network = [name for name in names if name not in {"execve", "execveat", "open", "openat"}]
+            reference_opens = [line for line in text.splitlines() if re.search(r"\bopen(?:at)?\(", line) and marker in line]
             if proc.returncode or len(executions) != 1 or network or marker in text:
                 raise AssertionError(f"{case.kind}/{language}: scope boundary failed or instrumentation did not run: {proc.stdout}{proc.stderr}")
-            results.append({"kind": case.kind, "implementation": language, "executions": 1, "network_calls": 0,
-                            "reference_opens": 0, "trace": str(trace), "trace_sha256": hashlib.sha256(trace.read_bytes()).hexdigest()})
+            results.append({"kind": case.kind, "implementation": language, "executions": len(executions), "network_calls": len(network),
+                            "reference_opens": len(reference_opens), "trace": str(trace), "trace_sha256": hashlib.sha256(trace.read_bytes()).hexdigest()})
     if len(results) != 10:
         raise AssertionError("scope boundary instrument did not cover both new kinds and every dispatch route")
     return results

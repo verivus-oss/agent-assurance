@@ -1,10 +1,10 @@
--- DAG-TOML reference SQLite / libSQL (Turso) schema (non-normative).
+-- DAG-TOML reference SQLite schema (non-normative).
 --
 -- Sibling of reference/database/postgres/schema.sql, adapted to SQLite's
 -- type system. Works on:
 --   * SQLite >= 3.38 (uses STRICT tables, JSON1 built-in, expression
 --     DEFAULTs, partial indexes, recursive CTEs, FK enforcement)
---   * libSQL / Turso (SQLite-compatible fork — same DDL works)
+-- libSQL / Turso compatibility is unverified and needs its own executed lane.
 --
 -- Translation table from the PG reference:
 --   PG                                          SQLite/libSQL
@@ -125,7 +125,7 @@ CREATE INDEX idx_instance_file_profile       ON dagtoml_instance_file (framework
 CREATE TABLE dagtoml_provenance (
     instance_file_id    TEXT PRIMARY KEY REFERENCES dagtoml_instance_file(id) ON DELETE CASCADE,
     source_path         TEXT NOT NULL,
-    source_sha256       TEXT NOT NULL CHECK (source_sha256 GLOB 'sha256:????????????????????????????????????????????????????????????????'),
+    source_sha256       TEXT NOT NULL CHECK (length(CAST(source_sha256 AS BLOB)) = 71 AND substr(source_sha256, 1, 7) = 'sha256:' AND substr(source_sha256, 8) NOT GLOB '*[^0-9a-f]*'),
     source_bytes        INTEGER NOT NULL CHECK (source_bytes >= 0),
     captured_at         TEXT,
     extraction_method   TEXT,
@@ -320,7 +320,7 @@ WHERE r.target_entity_id IS NULL
 -- Document-owned projections, not ontology entities. Raw TOML remains exact.
 CREATE TABLE dagtoml_reference_contract (
     singleton_id INTEGER PRIMARY KEY CHECK (singleton_id = 1),
-    contract_bundle_sha256 TEXT NOT NULL UNIQUE CHECK (length(contract_bundle_sha256) = 64 AND contract_bundle_sha256 NOT GLOB '*[^0-9a-f]*'),
+    contract_bundle_sha256 TEXT NOT NULL UNIQUE CHECK (length(CAST(contract_bundle_sha256 AS BLOB)) = 64 AND contract_bundle_sha256 NOT GLOB '*[^0-9a-f]*'),
     projection_version INTEGER NOT NULL CHECK (projection_version = 1)
 ) STRICT;
 

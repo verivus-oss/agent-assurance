@@ -152,20 +152,10 @@ jobs:
       - name: Discrimination coverage (external assertion)
         # WHY THIS LIVES IN CI AND NOT IN conformance/discrimination.py.
         #
-        # discrimination.py carries its own coverage self-check, and that check
-        # works: dropping a kind from KINDS fails it. But it is a SAME-FILE
-        # oracle, so deleting the self-check block and the kind together exits 0
-        # and nothing notices. That defeat path is reproducible, exactly
-        # defeat path. A guard that lives in the file it guards can always be
-        # removed with the thing it guards.
-        #
-        # This step breaks that circularity. It derives the answer from the
-        # FILESYSTEM (which kinds ship sidecars) and from the SOURCE DECLARATION
-        # (which kinds KINDS lists, read via ast, never imported or executed),
-        # then compares them. It shares no code with discrimination.py, so
-        # removing that file's self-check does not disable this one. Removing
-        # THIS step is a visible change to the workflow, which is the trust root
-        # and is what review actually watches.
+        # Independently compare mapped kinds, case directories, and sidecar
+        # populations. Removing a directory must fail even if the in-module
+        # discovery predicate is also removed. The mapping is read with ast,
+        # without importing discrimination.py or sharing its coverage code.
         run: |
           set -e
           python3 - <<'PY'
@@ -194,10 +184,10 @@ jobs:
               raise SystemExit("FAIL: no sidecars discovered at all; the corpus or this "
                                "assertion's glob is wrong")
 
-          uncovered = sorted(sidecar_kinds - kinds)
+          uncovered = sorted(set(validators) - kinds)
           if uncovered:
               raise SystemExit(
-                  "FAIL: these kinds ship discrimination sidecars but are absent from "
+                  "FAIL: these mapped kinds are absent from "
                   f"the discovered case directories: {', '.join(uncovered)}"
               )
           unmapped = sorted(k for k in kinds if k not in validators)
@@ -205,6 +195,8 @@ jobs:
               raise SystemExit(
                   f"FAIL: case directories with no KIND_VALIDATOR mapping: {', '.join(unmapped)}"
               )
+          if sidecar_kinds != kinds:
+              raise SystemExit("FAIL: sidecar kind population differs from case directories")
           print("discrimination coverage OK")
           print(f"- kinds shipping sidecars : {', '.join(sorted(sidecar_kinds))}")
           print(f"- discovered kinds       : {', '.join(sorted(kinds))}")
@@ -271,6 +263,9 @@ jobs:
 
       - name: Manifest drift (reference/database/MANIFEST.toml vs ontology)
         run: bash validators/check_manifest_drift.sh --declarations-only
+
+      - name: Exact generated vocabulary catalogs
+        run: python3 reference/database/generate_allowed_values.py
 
       - name: State-mutation database seed round-trip
         # The count gate proves mirrors agree numerically. This focused

@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 from pathlib import Path
 import sys
 
@@ -63,14 +64,16 @@ def validate_receipts(root: Path, paths: list[Path], *, require_clean=True, incl
             raise ValueError("storage acceptance checks are missing or duplicated")
         if len(receipt.get("protocol_checks", [])) != len(PROTOCOL_CHECKS) or set(receipt["protocol_checks"]) != PROTOCOL_CHECKS:
             raise ValueError("protocol acceptance checks are missing or duplicated")
-        if len(receipt.get("initialization_checks", [])) != 3 or len(receipt.get("concurrency_checks", [])) != 2:
+        if len(receipt.get("initialization_checks", [])) != 7 or len(receipt.get("concurrency_checks", [])) != 2:
             raise ValueError("initialization or writer concurrency checks are missing")
         if set(receipt.get("replay_checks", [])) != REPLAY_CHECKS or len(receipt["replay_checks"]) != len(REPLAY_CHECKS):
             raise ValueError("replay acceptance checks are missing or duplicated")
         if set(receipt.get("connection_checks", [])) != CONNECTION_CHECKS[lane["engine"]] or len(receipt["connection_checks"]) != len(CONNECTION_CHECKS[lane["engine"]]):
             raise ValueError("connection precondition checks are missing or duplicated")
         initialization = {row["check"]: row for row in receipt["initialization_checks"]}
-        if set(initialization) != {"same-bundle-initializers", "different-bundle-initializers", "initialization-commit-acknowledgement-loss"}:
+        bundle_changes = {"initialization-bundle-change-" + phase: ("commit-outcome-unknown" if phase == "reconciliation" else "bundle-changed")
+                          for phase in ("existing", "after-probes", "before-publish", "reconciliation")}
+        if set(initialization) != {"same-bundle-initializers", "different-bundle-initializers", "initialization-commit-acknowledgement-loss"} | bundle_changes.keys():
             raise ValueError("initialization check identities differ")
         for name, allowed in (("same-bundle", {"already-initialized", "retryable-busy"}),
                               ("different-bundle", {"contract-mismatch", "retryable-busy"})):
@@ -80,6 +83,8 @@ def validate_receipts(root: Path, paths: list[Path], *, require_clean=True, incl
                 raise ValueError("initialization race lacks valid participant outcomes")
         if initialization["initialization-commit-acknowledgement-loss"].get("outcome") != "reconciled":
             raise ValueError("initialization commit loss was not reconciled")
+        if any(initialization[name].get("outcome") != expected for name, expected in bundle_changes.items()):
+            raise ValueError("initialization bundle changes were not rejected")
         concurrency = {row["check"]: row for row in receipt["concurrency_checks"]}
         special = {"sqlite": ("sqlite-writer-lock-exhaustion", "retryable-busy"),
                    "duckdb": ("duckdb-external-writer-process", "busy/unsupported-writer"),
@@ -94,6 +99,18 @@ def validate_receipts(root: Path, paths: list[Path], *, require_clean=True, incl
             loader = receipt.get("loader", {})
             if loader.get("language") != lane["loader"] or loader.get("source_commit") != source["commit"]:
                 raise ValueError("loader receipt lacks a build of this source commit")
+            checks = loader.get("verify_checks", [])
+            expected_loader = {"pristine-seed": (0, 0, 0), "reference-contract-populated": (1, 1, 0),
+                               "runtime-document-populated": (1, 1, 1)}
+            if len(checks) != len(expected_loader) or {row.get("check") for row in checks} != set(expected_loader):
+                raise ValueError("loader standalone verify control population is missing or duplicated")
+            for row in checks:
+                code, contracts, documents = expected_loader[row["check"]]
+                if row.get("exit_code") != code or row.get("counts") != {"reference_contract": contracts, "runtime_document": documents}:
+                    raise ValueError("loader standalone verify did not observe the expected populated state")
+                for table, count in row["counts"].items():
+                    if not re.search(r"^\s*" + table + r"\s+" + str(count) + (r" != 0" if count else r" == 0"), row.get("output", ""), re.M):
+                        raise ValueError("loader standalone verify lacks the intended table diagnostic")
             binary = root / loader.get("binary", "")
             if not binary.is_file() or hashlib.sha256(binary.read_bytes()).hexdigest() != loader.get("binary_sha256"):
                 raise ValueError("missing or stale loader binary")

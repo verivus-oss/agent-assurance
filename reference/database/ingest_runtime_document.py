@@ -38,9 +38,9 @@ def main(argv=None) -> int:
         print(json.dumps(result, ensure_ascii=True, sort_keys=True))
         return int(result["status"] == "failed")
     except (ValueError, OSError, StorageError) as exc:
-        code = exc.code if isinstance(exc, StorageError) else "invalid-input-or-setup"
+        code = getattr(exc, "code", "invalid-input-or-setup")
         status = code if code in {"commit-outcome-unknown", "rollback-unconfirmed"} else "failed"
-        print(json.dumps({"status": status, "code": code, "error": str(exc)}, ensure_ascii=True), file=sys.stderr)
+        print(json.dumps({"status": status, "code": code, "error": str(exc), **getattr(exc, "context", {})}, ensure_ascii=True), file=sys.stderr)
         return 1
     except Exception as exc:
         # Driver diagnostics may include complete rejected rows. Preserve the

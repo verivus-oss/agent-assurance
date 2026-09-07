@@ -9,6 +9,7 @@ from _storage import Store, StorageError
 from _instrument import require
 
 CHECKS = frozenset({
+    "optional-derivation-stores-null", "two-valid-captured-versions-stored-consistently",
     "three-kinds-and-idempotent-repeat", "exact-original-bytes-and-prefixed-hash", "profile-alias-preserved",
     "changed-content-and-distinct-source-occurrences", "invalid-batch-and-mandatory-identity-leave-state-unchanged",
     "failure-between-parent-and-document-rolls-back", "active-caller-transaction-preserved",
@@ -53,12 +54,53 @@ def exercise_storage(store: Store) -> list[str]:
     require(relocated["documents"][0]["id"] != first["documents"][0]["id"])
     checks.append("changed-content-and-distinct-source-occurrences")
 
+    import re
+    from pathlib import Path
+    import uuid
+    from unittest.mock import patch
+    omitted = re.sub(rb'^id_derivation[^\n]*\n', b'', sources[kinds[0]], count=1, flags=re.M)
+    require(omitted != sources[kinds[0]])
+    optional_result = store.ingest([("optional/derivation.toml", omitted)])
+    require(store.rows("runtime_document", ("adapter_id_derivation",), "WHERE instance_file_id = ?",
+                       (optional_result["documents"][0]["id"],)) == [{"adapter_id_derivation": None}])
+    require(store.ingest([("optional/derivation.toml", omitted)]) == optional_result and store.audit()["status"] == "consistent")
+    checks.append("optional-derivation-stores-null")
+    # Capture valid A, replace its path with valid B, and exercise the complete
+    # projection/write/repeat/audit path while forbidding a root-source reopen.
+    capture = root / ".local/storage-capture" / (uuid.uuid4().hex + ".toml")
+    capture.parent.mkdir(parents=True, exist_ok=True)
+    a = sources[kinds[0]]
+    b = a.replace(b'network_policy = "denied"', b'network_policy = "open"')
+    if b == a:
+        b = re.sub(rb'(network_policy\s*=\s*)"denied"', rb'\1"open"', a, count=1)
+    require(a != b)
+    project(a, str(capture), root)
+    project(b, str(capture), root)
+    capture.write_bytes(a)
+    captured = capture.read_bytes()
+    capture.write_bytes(b)
+    original_read = Path.read_bytes
+    def guarded_read(path):
+        require(path != capture, "storage reopened the captured root source")
+        return original_read(path)
+    with patch.object(Path, "read_bytes", guarded_read):
+        version_a = store.ingest([(str(capture), captured)])
+    version_b = store.ingest([(str(capture), capture.read_bytes())])
+    for result, raw, policy in ((version_a, a, "denied"), (version_b, b, "open")):
+        item = result["documents"][0]
+        require(item["content_sha256"] == "sha256:" + hashlib.sha256(raw).hexdigest())
+        row = store.rows("runtime_document", ("source_toml", "runtime_network_policy"), "WHERE instance_file_id = ?", (item["id"],))[0]
+        require(bytes(row["source_toml"]) == raw and row["runtime_network_policy"] == policy)
+        require(store.ingest([(str(capture), raw)]) == result)
+    require(version_a["documents"][0]["id"] != version_b["documents"][0]["id"] and store.audit()["status"] == "consistent")
+    checks.append("two-valid-captured-versions-stored-consistently")
+
     def rejected(action, code=None):
         try:
             action()
         except (StorageError, ValueError) as exc:
             if code is not None:
-                require(isinstance(exc, StorageError) and exc.code == code, str(exc))
+                require(getattr(exc, "code", None) == code, str(exc))
         else:
             raise AssertionError("expected rejection did not occur")
 
@@ -66,7 +108,7 @@ def exercise_storage(store: Store) -> list[str]:
     rejected(lambda: store.ingest([("batch/valid.toml", sources[kinds[0]]),
                                   ("batch/invalid.toml", sources[kinds[2]].replace(b'verdict                 = "fail"', b'verdict                 = "unknown"'))]))
     require(store.counts() == before)
-    rejected(lambda: store.ingest([("unsupported.toml", b'[meta]\ntemplate_kind="assertion-bundle"\n')]))
+    rejected(lambda: store.ingest([("unsupported.toml", b'[meta]\ntemplate_kind="assertion-bundle"\n')]), "unsupported-projection")
     rejected(lambda: store.ingest([("nul\0path", sources[kinds[0]])]))
     require(store.counts() == before)
     checks.append("invalid-batch-and-mandatory-identity-leave-state-unchanged")

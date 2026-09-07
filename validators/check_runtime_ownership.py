@@ -4,6 +4,7 @@
 import argparse
 import json
 import hashlib
+import re
 from copy import deepcopy
 import uuid
 from pathlib import Path
@@ -106,6 +107,16 @@ def executed(root, path, owners):
         trace = Path(row.get("trace", ""))
         if not trace.is_file() or hashlib.sha256(trace.read_bytes()).hexdigest() != row.get("trace_sha256"):
             raise ValueError("runtime receipt refers to a missing or stale syscall trace")
+        # Independently derive the observations from the retained trace. Do
+        # not accept producer counts or a matching hash as behavior evidence.
+        calls = re.findall(r"(?:^|\n)(?:\[pid +[0-9]+\] +|[0-9]+ +)?([a-zA-Z0-9_]+)\(([^\n]*)", trace.read_text())
+        if not calls:
+            raise ValueError("syscall instrument trace contains no parsed calls")
+        observed = {"executions": sum(name in {"execve", "execveat"} for name, _ in calls),
+                    "network_calls": sum(name not in {"execve", "execveat", "open", "openat"} for name, _ in calls),
+                    "reference_opens": sum(name in {"open", "openat"} and "issue74-inert-reference" in args for name, args in calls)}
+        if observed != {key: row.get(key) for key in observed} or observed != {"executions": 1, "network_calls": 0, "reference_opens": 0}:
+            raise ValueError("syscall instrument trace contradicts the claimed scope boundary")
     for row in owners:
         for implementation in row["implementations"]:
             if row["disposition"] == "scope-boundary":
@@ -170,6 +181,29 @@ def receipt_controls(root, path, owners):
             controls.append({"control": name, "status": "rejected", "output": str(exc)})
         else:
             raise AssertionError("ownership receipt control survived: " + name)
+    # Recompute trace hashes while leaving the producer's zero claims intact.
+    # These controls discriminate trace interpretation from hash verification.
+    for name, extra in (("hidden-network-call", 'socket(AF_INET, SOCK_STREAM, 0) = 3\n'),
+                        ("hidden-network-option", 'getsockopt(3, SOL_SOCKET, SO_ERROR, [0], [4]) = 0\n'),
+                        ("hidden-child-execution", 'execve("/inert/child", [], []) = -1 ENOENT\n'),
+                        ("hidden-reference-open", 'openat(AT_FDCWD, "issue74-inert-reference.toml", O_RDONLY) = -1 ENOENT\n')):
+        receipt = deepcopy(original)
+        row = receipt["scope_boundaries"][0]
+        trace = work / (name + ".trace")
+        trace.write_bytes(Path(row["trace"]).read_bytes() + extra.encode())
+        row.update(trace=str(trace), trace_sha256=hashlib.sha256(trace.read_bytes()).hexdigest())
+        candidate = work / (name + ".json")
+        candidate.write_text(json.dumps(receipt))
+        try:
+            executed(root, candidate, owners)
+        except ValueError as exc:
+            if "trace contradicts" not in str(exc):
+                raise AssertionError("polluted trace failed for an unrelated reason") from exc
+            controls.append({"control": name, "status": "rejected", "output": str(exc)})
+        else:
+            raise AssertionError("polluted trace survived: " + name)
+    if len(controls) != 11:
+        raise AssertionError("runtime receipt failure control population changed")
     (work / "controls.json").write_text(json.dumps(controls, indent=2))
     print(f"Verified {len(controls)} runtime receipt failure controls against the complete passing receipt")
 

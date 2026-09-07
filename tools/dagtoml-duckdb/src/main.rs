@@ -20,17 +20,17 @@ use std::{
     process::{Command, ExitCode, Stdio},
 };
 
-// Mirrors reference/database/MANIFEST.toml `[verification.duckdb]
-// expected_seed_counts` (the per-engine row counts after the duckdb
-// seed loads). Gated by `validators/check_attribute_values.py` —
-// drift here vs MANIFEST or vs the actual seed file rows is a CI
-// failure.
+// Registry counts mirror MANIFEST expected_seed_counts. The two runtime
+// tables must also be empty in a seeded database. CI compares declarations
+// and executes verify against pristine and populated private destinations.
 const EXPECTED_COUNTS: &[(&str, i64)] = &[
     ("kind_descriptor", 23),
     ("entity_kind_descriptor", 27),
     ("relation_descriptor", 31),
     ("attribute_vocabulary", 50),
     ("attribute_value_allowed", 216),
+    ("reference_contract", 0),
+    ("runtime_document", 0),
 ];
 
 fn die(msg: impl std::fmt::Display) -> ExitCode {

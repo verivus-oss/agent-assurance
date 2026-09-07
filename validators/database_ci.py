@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -24,6 +25,45 @@ def run(command, root, env):
     if result.returncode:
         raise RuntimeError(f"command failed ({result.returncode}): {command[0]}\n{result.stdout}{result.stderr}")
     return result.stdout
+
+
+def loader_verify_checks(root, work, binary, cli, destination, env):
+    """Execute standalone verify and inspect each intended table observation."""
+    sys.path.insert(0, str(root / "reference/database"))
+    from _storage import Store, connect
+    from _contract import bundle_digest
+    from _sql_probes import document_fixture
+    digest = bundle_digest(root)
+    outcomes = []
+    for name in ("pristine-seed", "reference-contract-populated", "runtime-document-populated"):
+        subject = work / (name + ".duckdb")
+        shutil.copy2(destination, subject)
+        if name != "pristine-seed":
+            connection = connect("duckdb", str(subject))
+            try:
+                store = Store("duckdb", connection, root)
+                store.insert("reference_contract", {"singleton_id": 1, "contract_bundle_sha256": digest, "projection_version": 1})
+                if name == "runtime-document-populated":
+                    identifier = str(uuid.uuid4())
+                    store.insert("instance_file", {"id": identifier, "source_path": "loader-control.toml",
+                                 "content_sha256": "sha256:" + "0" * 64, "schema_version": "0.1.0",
+                                 "template_kind": "adapter-contract", "framework_profile": "agent-assurance"})
+                    store.insert("runtime_document", document_fixture("adapter-contract", identifier, digest))
+            finally:
+                connection.close()
+        process = subprocess.run([str(binary), "verify", "--duckdb", str(cli), "-o", str(subject)],  # nosec B603 # noqa: S603
+                                 cwd=root, env=env, capture_output=True, text=True, timeout=60)
+        output = process.stdout + process.stderr
+        expected = {"reference_contract": 0 if name == "pristine-seed" else 1,
+                    "runtime_document": int(name == "runtime-document-populated")}
+        if process.returncode != int(name != "pristine-seed") or any(
+                not re.search(r"^\s*" + table + r"\s+" + str(count) + (r" != 0" if count else r" == 0"), output, re.M)
+                for table, count in expected.items()):
+            raise AssertionError("standalone loader verify missed its intended table state: " + name + "\n" + output)
+        outcomes.append({"check": name, "exit_code": process.returncode, "counts": expected, "output": output})
+    if len(outcomes) != 3:
+        raise AssertionError("standalone loader verification population changed")
+    return outcomes
 
 
 def download(url, digest, target):
@@ -123,7 +163,8 @@ def main(argv=None):
             from check_database_vocabularies import source_identity
             loader_record = {"language": args.loader, "source_commit": source_identity(root)["commit"],
                              "binary": published_binary.relative_to(root).as_posix(),
-                             "binary_sha256": hashlib.sha256(published_binary.read_bytes()).hexdigest()}
+                             "binary_sha256": hashlib.sha256(published_binary.read_bytes()).hexdigest(),
+                             "verify_checks": loader_verify_checks(root, work, published_binary, work / "duckdb", destination, env)}
         command = [sys.executable, str(root / "validators/check_database_vocabularies.py"), "--repo-root", str(root),
                    "--engine", lane["engine"], "--destination", destination, "--expected-version", lane["version"],
                    "--lane", name, "--receipt", str(receipt_path)]

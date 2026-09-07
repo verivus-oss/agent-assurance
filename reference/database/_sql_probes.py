@@ -7,15 +7,28 @@ from _contract import load_mapping
 from _projection import PROJECTION_COLUMNS
 from _vocabulary import load_catalog
 
+PROVENANCE_DIGEST_CASES = (
+    ("sha256:" + "a" * 64, True), ("sha256:" + "A" * 64, False),
+    ("sha256:" + "g" * 64, False), ("sha256:" + "a" * 63, False),
+    ("sha256:" + "a" * 65, False), ("sha256:" + "a" * 64 + "\n", False),
+    ("sha256:" + "a" * 64 + "\0tail", False), ("a" * 64, False), (None, False),
+)
+
 
 def constraint_failure(engine: str, exc: Exception, family: str, column: str = "") -> bool:
     message = str(exc).lower()
     if engine == "postgres":
+        if family == "encoding" and type(exc).__name__ == "DataError" and "cannot contain NUL" in str(exc):
+            # PostgreSQL text cannot represent NUL. psycopg refuses it at the
+            # binding boundary; retain that layer explicitly in the receipt.
+            return True
         codes = {"value": {"22P02", "23514"}, "shape": {"23514", "23502"},
+                 "encoding": {"23514", "23502", "22021"},
                  "foreign-key": {"23503"}, "unique": {"23505"}}
         return getattr(exc, "sqlstate", None) in codes[family]
     if engine == "sqlite":
         codes = {"value": {sqlite3.SQLITE_CONSTRAINT_CHECK},
+                 "encoding": {sqlite3.SQLITE_CONSTRAINT_CHECK, sqlite3.SQLITE_CONSTRAINT_NOTNULL},
                  "shape": {sqlite3.SQLITE_CONSTRAINT_CHECK, sqlite3.SQLITE_CONSTRAINT_NOTNULL},
                  "foreign-key": {sqlite3.SQLITE_CONSTRAINT_FOREIGNKEY},
                  "unique": {sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY, sqlite3.SQLITE_CONSTRAINT_UNIQUE}}
@@ -24,7 +37,7 @@ def constraint_failure(engine: str, exc: Exception, family: str, column: str = "
     if family == "value":
         return type(exc).__name__ in {"ConversionException", "ConstraintException"} and (
             "enum" in message or "uint8" in message or column.lower() in message)
-    markers = {"shape": ("check constraint", "not null"), "foreign-key": ("foreign key",),
+    markers = {"shape": ("check constraint", "not null"), "encoding": ("check constraint", "not null"), "foreign-key": ("foreign key",),
                "unique": ("primary key", "unique constraint", "duplicate key")}
     return type(exc).__name__ == "ConstraintException" and any(marker in message for marker in markers[family])
 
@@ -67,6 +80,10 @@ def expected_probes(root, digest):
                           ("contract_bundle_sha256", "A" * 64), ("contract_bundle_sha256", "a" * 64 + "\n"),
                           ("contract_bundle_sha256", "a" * 63), ("contract_bundle_sha256", "g" * 64)):
         expected[f"contract/{column}/{value!r}"] = "reject"
+    expected[f"contract/contract_bundle_sha256/{('a' * 64 + chr(0) + 'tail')!r}"] = "reject"
+    for value, accepted in PROVENANCE_DIGEST_CASES:
+        for operation in ("insert", "update"):
+            expected[f"provenance/source_sha256/{operation}/{value!r}"] = "accept" if accepted else "reject"
     return expected
 
 
@@ -93,7 +110,8 @@ def probe_constraints(store, digest: str) -> list[dict]:
                 if accepted or not constraint_failure(store.engine, exc, family, column):
                     raise AssertionError(f"{label}: target failed outside the expected {family} constraint: {exc}") from exc
                 observations.append({"probe": label, "expected": "reject", "actual": "reject",
-                                     "exception": type(exc).__name__, "diagnostic": str(exc)})
+                                     "exception": type(exc).__name__, "diagnostic": str(exc),
+                                     "rejection_layer": "driver-encoding" if store.engine == "postgres" and family == "encoding" and getattr(exc, "sqlstate", None) is None else "database"})
             else:
                 if not accepted:
                     raise AssertionError(f"{label}: forbidden target write succeeded")
@@ -183,6 +201,28 @@ def probe_constraints(store, digest: str) -> list[dict]:
                           ("contract_bundle_sha256", "a" * 63), ("contract_bundle_sha256", "g" * 64)):
         run(f"contract/{column}/{value!r}", "gate-decision", noop,
             lambda identifier, fixture: store.execute(f"UPDATE {store.table('reference_contract')} SET {column} = ?", (value,)), False)  # nosec B608 # noqa: S608
+    nul_digest = "a" * 64 + "\0tail"
+    run(f"contract/contract_bundle_sha256/{nul_digest!r}", "gate-decision", noop,
+        lambda identifier, fixture: store.execute(f"UPDATE {store.table('reference_contract')} SET contract_bundle_sha256 = ?", (nul_digest,)), False, "encoding")  # nosec B608 # noqa: S608
+    for value, accepted in PROVENANCE_DIGEST_CASES:
+        for operation in ("insert", "update"):
+            def setup(identifier, fixture):
+                if operation == "update":
+                    store.insert("provenance", {"instance_file_id": identifier, "source_path": "upstream.txt",
+                                               "source_sha256": "sha256:" + "a" * 64, "source_bytes": 0})
+
+            def target(identifier, fixture):
+                if operation == "insert":
+                    store.insert("provenance", {"instance_file_id": identifier, "source_path": "upstream.txt",
+                                               "source_sha256": value, "source_bytes": 0})
+                else:
+                    store.execute(f"UPDATE {store.table('provenance')} SET source_sha256 = ? WHERE instance_file_id = ?", (value, identifier))  # nosec B608 # noqa: S608
+
+            def readback(identifier):
+                if store.rows("provenance", ("source_sha256",), "WHERE instance_file_id = ?", (identifier,)) != [{"source_sha256": value}]:
+                    raise AssertionError("provenance digest did not round-trip")
+
+            run(f"provenance/source_sha256/{operation}/{value!r}", "adapter-contract", setup, target, accepted, "encoding", "source_sha256", readback)
     expected = expected_probes(store.root, digest)
     actual = {item["probe"]: item["actual"] for item in observations}
     if len(observations) != len(expected) or actual != expected:

@@ -169,7 +169,7 @@ attribute   = "runtime_kind"
 applies_to  = "adapter-contract"
 values      = ["wasi-component", "oci-action", "os-sandbox"]
 extensible  = false
-notes       = "Declared runtime family for an adapter. SPEC layer only records the choice; execution is RUNTIME-SPEC. The document field adapter.runtime_kind is structurally checked by the kind validators and projected into the non-normative reference runtime_document table."
+notes       = "Declared runtime family for an adapter. SPEC layer only records the choice; execution is RUNTIME-SPEC. The document field adapter.runtime_kind is structurally checked by the kind validators."
 ijb_primitive       = "constraint"
 ijb_constraint_type = "structural"
 
@@ -178,7 +178,7 @@ attribute   = "runtime_network_policy"
 applies_to  = "adapter-contract"
 values      = ["denied", "loopback-only", "allowlist", "open"]
 extensible  = false
-notes       = "Network capability the runtime must enforce. `denied` MUST mean no socket capability of any kind, including loopback. The document field adapter.runtime_network_policy is structurally checked by the kind validators and projected into the non-normative reference runtime_document table."
+notes       = "Network capability the runtime must enforce. `denied` MUST mean no socket capability of any kind, including loopback. The document field adapter.runtime_network_policy is structurally checked by the kind validators."
 ijb_primitive       = "constraint"
 ijb_constraint_type = "structural"
 
@@ -187,7 +187,7 @@ attribute   = "runtime_clock_policy"
 applies_to  = "adapter-contract"
 values      = ["injected", "source-date-epoch", "monotonic-from-zero", "host-wall-clock"]
 extensible  = false
-notes       = "Clock semantics the runtime exposes to the adapter. Determinism-bearing adapters MUST NOT use host-wall-clock. The document field adapter.runtime_clock_policy is structurally checked by the kind validators and projected into the non-normative reference runtime_document table."
+notes       = "Clock semantics the runtime exposes to the adapter. Determinism-bearing adapters MUST NOT use host-wall-clock. The document field adapter.runtime_clock_policy is structurally checked by the kind validators."
 ijb_primitive       = "constraint"
 ijb_constraint_type = "structural"
 
@@ -205,7 +205,7 @@ attribute   = "adapter_id_derivation"
 applies_to  = "adapter-contract"
 values      = ["content-hash", "nonce", "external"]
 extensible  = false
-notes       = "How the adapter derives assertion IDs. `content-hash` is required for reproducibility-bearing adapters. The document field adapter.id_derivation is structurally checked by the kind validators and projected into the non-normative reference runtime_document table."
+notes       = "How the adapter derives assertion IDs. `content-hash` is required for reproducibility-bearing adapters. The document field adapter.id_derivation is structurally checked by the kind validators."
 ijb_primitive       = "constraint"
 ijb_constraint_type = "structural"
 
@@ -214,7 +214,7 @@ attribute   = "gate_decision_verdict"
 applies_to  = "gate-decision"
 values      = ["pass", "fail"]
 extensible  = false
-notes       = "Mechanical gate verdict. Closed two-value enum by design; an override does NOT introduce a third value. The document field decision.verdict is structurally checked by the kind validators and projected into the non-normative reference runtime_document table."
+notes       = "Mechanical gate verdict. Closed two-value enum by design; an override does NOT introduce a third value. The document field decision.verdict is structurally checked by the kind validators."
 ijb_primitive       = "constraint"
 ijb_constraint_type = "structural"
 
@@ -268,7 +268,7 @@ attribute   = "adapter_ref_syntax"
 applies_to  = "adapter-registry-binding"
 values      = ["content-hash", "name-version-pin"]
 extensible  = false
-notes       = "Syntactic shape of an `adapter_ref` string. The document field binding.adapter_ref_syntax is structurally checked by the kind validators and projected into the non-normative reference runtime_document table."
+notes       = "Syntactic shape of an `adapter_ref` string. The document field binding.adapter_ref_syntax is structurally checked by the kind validators."
 ijb_primitive       = "constraint"
 ijb_constraint_type = "structural"
 
@@ -304,7 +304,7 @@ attribute   = "severity_tier"
 applies_to  = "gate-decision"
 values      = ["info", "low", "medium", "high", "critical"]
 extensible  = false
-notes       = "Severity classification of a failed assertion (ABAC operand). Reference SQL mirrors catalog every declared token; this is a runtime-operand catalog, with no standalone document field or SPEC-layer rule evaluation."
+notes       = "Severity classification of a failed assertion (ABAC operand). This vocabulary names runtime operands, with no standalone document field or SPEC-layer rule evaluation."
 ijb_primitive       = "constraint"
 ijb_constraint_type = "structural"
 
@@ -331,7 +331,7 @@ attribute   = "override_rule_operator"
 applies_to  = "gate-decision"
 values      = ["=", "!=", "<", "<=", ">", ">=", "IN", "AND", "OR"]
 extensible  = false
-notes       = "Closed operator set permitted inside canonical authority `constraint(...)` rule= strings. The SPEC layer treats rule= contents opaquely; this vocabulary names the operator tokens RUNTIME-SPEC may legitimately recognize. Reference SQL mirrors catalog every declared token; this is a runtime-operand catalog, with no standalone document field or SPEC-layer rule evaluation."
+notes       = "Closed operator set permitted inside canonical authority `constraint(...)` rule= strings. The SPEC layer treats rule= contents opaquely; this vocabulary names the operator tokens RUNTIME-SPEC may legitimately recognize. This vocabulary names runtime operands, with no standalone document field or SPEC-layer rule evaluation."
 ijb_primitive       = "constraint"
 ijb_constraint_type = "structural"
 

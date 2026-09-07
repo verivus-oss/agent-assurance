@@ -4802,6 +4802,9 @@ func validateGateDecision(path string, doc rawDoc, repoRoot string) []string {
 
 		providerVocab := loadGateDecisionVocab(repoRoot, "provider_id")
 		familyVocab := loadGateDecisionVocab(repoRoot, "model_family_id")
+		if providerVocab == nil || familyVocab == nil {
+			defects = append(defects, fmt.Sprintf("%s: INV06 vocab load failed (provider_id or model_family_id vocabulary missing)", path))
+		}
 
 		propP, _ := decision["proposing_provider_id"].(string)
 		propF, _ := decision["proposing_model_family_id"].(string)

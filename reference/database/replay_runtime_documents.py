@@ -36,7 +36,7 @@ def replay(store: Store, entries: list[dict], *, manifest_directory: Path, exclu
             report.append({"entry": index, "source_path": source_path, "status": "validated-pending-batch"})
         except (ValueError, OSError) as exc:
             report.append({"entry": index, "source_path": entry.get("source_path") if isinstance(entry, dict) else None,
-                           "status": "failed", "error": str(exc)})
+                           "status": "failed", "code": getattr(exc, "code", "invalid-input-or-setup"), "error": str(exc)})
     if any(row["status"] == "failed" for row in report):
         return {"status": "failed", "committed_documents": 0, "entries": report}
     result = store.ingest(captured)
@@ -64,9 +64,9 @@ def main(argv=None):
         result = replay(store, manifest.get("sources"), manifest_directory=args.manifest.resolve().parent,
                         exclusive_unpublished=args.exclusive_unpublished)
     except (ValueError, OSError, StorageError) as exc:
-        code = exc.code if isinstance(exc, StorageError) else "invalid-input-or-setup"
+        code = getattr(exc, "code", "invalid-input-or-setup")
         result = {"status": code if code in {"commit-outcome-unknown", "rollback-unconfirmed"} else "failed",
-                  "code": code, "error": str(exc)}
+                  "code": code, "error": str(exc), **getattr(exc, "context", {})}
     except Exception as exc:
         result = {"status": "failed", "code": "database-operation-failed", "exception": type(exc).__name__}
     finally:

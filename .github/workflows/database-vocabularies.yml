@@ -139,5 +139,7 @@ jobs:
           merge-multiple: true
       - name: Require all eight fresh executed receipts and loader binaries
         run: python3 validators/check_sql_source_access.py --no-rdf --receipts .local/database-ci/receipts/*.json
+      - name: Require exact generated catalog sections
+        run: python3 reference/database/generate_allowed_values.py
       - name: Verify the full-matrix receipt failure controls
         run: python3 validators/check_database_instruments.py --receipts .local/database-ci/receipts/*.json

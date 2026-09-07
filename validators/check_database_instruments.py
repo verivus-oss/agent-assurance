@@ -27,7 +27,7 @@ from check_sql_source_access import opaque_sql_only  # noqa: E402
 from discrimination import discover_cases  # noqa: E402
 from negative_fixtures import population  # noqa: E402
 from runtime_coverage import execute as runtime_observations  # noqa: E402
-from _instrument import require
+from _instrument import require  # noqa: E402
 
 
 def replaced(text, old, new):
@@ -73,7 +73,9 @@ def controls(root, work):
         if not positive_probes or {row["actual"] for row in positive_probes} != {"accept", "reject"}:
             raise AssertionError("real-engine positive baseline has no discriminating probes")
         for name, statement in (("deleted-catalog-token", "DELETE FROM dagtoml_attribute_value_allowed WHERE attribute='severity_tier' AND value='critical'"),
-                                ("same-count-catalog-replacement", "UPDATE dagtoml_attribute_value_allowed SET value='invented' WHERE attribute='severity_tier' AND value='critical'")):
+                                ("same-count-catalog-replacement", "UPDATE dagtoml_attribute_value_allowed SET value='invented' WHERE attribute='severity_tier' AND value='critical'"),
+                                ("false-backing-hint", "UPDATE dagtoml_attribute_vocabulary SET backing_check_constraint='smoke_status' WHERE attribute='smoke.decision'"),
+                                ("missing-backing-hint", "UPDATE dagtoml_attribute_vocabulary SET backing_check_constraint=NULL WHERE attribute='runtime_kind'")):
             store = database(name)
             before = store.connection.total_changes
             store.execute(statement)
@@ -86,6 +88,9 @@ def controls(root, work):
                      ("constraint-on-neighbor", replaced(schema, kind_check,
                         "CHECK (runtime_clock_policy IS NULL OR runtime_clock_policy IN ('wasi-component', 'oci-action', 'os-sandbox'))"), "target failed outside the expected"),
                      ("removed-gate-sql-membership", replaced(schema, gate_check, "CHECK (1)"), "forbidden target write succeeded"))
+        provenance_check = "CHECK (length(CAST(source_sha256 AS BLOB)) = 71 AND substr(source_sha256, 1, 7) = 'sha256:' AND substr(source_sha256, 8) NOT GLOB '*[^0-9a-f]*')"
+        mutations += (("loosened-provenance-digest", replaced(schema, provenance_check, "CHECK (length(source_sha256) = 71)"), "forbidden target write succeeded"),
+                      ("text-length-bundle-digest", replaced(schema, "length(CAST(contract_bundle_sha256 AS BLOB)) = 64", "length(contract_bundle_sha256) = 64"), "forbidden target write succeeded"))
         for name, variant, needle in mutations:
             store = database(name, variant)
             store.verify_catalog()
@@ -154,6 +159,8 @@ def controls(root, work):
                                  "failing_property": "SQL source unavailable to checker", "output": process.stdout + process.stderr})
         finally:
             checker_source.write_text(original_checker)
+        from _review_controls import exercise as review_controls
+        observations.extend(review_controls(candidate, work))
         declarations(candidate)
         discover_cases(candidate / "conformance/cases")
         population(candidate, candidate / "conformance/negative-expectations.toml")
@@ -285,6 +292,9 @@ def receipt_controls(root, paths, work):
     variant = deepcopy(original)
     next(row for row in variant if "loader" in row)["loader"]["binary_sha256"] = "0" * 64
     variants["stale-loader-binary"] = variant
+    variant = deepcopy(original)
+    next(row for row in variant if "loader" in row)["loader"]["verify_checks"] = []
+    variants["missing-loader-verify-controls"] = variant
     for name, variant in variants.items():
         directory = work / name
         directory.mkdir()

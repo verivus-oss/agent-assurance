@@ -232,9 +232,8 @@ INSERT INTO attribute_vocabulary
     ('execution_proof_scheme', NULL, ARRAY['state-mutation'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL),
     ('finality_basis',        NULL, ARRAY['state-mutation'], 'structural', FALSE, NULL, 'profile:com.verivus.runtime', NULL);
 
--- Allowed values for non-enum-backed (i.e., extensible) vocabularies.
--- Enum-backed values are enforced by the Postgres enum type itself, so
--- their allowed values do not need to be repeated here.
+-- Complete declared-token catalog, including values also represented by
+-- native enums and runtime operands with no standalone document column.
 -- BEGIN GENERATED DECLARED VOCABULARY VALUES
 -- Complete catalog: 216 declared pairs, including native-backed tokens.
 INSERT INTO attribute_value_allowed (attribute, value) VALUES

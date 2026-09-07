@@ -160,7 +160,9 @@ the diagnostic. Dispose of that connection before another operation.
 Success follows commit acknowledgement. After acknowledgement loss, a fresh
 connection reconciles the complete batch before reporting committed state or
 retrying an absent batch. Unavailable/conflicting reconciliation returns
-`commit-outcome-unknown`. Inspect the destination before acting on that outcome;
+`commit-outcome-unknown` with the attempted source paths, prefixed content hashes,
+and contract-bundle digest. Initialization reports its contract identity instead
+of a document batch. Inspect the destination before acting on that outcome;
 it is not a rollback claim.
 
 ## Audit, migration, and adoption
@@ -248,6 +250,12 @@ The mapping carries explicit residuals derived from every descriptor:
 | Assertion-bundle/log-record INV01 through INV03 | Open dedicated-validator follow-ups |
 | Spec-contract/threat-model INV01/INV02 | Open dedicated-validator follow-ups |
 | API snapshot kind-only digest suffix grammar | Open `tighten-api-snapshot-digest-shape`; closure and sub-part consistency remain |
+
+The API snapshot digest follow-up covers `validators/validate_api_snapshot.py`
+`_DIGEST_RE`, `is_digest`, and its three `validate_one` call sites:
+`snapshot.request.descriptor_sha256`, `snapshot.response.body_sha256`, and
+`witness.attestation_sha256`. It must preserve declared algorithms and lengths
+while adding independent whole-string shape controls across implementations.
 
 Graph/RDF artifacts retain separate models and checks. The Neo4j seed's
 incomplete kind/entity population is recorded in

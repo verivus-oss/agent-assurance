@@ -62,6 +62,9 @@ def discover_cases(root: pathlib.Path) -> list[pathlib.Path]:
     directories = sorted(path for path in root.iterdir() if path.is_dir())
     if not directories:
         raise ValueError("no conformance kind directories discovered")
+    missing = set(KIND_VALIDATOR) - {directory.name for directory in directories}
+    if missing:
+        raise ValueError(f"mapped kinds have no conformance directory: {sorted(missing)}")
     cases = []
     for directory in directories:
         if directory.name not in KIND_VALIDATOR:
@@ -119,7 +122,7 @@ def main() -> int:
 
     sidecars: dict[pathlib.Path, tuple[list[str], list[str]]] = {}
     for case in cases:
-        side = case.with_suffix("").with_suffix(".expected.toml")
+        side = case.with_suffix(".expected.toml")
         if not side.exists():
             raise AssertionError("discovered sidecar disappeared")
         doc = tomllib.loads(side.read_text())

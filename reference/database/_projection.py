@@ -35,6 +35,10 @@ class Projection:
     unindexed_fields: tuple[tuple[str, ...], ...]
 
 
+class UnsupportedProjection(ValueError):
+    code = "unsupported-projection"
+
+
 def text_identity(value: object, label: str) -> str:
     if not isinstance(value, str) or not value or "\0" in value:
         raise ValueError(f"invalid mandatory text identity: {label}")
@@ -144,8 +148,8 @@ def project(source: bytes, source_path: str, repo_root: Path) -> Projection:
     doc = toml.loads(source.decode("utf-8", errors="strict"))
     meta = doc.get("meta")
     kind = meta.get("template_kind") if isinstance(meta, dict) else None
-    if kind not in KINDS:
-        raise ValueError(f"unsupported-projection: {kind!r}")
+    if not isinstance(kind, str) or kind not in KINDS:
+        raise UnsupportedProjection("unsupported-projection: only adapter-contract, adapter-registry-binding, and gate-decision are supported")
     errors = validate_document(doc, Path(source_path), repo_root, kind)
     if errors:
         raise ValueError("document validation failed: " + json.dumps(errors, ensure_ascii=True))

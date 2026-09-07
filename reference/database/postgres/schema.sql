@@ -8,8 +8,9 @@
 --   spec.md §§2, 5, 10, 11
 --
 -- Target: PostgreSQL 14+ (uses generated columns, JSONB, multirange-free).
--- Hybrid relational + JSONB. Closed vocabularies are enums; open
--- vocabularies are text + attribute_value_allowed.
+-- Hybrid relational + JSONB. Every vocabulary has a complete declared-token
+-- catalog. Selected fields also use native types or column constraints;
+-- vocabulary-storage.toml identifies the enforcing use sites.
 --
 -- Layout:
 --   1. Schema setup

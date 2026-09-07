@@ -8,7 +8,7 @@ import threading
 import time
 import uuid
 
-from _contract import bundle_digest, expected_counts, REGISTRY_TABLES
+from _contract import bundle_digest, expected_counts, load_mapping, REGISTRY_TABLES
 from _projection import (INSTANCE_COLUMNS, PROJECTION_COLUMNS, PROVENANCE_COLUMNS,
                          project, semantic_json, timestamp_index)
 from _vocabulary import load_catalog
@@ -22,6 +22,7 @@ class StorageError(RuntimeError):
 
     def __init__(self, code: str, detail: str):
         self.code = code
+        self.context = {}
         super().__init__(f"{code}: {detail}")
 
 
@@ -153,6 +154,16 @@ class Store:
             if (row["extensible"] != item.extensible or row["ijb_constraint_type"] != item.declaration["ijb_constraint_type"]
                     or row["default_value"] != item.declaration.get("default")):
                 raise StorageError("catalog-mismatch", f"vocabulary metadata differs: {item.attribute}")
+        if self.engine == "sqlite":
+            hints = dict(self.execute("SELECT attribute, backing_check_constraint FROM dagtoml_attribute_vocabulary").fetchall())
+            expected_hints = {}
+            for row in load_mapping(self.root):
+                representation = row["representation"]
+                expected_hints[row["attribute"]] = (
+                    "runtime_document_" + row["column"] + "_values" if representation == "document-column"
+                    else row["enforcement_sites"][0][1] if representation == "entity-column" else None)
+            if hints != expected_hints:
+                raise StorageError("catalog-mismatch", "SQLite backing hints differ from the declared storage use sites")
         return counts
 
     def _empty(self) -> None:
@@ -173,8 +184,16 @@ class Store:
     def initialize(self, *, exclusive_unpublished: bool = False) -> dict:
         if exclusive_unpublished is not True:
             raise StorageError("ownership-required", "initialization requires exclusive ownership of an unpublished destination")
-        from _sql_probes import probe_constraints
         digest = bundle_digest(self.root)
+        try:
+            return self._initialize(digest)
+        except StorageError as exc:
+            if exc.code == "commit-outcome-unknown":
+                exc.context = {"operation": "initialize", "contract_bundle_sha256": digest}
+            raise
+
+    def _initialize(self, digest: str) -> dict:
+        from _sql_probes import probe_constraints
         with self._lock:
             self.prepare()
             for attempt in range(3):
@@ -190,6 +209,8 @@ class Store:
                     self._empty()
                     if self.contract():
                         self.verify_identity(digest)
+                        if bundle_digest(self.root) != digest:
+                            raise StorageError("bundle-changed", "trusted inputs changed during initialization")
                         return {"status": "already-initialized", "contract_bundle_sha256": digest}
                     with self.transaction():
                         self._empty()
@@ -206,6 +227,8 @@ class Store:
                             self.verify_catalog()
                             self._empty()
                             self.verify_identity(digest)
+                            if bundle_digest(self.root) != digest:
+                                raise StorageError("bundle-changed", "trusted inputs changed during initialization reconciliation")
                             return {"status": "already-initialized", "contract_bundle_sha256": digest,
                                     "reconciled_commit": True}
                         except Exception as reconcile:
@@ -274,6 +297,16 @@ class Store:
         projected = [project(source, path, self.root) for path, source in documents]
         if bundle_digest(self.root) != digest:
             raise StorageError("bundle-changed", "trusted validation inputs changed during projection")
+        try:
+            return self._ingest_projected(projected, digest)
+        except StorageError as exc:
+            if exc.code == "commit-outcome-unknown":
+                exc.context = {"operation": "ingest", "contract_bundle_sha256": digest,
+                               "documents": [{key: item.instance[key] for key in ("source_path", "content_sha256")}
+                                             for item in projected]}
+            raise
+
+    def _ingest_projected(self, projected, digest):
         with self._lock:
             self.prepare()
             for attempt in range(3):

@@ -39,6 +39,12 @@ def exercise_replay(store, work):
         require(report["status"] == "failed" and report["committed_documents"] == 0)
         require([entry["status"] for entry in report["entries"]] == ["validated-pending-batch", "failed"])
         require(store.counts() == before)
+    unsupported = b'[meta]\ntemplate_kind="assertion-bundle"\n'
+    (work / "unsupported.toml").write_bytes(unsupported)
+    entry = {**entries[0], "source_file": "unsupported.toml", "content_sha256": "sha256:" + hashlib.sha256(unsupported).hexdigest()}
+    report = replay(store, [entry], manifest_directory=work, exclusive_unpublished=True)
+    require(report["status"] == "failed" and report["entries"][0]["code"] == "unsupported-projection")
+    require(store.counts() == before)
     checks.append("replay-missing-changed-invalid-sources-no-writes")
     report = replay(store, entries, manifest_directory=work, exclusive_unpublished=True)
     require(report["status"] == "committed" and report["committed_documents"] == len(kinds))

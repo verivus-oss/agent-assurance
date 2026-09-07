@@ -91,7 +91,7 @@ extensions    = []  # none required
 # Declared native enum types, retained as informative discovery metadata.
 # Every vocabulary also has its complete allowed-value catalog. A type name
 # does not claim an enforcing column; vocabulary-storage.toml names use sites.
-closed_enums  = [
+informational_native_enum_types = [
   "ijb_primitive",
   "ijb_class",
   "ijb_constraint_type",
@@ -138,7 +138,7 @@ target        = "sqlite>=3.38"
 table_prefix  = "dagtoml_"
 # Legacy column hints and named document CHECK constraints. These names
 # are informative; actual column enforcement is established by SQL probes.
-closed_checks = [
+informational_column_constraint_hints = [
   "priority",
   "unit_status",
   "review_status",

@@ -70,6 +70,8 @@ def parse_rust_expected_counts(repo_root: pathlib.Path) -> dict[str, int]:
         return {}
     out = {}
     for m in re.finditer(r'\("([^"]+)"\s*,\s*(\d+)\)', p.read_text()):
+        if m.group(1) in out:
+            raise ValueError("duplicate loader count key: " + m.group(1))
         out[m.group(1)] = int(m.group(2))
     return out
 
@@ -80,6 +82,8 @@ def parse_go_expected_counts(repo_root: pathlib.Path) -> dict[str, int]:
         return {}
     out = {}
     for m in re.finditer(r'\{"([^"]+)"\s*,\s*(\d+)\}', p.read_text()):
+        if m.group(1) in out:
+            raise ValueError("duplicate loader count key: " + m.group(1))
         out[m.group(1)] = int(m.group(2))
     return out
 
@@ -113,12 +117,14 @@ def main(argv=None) -> int:
             check("ontology/manifest/" + name, value, manifest["counts"].get(name))
         verification = manifest["verification"]
         for engine in ("postgres", "sqlite", "duckdb"):
+            if {"closed_enums", "closed_checks"} & manifest[engine].keys():
+                raise ValueError("retired manifest constraint labels must use informational metadata names")
             prefix = "dagtoml_" if engine == "sqlite" else ""
             for name, value in registry.items():
                 check(engine + "/declared/" + name, value,
                       verification[engine]["expected_seed_counts"].get(prefix + name))
         for name, actual in (("Rust", parse_rust_expected_counts(root)), ("Go", parse_go_expected_counts(root))):
-            check(name + "/DuckDB-loader-declaration", registry, actual)
+            check(name + "/DuckDB-loader-declaration", {**registry, "reference_contract": 0, "runtime_document": 0}, actual)
         for name, key in (("KindDescriptor", "template_kinds"), ("EntityKind", "entity_kinds"),
                           ("RelationPredicate", "relation_predicates")):
             check("graph/" + name, ontology[key], verification["graph"]["expected_node_counts"].get(name))

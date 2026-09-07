@@ -5099,6 +5099,12 @@ mod gate_decision {
 
             let provider_vocab = load_vocab(repo_root, "provider_id");
             let family_vocab = load_vocab(repo_root, "model_family_id");
+            if provider_vocab.is_none() || family_vocab.is_none() {
+                defects.push(format!(
+                    "{}: INV06 vocab load failed (provider_id or model_family_id vocabulary missing)",
+                    location
+                ));
+            }
 
             let prop_p = decision
                 .get("proposing_provider_id")

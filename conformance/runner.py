@@ -120,7 +120,7 @@ def main() -> int:
                 expect_reject = verdict_dir == "invalid"
                 case_id = f"{kind}/{verdict_dir}/{fixture.name}"
 
-                sidecar = fixture.with_suffix("").with_suffix(".expected.toml")
+                sidecar = fixture.with_suffix(".expected.toml")
                 expected_substrings: list[str] = []
                 forbidden_substrings: list[str] = []
                 if sidecar.exists():

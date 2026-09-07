@@ -101,6 +101,10 @@ opaque_extra = {{ values = [true, 1, "\u0063\u0061\u0066\u00e9"] }}
         fault.ingest([("protocol/indeterminate.toml", raw)])
     except StorageError as exc:
         require(exc.code == "commit-outcome-unknown")
+        from _contract import bundle_digest
+        require(exc.context == {"operation": "ingest", "contract_bundle_sha256": bundle_digest(store.root),
+                               "documents": [{"source_path": "protocol/indeterminate.toml",
+                                              "content_sha256": "sha256:" + hashlib.sha256(raw).hexdigest()}]})
     else:
         raise AssertionError("lost acknowledgement without reconciliation must not report success")
     require(store.audit()["status"] == "consistent")

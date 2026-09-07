@@ -11,8 +11,8 @@
 --   27 entity kinds         (17 core + 6 agent-assurance + 3 disclosure + 1 cost)
 --   31 relation rows        (26 core + 5 contract-namespaced variants)
 --   50 attribute vocabs     (12 core + 27 agent-assurance + 4 disclosure + 3 cost + 4 com.verivus.runtime)
---  216 attribute_value_allowed rows (values of every vocabulary not backed by a
---                                    native CHECK constraint)
+--  216 attribute_value_allowed rows (complete declared catalog, including
+--                                    native-backed tokens and runtime operands)
 
 PRAGMA foreign_keys = ON;
 
@@ -116,10 +116,10 @@ INSERT INTO dagtoml_relation_descriptor (predicate, domain, range, inverse_of, c
 
 -- ============================================================
 -- attribute_vocabulary (50 rows; matches postgres/seed.sql vocab set; includes agent-assurance subject_class/provider_id/model_family_id for gate-decision INV06)
--- backing_check_constraint names the column-level CHECK list in
--- dagtoml_entity that enforces the closed value set (e.g. 'priority',
--- 'unit_status'). NULL = extensible vocab, checked via the
--- dagtoml_attribute_value_allowed table instead.
+-- backing_check_constraint is an informational column/constraint hint.
+-- NULL means no backing hint, including closed runtime-operand catalogs.
+-- vocabulary-storage.toml declares actual field ownership and use sites;
+-- every declared token is also present in dagtoml_attribute_value_allowed.
 -- ============================================================
 INSERT INTO dagtoml_attribute_vocabulary (attribute, applies_to_entity, applies_to_template, ijb_constraint_type, extensible, default_value, layer, backing_check_constraint) VALUES
     ('requirement_kind',  json_array('requirement'),     NULL, 'structural', 1, NULL,   'core', NULL),
@@ -137,7 +137,7 @@ INSERT INTO dagtoml_attribute_vocabulary (attribute, applies_to_entity, applies_
     ('likelihood',                  json_array('threat'),           NULL, 'structural', 0, NULL, 'profile:agent-assurance', 'likelihood'),
     ('impact',                      json_array('threat'),           NULL, 'structural', 0, NULL, 'profile:agent-assurance', 'impact'),
     ('residual_risk',               json_array('threat'),           NULL, 'structural', 0, NULL, 'profile:agent-assurance', 'residual'),
-    ('smoke.decision',              NULL, json_array('smoke-validation'), 'structural', 0, NULL, 'profile:agent-assurance', 'smoke_status'),
+    ('smoke.decision',              NULL, json_array('smoke-validation'), 'structural', 0, NULL, 'profile:agent-assurance', NULL),
     ('status',                      json_array('smoke_check'),      NULL, 'structural', 0, NULL, 'profile:agent-assurance', 'smoke_status'),
     ('runtime_kind',                NULL, json_array('adapter-contract'), 'structural', 0, NULL, 'profile:agent-assurance', 'runtime_document_runtime_kind_values'),
     ('runtime_network_policy',      NULL, json_array('adapter-contract'), 'structural', 0, NULL, 'profile:agent-assurance', 'runtime_document_runtime_network_policy_values'),
