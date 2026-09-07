@@ -1,0 +1,3 @@
+# Expected diagnostics from the kind and closure validation routes.
+error_contains = ["closure_root", "from 3 canonical source-hash input(s)", "627490aebb92bc8f5a4611dfe5ad763df1ce4980599bffb3baf4d8ba3eb5c3a6"]
+error_not_contains = ["Traceback"]

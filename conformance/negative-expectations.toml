@@ -1,0 +1,363 @@
+# Every recursively discovered negative TOML needs explicit routes, diagnostics, and valid controls.
+[meta]
+document_kind = "negative-fixture-expectations"
+schema_version = "0.1.0"
+normative = false
+
+[[fixtures]]
+path = "examples/negative/abstraction-class-unknown-domain.toml"
+positive_control = "core/implementation-dag-kind.toml"
+[[fixtures.routes]]
+mode = "abstraction-class"
+python_validator = "validators/validate_abstraction_class.py"
+error_contains = ["unlisted_domain", "not a capability domain"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/api-snapshot-bad-closure.toml"
+positive_control = "examples/minimal-api-snapshot.toml"
+[[fixtures.routes]]
+mode = "provenance"
+python_validator = "validators/validate_closure_root.py"
+error_contains = ["closure_root", "does not match", "4 canonical"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/api-snapshot-bad-subpart-digest.toml"
+positive_control = "examples/minimal-api-snapshot.toml"
+[[fixtures.routes]]
+mode = "api-snapshot"
+python_validator = "validators/validate_api_snapshot.py"
+error_contains = ["descriptor_sha256", "RKV01"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/api-snapshot-inlined-secret.toml"
+positive_control = "examples/minimal-api-snapshot.toml"
+[[fixtures.routes]]
+mode = "api-snapshot"
+python_validator = "validators/validate_api_snapshot.py"
+error_contains = ["authorization", "RKV02"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/api-snapshot-magic-no-markers.toml"
+positive_control = "examples/minimal-api-snapshot.toml"
+[[fixtures.routes]]
+mode = "api-snapshot"
+python_validator = "validators/validate_api_snapshot.py"
+error_contains = ["malformed capture", "RKV01"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/api-snapshot-raw-header.toml"
+positive_control = "examples/minimal-api-snapshot.toml"
+[[fixtures.routes]]
+mode = "api-snapshot"
+python_validator = "validators/validate_api_snapshot.py"
+error_contains = ["snapshot.request.accept", "RKV02"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/api-snapshot-witness-incomplete.toml"
+positive_control = "examples/minimal-api-snapshot.toml"
+[[fixtures.routes]]
+mode = "api-snapshot"
+python_validator = "validators/validate_api_snapshot.py"
+error_contains = ["attestation_sha256", "RKV03"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/api-snapshot-witness-lingering-digest.toml"
+positive_control = "examples/minimal-api-snapshot.toml"
+[[fixtures.routes]]
+mode = "api-snapshot"
+python_validator = "validators/validate_api_snapshot.py"
+error_contains = ["present=false", "RKV03"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/api-snapshot-witness-stripped.toml"
+positive_control = "examples/minimal-api-snapshot.toml"
+[[fixtures.routes]]
+mode = "provenance"
+python_validator = "validators/validate_closure_root.py"
+error_contains = ["closure_root", "3 canonical"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/com.verivus.runtime-ontology-bad-ijb.toml"
+positive_control = "profiles/com.verivus.runtime/ontology.toml"
+[[fixtures.routes]]
+mode = "ijb"
+python_validator = "validators/validate_ijb_conformance.py"
+error_contains = ["ijb_class", "not permitted"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/cost-record-bad-dimension.toml"
+positive_control = "examples/minimal-cost-record.toml"
+[[fixtures.routes]]
+mode = "cost-record"
+python_validator = "validators/validate_cost.py"
+error_contains = ["made_up_dimension", "record.dimensions"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/gate-decision-pass-with-string-refs.toml"
+positive_control = "examples/minimal-gate-decision.toml"
+[[fixtures.routes]]
+mode = "gate-decision"
+python_validator = "validators/validate_gate_decision.py"
+error_contains = ["INV01", "failed_constraint_refs"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/implementation-dag-bad-critical-path.toml"
+positive_control = "examples/minimal-implementation-dag.toml"
+[[fixtures.routes]]
+mode = "implementation-dag"
+python_validator = "validators/validate_implementation_dag.py"
+error_contains = ["critical_path_loc"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/kind-descriptor-name-mismatch.toml"
+positive_control = "core/implementation-dag-kind.toml"
+[[fixtures.routes]]
+mode = "kind-descriptor"
+python_validator = "validators/validate_kind_descriptor.py"
+error_contains = ["different-negative-kind", "meta.describes_kind"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/mutation-claim-array-proof.toml"
+positive_control = "examples/minimal-mutation-claim.toml"
+[[fixtures.routes]]
+mode = "mutation-kinds"
+python_validator = "validators/validate_state_mutation.py"
+error_contains = ["RKC02", "execution_proof"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/mutation-claim-with-proof.toml"
+positive_control = "examples/minimal-mutation-claim.toml"
+[[fixtures.routes]]
+mode = "mutation-kinds"
+python_validator = "validators/validate_state_mutation.py"
+error_contains = ["RKC02", "execution_proof"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/ontology-wrong-ijb-primitive.toml"
+positive_control = "core/ontology.toml"
+[[fixtures.routes]]
+mode = "ijb"
+python_validator = "validators/validate_ijb_conformance.py"
+error_contains = ["ijb_primitive", "thing"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/profile-descriptor-bad-bound-tuple.toml"
+positive_control = "profiles/com.verivus.runtime/PROFILE.toml"
+[[fixtures.routes]]
+mode = "profile"
+python_validator = "validators/validate_profile_descriptor.py"
+error_contains = ["INV08"]
+error_not_contains = ["Traceback"]
+[fixtures.routes.diagnostic_counts]
+INV08 = 8
+
+[[fixtures]]
+path = "examples/negative/profile-descriptor-bad-closure-record.toml"
+positive_control = "profiles/com.verivus.runtime/PROFILE.toml"
+[[fixtures.routes]]
+mode = "profile"
+python_validator = "validators/validate_profile_descriptor.py"
+error_contains = ["INV07"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/provenance-wrong-source-sha.toml"
+positive_control = "examples/minimal-api-snapshot.toml"
+[[fixtures.routes]]
+mode = "provenance-binding"
+python_validator = "validators/validate_provenance.py"
+error_contains = ["0000000000000000000000000000000000000000000000000000000000000000", "actual"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/review-readiness-missing-gate-target.toml"
+positive_control = "examples/minimal-review-readiness/review_readiness.toml"
+[[fixtures.routes]]
+mode = "review-readiness"
+python_validator = "validators/validate_review_readiness.py"
+error_contains = ["artifact_class", "A99"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/rollback-plan-bad-trigger-kind.toml"
+positive_control = "examples/minimal-rollback-plan.toml"
+[[fixtures.routes]]
+mode = "rollback-plan"
+python_validator = "validators/validate_rollback_plan.py"
+error_contains = ["unlisted_rollback_reason"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/state-mutation-blank-scheme.toml"
+positive_control = "examples/minimal-state-mutation.toml"
+[[fixtures.routes]]
+mode = "mutation-kinds"
+python_validator = "validators/validate_state_mutation.py"
+error_contains = ["execution_proof_scheme", "finality_basis"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/state-mutation-hollow-proof.toml"
+positive_control = "examples/minimal-state-mutation.toml"
+[[fixtures.routes]]
+mode = "mutation-kinds"
+python_validator = "validators/validate_state_mutation.py"
+error_contains = ["RKM02", "proof_locator"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/state-mutation-impossible-timestamp.toml"
+positive_control = "examples/minimal-state-mutation.toml"
+[[fixtures.routes]]
+mode = "mutation-kinds"
+python_validator = "validators/validate_state_mutation.py"
+error_contains = ["mutation.performed_at", "must be an RFC3339 UTC timestamp"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/state-mutation-inlined-proof.toml"
+positive_control = "examples/minimal-state-mutation.toml"
+[[fixtures.routes]]
+mode = "mutation-kinds"
+python_validator = "validators/validate_state_mutation.py"
+error_contains = ["proof_body", "RKM03"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/state-mutation-malformed-kind-selector.toml"
+positive_control = "examples/minimal-state-mutation.toml"
+[[fixtures.routes]]
+mode = "provenance"
+python_validator = "validators/validate_closure_root.py"
+error_contains = ["template_kind", "not a string"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/state-mutation-no-proof.toml"
+positive_control = "examples/minimal-state-mutation.toml"
+[[fixtures.routes]]
+mode = "provenance"
+python_validator = "validators/validate_closure_root.py"
+error_contains = ["pinned closure record", "is missing"]
+error_not_contains = ["Traceback"]
+[[fixtures.routes]]
+mode = "mutation-kinds"
+python_validator = "validators/validate_state_mutation.py"
+error_contains = ["RKM02"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/state-mutation-operation-injection.toml"
+positive_control = "examples/minimal-state-mutation.toml"
+[[fixtures.routes]]
+mode = "mutation-kinds"
+python_validator = "validators/validate_state_mutation.py"
+error_contains = ["mutation.operation", "must be a bare lowercase token"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/state-mutation-unbound-proof.toml"
+positive_control = "examples/minimal-state-mutation.toml"
+[[fixtures.routes]]
+mode = "mutation-kinds"
+python_validator = "validators/validate_state_mutation.py"
+error_contains = ["binds_sha256", "RKM04"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/state-mutation-unicode-digit-timestamp.toml"
+positive_control = "examples/minimal-state-mutation.toml"
+[[fixtures.routes]]
+mode = "mutation-kinds"
+python_validator = "validators/validate_state_mutation.py"
+error_contains = ["mutation.performed_at", "must be an RFC3339 UTC timestamp"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/state-mutation-wrong-typed-proof.toml"
+positive_control = "examples/minimal-state-mutation.toml"
+[[fixtures.routes]]
+mode = "mutation-kinds"
+python_validator = "validators/validate_state_mutation.py"
+error_contains = ["execution_proof_scheme", "finality_basis", "RKM03"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/traceability-missing-requirement-target.toml"
+positive_control = "examples/minimal-traceability.toml"
+[[fixtures.routes]]
+mode = "traceability"
+python_validator = "validators/validate_traceability.py"
+error_contains = ["REQ:absent", "target missing"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/ADAPTER_CONTRACT_RUNTIME_KIND_UNKNOWN.toml"
+positive_control = "examples/minimal-adapter-contract.toml"
+[[fixtures.routes]]
+mode = "adapter-contract"
+python_validator = "validators/validate_adapter_contract.py"
+error_contains = ["RDVOCAB", "runtime_kind"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/ADAPTER_CONTRACT_RUNTIME_NETWORK_POLICY_UNKNOWN.toml"
+positive_control = "examples/minimal-adapter-contract.toml"
+[[fixtures.routes]]
+mode = "adapter-contract"
+python_validator = "validators/validate_adapter_contract.py"
+error_contains = ["RDVOCAB", "runtime_network_policy"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/ADAPTER_CONTRACT_RUNTIME_CLOCK_POLICY_UNKNOWN.toml"
+positive_control = "examples/minimal-adapter-contract.toml"
+[[fixtures.routes]]
+mode = "adapter-contract"
+python_validator = "validators/validate_adapter_contract.py"
+error_contains = ["RDVOCAB", "runtime_clock_policy"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/ADAPTER_CONTRACT_ID_DERIVATION_UNKNOWN.toml"
+positive_control = "examples/minimal-adapter-contract.toml"
+[[fixtures.routes]]
+mode = "adapter-contract"
+python_validator = "validators/validate_adapter_contract.py"
+error_contains = ["RDVOCAB", "adapter_id_derivation"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/ADAPTER_REGISTRY_BINDING_ADAPTER_REF_SYNTAX_UNKNOWN.toml"
+positive_control = "examples/minimal-adapter-registry-binding.toml"
+[[fixtures.routes]]
+mode = "adapter-registry-binding"
+python_validator = "validators/validate_adapter_registry_binding.py"
+error_contains = ["RDVOCAB", "adapter_ref_syntax"]
+error_not_contains = ["Traceback"]
+
+[[fixtures]]
+path = "examples/negative/GATE_DECISION_VERDICT_UNKNOWN.toml"
+positive_control = "examples/minimal-gate-decision.toml"
+[[fixtures.routes]]
+mode = "gate-decision"
+python_validator = "validators/validate_gate_decision.py"
+error_contains = ["RDVOCAB", "gate_decision_verdict"]
+error_not_contains = ["Traceback"]

@@ -1,0 +1,755 @@
+# Non-normative storage and validation ownership; catalog values come from TOML ontologies.
+[meta]
+document_kind = "vocabulary-storage-mapping"
+schema_version = "0.1.0"
+projection_version = 1
+normative = false
+
+[[vocabularies]]
+attribute = "requirement_kind"
+source = "core/ontology.toml"
+extensible = true
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "test_kind"
+source = "core/ontology.toml"
+extensible = true
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "priority"
+source = "core/ontology.toml"
+extensible = false
+representation = "entity-column"
+storage = "entity.priority"
+owner = "Existing promoted SQL column. This storage classification does not assert kind-validator coverage."
+enforcement_sites = [["entity", "priority"]]
+
+[[vocabularies]]
+attribute = "unit.status"
+source = "core/ontology.toml"
+extensible = false
+representation = "entity-column"
+storage = "entity.unit_status"
+owner = "Existing promoted SQL column. This storage classification does not assert kind-validator coverage."
+enforcement_sites = [["entity", "unit_status"]]
+
+[[vocabularies]]
+attribute = "review.status"
+source = "core/ontology.toml"
+extensible = false
+representation = "entity-column"
+storage = "entity.review_status"
+owner = "Existing promoted SQL column. This storage classification does not assert kind-validator coverage."
+enforcement_sites = [["entity", "review_status"]]
+
+[[vocabularies]]
+attribute = "confidentiality"
+source = "core/ontology.toml"
+extensible = false
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "license"
+source = "core/ontology.toml"
+extensible = true
+representation = "catalog"
+owner = "Open nonempty metadata text; zero declared tokens is intentional."
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "framework_profile_namespace"
+source = "core/ontology.toml"
+extensible = false
+representation = "namespace-catalog"
+owner = "Profile namespace classifier; do not require framework_profile to equal a classifier token."
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "provenance.encryption.hash_is_over"
+source = "core/ontology.toml"
+extensible = false
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "closure_root.digest_algorithm"
+source = "core/ontology.toml"
+extensible = true
+representation = "catalog"
+owner = "Specialized closure algorithm grammar/strength and supported-algorithm rules."
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "capability_envelope.domain"
+source = "core/ontology.toml"
+extensible = false
+representation = "domain-key-catalog"
+owner = "Descriptor capability envelope domain keys, with explicit metadata/bounds exclusions."
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "abstraction_class.id_pattern"
+source = "core/ontology.toml"
+extensible = false
+representation = "pattern-catalog"
+owner = "Descriptor abstraction_class.id must match its shape; the placeholder token is not an instance ID."
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "trigger_kind"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = true
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "likelihood"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = false
+representation = "entity-column"
+storage = "entity.likelihood"
+owner = "Existing promoted SQL column. This storage classification does not assert kind-validator coverage."
+enforcement_sites = [["entity", "likelihood"]]
+
+[[vocabularies]]
+attribute = "impact"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = false
+representation = "entity-column"
+storage = "entity.impact"
+owner = "Existing promoted SQL column. This storage classification does not assert kind-validator coverage."
+enforcement_sites = [["entity", "impact"]]
+
+[[vocabularies]]
+attribute = "residual_risk"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = false
+representation = "entity-column"
+storage = "entity.residual"
+owner = "Existing promoted SQL column. This storage classification does not assert kind-validator coverage."
+enforcement_sites = [["entity", "residual"]]
+
+[[vocabularies]]
+attribute = "smoke.decision"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = false
+representation = "catalog"
+owner = "Same singleton-field class, outside the eight-vocabulary issue scope. At base commit 7353cd1209d8f4defa36e5cbd8eaa49bfe82b102, smoke INV01 to INV03 lack document-validator implementation; shared IJB INV04 exists. Complete tested catalog here."
+follow_up = "promote-smoke-validation-result-decision"
+follow_up_status = "open"
+follow_up_completion = "Implement declared smoke INV01 to INV03, preserve shared IJB INV04, and independently review document storage/ingestion with all three decision values and rejected-write tests in every SQL mirror."
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "status"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = false
+representation = "entity-column"
+storage = "entity.smoke_status"
+owner = "Existing SQL entity.smoke_status constraint. Document-level smoke INV02 remains planned and is included in the smoke follow-up."
+enforcement_sites = [["entity", "smoke_status"]]
+
+[[vocabularies]]
+attribute = "runtime_kind"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = false
+representation = "document-column"
+template_kind = "adapter-contract"
+path = ["adapter", "runtime_kind"]
+required = true
+column = "runtime_kind"
+owner = "SPEC closed-field validation and SQL projection"
+validator_owners = ["validators/validate_adapter_contract.py", "validators/_runtime_document_vocab.py"]
+enforcement_sites = [["runtime_document", "runtime_kind"]]
+
+[[vocabularies]]
+attribute = "runtime_network_policy"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = false
+representation = "document-column"
+template_kind = "adapter-contract"
+path = ["adapter", "runtime_network_policy"]
+required = true
+column = "runtime_network_policy"
+owner = "SPEC closed-field validation and SQL projection"
+validator_owners = ["validators/validate_adapter_contract.py", "validators/_runtime_document_vocab.py"]
+enforcement_sites = [["runtime_document", "runtime_network_policy"]]
+
+[[vocabularies]]
+attribute = "runtime_clock_policy"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = false
+representation = "document-column"
+template_kind = "adapter-contract"
+path = ["adapter", "runtime_clock_policy"]
+required = true
+column = "runtime_clock_policy"
+owner = "SPEC closed-field validation and SQL projection"
+validator_owners = ["validators/validate_adapter_contract.py", "validators/_runtime_document_vocab.py"]
+enforcement_sites = [["runtime_document", "runtime_clock_policy"]]
+
+[[vocabularies]]
+attribute = "input_hash_method"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = true
+representation = "catalog"
+owner = "Optional extensible adapter string. SPEC validation does not perform hashing."
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "adapter_id_derivation"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = false
+representation = "document-column"
+template_kind = "adapter-contract"
+path = ["adapter", "id_derivation"]
+required = false
+column = "adapter_id_derivation"
+owner = "SPEC closed-field validation and SQL projection"
+validator_owners = ["validators/validate_adapter_contract.py", "validators/_runtime_document_vocab.py"]
+enforcement_sites = [["runtime_document", "adapter_id_derivation"]]
+
+[[vocabularies]]
+attribute = "gate_decision_verdict"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = false
+representation = "document-column"
+template_kind = "gate-decision"
+path = ["decision", "verdict"]
+required = true
+column = "gate_decision_verdict"
+owner = "SPEC closed-field validation and SQL projection"
+validator_owners = ["validators/validate_gate_decision.py", "validators/_runtime_document_vocab.py"]
+enforcement_sites = [["runtime_document", "gate_decision_verdict"]]
+
+[[vocabularies]]
+attribute = "evidence_root_algorithm"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = true
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "record_signature_algorithm"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = true
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "record_hash_algorithm"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = true
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "record_canonical_form"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = true
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "registry_scheme"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = true
+representation = "catalog"
+owner = "Binding INV01 uses loaded declarations/extensions; INV02 checks the exact URL prefix. No registry contact."
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "adapter_ref_syntax"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = false
+representation = "document-column"
+template_kind = "adapter-registry-binding"
+path = ["binding", "adapter_ref_syntax"]
+required = true
+column = "adapter_ref_syntax"
+owner = "SPEC closed-field validation and SQL projection"
+validator_owners = ["validators/validate_adapter_registry_binding.py", "validators/_runtime_document_vocab.py"]
+enforcement_sites = [["runtime_document", "adapter_ref_syntax"]]
+
+[[vocabularies]]
+attribute = "signer_class"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = true
+representation = "runtime-operand-catalog"
+owner = "Runtime authority-rule semantics"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "authority_role"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = true
+representation = "runtime-operand-catalog"
+owner = "Runtime authority-rule semantics"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "severity_tier"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = false
+representation = "runtime-operand-catalog"
+owner = "Runtime authority-rule semantics"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "autonomy_tier"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = true
+representation = "runtime-operand-catalog"
+owner = "Runtime authority-rule semantics"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "override_decision_method"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = true
+representation = "runtime-operand-catalog"
+owner = "Runtime authority-rule semantics"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "override_rule_operator"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = false
+representation = "runtime-operand-catalog"
+owner = "Runtime authority-rule semantics"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "subject_class"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = true
+representation = "catalog"
+owner = "Gate INV06 membership and conditional trigger; preserve the kind-specific restriction."
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "provider_id"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = true
+representation = "catalog"
+owner = "Gate INV06 conditional membership and cross-provider comparison."
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "model_family_id"
+source = "profiles/agent-assurance/ontology.toml"
+extensible = true
+representation = "catalog"
+owner = "Gate INV06 conditional membership and independent model-family comparison."
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "witness_scheme"
+source = "profiles/com.verivus.runtime/ontology.toml"
+extensible = false
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "attester_observed"
+source = "profiles/com.verivus.runtime/ontology.toml"
+extensible = false
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "execution_proof_scheme"
+source = "profiles/com.verivus.runtime/ontology.toml"
+extensible = false
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "finality_basis"
+source = "profiles/com.verivus.runtime/ontology.toml"
+extensible = false
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "cost_dimension_category"
+source = "profiles/cost/ontology.toml"
+extensible = false
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "decider_class"
+source = "profiles/cost/ontology.toml"
+extensible = false
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "cost_citing_kind"
+source = "profiles/cost/ontology.toml"
+extensible = false
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "disclosure_posture"
+source = "profiles/disclosure/ontology.toml"
+extensible = false
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "redaction_method"
+source = "profiles/disclosure/ontology.toml"
+extensible = true
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "redaction_reason"
+source = "profiles/disclosure/ontology.toml"
+extensible = true
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[vocabularies]]
+attribute = "proof_scheme"
+source = "profiles/disclosure/ontology.toml"
+extensible = true
+representation = "catalog"
+owner = "Existing declaration and kind-specific semantics; no new scalar projection in issue 74"
+enforcement_sites = []
+
+[[deferred_invariants]]
+descriptor = "profiles/agent-assurance/assertion-bundle-kind.toml"
+id = "INV01"
+enforced_by = "validators/validate_assertion_bundle.py (planned)"
+follow_up = "implement-assertion-bundle-validator"
+reason = "Semantic validator implementation outside the issue 74 document projections."
+
+[[deferred_invariants]]
+descriptor = "profiles/agent-assurance/assertion-bundle-kind.toml"
+id = "INV02"
+enforced_by = "validators/validate_assertion_bundle.py (planned)"
+follow_up = "implement-assertion-bundle-validator"
+reason = "Semantic validator implementation outside the issue 74 document projections."
+
+[[deferred_invariants]]
+descriptor = "profiles/agent-assurance/assertion-bundle-kind.toml"
+id = "INV03"
+enforced_by = "validators/validate_assertion_bundle.py (planned)"
+follow_up = "implement-assertion-bundle-validator"
+reason = "Semantic validator implementation outside the issue 74 document projections."
+
+[[deferred_invariants]]
+descriptor = "profiles/agent-assurance/assertion-log-record-kind.toml"
+id = "INV01"
+enforced_by = "validators/validate_assertion_log_record.py (planned)"
+follow_up = "implement-assertion-log-record-validator"
+reason = "Semantic validator implementation outside the issue 74 document projections."
+
+[[deferred_invariants]]
+descriptor = "profiles/agent-assurance/assertion-log-record-kind.toml"
+id = "INV02"
+enforced_by = "validators/validate_assertion_log_record.py (planned)"
+follow_up = "implement-assertion-log-record-validator"
+reason = "Semantic validator implementation outside the issue 74 document projections."
+
+[[deferred_invariants]]
+descriptor = "profiles/agent-assurance/assertion-log-record-kind.toml"
+id = "INV03"
+enforced_by = "validators/validate_assertion_log_record.py (planned)"
+follow_up = "implement-assertion-log-record-validator"
+reason = "Semantic validator implementation outside the issue 74 document projections."
+
+[[deferred_invariants]]
+descriptor = "profiles/agent-assurance/smoke-validation-kind.toml"
+id = "INV01"
+enforced_by = "validators/validate_smoke_validation.py (planned)"
+follow_up = "promote-smoke-validation-result-decision"
+reason = "Semantic validator implementation outside the issue 74 document projections."
+
+[[deferred_invariants]]
+descriptor = "profiles/agent-assurance/smoke-validation-kind.toml"
+id = "INV02"
+enforced_by = "validators/validate_smoke_validation.py (planned)"
+follow_up = "promote-smoke-validation-result-decision"
+reason = "Semantic validator implementation outside the issue 74 document projections."
+
+[[deferred_invariants]]
+descriptor = "profiles/agent-assurance/smoke-validation-kind.toml"
+id = "INV03"
+enforced_by = "validators/validate_smoke_validation.py (planned)"
+follow_up = "promote-smoke-validation-result-decision"
+reason = "Semantic validator implementation outside the issue 74 document projections."
+
+[[deferred_invariants]]
+descriptor = "profiles/agent-assurance/spec-contract-kind.toml"
+id = "INV01"
+enforced_by = "validators/validate_spec_contract.py (planned)"
+follow_up = "implement-spec-contract-validator"
+reason = "Semantic validator implementation outside the issue 74 document projections."
+
+[[deferred_invariants]]
+descriptor = "profiles/agent-assurance/spec-contract-kind.toml"
+id = "INV02"
+enforced_by = "validators/validate_spec_contract.py (planned)"
+follow_up = "implement-spec-contract-validator"
+reason = "Semantic validator implementation outside the issue 74 document projections."
+
+[[deferred_invariants]]
+descriptor = "profiles/agent-assurance/threat-model-kind.toml"
+id = "INV01"
+enforced_by = "validators/validate_threat_model.py (planned)"
+follow_up = "implement-threat-model-validator"
+reason = "Semantic validator implementation outside the issue 74 document projections."
+
+[[deferred_invariants]]
+descriptor = "profiles/agent-assurance/threat-model-kind.toml"
+id = "INV02"
+enforced_by = "validators/validate_threat_model.py (planned)"
+follow_up = "implement-threat-model-validator"
+reason = "Semantic validator implementation outside the issue 74 document projections."
+
+[[required_section_dispositions]]
+descriptor = "core/contract-declaration-kind.toml"
+table = "contracts"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "core/evidence-matrix-kind.toml"
+table = "claims"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "core/evidence-matrix-kind.toml"
+table = "evidence"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "core/evidence-matrix-kind.toml"
+table = "matrix"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "core/implementation-dag-kind.toml"
+table = "units"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "core/implementation-dag-kind.toml"
+table = "computed"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "core/profile-descriptor-kind.toml"
+table = "profile"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "core/readiness-gate-kind.toml"
+table = "artifact_classes"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "core/readiness-gate-kind.toml"
+table = "gates"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "core/traceability-kind.toml"
+table = "requirements"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "core/traceability-kind.toml"
+table = "tests"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "core/traceability-kind.toml"
+table = "code"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "profiles/agent-assurance/adapter-contract-kind.toml"
+table = "adapter.emits"
+status = "implemented"
+
+[[required_section_dispositions]]
+descriptor = "profiles/agent-assurance/adapter-contract-kind.toml"
+table = "adapter.conformance_fixtures"
+status = "implemented"
+
+[[required_section_dispositions]]
+descriptor = "profiles/agent-assurance/assertion-bundle-kind.toml"
+table = "bundle.assertions"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "profiles/agent-assurance/gate-decision-kind.toml"
+table = "decision.cited_bundles"
+status = "residual"
+follow_up = "enforce-gate-decision-cited-bundles"
+
+[[required_section_dispositions]]
+descriptor = "profiles/agent-assurance/rollback-plan-kind.toml"
+table = "triggers"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "profiles/agent-assurance/rollback-plan-kind.toml"
+table = "procedure"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "profiles/agent-assurance/smoke-validation-kind.toml"
+table = "checks"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "profiles/agent-assurance/spec-contract-kind.toml"
+table = "contract.guarantees"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "profiles/agent-assurance/spec-contract-kind.toml"
+table = "contract.invariants"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "profiles/agent-assurance/threat-model-kind.toml"
+table = "threats"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "profiles/cost/cost-record-kind.toml"
+table = "record.dimensions"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "profiles/disclosure/disclosure-attestation-kind.toml"
+table = "attestations"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "profiles/disclosure/redaction-manifest-kind.toml"
+table = "redactions"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[required_section_dispositions]]
+descriptor = "profiles/disclosure/selective-disclosure-proof-kind.toml"
+table = "proofs"
+status = "residual"
+follow_up = "audit-required-section-instance-enforcement"
+
+[[invariant_owners]]
+kind = "adapter-contract"
+id = "INV01"
+disposition = "implemented"
+python_owner = "validators/validate_adapter_contract.py"
+fixture_owner = "field:runtime_kind"
+implementations = ["python", "rust-auto", "rust-kind", "go-auto", "go-kind"]
+
+[[invariant_owners]]
+kind = "adapter-contract"
+id = "INV02"
+disposition = "implemented"
+python_owner = "validators/validate_adapter_contract.py"
+fixture_owner = "INV02"
+implementations = ["python", "rust-auto", "rust-kind", "go-auto", "go-kind"]
+
+[[invariant_owners]]
+kind = "adapter-contract"
+id = "INV03"
+disposition = "implemented"
+python_owner = "validators/validate_adapter_contract.py"
+fixture_owner = "INV03"
+implementations = ["python", "rust-auto", "rust-kind", "go-auto", "go-kind"]
+
+[[invariant_owners]]
+kind = "adapter-contract"
+id = "INV04"
+disposition = "scope-boundary"
+python_owner = "validators/validate_adapter_contract.py"
+fixture_owner = "INV04"
+implementations = ["python", "rust-auto", "rust-kind", "go-auto", "go-kind"]
+
+[[invariant_owners]]
+kind = "adapter-registry-binding"
+id = "INV01"
+disposition = "implemented"
+python_owner = "validators/validate_adapter_registry_binding.py"
+fixture_owner = "INV01"
+implementations = ["python", "rust-auto", "rust-kind", "go-auto", "go-kind"]
+
+[[invariant_owners]]
+kind = "adapter-registry-binding"
+id = "INV02"
+disposition = "implemented"
+python_owner = "validators/validate_adapter_registry_binding.py"
+fixture_owner = "INV02"
+implementations = ["python", "rust-auto", "rust-kind", "go-auto", "go-kind"]
+
+[[invariant_owners]]
+kind = "adapter-registry-binding"
+id = "INV03"
+disposition = "implemented"
+python_owner = "validators/validate_adapter_registry_binding.py"
+fixture_owner = "INV03"
+implementations = ["python", "rust-auto", "rust-kind", "go-auto", "go-kind"]
+
+[[invariant_owners]]
+kind = "adapter-registry-binding"
+id = "INV04"
+disposition = "scope-boundary"
+python_owner = "validators/validate_adapter_registry_binding.py"
+fixture_owner = "INV04"
+implementations = ["python", "rust-auto", "rust-kind", "go-auto", "go-kind"]

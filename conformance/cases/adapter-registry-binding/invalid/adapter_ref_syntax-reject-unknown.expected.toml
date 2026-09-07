@@ -1,0 +1,2 @@
+error_contains = ["adapter_ref_syntax", "RDVOCAB"]
+error_not_contains = ["RDLOAD", "Traceback"]

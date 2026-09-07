@@ -38,6 +38,9 @@ import _toml11 as tomllib  # noqa: E402  (path set up immediately above)
 # invocation (validator path plus any extra arguments).
 PY_VALIDATORS = {
     "implementation-dag": ["validators/validate_implementation_dag.py"],
+    'adapter-contract': ['validators/validate_adapter_contract.py', "--repo-root", "."],
+    'adapter-registry-binding': ['validators/validate_adapter_registry_binding.py', "--repo-root", "."],
+    'gate-decision': ['validators/validate_gate_decision.py', "--repo-root", "."],
     "api-snapshot": ["validators/validate_api_snapshot.py", "--repo-root", "."],
     # Both mutation kinds share one validator; it dispatches on template_kind.
     "state-mutation": ["validators/validate_state_mutation.py", "--repo-root", "."],
@@ -76,7 +79,7 @@ def parse_args() -> argparse.Namespace:
 
 def run_validator(cmd: list[str]) -> tuple[int, str]:
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)  # nosec B603 # noqa: S603
     except FileNotFoundError:
         print(f"error: cannot execute {cmd[0]}", file=sys.stderr)
         raise SystemExit(2)

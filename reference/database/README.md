@@ -1,172 +1,256 @@
-# Reference database schema
+# Reference database storage
 
-**Status:** Non-normative. Informative guidance for implementers who want
-to ingest DAG-TOML instances into a database. Nothing in this directory
-is a conformance requirement for DAG-TOML or the Agent Assurance Profile;
-a runtime MAY persist data however it likes, including not at all.
+This directory provides **non-normative** storage guidance and executable
+examples. TOML ontologies and kind descriptors remain authoritative. These
+tables do not add a template kind, a JSON Schema layer, or a runtime.
 
-This directory exists because two independent implementer questions kept
-recurring:
+[MANIFEST.toml](MANIFEST.toml) identifies the artifacts and registry counts.
+[vocabulary-storage.toml](vocabulary-storage.toml) assigns every discovered
+vocabulary an explicit disposition and identifies actual enforcing columns.
+At source commit `7353cd1209d8f4defa36e5cbd8eaa49bfe82b102`, the ontologies
+declare 50 vocabularies and 216 literal values, including 123 values in closed
+vocabularies. Generation and checks derive those populations from the tree.
+An empty catalog, such as `license`, remains an explicit declaration.
 
-1. *"If I want to query a corpus of DAG-TOML files relationally, what
-   tables would I create?"* — answered by [`postgres/schema.sql`](postgres/schema.sql).
-2. *"My system already speaks property-graph; what do the nodes and edges
-   look like?"* — answered by [`graph/schema.cypher`](graph/schema.cypher).
+## Catalogs and constrained fields
 
-Both schemas are **derived from** the ontology files (`core/ontology.toml`
-plus every `profiles/<name>/ontology.toml`) and the `*-kind.toml` descriptors
-in `core/` and `profiles/<name>/`. They are not parallel
-vocabulary — every table, enum, column, node label, and relationship type
-traces back to a declaration in the spec, and the ontology files remain
-the source of truth.
+PostgreSQL, SQLite, and DuckDB catalog **every declared value** in
+`attribute_value_allowed`, including values also represented by native enums.
+Catalog membership and column enforcement are different properties. Optional
+`backing_enum_type` and legacy SQLite `backing_check_constraint` metadata are
+discovery hints. The mapping and executed probes identify enforcement sites.
 
-## Design principles
+Existing `entity` columns retain priority, unit/review status, likelihood,
+impact, residual-risk, and smoke-check-status constraints. `runtime_document`
+adds three disjoint projections:
 
-1. **IJB-grounded.** The six IJB primitives (`thing | scope | path |
-   observed | constraint | time`) and their class markers (`structural |
-   instance`; for attribute vocabularies, `structural | policy | observed`)
-   are first-class enums. Every entity row and edge row records its IJB
-   tags so consumers can filter by primitive without re-reading the
-   ontology.
+| Kind | Required columns | Optional column |
+| --- | --- | --- |
+| `adapter-contract` | `runtime_kind`, `runtime_network_policy`, `runtime_clock_policy` | `adapter_id_derivation` |
+| `adapter-registry-binding` | `adapter_ref_syntax` | none |
+| `gate-decision` | `gate_decision_verdict` | none |
 
-2. **Hybrid relational + JSONB.** Cross-kind structure (instance files,
-   entities, relations, attribute vocabularies, provenance) is modelled
-   as proper tables. Kind-specific payload — fields that vary per
-   `template_kind` and add no graph-traversal value — lives in a
-   `payload JSONB` column on the entity row. This keeps the schema small
-   and stable across the 23 kinds without losing data fidelity. Promote
-   a JSONB field to a generated column when an index would help.
+Columns belonging to another kind must be SQL NULL. The named
+`runtime_document_kind_shape` check uses explicit `IS NOT NULL` predicates
+for required columns. NULL means absence or inapplicability, never malformed
+TOML. PostgreSQL/DuckDB use enum columns; SQLite uses binary-comparison CHECK
+constraints and STRICT tables. A composite FK binds the projection's ID and
+kind to the same `instance_file` row. Duplicate projections, dangling parents,
+and mismatched parent kinds are rejected. The new relationship restricts
+parent deletion. The helper provides no deletion or garbage-collection API.
 
-3. **Open at the edges where the spec is open.** `requirement_kind`,
-   `test_kind`, `trigger_kind`, and the policy/algorithm vocabularies
-   marked `extensible = true` in the ontology are stored as `text` with
-   a CHECK against `attribute_value_allowed` rather than as PostgreSQL
-   enums. Vocabularies marked `extensible = false` (`priority`,
-   `unit.status`, `review.status`, `likelihood`, `impact`,
-   `residual_risk`, etc.) are real enums.
+Views `adapter_contract_document`, `adapter_registry_binding_document`, and
+`gate_decision_document` expose projections with source metadata. PostgreSQL
+and DuckDB use schema `dagtoml`; SQLite prefixes names with `dagtoml_`.
 
-4. **Spec invariants surface as DB constraints where cheap, and as
-   queryable views where not.** `relation_descriptor` carries an
-   `is_acyclic` flag inherited from the ontology; cycle checks for
-   `depends_on` run as a recursive CTE inside the `find_depends_on_cycles()`
-   function. Single-producer-per-artifact (`spec.md §5`) is NOT a unique
-   partial index — Postgres forbids subqueries in partial-index
-   predicates, and a naive index on `target_entity_id WHERE predicate =
-   'produces'` would over-reject legitimate non-artifact `produces`
-   edges (FEAT→OUT, units→OUT). It is enforced post-ingestion via the
-   `invariant_violations_multi_producer` view (or, in a stricter
-   deployment, a deferred constraint trigger). Cross-document `REQ:`
-   resolution is likewise enforced as a post-ingestion view
-   (`invariant_violations_unresolved_refs`), not a deferred FK — TOML
-   files are ingested in unconstrained order, so we cannot rely on
-   producer-rows existing before consumer-rows.
+`severity_tier` and `override_rule_operator` remain runtime-operand catalogs
+with five and nine tokens respectively. They add no document fields or rule
+evaluation. The other authority catalogs likewise describe operands inside
+opaque rule strings. Pattern vocabularies, capability domain keys, profile
+namespace partitions, extensible strings, and loaded registry-scheme extensions
+retain their distinct specification rules.
 
-5. **Two-version pin preserved.** Every `instance_file` row carries both
-   `schema_version` (semver, file shape) and `ontology_version` (integer,
-   relation vocabulary). They bump independently — see `core/ontology.md
-   §1`.
+## Source bytes and indexes
 
-## What's modelled and what isn't
+`runtime_document.source_toml` holds the exact original bytes.
+`instance_file.content_sha256` is `sha256:` plus their 64 lowercase hex
+characters. Provenance describes a different subject: the cited upstream
+source's prefixed hash and byte **count** in `provenance.source_sha256` and
+`provenance.source_bytes`.
 
-**In:** all 23 template kinds (6 core + 9 agent-assurance + 3 disclosure
-+ 1 cost + 3 com.verivus.runtime + the meta `kind-descriptor` template
-kind that every `*-kind.toml` file declares), all 27 entity kinds
-(17 core + 6 agent-assurance + 3 disclosure + 1 cost), all 31 core
-relation predicates (with `contract:`-namespaced variants for predicate
-names the ontology declares more than once with different domain/range
-tuples: `contract:depends_on`, `contract:supersedes`,
-`contract:verified_by`), all 50 attribute vocabularies (12 core +
-27 agent-assurance + 4 disclosure + 3 cost + 4 com.verivus.runtime),
-the optional `[provenance]` table (spec.md §11), and the universal
-`[meta]` shape.
+The helper validates and projects one captured root buffer without reopening
+it. Existing validators resolve cited local provenance inputs separately under
+the trusted repository root. The helper does not fetch registries, evidence,
+fixture references, or artifacts.
 
-Those four counts restate four of the six keys in `[counts]` in
-[`MANIFEST.toml`](MANIFEST.toml); the other two,
-`attribute_values_declared` and `attribute_values_closed`, are gated there
-too but are not restated here.
-[`validators/check_manifest_drift.sh`](../../validators/check_manifest_drift.sh)
-re-derives all six from the ontology files on every push. MANIFEST.toml is
-the machine-readable source of truth; this paragraph is prose that MUST
-move with it. If the two disagree, MANIFEST.toml is correct and this file
-is stale.
+| Index | Source and behavior |
+| --- | --- |
+| `source_path` | Caller-supplied nonempty, NUL-free UTF-8 identity label, preserved exactly |
+| schema, ontology, and kind columns | Validated meta values; permitted absent ontology version is NULL |
+| `framework_profile` | Original `agent-assurance` or `AGDF` spelling; only profile identity comparison uses the alias |
+| `title`, `docs_url` | Optional string `meta.title` and `meta.docs` |
+| `created` | Native TOML date or valid exact `YYYY-MM-DD` string |
+| `created_at`, provenance `captured_at` | Offset datetime normalized to UTC; local datetime stays unindexed |
+| `meta_extras`, provenance `extras` | Supported optional properties excluding individually indexed keys |
+| provenance identity/count | Its own validated path, canonical prefixed hash, and nonnegative signed 64-bit byte count |
+| provenance optional text | `extraction_method` and `source_description` when representable |
+| `ingested_at` | Engine-generated ingestion time |
 
-**Modelled, but not yet seeded in every engine.** The Postgres, SQLite,
-and DuckDB seeds carry the full registry above. The Neo4j seed in
-[`graph/schema.cypher`](graph/schema.cypher) does not: its `UNWIND`
-blocks list 15 template kinds and 23 entity kinds against the 23 and 27
-declared by the ontology. Relation predicates are at parity (31). This
-is tracked as
-[ISS-002](../../docs/issues/2026-05-23-iss-002-graph-cypher-seed-incomplete.md)
-and is a property of that one seed file, not of the schema it seeds.
+Optional JSON indexes support NUL-free strings/keys, booleans, finite floats,
+integers from -9007199254740991 through 9007199254740991, and recursive
+arrays/tables of those values. An unsupported top-level extra property is
+omitted as a whole. Native dates/times, larger integers, nonfinite floats, and
+nested NUL-containing strings/keys remain in the original bytes. Unsupported
+optional scalar indexes become NULL. Every omission appears in
+`unindexed_fields` as a literal path-segment array. Mandatory identity fields
+cannot be omitted. PostgreSQL requires UTF8 server and client encoding.
 
-**Out:** runtime concerns (queues, gate-decision signature verification,
-adapter-registry trust-anchor resolution, evidence-bundle Merkle
-recomputation). These belong to a runtime; this schema only needs to
-*store* the data they produce or consume.
+JSON audit ignores object key order and equivalent Unicode escapes. It preserves
+array order, exact strings, property presence, and boolean versus numeric types.
+Numbers compare as exact decimal JSON values, so `1` and `1.0` agree. Text JSON
+with duplicate keys is rejected. Indexes are not completeness/authenticity claims.
 
-## Ingestion model
+## Initialize and ingest
 
-A reference ingestion path:
+Install optional drivers separately from ordinary TOML validators:
 
-1. Parse `*.toml` → write one `instance_file` row with `[meta]` fields,
-   `provenance` row if present.
-2. Walk each top-level table of the parsed TOML. For arrays like
-   `[[requirements]]`, `[[units]]`, `[[contracts]]`, etc., insert one
-   `entity` row per element, populating `qualified_id` from the
-   element's `id` (or for `units`, from its element index per the
-   `implementation-dag` kind's identifier rules).
-3. Walk each relation-bearing field (`depends_on`, `blocks`,
-   `verified_by`, `produces`, `consumes`, …) and insert one `relation`
-   row per source/target pair. Free-form targets (e.g.,
-   `contract.verified_by = "adapter-contract:authority-check@1"`) go to
-   `relation.target_label` with `target_entity_id` left null.
-4. Run the post-ingestion invariant checks listed in
-   [`postgres/schema.sql`](postgres/schema.sql) (§ "Invariant queries").
-
-## Seeding
-
-Both schemas ship seed data that mirrors the ontology declarations
-(entity kinds, relation predicates, attribute vocabularies, allowed
-values). A reference loader would generate the seed inserts from
-`core/ontology.toml` and every `profiles/<name>/ontology.toml` at
-build time so the schema never drifts from the spec. The seed snippets
-in `postgres/seed.sql` and the `MERGE` blocks at the bottom of
-`graph/schema.cypher` are checked-in *examples* of what such a loader
-would emit — they are intentionally a snapshot, not a substitute for
-the loader.
-
-## Files
-
-```
-reference/database/
-├── README.md                        ← human entry point (this file)
-├── MANIFEST.toml                    ← machine-readable companion: paths,
-│                                       counts, targets, namespaced
-│                                       predicates, verification commands
-├── postgres/
-│   ├── schema.sql                   ← PG enums, tables, indexes, views, cycle-detection function
-│   └── seed.sql                     ← ontology-derived reference data
-├── sqlite/
-│   ├── schema.sql                   ← SQLite/libSQL STRICT tables, CHECK lists, json1, views
-│   └── seed.sql                     ← same registry data, json_array() for arrays
-├── duckdb/
-│   ├── schema.sql                   ← DuckDB native ENUMs + LIST<T> arrays, port of the PG schema
-│   └── seed.sql                     ← same data, ['a','b'] array literals
-├── rdf/
-│   ├── schema.ttl                   ← ontology as RDF/Turtle (generated by tools/dagtoml-rdf)
-│   └── shapes.ttl                   ← SHACL shapes encoding the graph-shaped IJB invariants
-└── graph/
-    └── schema.cypher                ← Neo4j constraints, indexes, seed MERGEs, sample queries
+```sh
+python3 -m pip install --require-hashes -r requirements/database.txt
+python3 -m pip install --require-hashes --no-binary tomli -r requirements/toml.txt
 ```
 
-Agents and ingestion tools should prefer `MANIFEST.toml` for discovery
-(paths, counts, target versions, expected node/row counts after load)
-and fall back to this README only for human-readable design rationale.
+Load the engine's `schema.sql` and `seed.sql` into a fresh private destination.
+Those files leave `reference_contract` and `runtime_document` empty. Rust/Go
+DuckDB loader outputs are likewise seed-only artifacts. Initialize explicitly
+before ingesting documents or other instance data:
 
-## Relation to validators
+```sh
+python3 reference/database/ingest_runtime_document.py \
+  --engine sqlite --destination .local/reference.db \
+  initialize --exclusive-unpublished
+python3 reference/database/ingest_runtime_document.py \
+  --engine sqlite --destination .local/reference.db \
+  ingest examples/minimal-adapter-contract.toml examples/minimal-gate-decision.toml
+python3 reference/database/ingest_runtime_document.py \
+  --engine sqlite --destination .local/reference.db audit
+```
 
-The validators under `validators/` enforce the same invariants this
-schema models — they read TOML files; this schema stores the parsed
-results. A round-trip test (parse → ingest → re-emit → validate) is the
-strongest conformance evidence an implementer can produce, but it is
-not part of CI for this repo (this repo only validates the source TOML).
+Initialization requires exclusive ownership of an unpublished, empty destination.
+It checks the executed catalog and exercises accepted/rejected SQL writes. Each
+probe has valid setup in its own transaction and always rolls back. Setup
+failure is not constraint rejection. Initialization then publishes one contract
+row. It refuses populated destinations and is not a production write probe.
+An empty, already initialized destination must have the same bundle identity.
+
+The bundle digest uses `_contract.py`, `bundle_digest`: a versioned ASCII domain,
+zero separator, unsigned 64-bit big-endian entry count, then path-byte length,
+canonical UTF-8 relative path, and raw SHA-256 bytes for each sorted entry.
+Its population includes specification prose, discovered ontologies, kind/profile
+descriptors, assertion grammar, storage mapping, Python validators and database
+support modules, engine lock, and pinned dependencies. Missing or escaping paths
+fail. SQL artifacts are hashed separately and verified by execution to avoid a
+seed/hash cycle. The bare 64-character lowercase bundle digest never substitutes
+for a document hash or `closure_root`. One database belongs to one immutable bundle.
+
+`Store` accepts a dedicated idle connection and an optional callback returning a
+fresh connection to the same destination. PostgreSQL uses preparatory autocommit
+reads and an explicit outer transaction. SQLite enables and reads back foreign
+keys and requires CHECK constraints enabled before BEGIN. Embedded DuckDB has one
+writer process and serializes callers within it; another writable process is
+refused. An active caller transaction is rejected without commit or rollback.
+
+Ingestion supports the three kinds above, agent-assurance/AGDF, and schema major
+zero. It runs metadata, provenance, IJB, closure, controlling-descriptor/capability,
+and implemented kind checks, reporting that scope. Adapter/binding INV04 prohibits
+execution, registry contact, fixture dereference, artifact verification, and trust
+or policy evaluation. Gate INV01 through INV06 remain, including provider and
+model-family independence for self-modification. Loose observed-line shape checks
+are not a complete assertion-grammar parser.
+
+A batch writes metadata, optional provenance, and the projection atomically.
+Repeated `(source_path, content_sha256)` identities return an existing ID only
+after full byte, projection, bundle, metadata and provenance comparison.
+Metadata-only or conflicting rows fail without upsert. Changed bytes create a
+new version; identical bytes at another path create a separate occurrence.
+Transient conflicts use bounded whole-operation retries.
+If a pre-commit error is followed by a failed rollback acknowledgement, the
+helper reports `rollback-unconfirmed` and preserves the original failure in
+the diagnostic. Dispose of that connection before another operation.
+
+Success follows commit acknowledgement. After acknowledgement loss, a fresh
+connection reconciles the complete batch before reporting committed state or
+retrying an absent batch. Unavailable/conflicting reconciliation returns
+`commit-outcome-unknown`. Inspect the destination before acting on that outcome;
+it is not a rollback claim.
+
+## Audit, migration, and adoption
+
+`audit` reparses and revalidates supported stored documents, rehashes their bytes,
+and compares deterministic indexes, projections, provenance, and bundle identity.
+Affected metadata-only rows are explicit failures. Other kinds are outside the
+reported population. Administrator SQL changes are outside the ingestion
+interface; vocabulary constraints alone cannot prove blob/index agreement.
+Audit checks local integrity, not signatures or evidence authenticity.
+
+Rebuild side by side. Retain the old database, load and initialize a fresh one,
+then replay every original source version. `replay_runtime_documents.py` accepts
+a TOML manifest with one record per selected legacy row:
+
+```toml
+[[sources]]
+source_path = "the-original-identity.toml"
+source_file = "archive/original-version.toml"
+content_sha256 = "sha256:<the legacy row's 64 lowercase hex characters>"
+```
+
+`source_file` resolves relative to the manifest directory. Replay checks bytes
+against the legacy hash and validates every source before one batch write.
+Missing/invalid versions produce explicit failed entries and prevent the batch
+from writing; valid entries remain visibly pending. The helper never reconstructs
+source from metadata or entity JSON. Supply `--report` for the persistent report.
+Switch consumers only after replay, audit, population reconciliation, and consumer
+queries pass. Rollback switches consumers to the retained old database.
+
+Consumers of the former 152-row SQL catalogs must accommodate the complete
+catalog, including enum-backed values. Parent-deletion policies must account for
+the restrictive FK. Registry extensions require a rebuilt destination with their
+new trusted bundle. This helper does not migrate arbitrary entity/relation
+payloads, add cross-document inheritance, or establish agentfederator runtime
+enforcement.
+
+## Executed gates and residual work
+
+[engine-lock.toml](engine-lock.toml) pins PostgreSQL 14.0/16.14, SQLite
+3.38.0/3.53.2, and DuckDB 1.5.0/1.5.3. SQLite checks Python's actual linked
+library. Both DuckDB driver locks include the timestamp-conversion dependency.
+libSQL compatibility is unverified and requires a separate lane.
+
+Receipts bind connected engine versions, source commit/tree, bundle/artifact
+hashes, exact executed catalogs, SQL probes, and storage/protocol outcomes.
+Missing engines, wrong versions, stale receipts, empty specimens, and failed
+setup cannot satisfy the full gate. `validators/check_database_vocabularies.py`
+executes fresh artifacts and writes one selected-lane receipt.
+`validators/check_attribute_values.py --receipts ...` requires the complete engine
+and loader matrix. Its explicit `--declarations-only` mode reports omitted
+execution. It never infers SQL behavior by parsing schema or seed text.
+The required aggregate invokes it through `check_sql_source_access.py`, which
+makes SQL source unavailable except through the opaque hash API. Its receipt
+controls reject absent lanes, stale source/binaries, altered probe populations,
+failed outcomes, and missing connection or replay checks.
+`generate_allowed_values.py --write` replaces only the unique marked catalog
+block in each seed; default mode detects generation drift.
+
+`.github/workflows/database-vocabularies.yml` builds each pinned lane and both
+loaders, then runs `database-vocabulary-gate` with `always()`. The aggregate
+requires every dependency to succeed and all eight artifact-bound receipts.
+`runtime_ci.py` builds the primary validators and pinned syscall instrument,
+runs the independent specimens and invariant-ownership gate, and exercises
+SQL, validator, ownership, and discovery failure controls. Review and local
+test artifacts stay under gitignored `.local/`; CI uploads only its selected
+`.local/database-ci/` results, never local review directories.
+
+The existing required `validate` job retains the state-mutation database
+round-trip until maintainers establish and verify the new required aggregate
+in both repository rulesets and classic branch protection. Failed and skipped
+dependency candidates must demonstrate merge blocking before that transition
+is complete. A workflow definition alone does not establish branch protection.
+
+The mapping carries explicit residuals derived from every descriptor:
+
+| Population | Disposition |
+| --- | --- |
+| Adapter/binding INV01 through INV03 | Implemented owners, independent accepted/rejected fixtures in every route |
+| Adapter/binding INV04 | Instrumented scope boundaries |
+| Adapter emits and fixture sections | Required nonempty, well-formed collections |
+| Gate `decision.cited_bundles` | Open `enforce-gate-decision-cited-bundles` |
+| Other required sections | Individual open `audit-required-section-instance-enforcement` entries |
+| Smoke INV01 through INV03 and `smoke.decision` storage | Open `promote-smoke-validation-result-decision`; smoke-check status columns and shared IJB remain |
+| Assertion-bundle/log-record INV01 through INV03 | Open dedicated-validator follow-ups |
+| Spec-contract/threat-model INV01/INV02 | Open dedicated-validator follow-ups |
+| API snapshot kind-only digest suffix grammar | Open `tighten-api-snapshot-digest-shape`; closure and sub-part consistency remain |
+
+Graph/RDF artifacts retain separate models and checks. The Neo4j seed's
+incomplete kind/entity population is recorded in
+[ISS-002](../../docs/issues/2026-05-23-iss-002-graph-cypher-seed-incomplete.md).
+Complete SQL catalogs and this ingestion path do not imply universal kind
+validation or complete graph ingestion.

@@ -1,0 +1,3 @@
+# Expected diagnostics from the kind and closure validation routes.
+error_contains = ["com.verivus.ghost", "does not resolve to a loaded profile-descriptor"]
+error_not_contains = ["Traceback"]

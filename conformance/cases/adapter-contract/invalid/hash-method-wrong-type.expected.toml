@@ -1,0 +1,2 @@
+error_contains = ["input_hash_method"]
+error_not_contains = ["RDLOAD", "Traceback"]

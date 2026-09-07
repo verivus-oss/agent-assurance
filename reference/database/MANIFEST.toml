@@ -6,18 +6,18 @@
 # checked-in seed/schema are expected to honour.
 #
 # This file is NOT a DAG-TOML kind (no template_kind, no IJB tags). It is
-# project metadata. The validators under validators/ do not inspect it
-# beyond TOML parse-ability. The README.md remains the human entry point.
+# project metadata. The declaration and executed-receipt gates inspect its
+# counts and paths. The README.md remains the human entry point.
 
 [meta]
 document_kind = "reference-database-manifest"
 schema_version = "0.1.0"
 normative      = false
 human_readme   = "README.md"
-last_verified  = "2026-07-27"  # date the counts and exec verification were re-checked
 
 # Source of truth this manifest derives from. If any of these files
 # change, the counts below MUST be re-derived and the seed regenerated.
+engine_lock = "engine-lock.toml"
 [ontology_source]
 core_ontology       = "../../core/ontology.toml"
 profile_ontology    = "../../profiles/agent-assurance/ontology.toml"
@@ -47,13 +47,9 @@ attribute_vocabularies = 50    # 12 core + 27 agent-assurance + 4 disclosure + 3
 # values the spec ships in its vocabulary catalogs.
 attribute_values_declared = 216
 
-# attribute_values_closed = same sum restricted to vocabularies with
-# `extensible = false`. This is the size of the enforcement rejection
-# surface the validators actually use:
-#   tools/dagtoml-validate-rs/src/main.rs:519-544  (Rust `check_vocab`)
-#   validators/validate_disclosure.py:82-105       (Python `_check_vocab`)
-# In both, `extensible = true` ⇒ accept any value (no membership
-# enforcement); `extensible = false` ⇒ reject unseen values.
+# Closed vocabulary token count is a declaration metric. Pattern catalogs,
+# namespace partitions, and runtime operands have distinct interpretation;
+# it is not a count of values enforced by instance columns or validators.
 attribute_values_closed = 123
 
 # Both numbers are CI-gated by `validators/check_attribute_values.py`
@@ -61,8 +57,7 @@ attribute_values_closed = 123
 # aggregates are categorically different from the four block-counts
 # above: a *block* count is one row per declaration; a *value* count
 # is one row per element inside `values = [...]`. Engine-specific
-# emission counts (the number of rows the seeds actually INSERT into
-# `attribute_value_allowed` after enum-promotion decisions) live
+# catalog counts (all declared pairs, including native enum tokens) live
 # under the per-engine `expected_seed_counts` blocks below.
 
 # Predicate names that the core ontology declares more than once with
@@ -93,9 +88,9 @@ seed_path     = "postgres/seed.sql"
 target        = "postgresql>=14"  # uses gen_random_uuid() from core (PG 13+), JSONB GIN, recursive CTE
 search_path   = "dagtoml"
 extensions    = []  # none required
-# Closed attribute vocabularies that are modelled as PostgreSQL enums
-# instead of text + attribute_value_allowed. Mirrors ontology entries
-# where extensible = false.
+# Declared native enum types, retained as informative discovery metadata.
+# Every vocabulary also has its complete allowed-value catalog. A type name
+# does not claim an enforcing column; vocabulary-storage.toml names use sites.
 closed_enums  = [
   "ijb_primitive",
   "ijb_class",
@@ -129,20 +124,20 @@ convenience_views = [
   "dag_edge",
   "requirement_coverage",
   "gate_status",
+  "adapter_contract_document",
+  "adapter_registry_binding_document",
+  "gate_decision_document",
 ]
 
-# SQLite / libSQL (Turso) reference schema. Same file works on both
-# engines — libSQL is a maintained SQLite fork and supports every feature
-# used here (STRICT tables, json1, partial indexes, recursive CTEs,
-# expression DEFAULTs, foreign-key constraints with PRAGMA foreign_keys).
+# SQLite reference. libSQL is a separate, unverified compatibility claim.
 [sqlite]
 schema_path   = "sqlite/schema.sql"
 seed_path     = "sqlite/seed.sql"
-target        = "sqlite>=3.38 OR libsql>=0.24"
+target        = "sqlite>=3.38"
 # SQLite has no schemas; table names are prefixed with `dagtoml_`.
 table_prefix  = "dagtoml_"
-# Mirrors postgres.closed_enums but enforced via column-level CHECK lists
-# instead of CREATE TYPE.
+# Legacy column hints and named document CHECK constraints. These names
+# are informative; actual column enforcement is established by SQL probes.
 closed_checks = [
   "priority",
   "unit_status",
@@ -156,6 +151,12 @@ closed_checks = [
   "ijb_constraint_type",
   "layer",
   "framework_profile",
+  "runtime_document_runtime_kind_values",
+  "runtime_document_runtime_network_policy_values",
+  "runtime_document_runtime_clock_policy_values",
+  "runtime_document_adapter_id_derivation_values",
+  "runtime_document_adapter_ref_syntax_values",
+  "runtime_document_gate_decision_verdict_values",
 ]
 invariant_views = [
   "dagtoml_inv_depends_blocks",
@@ -168,6 +169,9 @@ convenience_views = [
   "dagtoml_dag_edge",
   "dagtoml_requirement_coverage",
   "dagtoml_gate_status",
+  "dagtoml_adapter_contract_document",
+  "dagtoml_adapter_registry_binding_document",
+  "dagtoml_gate_decision_document",
 ]
 # Translation table from the PG reference (informative).
 [sqlite.pg_translation]
@@ -182,10 +186,10 @@ convenience_views = [
 # Turso-specific notes. The schema is engine-agnostic; this captures the
 # operational entry points.
 [sqlite.turso]
-compatible_with = "libsql>=0.24"
+compatibility_target = "libsql>=0.24 (unverified)"
 local_dev       = "podman run --rm -p 8080:8080 ghcr.io/tursodatabase/libsql-server"
 http_api        = "POST /v2/pipeline (Hrana v2)"
-notes           = "Schema loads identically. Use the libsql-shell or any libsql client (Go, Rust, JS, Python) to apply schema.sql + seed.sql, or POST each statement to /v2/pipeline."
+notes           = "Compatibility is unverified by the engine matrix in this repository; test libSQL independently before adoption."
 
 # RDF / Turtle reference. The ontology rendered as Linked Data — every
 # IJB primitive, entity kind, relation predicate, and attribute
@@ -247,6 +251,9 @@ convenience_views = [
   "dagtoml.dag_unit",
   "dagtoml.dag_edge",
   "dagtoml.requirement_coverage",
+  "dagtoml.adapter_contract_document",
+  "dagtoml.adapter_registry_binding_document",
+  "dagtoml.gate_decision_document",
 ]
 
 # Property-graph reference schema.
@@ -269,18 +276,14 @@ node_labels = [
 relationship_type_case   = "UPPER_SNAKE_CASE"
 canonical_predicate_path = "r.predicate"
 
-# Verification commands used to demonstrate the schemas execute cleanly.
-# Reproduce by running these against rootless podman containers; non-zero
-# exit codes are a CI failure-in-waiting.
+# SQL verification commands run from the repository root. Exact engine and
+# artifact versions live in engine-lock.toml; receipts report actual versions.
 [verification.postgres]
-container_image = "docker.io/library/postgres:16-alpine"
 commands = [
-  "podman cp postgres/schema.sql pg-test:/tmp/schema.sql",
-  "podman cp postgres/seed.sql   pg-test:/tmp/seed.sql",
-  "podman exec pg-test psql -U postgres -v ON_ERROR_STOP=1 -f /tmp/schema.sql",
-  "podman exec pg-test psql -U postgres -v ON_ERROR_STOP=1 -f /tmp/seed.sql",
+  "python3 validators/database_ci.py --lane postgres-floor --container-runtime podman",
+  "python3 validators/database_ci.py --lane postgres-maintained --container-runtime podman",
 ]
-expected_seed_counts = { kind_descriptor = 23, entity_kind_descriptor = 27, relation_descriptor = 31, attribute_vocabulary = 50, attribute_value_allowed = 152 }
+expected_seed_counts = { kind_descriptor = 23, entity_kind_descriptor = 27, relation_descriptor = 31, attribute_vocabulary = 50, attribute_value_allowed = 216 }
 
 [verification.graph]
 container_image = "docker.io/library/neo4j:5-community"
@@ -308,17 +311,28 @@ expected_triple_counts = { schema = 1476, shapes = 148 }
 generator_build = "cargo build --release -p dagtoml-duckdb --manifest-path tools/dagtoml-duckdb/Cargo.toml"
 prerequisite    = "duckdb CLI on PATH (https://duckdb.org/)"
 commands = [
-  "tools/dagtoml-duckdb/target/release/dagtoml-duckdb --repo-root . -o /tmp/agent_assurance.duckdb",
-  "tools/dagtoml-duckdb/target/release/dagtoml-duckdb verify -o /tmp/agent_assurance.duckdb",
+  "python3 validators/database_ci.py --lane duckdb-floor",
+  "python3 validators/database_ci.py --lane duckdb-maintained",
+  "python3 validators/database_ci.py --loader rust",
+  "python3 validators/database_ci.py --loader go",
 ]
-expected_seed_counts = { kind_descriptor = 23, entity_kind_descriptor = 27, relation_descriptor = 31, attribute_vocabulary = 50, attribute_value_allowed = 152 }
+expected_seed_counts = { kind_descriptor = 23, entity_kind_descriptor = 27, relation_descriptor = 31, attribute_vocabulary = 50, attribute_value_allowed = 216 }
 
 [verification.sqlite]
-container_image = "docker.io/library/alpine:latest"
-setup           = "apk add --no-cache sqlite"
 commands = [
-  "podman cp sqlite/schema.sql sqlite-test:/tmp/schema.sql",
-  "podman cp sqlite/seed.sql   sqlite-test:/tmp/seed.sql",
-  "podman exec sqlite-test sh -c 'sqlite3 /tmp/d.db < /tmp/schema.sql && sqlite3 /tmp/d.db < /tmp/seed.sql'",
+  "python3 validators/database_ci.py --lane sqlite-floor",
+  "python3 validators/database_ci.py --lane sqlite-maintained",
 ]
-expected_seed_counts = { dagtoml_kind_descriptor = 23, dagtoml_entity_kind_descriptor = 27, dagtoml_relation_descriptor = 31, dagtoml_attribute_vocabulary = 50, dagtoml_attribute_value_allowed = 152 }
+expected_seed_counts = { dagtoml_kind_descriptor = 23, dagtoml_entity_kind_descriptor = 27, dagtoml_relation_descriptor = 31, dagtoml_attribute_vocabulary = 50, dagtoml_attribute_value_allowed = 216 }
+
+[runtime_document_storage]
+mapping = "vocabulary-storage.toml"
+projection_version = 1
+initializer = "ingest_runtime_document.py"
+physical_table = "runtime_document"
+supported_kinds = ["adapter-contract", "adapter-registry-binding", "gate-decision"]
+catalog_semantics = "Every declared value is cataloged, including native enum values and runtime operands. Column enforcement sites are declared separately in vocabulary-storage.toml."
+
+[runtime_document_storage.seed_only_new_table_counts]
+reference_contract = 0
+runtime_document = 0

@@ -55,14 +55,15 @@ def sha256_of(path: pathlib.Path) -> tuple[str, int]:
     return digest.hexdigest(), size
 
 
-def validate_one(toml_path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
-    try:
-        with toml_path.open("rb") as handle:
-            doc = tomllib.load(handle)
-    except FileNotFoundError:
-        return [f"{toml_path}: file not found"]
-    except tomllib.TOMLDecodeError as exc:
-        return [f"{toml_path}: invalid TOML: {exc}"]
+def validate_one(toml_path: pathlib.Path, repo_root: pathlib.Path, *, doc: dict | None = None) -> list[str]:
+    if doc is None:
+        try:
+            with toml_path.open("rb") as handle:
+                doc = tomllib.load(handle)
+        except FileNotFoundError:
+            return [f"{toml_path}: file not found"]
+        except tomllib.TOMLDecodeError as exc:
+            return [f"{toml_path}: invalid TOML: {exc}"]
 
     provenance = doc.get("provenance")
     if provenance is None:

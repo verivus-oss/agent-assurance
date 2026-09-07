@@ -9,6 +9,18 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Address the issue #74 vocabulary gap with complete declared catalogs in all
+  three SQL mirrors, six constrained runtime-document projections, and
+  captured-source ingestion and audit. Add structural adapter and binding
+  validators in Python, Rust, and Go; require gate verdict membership and
+  whole-string ASCII assertion IDs and lowercase digests. Preserve runtime
+  authority operands as catalogs with opaque rule contents.
+- Correct three reference catalog constraint classifications to match their
+  ontology declarations: framework_profile_namespace, disclosure_posture,
+  and redaction_reason are policy constraints.
+- Replace SQL-text inference with executed engine receipts, explicit storage
+  ownership and residual ledgers, and stricter conformance fixture discovery.
+
 - **`main` now requires the validator, commit-message, and CodeQL jobs
   before merge.** GOVERNANCE.md already asked for required validation checks;
   the live `main-branch-protection` ruleset and classic branch protection had

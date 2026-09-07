@@ -1,0 +1,3 @@
+# Expected diagnostics from the kind and closure validation routes.
+error_contains = ["snapshot.request.descriptor_sha256", "does not equal the SHA-256", "RKV01", "\\n"]
+error_not_contains = ["Traceback"]

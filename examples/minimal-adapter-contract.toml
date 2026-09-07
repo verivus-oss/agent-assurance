@@ -1,4 +1,5 @@
 # Minimal adapter-contract instance.
+# Structural validator example; runtime references remain inert.
 # Validator-compatible shape per profiles/agent-assurance/adapter-contract-kind.toml.
 
 # Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.

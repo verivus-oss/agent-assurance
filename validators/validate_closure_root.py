@@ -319,12 +319,14 @@ def validate(
     path: pathlib.Path,
     pin_map: dict[str, list[tuple[str, str, str]]] | None = None,
     loaded_profiles: frozenset[str] = frozenset(),
+    *, data: dict | None = None,
 ) -> list[str]:
     errors: list[str] = []
-    try:
-        data = tomllib.loads(path.read_text())
-    except (OSError, tomllib.TOMLDecodeError) as exc:
-        return [f"{path}: cannot parse TOML ({exc})"]
+    if data is None:
+        try:
+            data = tomllib.loads(path.read_text())
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            return [f"{path}: cannot parse TOML ({exc})"]
 
     if "closure_root" not in data:
         return [

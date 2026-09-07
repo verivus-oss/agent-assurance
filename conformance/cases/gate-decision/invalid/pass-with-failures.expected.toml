@@ -1,0 +1,2 @@
+error_contains = ["INV01", "pass", "failed_constraint_refs"]
+error_not_contains = ["RDLOAD", "Traceback"]

@@ -48,6 +48,7 @@ import pathlib
 import signal
 import subprocess
 import sys
+import uuid
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "validators"))
 import _toml11 as tomllib  # noqa: E402
@@ -113,7 +114,7 @@ def fingerprint(call: ast.Call) -> str:
 
 
 def run(cmd: list[str], root: pathlib.Path) -> int:
-    return subprocess.run(cmd, cwd=root, capture_output=True, text=True, timeout=900).returncode
+    return subprocess.run(cmd, cwd=root, capture_output=True, text=True, timeout=900).returncode  # nosec B603 # noqa: S603
 
 
 class Restorer:
@@ -183,7 +184,7 @@ def suites_pass(root: pathlib.Path, rs: str, go: str) -> bool:
     ) == 0
 
 
-def main() -> int:
+def legacy_main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--rs", required=True)
     ap.add_argument("--go", required=True)
@@ -230,7 +231,7 @@ def main() -> int:
     print(f"- unprotected         : {len(unprotected)}")
     print(f"- declared baseline   : {allowed}")
     for validator, line, fp in sorted(unprotected):
-        print(f"  UNPROTECTED {validator}:{line}  {fp}")
+        print(f"  UNPROTECTED {validator}  {fp}")
 
     # The SET matters, not only the count. A count-only ratchet is fungible:
     # closing an easy check while opening a hard one leaves the number identical
@@ -260,6 +261,37 @@ def main() -> int:
             print(f"  {item}")
     print("\nCOVERAGE AUDIT PASSED")
     return 0
+
+
+def main():
+    if "--isolated-worker" in sys.argv:
+        sys.argv.remove("--isolated-worker")
+        return legacy_main()
+    from _isolated import copy_source
+    from runtime_coverage import audit
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument("--rs", type=pathlib.Path, required=True)
+    parser.add_argument("--go", type=pathlib.Path, required=True)
+    parser.add_argument("--repo-root", type=pathlib.Path, default=pathlib.Path("."))
+    parser.add_argument("--baseline", default="conformance/coverage-baseline.toml")
+    parser.add_argument("--runtime-only", action="store_true", help="explicit partial development run")
+    args = parser.parse_args()
+    root = args.repo_root.resolve()
+    work = root / ".local/coverage-audit" / uuid.uuid4().hex
+    source = work / "source"
+    population = copy_source(root, source)
+    import json
+    (work / "copy.json").write_text(json.dumps(population, indent=2))
+    audit(source, work / "runtime-mutations.json")
+    if args.runtime_only:
+        print("Skipped legacy API/state-mutation audit (explicit partial run)")
+        return 0
+    process = subprocess.run([sys.executable, str(source / "conformance/coverage_audit.py"), "--isolated-worker",  # nosec B603 # noqa: S603
+                              "--repo-root", str(source), "--rs", str(args.rs.resolve()), "--go", str(args.go.resolve()),
+                              "--baseline", args.baseline], cwd=source, capture_output=True, text=True)
+    (work / "legacy-mutations.log").write_text(process.stdout + process.stderr)
+    print(process.stdout + process.stderr)
+    return process.returncode
 
 
 if __name__ == "__main__":
