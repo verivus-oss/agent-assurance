@@ -67,12 +67,30 @@ After the public mint:
 
 ## Repository Controls
 
-The public repository is expected to keep `main` protected with required
-pull requests, required validation checks, force-push and deletion blocks,
-and CODEOWNERS-backed review for maintainer-owned paths. Release tags
-should be annotated and signed when the maintainer tooling supports it;
-release artifacts should include provenance and an SBOM before the project
-is promoted beyond draft status.
+The public repository keeps `main` protected with required pull requests,
+required status checks, force-push and deletion blocks, and CODEOWNERS-backed
+review for maintainer-owned paths. Merge commits are the only allowed merge
+method. Pull requests targeting `main` must be up to date with `main` before
+they can merge.
+
+The required status checks, all from GitHub Actions, are:
+
+- `validate (spec + reference validators + security scanning)`
+- `commit-messages`
+- `Analyze (actions)`
+- `Analyze (go)`
+- `Analyze (python)`
+- `Analyze (rust)`
+
+Those names are the job names from `.github/workflows/validate.yml`,
+`.github/workflows/no-ai-attribution.yml`, and `.github/workflows/codeql.yml`.
+They are enforced on the `main-branch-protection` repository ruleset and on
+classic branch protection for `main`. Renaming a required job without updating
+both settings is a merge-gate break.
+
+Release tags should be annotated and signed when the maintainer tooling
+supports it; release artifacts should include provenance and an SBOM before
+the project is promoted beyond draft status.
 
 ## Issues and Discussions
 

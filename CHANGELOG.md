@@ -7,6 +7,16 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- **`main` now requires the validator, commit-message, and CodeQL jobs
+  before merge.** GOVERNANCE.md already asked for required validation checks;
+  the live `main-branch-protection` ruleset and classic branch protection had
+  them off, so a code-owner approval could land a red validator triad. The
+  required contexts are `validate (spec + reference validators + security
+  scanning)`, `commit-messages`, and CodeQL `Analyze (actions|go|python|rust)`,
+  with the branch required to be up to date. Closes #73.
+
 ### Added
 
 - **INV08: the profile-declared bound tuple is now a hard invariant, enforced
