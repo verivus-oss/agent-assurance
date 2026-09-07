@@ -20,6 +20,8 @@ jobs:
       matrix:
         lane: [postgres-floor, postgres-maintained, sqlite-floor, sqlite-maintained, duckdb-floor, duckdb-maintained]
     steps:
+      - name: Deliberately fail the dependency for rollout verification
+        run: exit 1
       - uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           egress-policy: audit
@@ -48,6 +50,7 @@ jobs:
           if-no-files-found: error
 
   loaders:
+    if: ${{ false }}
     name: database loader (${{ matrix.language }})
     runs-on: ubuntu-24.04
     permissions:
@@ -86,6 +89,7 @@ jobs:
           if-no-files-found: error
 
   instruments:
+    if: ${{ false }}
     name: database and runtime instruments
     runs-on: ubuntu-24.04
     permissions:
