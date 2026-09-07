@@ -88,9 +88,11 @@ def controls(root, work):
                      ("constraint-on-neighbor", replaced(schema, kind_check,
                         "CHECK (runtime_clock_policy IS NULL OR runtime_clock_policy IN ('wasi-component', 'oci-action', 'os-sandbox'))"), "target failed outside the expected"),
                      ("removed-gate-sql-membership", replaced(schema, gate_check, "CHECK (1)"), "forbidden target write succeeded"))
-        provenance_check = "CHECK (length(CAST(source_sha256 AS BLOB)) = 71 AND substr(source_sha256, 1, 7) = 'sha256:' AND substr(source_sha256, 8) NOT GLOB '*[^0-9a-f]*')"
+        provenance_check = "CHECK (length(CAST(source_sha256 AS BLOB)) = 71 AND length(source_sha256) = 71 AND substr(source_sha256, 1, 7) = 'sha256:' AND substr(source_sha256, 8) NOT GLOB '*[^0-9a-f]*')"
         mutations += (("loosened-provenance-digest", replaced(schema, provenance_check, "CHECK (length(source_sha256) = 71)"), "forbidden target write succeeded"),
                       ("text-length-bundle-digest", replaced(schema, "length(CAST(contract_bundle_sha256 AS BLOB)) = 64", "length(contract_bundle_sha256) = 64"), "forbidden target write succeeded"))
+        mutations += (("nul-truncated-contract-digest", replaced(schema, " AND length(contract_bundle_sha256) = 64", ""), "forbidden target write succeeded"),
+                      ("nul-truncated-provenance-digest", replaced(schema, " AND length(source_sha256) = 71", ""), "forbidden target write succeeded"))
         for name, variant, needle in mutations:
             store = database(name, variant)
             store.verify_catalog()
@@ -285,6 +287,7 @@ def receipt_controls(root, paths, work):
         ("skipped-check", lambda row: row.update(skipped=["engine unavailable"])),
         ("failed-probe", lambda row: row["constraint_probes"][0].update(actual="inconclusive")),
         ("missing-replay", lambda row: row.update(replay_checks=[])),
+        ("missing-metadata", lambda row: row.update(metadata_checks=[])),
     ):
         variant = deepcopy(original)
         edit(variant[0])

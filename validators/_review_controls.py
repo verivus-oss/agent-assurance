@@ -66,9 +66,10 @@ def exercise(candidate, work):
 
     manifest = candidate / "reference/database/MANIFEST.toml"
     original = manifest.read_text()
-    for key, retired in (("informational_native_enum_types", "closed_enums"), ("informational_column_constraint_hints", "closed_checks")):
-        require(key in original)
-        manifest.write_text(original.replace(key, retired))
+    for engine, retired in (("postgres", "closed_enums"), ("sqlite", "closed_checks")):
+        section = "[" + engine + "]\n"
+        require(original.count(section) == 1)
+        manifest.write_text(original.replace(section, section + retired + " = []\n"))
         try:
             command(retired + "/retired-manifest-key", [sys.executable, str(candidate / "validators/check_attribute_values.py"),
                     "--repo-root", str(candidate), "--declarations-only", "--no-rdf"], 1, "retired manifest constraint labels")

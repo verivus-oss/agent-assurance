@@ -1,4 +1,4 @@
--- DAG-TOML reference SQLite/libSQL seed (non-normative).
+-- DAG-TOML reference SQLite seed (non-normative).
 --
 -- Sibling of reference/database/postgres/seed.sql. Same registry data,
 -- adapted to SQLite syntax:

@@ -32,6 +32,8 @@ def load_mapping(root: Path) -> list[dict]:
     sites = set()
     for row in rows:
         declaration = catalog[row["attribute"]]
+        if "native_enum_type" in row and (not isinstance(row["native_enum_type"], str) or not row["native_enum_type"]):
+            raise ValueError("native enum hint must be nonempty text when declared")
         if (row.get("source") != declaration.source or row.get("extensible") is not declaration.extensible
                 or row.get("representation") not in REPRESENTATIONS or not row.get("owner")):
             raise ValueError(f"invalid mapping disposition: {row['attribute']}")

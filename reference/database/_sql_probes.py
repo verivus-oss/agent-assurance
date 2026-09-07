@@ -12,7 +12,10 @@ PROVENANCE_DIGEST_CASES = (
     ("sha256:" + "g" * 64, False), ("sha256:" + "a" * 63, False),
     ("sha256:" + "a" * 65, False), ("sha256:" + "a" * 64 + "\n", False),
     ("sha256:" + "a" * 64 + "\0tail", False), ("a" * 64, False), (None, False),
+    *(("sha256:" + "a" * offset + "\0" + "Z" * (63 - offset), False) for offset in (0, 31, 63)),
 )
+
+CONTRACT_NUL_CASES = ("a" * 64 + "\0tail", *("a" * offset + "\0" + "Z" * (63 - offset) for offset in (0, 31, 63)))
 
 
 def constraint_failure(engine: str, exc: Exception, family: str, column: str = "") -> bool:
@@ -80,7 +83,8 @@ def expected_probes(root, digest):
                           ("contract_bundle_sha256", "A" * 64), ("contract_bundle_sha256", "a" * 64 + "\n"),
                           ("contract_bundle_sha256", "a" * 63), ("contract_bundle_sha256", "g" * 64)):
         expected[f"contract/{column}/{value!r}"] = "reject"
-    expected[f"contract/contract_bundle_sha256/{('a' * 64 + chr(0) + 'tail')!r}"] = "reject"
+    for value in CONTRACT_NUL_CASES:
+        expected[f"contract/contract_bundle_sha256/{value!r}"] = "reject"
     for value, accepted in PROVENANCE_DIGEST_CASES:
         for operation in ("insert", "update"):
             expected[f"provenance/source_sha256/{operation}/{value!r}"] = "accept" if accepted else "reject"
@@ -201,9 +205,9 @@ def probe_constraints(store, digest: str) -> list[dict]:
                           ("contract_bundle_sha256", "a" * 63), ("contract_bundle_sha256", "g" * 64)):
         run(f"contract/{column}/{value!r}", "gate-decision", noop,
             lambda identifier, fixture: store.execute(f"UPDATE {store.table('reference_contract')} SET {column} = ?", (value,)), False)  # nosec B608 # noqa: S608
-    nul_digest = "a" * 64 + "\0tail"
-    run(f"contract/contract_bundle_sha256/{nul_digest!r}", "gate-decision", noop,
-        lambda identifier, fixture: store.execute(f"UPDATE {store.table('reference_contract')} SET contract_bundle_sha256 = ?", (nul_digest,)), False, "encoding")  # nosec B608 # noqa: S608
+    for nul_digest in CONTRACT_NUL_CASES:
+        run(f"contract/contract_bundle_sha256/{nul_digest!r}", "gate-decision", noop,
+            lambda identifier, fixture: store.execute(f"UPDATE {store.table('reference_contract')} SET contract_bundle_sha256 = ?", (nul_digest,)), False, "encoding")  # nosec B608 # noqa: S608
     for value, accepted in PROVENANCE_DIGEST_CASES:
         for operation in ("insert", "update"):
             def setup(identifier, fixture):

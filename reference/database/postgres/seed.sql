@@ -187,7 +187,7 @@ INSERT INTO attribute_vocabulary
     ('likelihood',                  ARRAY['threat'],           NULL, 'structural', FALSE, NULL, 'profile:agent-assurance', 'risk_level'),
     ('impact',                      ARRAY['threat'],           NULL, 'structural', FALSE, NULL, 'profile:agent-assurance', 'risk_level'),
     ('residual_risk',               ARRAY['threat'],           NULL, 'structural', FALSE, NULL, 'profile:agent-assurance', 'residual_risk'),
-    ('smoke.decision',              NULL, ARRAY['smoke-validation'], 'structural', FALSE, NULL, 'profile:agent-assurance', 'smoke_decision'),
+    ('smoke.decision',              NULL, ARRAY['smoke-validation'], 'structural', FALSE, NULL, 'profile:agent-assurance', NULL),
     ('status',                      ARRAY['smoke_check'],      NULL, 'structural', FALSE, NULL, 'profile:agent-assurance', 'smoke_decision'),
     ('runtime_kind',                NULL, ARRAY['adapter-contract'], 'structural', FALSE, NULL, 'profile:agent-assurance', 'runtime_kind'),
     ('runtime_network_policy',      NULL, ARRAY['adapter-contract'], 'structural', FALSE, NULL, 'profile:agent-assurance', 'network_policy'),

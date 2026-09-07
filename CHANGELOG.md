@@ -24,7 +24,8 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   152-row catalogs. The new runtime-document relationship restricts deletion of
   its parent instance; rebuild populated databases side by side to adopt the
   private initialization and ingestion format. MANIFEST replaces `closed_enums`
-  and `closed_checks` with informational native-type and column-constraint hints;
+  and `closed_checks` with one storage mapping of native-type hints and actual
+  enforcement sites, checked against executed registry metadata;
   field enforcement is declared separately in `vocabulary-storage.toml`.
 - Apply closure discovery exclusions below the explicitly selected root, so
   absolute checkouts within hidden storage retain their conforming documents.

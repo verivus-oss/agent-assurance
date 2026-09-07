@@ -1,4 +1,6 @@
 # Non-normative storage and validation ownership; catalog values come from TOML ontologies.
+# native_enum_type is a PostgreSQL/DuckDB type hint, including unused compatibility
+# types. Its presence does not declare an enforcing column; enforcement_sites does.
 [meta]
 document_kind = "vocabulary-storage-mapping"
 schema_version = "0.1.0"
@@ -23,6 +25,7 @@ enforcement_sites = []
 
 [[vocabularies]]
 attribute = "priority"
+native_enum_type = "priority_level"
 source = "core/ontology.toml"
 extensible = false
 representation = "entity-column"
@@ -32,6 +35,7 @@ enforcement_sites = [["entity", "priority"]]
 
 [[vocabularies]]
 attribute = "unit.status"
+native_enum_type = "unit_status"
 source = "core/ontology.toml"
 extensible = false
 representation = "entity-column"
@@ -41,6 +45,7 @@ enforcement_sites = [["entity", "unit_status"]]
 
 [[vocabularies]]
 attribute = "review.status"
+native_enum_type = "review_status"
 source = "core/ontology.toml"
 extensible = false
 representation = "entity-column"
@@ -114,6 +119,7 @@ enforcement_sites = []
 
 [[vocabularies]]
 attribute = "likelihood"
+native_enum_type = "risk_level"
 source = "profiles/agent-assurance/ontology.toml"
 extensible = false
 representation = "entity-column"
@@ -123,6 +129,7 @@ enforcement_sites = [["entity", "likelihood"]]
 
 [[vocabularies]]
 attribute = "impact"
+native_enum_type = "risk_level"
 source = "profiles/agent-assurance/ontology.toml"
 extensible = false
 representation = "entity-column"
@@ -132,6 +139,7 @@ enforcement_sites = [["entity", "impact"]]
 
 [[vocabularies]]
 attribute = "residual_risk"
+native_enum_type = "residual_risk"
 source = "profiles/agent-assurance/ontology.toml"
 extensible = false
 representation = "entity-column"
@@ -152,6 +160,7 @@ enforcement_sites = []
 
 [[vocabularies]]
 attribute = "status"
+native_enum_type = "smoke_decision"
 source = "profiles/agent-assurance/ontology.toml"
 extensible = false
 representation = "entity-column"
@@ -161,6 +170,7 @@ enforcement_sites = [["entity", "smoke_status"]]
 
 [[vocabularies]]
 attribute = "runtime_kind"
+native_enum_type = "runtime_kind"
 source = "profiles/agent-assurance/ontology.toml"
 extensible = false
 representation = "document-column"
@@ -174,6 +184,7 @@ enforcement_sites = [["runtime_document", "runtime_kind"]]
 
 [[vocabularies]]
 attribute = "runtime_network_policy"
+native_enum_type = "network_policy"
 source = "profiles/agent-assurance/ontology.toml"
 extensible = false
 representation = "document-column"
@@ -187,6 +198,7 @@ enforcement_sites = [["runtime_document", "runtime_network_policy"]]
 
 [[vocabularies]]
 attribute = "runtime_clock_policy"
+native_enum_type = "clock_policy"
 source = "profiles/agent-assurance/ontology.toml"
 extensible = false
 representation = "document-column"
@@ -208,6 +220,7 @@ enforcement_sites = []
 
 [[vocabularies]]
 attribute = "adapter_id_derivation"
+native_enum_type = "adapter_id_derivation"
 source = "profiles/agent-assurance/ontology.toml"
 extensible = false
 representation = "document-column"
@@ -221,6 +234,7 @@ enforcement_sites = [["runtime_document", "adapter_id_derivation"]]
 
 [[vocabularies]]
 attribute = "gate_decision_verdict"
+native_enum_type = "gate_verdict"
 source = "profiles/agent-assurance/ontology.toml"
 extensible = false
 representation = "document-column"
@@ -274,6 +288,7 @@ enforcement_sites = []
 
 [[vocabularies]]
 attribute = "adapter_ref_syntax"
+native_enum_type = "adapter_ref_syntax"
 source = "profiles/agent-assurance/ontology.toml"
 extensible = false
 representation = "document-column"
@@ -303,6 +318,7 @@ enforcement_sites = []
 
 [[vocabularies]]
 attribute = "severity_tier"
+native_enum_type = "severity_tier"
 source = "profiles/agent-assurance/ontology.toml"
 extensible = false
 representation = "runtime-operand-catalog"
@@ -327,6 +343,7 @@ enforcement_sites = []
 
 [[vocabularies]]
 attribute = "override_rule_operator"
+native_enum_type = "override_rule_op"
 source = "profiles/agent-assurance/ontology.toml"
 extensible = false
 representation = "runtime-operand-catalog"

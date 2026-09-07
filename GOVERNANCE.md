@@ -73,7 +73,9 @@ review for maintainer-owned paths. Merge commits are the only allowed merge
 method. Pull requests targeting `main` must be up to date with `main` before
 they can merge.
 
-The required status checks, all from GitHub Actions, are:
+The database gate rollout must enforce all seven GitHub Actions checks below.
+The seventh requirement is pending until live configuration readback and
+failed/skipped dependency checks complete:
 
 - `validate (spec + reference validators + security scanning)`
 - `commit-messages`

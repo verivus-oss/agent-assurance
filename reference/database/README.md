@@ -262,3 +262,8 @@ incomplete kind/entity population is recorded in
 [ISS-002](../../docs/issues/2026-05-23-iss-002-graph-cypher-seed-incomplete.md).
 Complete SQL catalogs and this ingestion path do not imply universal kind
 validation or complete graph ingestion.
+
+Native enum hints in `vocabulary-storage.toml` describe PostgreSQL and DuckDB
+types, including retained compatibility types. Every engine compares its complete
+backing-hint metadata with the mapping. These hints do not assert column
+enforcement; the mapped use sites and executed write probes establish that.

@@ -154,16 +154,19 @@ class Store:
             if (row["extensible"] != item.extensible or row["ijb_constraint_type"] != item.declaration["ijb_constraint_type"]
                     or row["default_value"] != item.declaration.get("default")):
                 raise StorageError("catalog-mismatch", f"vocabulary metadata differs: {item.attribute}")
-        if self.engine == "sqlite":
-            hints = dict(self.execute("SELECT attribute, backing_check_constraint FROM dagtoml_attribute_vocabulary").fetchall())
-            expected_hints = {}
-            for row in load_mapping(self.root):
+        hint_column = "backing_check_constraint" if self.engine == "sqlite" else "backing_enum_type"
+        hints = {row["attribute"]: row[hint_column] for row in self.rows("attribute_vocabulary", ("attribute", hint_column))}
+        expected_hints = {}
+        for row in load_mapping(self.root):
+            if self.engine == "sqlite":
                 representation = row["representation"]
                 expected_hints[row["attribute"]] = (
                     "runtime_document_" + row["column"] + "_values" if representation == "document-column"
                     else row["enforcement_sites"][0][1] if representation == "entity-column" else None)
-            if hints != expected_hints:
-                raise StorageError("catalog-mismatch", "SQLite backing hints differ from the declared storage use sites")
+            else:
+                expected_hints[row["attribute"]] = row.get("native_enum_type")
+        if hints != expected_hints:
+            raise StorageError("catalog-mismatch", "backing hints differ from the declared storage mapping")
         return counts
 
     def _empty(self) -> None:

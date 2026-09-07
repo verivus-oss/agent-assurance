@@ -88,29 +88,8 @@ seed_path     = "postgres/seed.sql"
 target        = "postgresql>=14"  # uses gen_random_uuid() from core (PG 13+), JSONB GIN, recursive CTE
 search_path   = "dagtoml"
 extensions    = []  # none required
-# Declared native enum types, retained as informative discovery metadata.
-# Every vocabulary also has its complete allowed-value catalog. A type name
-# does not claim an enforcing column; vocabulary-storage.toml names use sites.
-informational_native_enum_types = [
-  "ijb_primitive",
-  "ijb_class",
-  "ijb_constraint_type",
-  "spec_layer",
-  "priority_level",
-  "unit_status",
-  "review_status",
-  "risk_level",
-  "residual_risk",
-  "smoke_decision",
-  "gate_verdict",
-  "severity_tier",
-  "runtime_kind",
-  "network_policy",
-  "clock_policy",
-  "adapter_id_derivation",
-  "adapter_ref_syntax",
-  "override_rule_op",
-]
+# Native vocabulary type hints and enforcing use sites are declared once in
+# vocabulary-storage.toml and compared with executed registry metadata.
 invariant_views = [
   "invariant_violations_depends_blocks",
   "invariant_violations_multi_producer",
@@ -136,28 +115,8 @@ seed_path     = "sqlite/seed.sql"
 target        = "sqlite>=3.38"
 # SQLite has no schemas; table names are prefixed with `dagtoml_`.
 table_prefix  = "dagtoml_"
-# Legacy column hints and named document CHECK constraints. These names
-# are informative; actual column enforcement is established by SQL probes.
-informational_column_constraint_hints = [
-  "priority",
-  "unit_status",
-  "review_status",
-  "likelihood",
-  "impact",
-  "residual",
-  "smoke_status",
-  "ijb_primitive",
-  "ijb_class",
-  "ijb_constraint_type",
-  "layer",
-  "framework_profile",
-  "runtime_document_runtime_kind_values",
-  "runtime_document_runtime_network_policy_values",
-  "runtime_document_runtime_clock_policy_values",
-  "runtime_document_adapter_id_derivation_values",
-  "runtime_document_adapter_ref_syntax_values",
-  "runtime_document_gate_decision_verdict_values",
-]
+# Vocabulary CHECK hints are derived from vocabulary-storage.toml use sites
+# and compared with executed registry metadata.
 invariant_views = [
   "dagtoml_inv_depends_blocks",
   "dagtoml_inv_multi_producer",
@@ -183,8 +142,8 @@ convenience_views = [
 "CREATE OR REPLACE FUNCTION"     = "recursive VIEW (no stored functions in SQLite)"
 "GIN index on JSONB"             = "not modelled (json1 query syntax is enough for this schema)"
 
-# Turso-specific notes. The schema is engine-agnostic; this captures the
-# operational entry points.
+# Unverified Turso operational pointers. These do not establish compatibility
+# of this schema with a particular server or API release.
 [sqlite.turso]
 compatibility_target = "libsql>=0.24 (unverified)"
 local_dev       = "podman run --rm -p 8080:8080 ghcr.io/tursodatabase/libsql-server"

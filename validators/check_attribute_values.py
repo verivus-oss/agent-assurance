@@ -118,7 +118,7 @@ def main(argv=None) -> int:
         verification = manifest["verification"]
         for engine in ("postgres", "sqlite", "duckdb"):
             if {"closed_enums", "closed_checks"} & manifest[engine].keys():
-                raise ValueError("retired manifest constraint labels must use informational metadata names")
+                raise ValueError("retired manifest constraint labels must use the storage mapping")
             prefix = "dagtoml_" if engine == "sqlite" else ""
             for name, value in registry.items():
                 check(engine + "/declared/" + name, value,

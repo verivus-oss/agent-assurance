@@ -9,6 +9,7 @@ import sys
 from _contract import artifact_hashes, bundle_digest, expected_counts, load_mapping
 from _vocabulary import load_catalog
 from _sql_probes import expected_probes
+from _catalog_checks import CHECKS as METADATA_CHECKS
 from _replay_checks import CHECKS as REPLAY_CHECKS
 from _storage_checks import CHECKS as STORAGE_CHECKS
 from _protocol_checks import CHECKS as PROTOCOL_CHECKS
@@ -60,6 +61,8 @@ def validate_receipts(root: Path, paths: list[Path], *, require_clean=True, incl
                 or any(item.get("actual") != item.get("expected") for item in probes)
                 or {item.get("actual") for item in probes} != {"accept", "reject"}):
             raise ValueError("receipt probe population is absent, incomplete, duplicated, or failed")
+        if len(receipt.get("metadata_checks", [])) != len(METADATA_CHECKS) or set(receipt["metadata_checks"]) != METADATA_CHECKS:
+            raise ValueError("metadata rejection controls are missing or duplicated")
         if len(receipt.get("storage_checks", [])) != len(STORAGE_CHECKS) or set(receipt["storage_checks"]) != STORAGE_CHECKS:
             raise ValueError("storage acceptance checks are missing or duplicated")
         if len(receipt.get("protocol_checks", [])) != len(PROTOCOL_CHECKS) or set(receipt["protocol_checks"]) != PROTOCOL_CHECKS:

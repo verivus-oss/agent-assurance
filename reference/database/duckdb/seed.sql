@@ -121,7 +121,7 @@ INSERT INTO dagtoml.attribute_vocabulary (attribute, applies_to_entity, applies_
     ('likelihood',                  ['threat'],           NULL, 'structural', FALSE, NULL, 'profile:agent-assurance', 'risk_level'),
     ('impact',                      ['threat'],           NULL, 'structural', FALSE, NULL, 'profile:agent-assurance', 'risk_level'),
     ('residual_risk',               ['threat'],           NULL, 'structural', FALSE, NULL, 'profile:agent-assurance', 'residual_risk'),
-    ('smoke.decision',              NULL, ['smoke-validation'], 'structural', FALSE, NULL, 'profile:agent-assurance', 'smoke_decision'),
+    ('smoke.decision',              NULL, ['smoke-validation'], 'structural', FALSE, NULL, 'profile:agent-assurance', NULL),
     ('status',                      ['smoke_check'],      NULL, 'structural', FALSE, NULL, 'profile:agent-assurance', 'smoke_decision'),
     ('runtime_kind',                NULL, ['adapter-contract'], 'structural', FALSE, NULL, 'profile:agent-assurance', 'runtime_kind'),
     ('runtime_network_policy',      NULL, ['adapter-contract'], 'structural', FALSE, NULL, 'profile:agent-assurance', 'network_policy'),

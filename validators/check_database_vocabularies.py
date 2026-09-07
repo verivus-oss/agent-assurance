@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reference/database
 from _contract import artifact_hashes, bundle_digest, bundle_entries  # noqa: E402
 from _storage import Store, connect  # noqa: E402
 from _storage_checks import exercise_storage  # noqa: E402
+from _catalog_checks import exercise_catalog_metadata  # noqa: E402
 from _protocol_checks import exercise_protocol  # noqa: E402
 from _concurrency_checks import initialize_checks, writer_checks  # noqa: E402
 from _replay_checks import exercise_replay  # noqa: E402
@@ -68,6 +69,7 @@ def run_lane(root: Path, engine: str, destination: str, expected_version: str, l
         pairs = store.execute(f"SELECT attribute,value FROM {store.table('attribute_value_allowed')} ORDER BY attribute,value").fetchall()  # nosec B608 # noqa: S608
         work = root / ".local/database-checks" / lane / uuid.uuid4().hex
         work.mkdir(parents=True)
+        metadata_checks = exercise_catalog_metadata(store)
         connection_checks = exercise_connection(store, destination)
         initialization_checks = initialize_checks(store, work)
         initialization = store.initialize(exclusive_unpublished=True)
@@ -88,7 +90,7 @@ def run_lane(root: Path, engine: str, destination: str, expected_version: str, l
                 "storage_checks": storage_checks, "protocol_checks": protocol_checks, "skipped": [],
                 "initialization_checks": initialization_checks, "concurrency_checks": concurrency_checks,
                 "replay_checks": replay_checks,
-                "connection_checks": connection_checks,
+                "connection_checks": connection_checks, "metadata_checks": metadata_checks,
                 "excluded": ["libSQL compatibility", "runtime execution", "signature verification", "evidence authenticity"]}
     finally:
         store.connection.close()
@@ -117,7 +119,7 @@ def main(argv=None) -> int:
           f"{len(receipt['constraint_probes'])} SQL probes, {len(receipt['storage_checks'])} storage checks, "
           f"and {len(receipt['protocol_checks'])} protocol checks; "
           f"{len(receipt['initialization_checks'])} initialization and {len(receipt['concurrency_checks'])} concurrency checks; "
-          f"{len(receipt['replay_checks'])} replay and {len(receipt['connection_checks'])} connection checks; "
+          f"{len(receipt['replay_checks'])} replay, {len(receipt['connection_checks'])} connection and {len(receipt['metadata_checks'])} metadata checks; "
           "compared with discovered ontology and fixed storage expectations; skipped=[]")
     return 0
 
