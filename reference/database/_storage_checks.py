@@ -4,7 +4,7 @@
 import hashlib
 import json
 
-from _projection import project, semantic_json
+from _projection import project, semantic_json, timestamp_index
 from _storage import Store, StorageError
 from _instrument import require
 
@@ -123,6 +123,26 @@ docs_url = "extension-only"
     local = metadata.replace(b'2026-09-07T12:00:00+10:00', b'2026-09-07T12:00:00')
     projected = project(local, "local-time.toml", root)
     require(projected.instance["created_at"] is None and ("meta", "created_at") in projected.unindexed_fields)
+    timestamps = (
+        ("2026-09-07T12:00:00+10:00", "2026-09-07T02:00:00Z"),
+        ("2026-09-07T12:00:00-01:59", "2026-09-07T13:59:00Z"),
+        ("2026-09-07T12:00:00+23:59", "2026-09-06T12:01:00Z"),
+        ("2026-09-07t12:00:00z", "2026-09-07T12:00:00Z"),
+        ("2026-09-07T12:00:00+00:60", None),
+        ("2026-09-07T12:00:00+00:99", None),
+        ("2026-09-07T12:00:00-01:75", None),
+        ("2026-09-07T12:00:00+24:00", None),
+    )
+    for index, (value, expected) in enumerate(timestamps):
+        raw = metadata.replace(b"2026-09-07T12:00:00+10:00", json.dumps(value).encode())
+        path = f"metadata/offset-{index}.toml"
+        projected = project(raw, path, root)
+        require(projected.instance["created_at"] == expected, value)
+        require((("meta", "created_at") in projected.unindexed_fields) == (expected is None), value)
+        written = store.ingest([(path, raw)])
+        row = store.rows("instance_file", ("created_at",), "WHERE id = ?", (written["documents"][0]["id"],))[0]
+        require((None if row["created_at"] is None else timestamp_index(row["created_at"])) == expected, value)
+        require(store.ingest([(path, raw)]) == written)
     checks.append("native-and-quoted-date-and-local-timestamp-indexes")
 
     original = saved["meta_extras"]

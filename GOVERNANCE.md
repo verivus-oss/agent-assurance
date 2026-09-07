@@ -81,12 +81,22 @@ The required status checks, all from GitHub Actions, are:
 - `Analyze (go)`
 - `Analyze (python)`
 - `Analyze (rust)`
+- `database-vocabulary-gate`
 
 Those names are the job names from `.github/workflows/validate.yml`,
-`.github/workflows/no-ai-attribution.yml`, and `.github/workflows/codeql.yml`.
-They are enforced on the `main-branch-protection` repository ruleset and on
-classic branch protection for `main`. Renaming a required job without updating
-both settings is a merge-gate break.
+`.github/workflows/no-ai-attribution.yml`, `.github/workflows/codeql.yml`, and
+`.github/workflows/database-vocabularies.yml`. Maintainers must enforce this
+complete set on the `main-branch-protection` repository ruleset and on classic
+branch protection for `main`. Renaming a required job without updating both
+settings is a merge-gate break.
+
+During the database gate rollout, retain the existing executed database checks
+inside `validate` until both protection settings require the new aggregate and
+failed and deliberately skipped dependency candidates demonstrate merge blocking.
+The aggregate must run even when its dependencies fail or skip, and must reject
+any dependency result other than success. A workflow or policy edit alone does
+not complete this transition; record live configuration readback and check-run
+evidence before removing the old coverage or closing the rollout issue.
 
 Release tags should be annotated and signed when the maintainer tooling
 supports it; release artifacts should include provenance and an SBOM before

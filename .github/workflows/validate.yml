@@ -556,6 +556,7 @@ jobs:
           # because every invocation used exactly the form CI used.
           python3 validators/validate_closure_root.py \
             --discover "$(pwd)" --exclude examples/negative
+          python3 validators/check_closure_discovery.py
 
       - name: Validate kind descriptors
         run: |

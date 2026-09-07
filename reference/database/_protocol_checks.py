@@ -4,6 +4,7 @@
 import hashlib
 
 from _storage import Store, StorageError
+from _projection import timestamp_index
 from _instrument import require
 from unittest.mock import patch
 
@@ -40,6 +41,14 @@ opaque_extra = {{ values = [true, 1, "\u0063\u0061\u0066\u00e9"] }}
     require(store.ingest([("protocol/provenance.toml", authored)]) == result)
     require(record["content_sha256"] != upstream)
     require(store.audit()["status"] == "consistent")
+    captured = store.rows("provenance", ("captured_at",), "WHERE instance_file_id = ?", (record["id"],))[0]
+    require(timestamp_index(captured["captured_at"]) == "2026-09-07T02:00:00Z")
+    for index, offset in enumerate((b"+00:99", b"-01:75")):
+        invalid_offset = authored.replace(b"+10:00", offset)
+        omitted = store.ingest([(f"protocol/invalid-offset-{index}.toml", invalid_offset)])["documents"][0]
+        require(["provenance", "captured_at"] in omitted["unindexed_fields"])
+        captured = store.rows("provenance", ("captured_at",), "WHERE instance_file_id = ?", (omitted["id"],))[0]
+        require(captured["captured_at"] is None)
     checks.append("provenance-atomic-row-upstream-subject-and-portable-index")
     store.execute(f"UPDATE {store.table('provenance')} SET source_description = ? WHERE instance_file_id = ?",  # nosec B608 # noqa: S608
                   ("corrupted", record["id"]))

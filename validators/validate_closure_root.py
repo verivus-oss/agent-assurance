@@ -499,7 +499,7 @@ def discover_conforming(
                 out.append(root)
             continue
         for path in sorted(root.rglob("*.toml")):
-            if any(part.startswith(".") or part in skip_dirs for part in path.parts):
+            if any(part.startswith(".") or part in skip_dirs for part in path.relative_to(root).parts):
                 continue
             if is_conforming_toml(path, spec_reserved):
                 out.append(path)

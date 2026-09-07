@@ -20,6 +20,10 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   and redaction_reason are policy constraints.
 - Replace SQL-text inference with executed engine receipts, explicit storage
   ownership and residual ledgers, and stricter conformance fixture discovery.
+- Apply closure discovery exclusions below the explicitly selected root, so
+  absolute checkouts within hidden storage retain their conforming documents.
+- Keep malformed numeric timezone offsets out of optional SQL timestamp indexes
+  while preserving their original source bytes and reporting the omitted index.
 
 - **`main` now requires the validator, commit-message, and CodeQL jobs
   before merge.** GOVERNANCE.md already asked for required validation checks;

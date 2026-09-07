@@ -70,7 +70,7 @@ fixture references, or artifacts.
 | `framework_profile` | Original `agent-assurance` or `AGDF` spelling; only profile identity comparison uses the alias |
 | `title`, `docs_url` | Optional string `meta.title` and `meta.docs` |
 | `created` | Native TOML date or valid exact `YYYY-MM-DD` string |
-| `created_at`, provenance `captured_at` | Offset datetime normalized to UTC; local datetime stays unindexed |
+| `created_at`, provenance `captured_at` | Offset datetime or valid offset-bearing RFC3339 string normalized to UTC; local datetime and malformed offsets stay unindexed |
 | `meta_extras`, provenance `extras` | Supported optional properties excluding individually indexed keys |
 | provenance identity/count | Its own validated path, canonical prefixed hash, and nonnegative signed 64-bit byte count |
 | provenance optional text | `extraction_method` and `source_description` when representable |

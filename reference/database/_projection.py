@@ -23,7 +23,7 @@ PROJECTION_COLUMNS = ("runtime_kind", "runtime_network_policy", "runtime_clock_p
                       "adapter_id_derivation", "adapter_ref_syntax", "gate_decision_verdict")
 META_KEYS = {"schema_version", "ontology_version", "template_kind", "framework_profile",
              "title", "docs", "created", "created_at"}
-RFC3339 = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?(?:[Zz]|[+-][0-9]{2}:[0-9]{2})")
+RFC3339 = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?(?:[Zz]|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])")
 
 
 @dataclass(frozen=True)
