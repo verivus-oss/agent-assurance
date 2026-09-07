@@ -42,15 +42,16 @@ from __future__ import annotations
 import argparse
 import ast
 import atexit
-import re
 import os
 import pathlib
 import signal
 import subprocess
 import sys
+import uuid
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "validators"))
 import _toml11 as tomllib  # noqa: E402
+from _mutation_sites import DisableSite  # noqa: E402
 
 # validator -> the examples/negative glob whose rejections form its baseline.
 AUDITED = {
@@ -63,57 +64,9 @@ AUDITED = {
 BASELINE_SKIP = ("malformed-kind-selector",)
 
 
-class DisableSite(ast.NodeTransformer):
-    """Replace the Nth errors/defects `.append(...)` statement with `pass`."""
-
-    def __init__(self, target: int) -> None:
-        self.target = target
-        self.seen = 0
-        self.line: int | None = None
-        self.fingerprint: str = ""
-
-    def visit_Expr(self, node: ast.Expr):
-        call = node.value
-        if (
-            isinstance(call, ast.Call)
-            and isinstance(call.func, ast.Attribute)
-            and call.func.attr == "append"
-            and isinstance(call.func.value, ast.Name)
-            and call.func.value.id in ("errors", "defects")
-        ):
-            index = self.seen
-            self.seen += 1
-            if index == self.target:
-                self.line = node.lineno
-                self.fingerprint = fingerprint(call)
-                return ast.copy_location(ast.Pass(), node)
-        return node
-
-
-def fingerprint(call: ast.Call) -> str:
-    """A stable identity for a check, derived from its message rather than its line.
-
-    Line numbers move whenever anything above them is edited, so a baseline keyed
-    on them would churn on unrelated changes and, worse, could be silently
-    re-pointed at a different check. The message text is what actually identifies
-    the rule.
-    """
-    parts: list[str] = []
-    for node in ast.walk(call):
-        if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            parts.append(node.value)
-    text = " ".join(parts)
-    text = re.sub(r"\s+", " ", text).strip()
-    # Strip AFTER truncating too. A 70-char cut can land mid-gap and leave a
-    # trailing space, and every TOML writer and formatter strips trailing
-    # whitespace on the way into the baseline file. The stored identity would
-    # then never match the computed one, so the check reads as permanently
-    # "newly unprotected" and the gate fails on a difference that is not real.
-    return text[:70].strip() if text else "<no-literal>"
-
 
 def run(cmd: list[str], root: pathlib.Path) -> int:
-    return subprocess.run(cmd, cwd=root, capture_output=True, text=True, timeout=900).returncode
+    return subprocess.run(cmd, cwd=root, capture_output=True, text=True, timeout=900).returncode  # nosec B603 # noqa: S603
 
 
 class Restorer:
@@ -183,7 +136,7 @@ def suites_pass(root: pathlib.Path, rs: str, go: str) -> bool:
     ) == 0
 
 
-def main() -> int:
+def legacy_main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--rs", required=True)
     ap.add_argument("--go", required=True)
@@ -230,7 +183,7 @@ def main() -> int:
     print(f"- unprotected         : {len(unprotected)}")
     print(f"- declared baseline   : {allowed}")
     for validator, line, fp in sorted(unprotected):
-        print(f"  UNPROTECTED {validator}:{line}  {fp}")
+        print(f"  UNPROTECTED {validator}  {fp}")
 
     # The SET matters, not only the count. A count-only ratchet is fungible:
     # closing an easy check while opening a hard one leaves the number identical
@@ -260,6 +213,37 @@ def main() -> int:
             print(f"  {item}")
     print("\nCOVERAGE AUDIT PASSED")
     return 0
+
+
+def main():
+    if "--isolated-worker" in sys.argv:
+        sys.argv.remove("--isolated-worker")
+        return legacy_main()
+    from _isolated import copy_source
+    from runtime_coverage import audit
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument("--rs", type=pathlib.Path, required=True)
+    parser.add_argument("--go", type=pathlib.Path, required=True)
+    parser.add_argument("--repo-root", type=pathlib.Path, default=pathlib.Path("."))
+    parser.add_argument("--baseline", default="conformance/coverage-baseline.toml")
+    parser.add_argument("--runtime-only", action="store_true", help="explicit partial development run")
+    args = parser.parse_args()
+    root = args.repo_root.resolve()
+    work = root / ".local/coverage-audit" / uuid.uuid4().hex
+    source = work / "source"
+    population = copy_source(root, source)
+    import json
+    (work / "copy.json").write_text(json.dumps(population, indent=2))
+    audit(source, work / "runtime-mutations.json")
+    if args.runtime_only:
+        print("Skipped legacy API/state-mutation audit (explicit partial run)")
+        return 0
+    process = subprocess.run([sys.executable, str(source / "conformance/coverage_audit.py"), "--isolated-worker",  # nosec B603 # noqa: S603
+                              "--repo-root", str(source), "--rs", str(args.rs.resolve()), "--go", str(args.go.resolve()),
+                              "--baseline", args.baseline], cwd=source, capture_output=True, text=True)
+    (work / "legacy-mutations.log").write_text(process.stdout + process.stderr)
+    print(process.stdout + process.stderr)
+    return process.returncode
 
 
 if __name__ == "__main__":

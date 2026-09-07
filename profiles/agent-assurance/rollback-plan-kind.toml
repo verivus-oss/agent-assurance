@@ -118,14 +118,14 @@ ijb_constraint_type = "structural"
 [[kind.hard_invariants]]
 id          = "INV01"
 statement   = "At least one `[[triggers]]` entry is present."
-enforced_by = "validators/validate_rollback_plan.py (planned)"
+enforced_by = "validators/validate_rollback_plan.py"
 ijb_primitive       = "constraint"
 ijb_constraint_type = "structural"
 
 [[kind.hard_invariants]]
 id          = "INV02"
 statement   = "Every `[[triggers]].trigger_kind` value is drawn from the profile ontology's allowed set (or the explicit `kind` alias)."
-enforced_by = "validators/validate_rollback_plan.py (planned)"
+enforced_by = "validators/validate_rollback_plan.py"
 see_also    = "profiles/agent-assurance/ontology.toml [[attribute_vocabularies]] trigger_kind"
 ijb_primitive       = "constraint"
 ijb_constraint_type = "structural"

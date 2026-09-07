@@ -1,0 +1,5 @@
+# Optional minimum-version DuckDB lane; PostgreSQL uses the same driver.
+duckdb==1.5.0
+psycopg[binary]==3.3.5
+# DuckDB 1.5.0's Python conversion of TIMESTAMPTZ imports pytz.
+pytz==2026.3.post1

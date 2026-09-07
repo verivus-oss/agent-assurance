@@ -1,13 +1,13 @@
--- DAG-TOML reference SQLite / libSQL (Turso) schema (non-normative).
+-- DAG-TOML reference SQLite schema (non-normative).
 --
 -- Sibling of reference/database/postgres/schema.sql, adapted to SQLite's
 -- type system. Works on:
 --   * SQLite >= 3.38 (uses STRICT tables, JSON1 built-in, expression
 --     DEFAULTs, partial indexes, recursive CTEs, FK enforcement)
---   * libSQL / Turso (SQLite-compatible fork — same DDL works)
+-- libSQL / Turso compatibility is unverified and needs its own executed lane.
 --
 -- Translation table from the PG reference:
---   PG                                          SQLite/libSQL
+--   PG                                          SQLite
 --   ──                                          ─────────────
 --   CREATE TYPE x AS ENUM (...)                 TEXT CHECK (x IN (...))
 --   JSONB                                       TEXT (use json_* / -> for queries)
@@ -21,8 +21,7 @@
 --                                                names carry the prefix)
 --
 -- All STRICT tables for SQLite >= 3.38. STRICT enforces the declared
--- column types, which gives us the same shape discipline as PG. libSQL
--- supports STRICT identically.
+-- column types used by this mirror.
 --
 -- Foreign keys: SQLite enforces FKs only when `PRAGMA foreign_keys = ON;`
 -- is set on the connection. The pragma is declared once below; the seed
@@ -80,8 +79,8 @@ CREATE TABLE dagtoml_attribute_vocabulary (
     layer                  TEXT NOT NULL CHECK (layer IN ('core', 'profile:agent-assurance', 'profile:disclosure', 'profile:cost', 'profile:com.verivus.runtime')),
     -- backing_check_constraint names the schema-level CHECK list that
     -- enforces the closed value set (SQLite-side analogue of PG's
-    -- backing_enum_type). NULL = extensible vocab, checked via
-    -- dagtoml_attribute_value_allowed instead.
+    -- backing_enum_type). This is optional metadata, not evidence of
+    -- column enforcement or extensibility; the complete catalog is separate.
     backing_check_constraint TEXT
 ) STRICT;
 
@@ -114,6 +113,7 @@ CREATE TABLE dagtoml_instance_file (
     created_at         TEXT,             -- ISO 8601 timestamp string
     meta_extras        TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(meta_extras)),
     ingested_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    UNIQUE (id, template_kind),
     UNIQUE (source_path, content_sha256)
 ) STRICT;
 
@@ -124,7 +124,8 @@ CREATE INDEX idx_instance_file_profile       ON dagtoml_instance_file (framework
 CREATE TABLE dagtoml_provenance (
     instance_file_id    TEXT PRIMARY KEY REFERENCES dagtoml_instance_file(id) ON DELETE CASCADE,
     source_path         TEXT NOT NULL,
-    source_sha256       TEXT NOT NULL CHECK (source_sha256 GLOB 'sha256:????????????????????????????????????????????????????????????????'),
+    -- Both lengths reject text hidden by SQLite NUL truncation.
+    source_sha256       TEXT NOT NULL CHECK (length(CAST(source_sha256 AS BLOB)) = 71 AND length(source_sha256) = 71 AND substr(source_sha256, 1, 7) = 'sha256:' AND substr(source_sha256, 8) NOT GLOB '*[^0-9a-f]*'),
     source_bytes        INTEGER NOT NULL CHECK (source_bytes >= 0),
     captured_at         TEXT,
     extraction_method   TEXT,
@@ -315,3 +316,49 @@ JOIN dagtoml_relation_descriptor rd ON rd.predicate = r.predicate
 WHERE r.target_entity_id IS NULL
   AND r.target_label IS NOT NULL
   AND rd.target_freeform = 0;
+
+-- Document-owned projections, not ontology entities. Raw TOML remains exact.
+CREATE TABLE dagtoml_reference_contract (
+    singleton_id INTEGER PRIMARY KEY CHECK (singleton_id = 1),
+    contract_bundle_sha256 TEXT NOT NULL UNIQUE CHECK (length(CAST(contract_bundle_sha256 AS BLOB)) = 64 AND length(contract_bundle_sha256) = 64 AND contract_bundle_sha256 NOT GLOB '*[^0-9a-f]*'),
+    projection_version INTEGER NOT NULL CHECK (projection_version = 1)
+) STRICT;
+
+CREATE TABLE dagtoml_runtime_document (
+    instance_file_id TEXT PRIMARY KEY NOT NULL,
+    template_kind TEXT NOT NULL,
+    source_toml BLOB NOT NULL,
+    projection_version INTEGER NOT NULL CHECK (projection_version = 1),
+    contract_bundle_sha256 TEXT NOT NULL REFERENCES dagtoml_reference_contract(contract_bundle_sha256),
+    runtime_kind TEXT COLLATE BINARY CONSTRAINT runtime_document_runtime_kind_values CHECK (runtime_kind IS NULL OR runtime_kind IN ('wasi-component', 'oci-action', 'os-sandbox')),
+    runtime_network_policy TEXT COLLATE BINARY CONSTRAINT runtime_document_runtime_network_policy_values CHECK (runtime_network_policy IS NULL OR runtime_network_policy IN ('denied', 'loopback-only', 'allowlist', 'open')),
+    runtime_clock_policy TEXT COLLATE BINARY CONSTRAINT runtime_document_runtime_clock_policy_values CHECK (runtime_clock_policy IS NULL OR runtime_clock_policy IN ('injected', 'source-date-epoch', 'monotonic-from-zero', 'host-wall-clock')),
+    adapter_id_derivation TEXT COLLATE BINARY CONSTRAINT runtime_document_adapter_id_derivation_values CHECK (adapter_id_derivation IS NULL OR adapter_id_derivation IN ('content-hash', 'nonce', 'external')),
+    adapter_ref_syntax TEXT COLLATE BINARY CONSTRAINT runtime_document_adapter_ref_syntax_values CHECK (adapter_ref_syntax IS NULL OR adapter_ref_syntax IN ('content-hash', 'name-version-pin')),
+    gate_decision_verdict TEXT COLLATE BINARY CONSTRAINT runtime_document_gate_decision_verdict_values CHECK (gate_decision_verdict IS NULL OR gate_decision_verdict IN ('pass', 'fail')),
+    CONSTRAINT runtime_document_parent_kind FOREIGN KEY (instance_file_id, template_kind)
+        REFERENCES dagtoml_instance_file(id, template_kind),
+    CONSTRAINT runtime_document_kind_shape CHECK (
+        (template_kind = 'adapter-contract' AND runtime_kind IS NOT NULL AND runtime_network_policy IS NOT NULL AND runtime_clock_policy IS NOT NULL AND adapter_ref_syntax IS NULL AND gate_decision_verdict IS NULL)
+        OR         (template_kind = 'adapter-registry-binding' AND adapter_ref_syntax IS NOT NULL AND runtime_kind IS NULL AND runtime_network_policy IS NULL AND runtime_clock_policy IS NULL AND adapter_id_derivation IS NULL AND gate_decision_verdict IS NULL)
+        OR         (template_kind = 'gate-decision' AND gate_decision_verdict IS NOT NULL AND runtime_kind IS NULL AND runtime_network_policy IS NULL AND runtime_clock_policy IS NULL AND adapter_id_derivation IS NULL AND adapter_ref_syntax IS NULL)
+    )
+) STRICT;
+
+CREATE VIEW dagtoml_adapter_contract_document AS
+SELECT d.*, f.source_path, f.content_sha256, f.framework_profile, f.title
+FROM dagtoml_runtime_document AS d
+JOIN dagtoml_instance_file AS f ON f.id = d.instance_file_id
+WHERE d.template_kind = 'adapter-contract';
+
+CREATE VIEW dagtoml_adapter_registry_binding_document AS
+SELECT d.*, f.source_path, f.content_sha256, f.framework_profile, f.title
+FROM dagtoml_runtime_document AS d
+JOIN dagtoml_instance_file AS f ON f.id = d.instance_file_id
+WHERE d.template_kind = 'adapter-registry-binding';
+
+CREATE VIEW dagtoml_gate_decision_document AS
+SELECT d.*, f.source_path, f.content_sha256, f.framework_profile, f.title
+FROM dagtoml_runtime_document AS d
+JOIN dagtoml_instance_file AS f ON f.id = d.instance_file_id
+WHERE d.template_kind = 'gate-decision';

@@ -1,0 +1,2 @@
+error_contains = ["INV02", "component_digest"]
+error_not_contains = ["RDLOAD", "Traceback"]

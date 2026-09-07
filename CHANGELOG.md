@@ -9,6 +9,33 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Address the issue #74 vocabulary gap with complete declared catalogs in all
+  three SQL mirrors, six constrained runtime-document projections, and
+  captured-source ingestion and audit. Add structural adapter and binding
+  validators in Python, Rust, and Go; require gate verdict membership and
+  whole-string ASCII assertion IDs and lowercase digests. Preserve runtime
+  authority operands as catalogs with opaque rule contents.
+- Correct three reference catalog constraint classifications to match their
+  ontology declarations: framework_profile_namespace, disclosure_posture,
+  and redaction_reason are policy constraints.
+- Replace SQL-text inference with executed engine receipts, explicit storage
+  ownership and residual ledgers, and stricter conformance fixture discovery.
+- Allowed-value queries now return all 216 declared pairs instead of the former
+  152-row catalogs. The new runtime-document relationship restricts deletion of
+  its parent instance; rebuild populated databases side by side to adopt the
+  private initialization and ingestion format. MANIFEST replaces `closed_enums`
+  and `closed_checks` with one storage mapping of native-type hints and actual
+  enforcement sites, checked against executed registry metadata;
+  field enforcement is declared separately in `vocabulary-storage.toml`.
+- Apply closure discovery exclusions below the explicitly selected root, so
+  absolute checkouts within hidden storage retain their conforming documents.
+- Keep malformed numeric timezone offsets out of optional SQL timestamp indexes
+  while preserving their original source bytes and reporting the omitted index.
+- Keep invalid confidentiality values out of diagnostics, remove the mutation
+  audit import cycle, and close descriptor probes even when a control fails.
+- Require `database-vocabulary-gate` in both protections for `main`, preserving
+  the existing six checks and their strict freshness requirement.
+
 - **`main` now requires the validator, commit-message, and CodeQL jobs
   before merge.** GOVERNANCE.md already asked for required validation checks;
   the live `main-branch-protection` ruleset and classic branch protection had

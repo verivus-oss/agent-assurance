@@ -1,0 +1,2 @@
+error_contains = ["runtime_kind", "RDVOCAB"]
+error_not_contains = ["RDLOAD", "Traceback"]

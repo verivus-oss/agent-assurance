@@ -767,7 +767,7 @@ dagtoml:runtime_kind a rdf:Property ;
     dagtoml:extensible false ;
     dagtoml:appliesToKind dagtoml:AdapterContractKind ;
     rdfs:range [ a rdfs:Datatype ; owl:oneOf ( "wasi-component" "oci-action" "os-sandbox" ) ] ;
-    rdfs:comment "Declared runtime family for an adapter. SPEC layer only records the choice; execution is RUNTIME-SPEC." .
+    rdfs:comment "Declared runtime family for an adapter. SPEC layer only records the choice; execution is RUNTIME-SPEC. The document field adapter.runtime_kind is structurally checked by the kind validators." .
 
 dagtoml:runtime_network_policy a rdf:Property ;
     rdfs:label "runtime_network_policy" ;
@@ -775,7 +775,7 @@ dagtoml:runtime_network_policy a rdf:Property ;
     dagtoml:extensible false ;
     dagtoml:appliesToKind dagtoml:AdapterContractKind ;
     rdfs:range [ a rdfs:Datatype ; owl:oneOf ( "denied" "loopback-only" "allowlist" "open" ) ] ;
-    rdfs:comment "Network capability the runtime must enforce. `denied` MUST mean no socket capability of any kind, including loopback." .
+    rdfs:comment "Network capability the runtime must enforce. `denied` MUST mean no socket capability of any kind, including loopback. The document field adapter.runtime_network_policy is structurally checked by the kind validators." .
 
 dagtoml:runtime_clock_policy a rdf:Property ;
     rdfs:label "runtime_clock_policy" ;
@@ -783,7 +783,7 @@ dagtoml:runtime_clock_policy a rdf:Property ;
     dagtoml:extensible false ;
     dagtoml:appliesToKind dagtoml:AdapterContractKind ;
     rdfs:range [ a rdfs:Datatype ; owl:oneOf ( "injected" "source-date-epoch" "monotonic-from-zero" "host-wall-clock" ) ] ;
-    rdfs:comment "Clock semantics the runtime exposes to the adapter. Determinism-bearing adapters MUST NOT use host-wall-clock." .
+    rdfs:comment "Clock semantics the runtime exposes to the adapter. Determinism-bearing adapters MUST NOT use host-wall-clock. The document field adapter.runtime_clock_policy is structurally checked by the kind validators." .
 
 dagtoml:input_hash_method a rdf:Property ;
     rdfs:label "input_hash_method" ;
@@ -799,7 +799,7 @@ dagtoml:adapter_id_derivation a rdf:Property ;
     dagtoml:extensible false ;
     dagtoml:appliesToKind dagtoml:AdapterContractKind ;
     rdfs:range [ a rdfs:Datatype ; owl:oneOf ( "content-hash" "nonce" "external" ) ] ;
-    rdfs:comment "How the adapter derives assertion IDs. `content-hash` is required for reproducibility-bearing adapters." .
+    rdfs:comment "How the adapter derives assertion IDs. `content-hash` is required for reproducibility-bearing adapters. The document field adapter.id_derivation is structurally checked by the kind validators." .
 
 dagtoml:gate_decision_verdict a rdf:Property ;
     rdfs:label "gate_decision_verdict" ;
@@ -807,7 +807,7 @@ dagtoml:gate_decision_verdict a rdf:Property ;
     dagtoml:extensible false ;
     dagtoml:appliesToKind dagtoml:GateDecisionKind ;
     rdfs:range [ a rdfs:Datatype ; owl:oneOf ( "pass" "fail" ) ] ;
-    rdfs:comment "Mechanical gate verdict. Closed two-value enum by design; an override does NOT introduce a third value." .
+    rdfs:comment "Mechanical gate verdict. Closed two-value enum by design; an override does NOT introduce a third value. The document field decision.verdict is structurally checked by the kind validators." .
 
 dagtoml:evidence_root_algorithm a rdf:Property ;
     rdfs:label "evidence_root_algorithm" ;
@@ -855,7 +855,7 @@ dagtoml:adapter_ref_syntax a rdf:Property ;
     dagtoml:extensible false ;
     dagtoml:appliesToKind dagtoml:AdapterRegistryBindingKind ;
     rdfs:range [ a rdfs:Datatype ; owl:oneOf ( "content-hash" "name-version-pin" ) ] ;
-    rdfs:comment "Syntactic shape of an `adapter_ref` string." .
+    rdfs:comment "Syntactic shape of an `adapter_ref` string. The document field binding.adapter_ref_syntax is structurally checked by the kind validators." .
 
 dagtoml:signer_class a rdf:Property ;
     rdfs:label "signer_class" ;
@@ -879,7 +879,7 @@ dagtoml:severity_tier a rdf:Property ;
     dagtoml:extensible false ;
     dagtoml:appliesToKind dagtoml:GateDecisionKind ;
     rdfs:range [ a rdfs:Datatype ; owl:oneOf ( "info" "low" "medium" "high" "critical" ) ] ;
-    rdfs:comment "Severity classification of a failed assertion (ABAC operand)." .
+    rdfs:comment "Severity classification of a failed assertion (ABAC operand). This vocabulary names runtime operands, with no standalone document field or SPEC-layer rule evaluation." .
 
 dagtoml:autonomy_tier a rdf:Property ;
     rdfs:label "autonomy_tier" ;
@@ -903,7 +903,7 @@ dagtoml:override_rule_operator a rdf:Property ;
     dagtoml:extensible false ;
     dagtoml:appliesToKind dagtoml:GateDecisionKind ;
     rdfs:range [ a rdfs:Datatype ; owl:oneOf ( "=" "!=" "<" "<=" ">" ">=" "IN" "AND" "OR" ) ] ;
-    rdfs:comment "Closed operator set permitted inside canonical authority `constraint(...)` rule= strings. The SPEC layer treats rule= contents opaquely; this vocabulary names the operator tokens RUNTIME-SPEC may legitimately recognize." .
+    rdfs:comment "Closed operator set permitted inside canonical authority `constraint(...)` rule= strings. The SPEC layer treats rule= contents opaquely; this vocabulary names the operator tokens RUNTIME-SPEC may legitimately recognize. This vocabulary names runtime operands, with no standalone document field or SPEC-layer rule evaluation." .
 
 dagtoml:subject_class a rdf:Property ;
     rdfs:label "subject_class" ;
