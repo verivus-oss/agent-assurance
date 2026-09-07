@@ -36,6 +36,14 @@ def replaced(text, old, new):
     return text.replace(old, new)
 
 
+def read_sql_descriptor(path):
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        return os.read(descriptor, 1)
+    finally:
+        os.close(descriptor)
+
+
 def controls(root, work):
     observations = []
 
@@ -118,6 +126,7 @@ def controls(root, work):
             def insert(self, table, values):
                 if table != "runtime_document":
                     return super().insert(table, values)
+                return None
 
         mutant = MissingDocumentHalf("sqlite", baseline.connection, root)
         raw = (root / "examples/minimal-adapter-contract.toml").read_bytes()
@@ -134,7 +143,7 @@ def controls(root, work):
             require(len(hashes) == 9 and all(len(value) == 64 for value in hashes.values()))
             killed("SQL-text-inference", lambda: (root / "reference/database/sqlite/schema.sql").read_text(), ValueError, "SQL-source-access")
             killed("SQL-byte-inference", lambda: (root / "reference/database/sqlite/seed.sql").read_bytes().decode(), ValueError, "SQL-source-access")
-            killed("SQL-os-open-inference", lambda: os.open(root / "reference/database/sqlite/schema.sql", os.O_RDONLY), ValueError, "SQL-source-access")
+            killed("SQL-os-open-inference", lambda: read_sql_descriptor(root / "reference/database/sqlite/schema.sql"), ValueError, "SQL-source-access")
         from check_sql_source_access import main as checker
         require(checker(["--repo-root", str(root), "--declarations-only", "--no-rdf"]) == 0)
         good_jobs = {name: {"result": "success"} for name in JOBS}

@@ -691,8 +691,8 @@ def validate_meta_posture(
         else:
             if conf not in CONFIDENTIALITY_CLOSED:
                 errors.append(
-                    f"{source}: [meta].confidentiality = `{conf}` is not in the "
-                    f"closed set {list(CONFIDENTIALITY_CLOSED)} (SPEC §2.7)"
+                    f"{source}: [meta].confidentiality is not in the "
+                    "closed set declared by SPEC §2.7"
                 )
             embargo = meta.get("embargo_until")
             if conf == "embargoed":

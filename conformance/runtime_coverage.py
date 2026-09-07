@@ -9,7 +9,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "validators"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reference/database"))
 from _contract import load_mapping  # noqa: E402
-from coverage_audit import DisableSite  # noqa: E402
+from _mutation_sites import DisableSite  # noqa: E402
 
 
 def worker(root):

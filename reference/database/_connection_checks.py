@@ -60,6 +60,8 @@ def exercise_connection(store, destination):
             try:
                 store.execute("SELECT 1 / 0")
             except psycopg.errors.DivisionByZero:
+                # The deliberate SQL failure leaves the caller transaction
+                # aborted; the assertions below verify it remains untouched.
                 pass
             if store.connection.info.transaction_status != TransactionStatus.INERROR:
                 raise AssertionError("aborted-transaction positive setup did not run")

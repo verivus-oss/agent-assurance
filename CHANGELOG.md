@@ -31,6 +31,10 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   absolute checkouts within hidden storage retain their conforming documents.
 - Keep malformed numeric timezone offsets out of optional SQL timestamp indexes
   while preserving their original source bytes and reporting the omitted index.
+- Keep invalid confidentiality values out of diagnostics, remove the mutation
+  audit import cycle, and close descriptor probes even when a control fails.
+- Require `database-vocabulary-gate` in both protections for `main`, preserving
+  the existing six checks and their strict freshness requirement.
 
 - **`main` now requires the validator, commit-message, and CodeQL jobs
   before merge.** GOVERNANCE.md already asked for required validation checks;
