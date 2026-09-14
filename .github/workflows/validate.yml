@@ -1523,37 +1523,31 @@ jobs:
             --no-resolve
             ./
 
-      - name: Secret scan (gitleaks)
+      - name: Install Betterleaks (sha256-verified)
         continue-on-error: false
-        # Install the official gitleaks binary at a pinned version
-        # (not the gitleaks-action — the action requires an org license
-        # for >25-member orgs and adds a Node.js dep we don't need).
-        # The binary is a single static Go executable; the SHA256 below
-        # is the published release checksum for the linux_x64 tarball.
+        # Betterleaks reads the existing .gitleaks.toml. The tarball is checked
+        # against the published SHA-256 for the v1.8.1 linux_x64 asset before
+        # extraction.
+        env:
+          BETTERLEAKS_VERSION: "1.8.1"
+          BETTERLEAKS_SHA256: "efa407244e1ea8e35f582b8a42becdeac08bdead04f68eb752adda722d583c2a"
         run: |
           set -euo pipefail
-          VERSION="8.30.1"
-          TARBALL="gitleaks_${VERSION}_linux_x64.tar.gz"
-          # SHA256 fetched from the release artifact directly on
-          # 2026-05-26 by `sha256sum` of the linux_x64 tarball. Update
-          # this pin when bumping the VERSION above.
-          EXPECTED_SHA="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
-          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/${TARBALL}" -o "/tmp/${TARBALL}"
-          actual=$(sha256sum "/tmp/${TARBALL}" | awk '{print $1}')
-          if [ "${actual}" != "${EXPECTED_SHA}" ]; then
-            echo "FAIL: gitleaks tarball SHA256 mismatch."
-            echo "  expected: ${EXPECTED_SHA}"
-            echo "  actual:   ${actual}"
-            exit 1
-          fi
-          mkdir -p /tmp/gitleaks-bin
-          tar -xzf "/tmp/${TARBALL}" -C /tmp/gitleaks-bin gitleaks
-          /tmp/gitleaks-bin/gitleaks detect \
-            --source . \
-            --no-banner \
-            --redact \
-            --verbose \
-            --exit-code 1
+          curl -fsSL -o "$RUNNER_TEMP/betterleaks.tar.gz" \
+            "https://github.com/betterleaks/betterleaks/releases/download/v${BETTERLEAKS_VERSION}/betterleaks_${BETTERLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${BETTERLEAKS_SHA256}  $RUNNER_TEMP/betterleaks.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/betterleaks.tar.gz" -C "$RUNNER_TEMP" betterleaks
+
+      - name: Betterleaks secret scan
+        continue-on-error: false
+        # Scans the full git history (git log --full-history --all, the same
+        # default gitleaks used), so checkout above keeps fetch-depth: 0.
+        # Live validation of findings stays off unless --validation is passed.
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/betterleaks" git . --redact --no-banner --exit-code 1 \
+            --config .gitleaks.toml --verbose \
+            --report-format sarif --report-path betterleaks.sarif
 
       - name: Python static security analysis (bandit)
         continue-on-error: false
