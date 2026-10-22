@@ -1,0 +1,3 @@
+# Expected diagnostics from the kind and closure validation routes.
+error_contains = ["pinned kind `api-snapshot` MUST declare `meta.framework_profile`"]
+error_not_contains = ["Traceback"]

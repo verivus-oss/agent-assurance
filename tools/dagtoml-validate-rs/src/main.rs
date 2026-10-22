@@ -23,6 +23,8 @@ use std::process::ExitCode;
 use sha2::{Digest, Sha256, Sha384, Sha512};
 use toml::Value;
 
+mod runtime_document;
+
 mod cli {
     use std::path::PathBuf;
     use std::process::ExitCode;
@@ -47,6 +49,8 @@ mod cli {
         Meta,
         /// Force gate-decision INV01..INV06 validation.
         GateDecision,
+        AdapterContract,
+        AdapterRegistryBinding,
         MutationKinds,
         /// Force kind-descriptor structural validation.
         KindDescriptor,
@@ -72,7 +76,7 @@ mod cli {
 
     pub fn print_usage() {
         eprintln!(
-            "usage: dagtoml-validate-rs --repo-root <path> [--mode auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class|mutation-kinds|api-snapshot] <file.toml> ..."
+            "usage: dagtoml-validate-rs --repo-root <path> [--mode auto|profile|disclosure|provenance|meta|gate-decision|adapter-contract|adapter-registry-binding|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class|mutation-kinds|api-snapshot] <file.toml> ..."
         );
     }
 
@@ -97,6 +101,8 @@ mod cli {
                     Some("provenance") => mode = Mode::Provenance,
                     Some("meta") => mode = Mode::Meta,
                     Some("gate-decision") => mode = Mode::GateDecision,
+                    Some("adapter-contract") => mode = Mode::AdapterContract,
+                    Some("adapter-registry-binding") => mode = Mode::AdapterRegistryBinding,
                     Some("mutation-kinds") => mode = Mode::MutationKinds,
                     Some("api-snapshot") => mode = Mode::ApiSnapshot,
                     Some("kind-descriptor") => mode = Mode::KindDescriptor,
@@ -110,7 +116,7 @@ mod cli {
                     Some("abstraction-class") => mode = Mode::AbstractionClass,
                     other => {
                         eprintln!(
-                            "error: --mode value must be auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class|mutation-kinds|api-snapshot (got {:?})",
+                            "error: --mode value must be auto|profile|disclosure|provenance|meta|gate-decision|adapter-contract|adapter-registry-binding|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class|mutation-kinds|api-snapshot (got {:?})",
                             other
                         );
                         return Err(ExitCode::from(2));
@@ -4887,26 +4893,11 @@ mod gate_decision {
     use super::*;
 
     fn load_vocab(repo_root: &Path, attribute: &str) -> Option<Vec<String>> {
-        let path = repo_root.join("profiles/agent-assurance/ontology.toml");
-        let doc = super::load(&path).ok()?;
-        let arr = doc.get("attribute_vocabularies")?.as_array()?;
-        for entry in arr {
-            let t = entry.as_table()?;
-            if t.get("attribute")?.as_str()? == attribute {
-                let values: Vec<String> = t
-                    .get("values")?
-                    .as_array()?
-                    .iter()
-                    .filter_map(|v| v.as_str().map(str::to_string))
-                    .collect();
-                return Some(values);
-            }
-        }
-        None
+        runtime_document::vocab(repo_root, attribute).map(|(values, _)| values)
     }
 
     fn is_hex64(s: &str) -> bool {
-        s.len() == 64 && s.chars().all(|c| c.is_ascii_hexdigit())
+        runtime_document::hex64(s)
     }
 
     fn matches_assertion_id(s: &str) -> bool {
@@ -4960,7 +4951,7 @@ mod gate_decision {
             .get("framework_profile")
             .and_then(|x| x.as_str())
             .unwrap_or("");
-        if fp != "agent-assurance" {
+        if fp != "agent-assurance" && fp != "AGDF" {
             defects.push(format!(
                 "{}: meta.framework_profile = {:?} (expected 'agent-assurance')",
                 location, fp
@@ -4972,6 +4963,12 @@ mod gate_decision {
             None => return vec![format!("{}: missing or non-table [decision]", location)],
         };
 
+        defects.extend(runtime_document::fields(doc, "gate-decision", repo_root));
+        for key in ["failed_constraint_refs", "override_refs"] {
+            if decision.get(key).is_some_and(|value| !value.is_array()) {
+                defects.push(format!("{location}: decision.{key} must be an array"));
+            }
+        }
         let verdict = decision.get("verdict").and_then(|x| x.as_str());
         let failed_refs = decision
             .get("failed_constraint_refs")
@@ -5052,6 +5049,12 @@ mod gate_decision {
 
         // INV06: subject_class vocabulary + self-modification AND predicate.
         let subject_class = decision.get("subject_class").and_then(|x| x.as_str());
+        if decision.contains_key("subject_class") && subject_class.is_none() {
+            defects.push(format!(
+                "{}: INV06 violated: decision.subject_class must be a string",
+                path.display()
+            ));
+        }
         if let Some(sc) = subject_class {
             let vocab = load_vocab(repo_root, "subject_class");
             if let Some(v) = &vocab {
@@ -5096,6 +5099,12 @@ mod gate_decision {
 
             let provider_vocab = load_vocab(repo_root, "provider_id");
             let family_vocab = load_vocab(repo_root, "model_family_id");
+            if provider_vocab.is_none() || family_vocab.is_none() {
+                defects.push(format!(
+                    "{}: INV06 vocab load failed (provider_id or model_family_id vocabulary missing)",
+                    location
+                ));
+            }
 
             let prop_p = decision
                 .get("proposing_provider_id")
@@ -5914,6 +5923,14 @@ fn main() -> ExitCode {
                     errs.extend(disclosure::validate(path, &doc, &repo_root));
                     errs.extend(ijb::validate(path, &doc, &repo_root));
                 }
+                "adapter-contract" | "adapter-registry-binding" => {
+                    errs.extend(runtime_document::validate(
+                        &doc,
+                        &repo_root,
+                        tk == "adapter-registry-binding",
+                    ));
+                    errs.extend(ijb::validate(path, &doc, &repo_root));
+                }
                 "gate-decision" => {
                     errs.extend(gate_decision::validate(path, &doc, &repo_root));
                     errs.extend(ijb::validate(path, &doc, &repo_root));
@@ -5936,6 +5953,13 @@ fn main() -> ExitCode {
             }
             cli::Mode::Disclosure => {
                 errs.extend(disclosure::validate(path, &doc, &repo_root));
+            }
+            cli::Mode::AdapterContract | cli::Mode::AdapterRegistryBinding => {
+                errs.extend(runtime_document::validate(
+                    &doc,
+                    &repo_root,
+                    parsed.mode == cli::Mode::AdapterRegistryBinding,
+                ));
             }
             cli::Mode::GateDecision => {
                 errs.extend(gate_decision::validate(path, &doc, &repo_root));

@@ -79,7 +79,7 @@ ijb_constraint_type = "structural"
 [[kind.required_fields]]
 path        = "meta.framework_profile"
 must_equal  = "agent-assurance"
-description = "Adapter registry binding is an Agent Assurance Profile artifact."
+description = "Adapter registry binding is an Agent Assurance Profile artifact. Identity comparison accepts AGDF as the agent-assurance alias under spec section 2.5; the source spelling is preserved."
 ijb_primitive       = "constraint"
 ijb_constraint_type = "structural"
 
@@ -110,7 +110,7 @@ ijb_constraint_type = "structural"
 [[kind.hard_invariants]]
 id          = "INV01"
 statement   = "`binding.registry_url_scheme` MUST be drawn from the `registry_scheme` vocabulary declared in the profile ontology."
-enforced_by = "validators/validate_adapter_registry_binding.py (planned)"
+enforced_by = "validators/validate_adapter_registry_binding.py"
 see_also    = "profiles/agent-assurance/ontology.toml [[attribute_vocabularies]] registry_scheme"
 ijb_primitive       = "constraint"
 ijb_constraint_type = "structural"
@@ -118,14 +118,14 @@ ijb_constraint_type = "structural"
 [[kind.hard_invariants]]
 id          = "INV02"
 statement   = "`binding.registry_url` MUST start with the value of `binding.registry_url_scheme` followed by `://`."
-enforced_by = "validators/validate_adapter_registry_binding.py (planned)"
+enforced_by = "validators/validate_adapter_registry_binding.py"
 ijb_primitive       = "constraint"
 ijb_constraint_type = "structural"
 
 [[kind.hard_invariants]]
 id          = "INV03"
 statement   = "Every `[[binding.policy_constraint_refs]].constraint_id` MUST match the IJB assertion-id syntax `^A-[A-Za-z0-9][A-Za-z0-9_-]*$`."
-enforced_by = "validators/validate_adapter_registry_binding.py (planned)"
+enforced_by = "validators/validate_adapter_registry_binding.py"
 ijb_primitive       = "constraint"
 ijb_constraint_type = "structural"
 

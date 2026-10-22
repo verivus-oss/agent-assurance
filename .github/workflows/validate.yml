@@ -152,20 +152,10 @@ jobs:
       - name: Discrimination coverage (external assertion)
         # WHY THIS LIVES IN CI AND NOT IN conformance/discrimination.py.
         #
-        # discrimination.py carries its own coverage self-check, and that check
-        # works: dropping a kind from KINDS fails it. But it is a SAME-FILE
-        # oracle, so deleting the self-check block and the kind together exits 0
-        # and nothing notices. That defeat path is reproducible, exactly
-        # defeat path. A guard that lives in the file it guards can always be
-        # removed with the thing it guards.
-        #
-        # This step breaks that circularity. It derives the answer from the
-        # FILESYSTEM (which kinds ship sidecars) and from the SOURCE DECLARATION
-        # (which kinds KINDS lists, read via ast, never imported or executed),
-        # then compares them. It shares no code with discrimination.py, so
-        # removing that file's self-check does not disable this one. Removing
-        # THIS step is a visible change to the workflow, which is the trust root
-        # and is what review actually watches.
+        # Independently compare mapped kinds, case directories, and sidecar
+        # populations. Removing a directory must fail even if the in-module
+        # discovery predicate is also removed. The mapping is read with ast,
+        # without importing discrimination.py or sharing its coverage code.
         run: |
           set -e
           python3 - <<'PY'
@@ -183,7 +173,7 @@ jobs:
               raise SystemExit(f"FAIL: {name} not found in {src}. If it was renamed, "
                                f"this assertion must be updated deliberately.")
 
-          kinds = set(literal("KINDS"))
+          kinds = {path.name for path in pathlib.Path("conformance/cases").iterdir() if path.is_dir()}
           validators = literal("KIND_VALIDATOR")
 
           sidecar_kinds = {
@@ -194,20 +184,22 @@ jobs:
               raise SystemExit("FAIL: no sidecars discovered at all; the corpus or this "
                                "assertion's glob is wrong")
 
-          uncovered = sorted(sidecar_kinds - kinds)
+          uncovered = sorted(set(validators) - kinds)
           if uncovered:
               raise SystemExit(
-                  "FAIL: these kinds ship discrimination sidecars but are absent from "
-                  f"KINDS, so nothing cross-checks them: {', '.join(uncovered)}"
+                  "FAIL: these mapped kinds are absent from "
+                  f"the discovered case directories: {', '.join(uncovered)}"
               )
           unmapped = sorted(k for k in kinds if k not in validators)
           if unmapped:
               raise SystemExit(
-                  f"FAIL: KINDS entries with no KIND_VALIDATOR mapping: {', '.join(unmapped)}"
+                  f"FAIL: case directories with no KIND_VALIDATOR mapping: {', '.join(unmapped)}"
               )
+          if sidecar_kinds != kinds:
+              raise SystemExit("FAIL: sidecar kind population differs from case directories")
           print("discrimination coverage OK")
           print(f"- kinds shipping sidecars : {', '.join(sorted(sidecar_kinds))}")
-          print(f"- kinds in KINDS          : {', '.join(sorted(kinds))}")
+          print(f"- discovered kinds       : {', '.join(sorted(kinds))}")
           PY
 
       - name: Build dagtoml-rdf (required by manifest-drift gate)
@@ -270,7 +262,10 @@ jobs:
           make toml-conformance-rs
 
       - name: Manifest drift (reference/database/MANIFEST.toml vs ontology)
-        run: bash validators/check_manifest_drift.sh
+        run: bash validators/check_manifest_drift.sh --declarations-only
+
+      - name: Exact generated vocabulary catalogs
+        run: python3 reference/database/generate_allowed_values.py
 
       - name: State-mutation database seed round-trip
         # The count gate proves mirrors agree numerically. This focused
@@ -337,19 +332,23 @@ jobs:
           # 1.1 content, reintroducing a cross-implementation split (C01).
           sys.path.insert(0, "validators")
           import _toml11 as tomllib
-          fails = []
+          fails, parsed, skipped = [], [], []
           for p in sorted(pathlib.Path(".").rglob("*.toml")):
               if any(part.startswith(".") for part in p.parts):
+                  skipped.append(str(p))
                   continue
               try:
                   tomllib.loads(p.read_text())
+                  parsed.append(str(p))
               except Exception as e:
                   fails.append((str(p), str(e)))
           if fails:
               for path, err in fails:
                   print(f"PARSE FAIL {path}: {err}")
               sys.exit(1)
-          print(f"parsed OK: {sum(1 for _ in pathlib.Path('.').rglob('*.toml'))} files")
+          if not parsed:
+              raise SystemExit("FAIL: TOML parse population is empty")
+          print(f"parsed OK: {len(parsed)} selected files; excluded {len(skipped)} files under hidden paths")
           PY
 
       - name: Primary validators (Rust + Go) — full canonical sweep
@@ -552,6 +551,7 @@ jobs:
           # because every invocation used exactly the form CI used.
           python3 validators/validate_closure_root.py \
             --discover "$(pwd)" --exclude examples/negative
+          python3 validators/check_closure_discovery.py
 
       - name: Validate kind descriptors
         run: |
@@ -637,7 +637,7 @@ jobs:
             python3 validators/validate_ijb_conformance.py "$f" \
               --repo-root . --check-references-exist
           done
-          # Profile examples have no dedicated validator yet; just parse.
+          # Parse every profile example; dedicated validators run separately.
           python3 -c '
           import sys, pathlib
           sys.path.insert(0, "validators")  # TOML 1.1 reference shim
@@ -813,405 +813,12 @@ jobs:
             echo "negative fixture correctly rejected: $neg"
           done
 
-      - name: Negative fixtures — primary/reference agreement
+      - name: Negative fixtures, recursive primary/reference agreement
         run: |
-          set -e
-          rs="${RUNNER_TEMP}/dagtoml-validate-rs"
-          go_bin="${RUNNER_TEMP}/dagtoml-validate-go"
-
-          check_rejects() {
-            label="$1"
-            shift
-            echo "--- NEGATIVE: ${label} (expect FAIL) ---"
-            if "$@"; then
-              echo "REGRESSION: ${label} unexpectedly passed"
-              exit 1
-            fi
-            echo "  ok: ${label} rejected"
-          }
-
-          check_rejects "rust kind-descriptor" \
-            "$rs" --repo-root . --mode kind-descriptor \
-            examples/negative/kind-descriptor-name-mismatch.toml
-          check_rejects "go kind-descriptor" \
-            "$go_bin" --repo-root . --mode kind-descriptor \
-            examples/negative/kind-descriptor-name-mismatch.toml
-          check_rejects "python kind-descriptor" \
-            python3 validators/validate_kind_descriptor.py \
-            --repo-root . --check-references-exist \
-            examples/negative/kind-descriptor-name-mismatch.toml
-
-          check_rejects "rust IJB" \
-            "$rs" --repo-root . --mode ijb \
-            examples/negative/ontology-wrong-ijb-primitive.toml
-          check_rejects "go IJB" \
-            "$go_bin" --repo-root . --mode ijb \
-            examples/negative/ontology-wrong-ijb-primitive.toml
-          check_rejects "python IJB" \
-            python3 validators/validate_ijb_conformance.py \
-            examples/negative/ontology-wrong-ijb-primitive.toml
-
-          check_rejects "rust provenance binding" \
-            "$rs" --repo-root . --mode provenance-binding \
-            examples/negative/provenance-wrong-source-sha.toml
-          check_rejects "go provenance binding" \
-            "$go_bin" --repo-root . --mode provenance-binding \
-            examples/negative/provenance-wrong-source-sha.toml
-          check_rejects "python provenance binding" \
-            python3 validators/validate_provenance.py \
-            examples/negative/provenance-wrong-source-sha.toml \
-            --repo-root .
-
-          check_rejects "rust implementation-dag" \
-            "$rs" --repo-root . --mode implementation-dag \
-            examples/negative/implementation-dag-bad-critical-path.toml
-          check_rejects "go implementation-dag" \
-            "$go_bin" --repo-root . --mode implementation-dag \
-            examples/negative/implementation-dag-bad-critical-path.toml
-          check_rejects "python implementation-dag" \
-            python3 validators/validate_implementation_dag.py \
-            examples/negative/implementation-dag-bad-critical-path.toml
-
-          check_rejects "rust traceability" \
-            "$rs" --repo-root . --mode traceability \
-            examples/negative/traceability-missing-requirement-target.toml
-          check_rejects "go traceability" \
-            "$go_bin" --repo-root . --mode traceability \
-            examples/negative/traceability-missing-requirement-target.toml
-          check_rejects "python traceability" \
-            python3 validators/validate_traceability.py \
-            examples/negative/traceability-missing-requirement-target.toml
-
-          check_rejects "rust review-readiness" \
-            "$rs" --repo-root . --mode review-readiness \
-            examples/negative/review-readiness-missing-gate-target.toml
-          check_rejects "go review-readiness" \
-            "$go_bin" --repo-root . --mode review-readiness \
-            examples/negative/review-readiness-missing-gate-target.toml
-          check_rejects "python review-readiness" \
-            python3 validators/validate_review_readiness.py \
-            examples/negative/review-readiness-missing-gate-target.toml
-
-          check_rejects "rust cost-record" \
-            "$rs" --repo-root . --mode cost-record \
-            examples/negative/cost-record-bad-dimension.toml
-          check_rejects "go cost-record" \
-            "$go_bin" --repo-root . --mode cost-record \
-            examples/negative/cost-record-bad-dimension.toml
-          check_rejects "python cost-record" \
-            python3 validators/validate_cost.py \
-            examples/negative/cost-record-bad-dimension.toml \
-            --repo-root .
-
-          check_rejects "rust rollback-plan" \
-            "$rs" --repo-root . --mode rollback-plan \
-            examples/negative/rollback-plan-bad-trigger-kind.toml
-          check_rejects "go rollback-plan" \
-            "$go_bin" --repo-root . --mode rollback-plan \
-            examples/negative/rollback-plan-bad-trigger-kind.toml
-          check_rejects "python rollback-plan" \
-            python3 validators/validate_rollback_plan.py \
-            examples/negative/rollback-plan-bad-trigger-kind.toml \
-            --repo-root .
-
-          check_rejects "rust abstraction-class" \
-            "$rs" --repo-root . --mode abstraction-class \
-            examples/negative/abstraction-class-unknown-domain.toml
-          check_rejects "go abstraction-class" \
-            "$go_bin" --repo-root . --mode abstraction-class \
-            examples/negative/abstraction-class-unknown-domain.toml
-          check_rejects "python abstraction-class" \
-            python3 validators/validate_abstraction_class.py \
-            examples/negative/abstraction-class-unknown-domain.toml \
-            --repo-root .
-
-          # INV07 (SPEC 12.8.1): profile-pinned closure-record declarations.
-          # The fixture carries an out-of-union contained_kind, a meta.*
-          # posture pin, a provenance.source_sha256 double-pin, and a bad
-          # presence value; all three implementations must reject it.
-          check_rejects "rust profile-descriptor closure-records" \
-            "$rs" --repo-root . --mode profile \
-            examples/negative/profile-descriptor-bad-closure-record.toml
-          check_rejects "go profile-descriptor closure-records" \
-            "$go_bin" --repo-root . --mode profile \
-            examples/negative/profile-descriptor-bad-closure-record.toml
-          check_rejects "python profile-descriptor closure-records" \
-            python3 validators/validate_profile_descriptor.py \
-            examples/negative/profile-descriptor-bad-closure-record.toml \
-            --repo-root .
-
-          # INV08 (SPEC 12.8.2): profile-declared bound-tuple declarations.
-          # The fixture carries an out-of-union contained_kind, closure_root
-          # inside a tuple, a meta.* posture path as the digest carrier, a
-          # repeated field, a digest_field that is a member of its own fields,
-          # an unknown key, an empty tuple, and two tuples for one kind; all
-          # three implementations must reject it.
-          check_rejects "rust profile-descriptor bound-tuples" \
-            "$rs" --repo-root . --mode profile \
-            examples/negative/profile-descriptor-bad-bound-tuple.toml
-          check_rejects "go profile-descriptor bound-tuples" \
-            "$go_bin" --repo-root . --mode profile \
-            examples/negative/profile-descriptor-bad-bound-tuple.toml
-          check_rejects "python profile-descriptor bound-tuples" \
-            python3 validators/validate_profile_descriptor.py \
-            examples/negative/profile-descriptor-bad-bound-tuple.toml \
-            --repo-root .
-
-          # RESOLUTION, not just a verdict. The fixture above carries eight
-          # INV08 violations, and `check_rejects` only reads the exit code, so
-          # dropping a single INV08 rule from one implementation leaves seven
-          # violations and an unchanged exit 1. Measured before this assertion
-          # was written: removing the closure_root-in-fields rule from the
-          # reference left exit 1 and moved the count from 8 to 7.
-          #
-          # So compare the COUNT, and compare the three against each other. A
-          # rule silently lost from one implementation moves that count and
-          # breaks the build. Adding or removing an INV08 rule changes this
-          # number deliberately, the same ratchet as TOML_CONFORMANCE_SKIPS.
-          expected_inv08=8
-          bt_fixture=examples/negative/profile-descriptor-bad-bound-tuple.toml
-          rs_inv08=$("$rs" --repo-root . --mode profile "$bt_fixture" 2>&1 \
-            | grep -c 'INV08' || true)
-          go_inv08=$("$go_bin" --repo-root . --mode profile "$bt_fixture" 2>&1 \
-            | grep -c 'INV08' || true)
-          py_inv08=$(python3 validators/validate_profile_descriptor.py \
-            "$bt_fixture" --repo-root . 2>&1 | grep -c 'INV08' || true)
-          echo "--- INV08 violation counts: rs=${rs_inv08} go=${go_inv08} py=${py_inv08} (expect ${expected_inv08}) ---"
-          if [ "${rs_inv08}" != "${expected_inv08}" ] || \
-             [ "${go_inv08}" != "${expected_inv08}" ] || \
-             [ "${py_inv08}" != "${expected_inv08}" ]; then
-            echo "REGRESSION: INV08 violation counts disagree with each other or with ${expected_inv08}."
-            echo "  An implementation has gained or lost a rule, or the fixture changed."
-            exit 1
-          fi
-          echo "  ok: all three report ${expected_inv08} INV08 violations"
-
-          # Gate-decision separation-of-duty boundary: a "pass" verdict
-          # carrying non-empty (string-typed) failed_constraint_refs must
-          # be rejected by all three. Pins the Rust/Go divergence fixed in
-          # docs/reviews/2026-05-30-wp1-falsification/.
-          check_rejects "rust gate-decision string-refs" \
-            "$rs" --repo-root . --mode gate-decision \
-            examples/negative/gate-decision-pass-with-string-refs.toml
-          check_rejects "go gate-decision string-refs" \
-            "$go_bin" --repo-root . --mode gate-decision \
-            examples/negative/gate-decision-pass-with-string-refs.toml
-          check_rejects "python gate-decision string-refs" \
-            python3 validators/validate_gate_decision.py \
-            examples/negative/gate-decision-pass-with-string-refs.toml \
-            --repo-root .
-
-          # com.verivus.runtime api-snapshot negatives.
-          # bad-closure: carries the pre-promotion source-only root; since the
-          # profile pinned the component + witness digests (SPEC 12.8.1), the
-          # expected root is the four-record stream, so all three reject it.
-          check_rejects "rust api-snapshot bad-closure" \
-            "$rs" --repo-root . --mode provenance \
-            examples/negative/api-snapshot-bad-closure.toml
-          check_rejects "go api-snapshot bad-closure" \
-            "$go_bin" --repo-root . --mode provenance \
-            examples/negative/api-snapshot-bad-closure.toml
-          check_rejects "python api-snapshot bad-closure" \
-            python3 validators/validate_closure_root.py \
-            examples/negative/api-snapshot-bad-closure.toml
-
-          # witness-stripped: [snapshot.witness] removed but the stale
-          # four-record root kept. Proves contract C02 of the
-          # closure-record-form promotion: witness stripping changes the
-          # expected root, so the stale (or anchored) root is rejected by
-          # the SPEC 12.8.1 closure in all three implementations.
-          check_rejects "rust api-snapshot witness-stripped (12.8.1)" \
-            "$rs" --repo-root . --mode provenance \
-            examples/negative/api-snapshot-witness-stripped.toml
-          check_rejects "go api-snapshot witness-stripped (12.8.1)" \
-            "$go_bin" --repo-root . --mode provenance \
-            examples/negative/api-snapshot-witness-stripped.toml
-          check_rejects "python api-snapshot witness-stripped (12.8.1)" \
-            python3 validators/validate_closure_root.py \
-            examples/negative/api-snapshot-witness-stripped.toml
-
-          # bad-ijb: an ontology vocab block illegally declares ijb_class.
-          check_rejects "rust api-snapshot bad-ijb" \
-            "$rs" --repo-root . --mode ijb \
-            examples/negative/com.verivus.runtime-ontology-bad-ijb.toml
-          check_rejects "go api-snapshot bad-ijb" \
-            "$go_bin" --repo-root . --mode ijb \
-            examples/negative/com.verivus.runtime-ontology-bad-ijb.toml
-          check_rejects "python api-snapshot bad-ijb" \
-            python3 validators/validate_ijb_conformance.py \
-            examples/negative/com.verivus.runtime-ontology-bad-ijb.toml
-
-          # RKV01 / RKV02 / RKV03 are com.verivus.runtime producer obligations
-          # that used to run in the Python reference ALONE, the last declared
-          # kind-layer parity gap in the repo. They are now implemented by both
-          # primaries, so every one of them is asserted against all three
-          # implementations rather than Python alone. Asserting only the
-          # reference is what let the gap persist: the negative agreed, so the
-          # corpus looked green while a primary-only consumer accepted an
-          # inlined `authorization` header, an incomplete witness, and a
-          # descriptor digest that did not match its own capture.
-          for impl in "rs:${RUNNER_TEMP}/dagtoml-validate-rs" \
-                      "go:${RUNNER_TEMP}/dagtoml-validate-go"; do
-            bin="${impl#*:}"
-            tag="${impl%%:*}"
-            check_rejects "${tag} api-snapshot inlined-secret (RKV02)" \
-              "$bin" --repo-root . --mode api-snapshot \
-              examples/negative/api-snapshot-inlined-secret.toml
-            check_rejects "${tag} api-snapshot raw-header (RKV02)" \
-              "$bin" --repo-root . --mode api-snapshot \
-              examples/negative/api-snapshot-raw-header.toml
-            check_rejects "${tag} api-snapshot witness-incomplete (RKV03)" \
-              "$bin" --repo-root . --mode api-snapshot \
-              examples/negative/api-snapshot-witness-incomplete.toml
-            check_rejects "${tag} api-snapshot bad-subpart-digest (RKV01)" \
-              "$bin" --repo-root . --mode api-snapshot \
-              examples/negative/api-snapshot-bad-subpart-digest.toml
-            check_rejects "${tag} api-snapshot magic-no-markers (RKV01 fail-closed)" \
-              "$bin" --repo-root . --mode api-snapshot \
-              examples/negative/api-snapshot-magic-no-markers.toml
-            check_rejects "${tag} api-snapshot witness-lingering-digest (RKV03)" \
-              "$bin" --repo-root . --mode api-snapshot \
-              examples/negative/api-snapshot-witness-lingering-digest.toml
-          done
-          check_rejects "python api-snapshot inlined-secret (RKV02)" \
-            python3 validators/validate_api_snapshot.py --repo-root . \
-            examples/negative/api-snapshot-inlined-secret.toml
-          check_rejects "python api-snapshot raw-header (RKV02)" \
-            python3 validators/validate_api_snapshot.py --repo-root . \
-            examples/negative/api-snapshot-raw-header.toml
-          check_rejects "python api-snapshot witness-incomplete (RKV03)" \
-            python3 validators/validate_api_snapshot.py --repo-root . \
-            examples/negative/api-snapshot-witness-incomplete.toml
-          check_rejects "python api-snapshot bad-subpart-digest (RKV01)" \
-            python3 validators/validate_api_snapshot.py --repo-root . \
-            examples/negative/api-snapshot-bad-subpart-digest.toml
-          # magic present but section markers absent: RKV01 must fail closed
-          # (cannot recompute sub-parts) rather than skip the check.
-          check_rejects "python api-snapshot magic-no-markers (RKV01 fail-closed)" \
-            python3 validators/validate_api_snapshot.py --repo-root . \
-            examples/negative/api-snapshot-magic-no-markers.toml
-          # Amended RKV03: witness digest/identity fields MUST be absent at
-          # present=false. The fixture is deliberately closure-VALID (the
-          # lingering digest keeps its when-present record in the stream),
-          # so this is a Python kind-layer rejection; the all-three
-          # closure-level stripping test is witness-stripped above.
-          check_rejects "python api-snapshot witness-lingering-digest (RKV03)" \
-            python3 validators/validate_api_snapshot.py --repo-root . \
-            examples/negative/api-snapshot-witness-lingering-digest.toml
-
-          # com.verivus.runtime state-mutation negatives.
-          #
-          # no-proof is the counterpart of witness-stripped, and the contrast
-          # is the point: the execution-proof records are pinned `required`,
-          # not `when-present`, so deleting the proof and honestly re-rooting
-          # removes two REQUIRED pins. All three closure implementations must
-          # reject, which is what makes a state-mutation impossible to
-          # downgrade by deletion (RKM02).
-          check_rejects "rust state-mutation no-proof (required pin missing)" \
-            "$rs" --repo-root . --mode provenance \
-            examples/negative/state-mutation-no-proof.toml
-          check_rejects "go state-mutation no-proof (required pin missing)" \
-            "$go_bin" --repo-root . -mode provenance \
-            examples/negative/state-mutation-no-proof.toml
-          check_rejects "python state-mutation no-proof (required pin missing)" \
-            python3 validators/validate_closure_root.py --repo-root . \
-            examples/negative/state-mutation-no-proof.toml
-          check_rejects "python state-mutation no-proof (RKM02 kind layer)" \
-            python3 validators/validate_state_mutation.py --repo-root . \
-            examples/negative/state-mutation-no-proof.toml
-          # The next two are deliberately closure-VALID: a real proof pointed
-          # at a different mutation, and an inlined proof body. Neither is
-          # visible to the closure layer, so both are kind-layer rejections.
-          check_rejects "python state-mutation unbound-proof (RKM04)" \
-            python3 validators/validate_state_mutation.py --repo-root . \
-            examples/negative/state-mutation-unbound-proof.toml
-          check_rejects "python state-mutation inlined-proof (RKM03)" \
-            python3 validators/validate_state_mutation.py --repo-root . \
-            examples/negative/state-mutation-inlined-proof.toml
-          # Both are kept as regressions. hollow-proof
-          # carries only the two pinned digests, so it is closure-valid in all
-          # three implementations and only the kind layer sees that no typed
-          # proof is present (the recorded RKM02 boundary). operation-injection
-          # is the bound-tuple blocker: a newline-bearing operation that forged a
-          # bound-tuple collision under the old inlined encoding, now
-          # unconstructible under SPEC 12.8.2 prehashing and rejected by the
-          # RKM03 value grammar besides.
-          check_rejects "python state-mutation hollow-proof (RKM02)" \
-            python3 validators/validate_state_mutation.py --repo-root . \
-            examples/negative/state-mutation-hollow-proof.toml
-          check_rejects "python state-mutation operation-injection (RKM03 grammar)" \
-            python3 validators/validate_state_mutation.py --repo-root . \
-            examples/negative/state-mutation-operation-injection.toml
-          # Kind-layer parity. The Rust and Go primaries implement
-          # RKM02/RKM03/RKM04/RKM06 and RKC02, so every kind-layer negative is
-          # asserted against all three implementations rather than Python
-          # alone. hollow-proof is the case that motivated the port: it is
-          # closure-valid, so before parity a primary-only consumer accepted a
-          # state-mutation carrying no typed proof.
-          #
-          # The last four are
-          # deliberately closure-VALID, so the kind layer is demonstrably the
-          # only thing that can reject them:
-          #
-          #   blank-scheme, wrong-typed-proof   the hollow proof wearing a
-          #     complete proof's shape. Every required key is present but
-          #     carries "" or an integer. Both primaries used to default such a
-          #     value to "" and skip the closed-vocabulary check and RKM06,
-          #     accepting a proof that declared no scheme at all.
-          #   impossible-timestamp              month 99. Shape without
-          #     calendar validity, on a field inside the RKM04 bound tuple.
-          #   unicode-digit-timestamp           U+0662 for the leading digit.
-          #     The divergence that ran the other way: Python's `\d` matched it
-          #     and the ASCII primaries did not.
-          #
-          # Asserted against Python too, not just the primaries: every one of
-          # them was a reference-versus-primary disagreement, so pinning only
-          # one side would let the pair drift apart again.
-          # Discovered by glob, not enumerated. The authoritative
-          # cross-implementation gate for these kinds is now
-          # conformance/cases/{state-mutation,mutation-claim}/, which asserts
-          # defect CLASSES via .expected.toml sidecars rather than exit codes
-          # alone. This loop keeps the documentation fixtures under
-          # examples/negative/ honest so they cannot rot, and adding one no
-          # longer requires remembering to list it here.
-          #
-          # malformed-kind-selector is deliberately absent: it is a
-          # closure-layer rejection, asserted separately below, because with a
-          # non-string template_kind every kind validator correctly declines to
-          # run at all.
-          for f in examples/negative/state-mutation-*.toml \
-                   examples/negative/mutation-claim-*.toml; do
-            case "$f" in *malformed-kind-selector*) continue ;; esac
-            name=$(basename "$f" .toml)
-            check_rejects "python $name (kind layer)" \
-              python3 validators/validate_state_mutation.py --repo-root . "$f"
-            check_rejects "rust $name (kind layer)" \
-              "$rs" --repo-root . --mode mutation-kinds "$f"
-            check_rejects "go $name (kind layer)" \
-              "$go_bin" -repo-root . -mode mutation-kinds "$f"
-          done
-          # Malformed kind selector (SPEC 2.3).
-          #
-          # This one is a CLOSURE-layer rejection, not a kind-layer one, and
-          # that is the point: with `template_kind = 1` every kind validator
-          # correctly says "not my kind", so the only thing that can catch the
-          # document is pin resolution refusing to read a malformed selector as
-          # an absent one. Before the fix it read it as absent, returned no pins
-          # and no error, and the document passed every layer in all three.
-          check_rejects "python state-mutation malformed-kind-selector (SPEC 2.3)" \
-            python3 validators/validate_closure_root.py --repo-root . \
-            examples/negative/state-mutation-malformed-kind-selector.toml
-          check_rejects "rust state-mutation malformed-kind-selector (SPEC 2.3)" \
-            "$rs" --repo-root . --mode provenance \
-            examples/negative/state-mutation-malformed-kind-selector.toml
-          check_rejects "go state-mutation malformed-kind-selector (SPEC 2.3)" \
-            "$go_bin" -repo-root . -mode provenance \
-            examples/negative/state-mutation-malformed-kind-selector.toml
-
-          # RKC02, both directions of the claim/proof split, is covered by the
-          # glob loop above and by conformance/cases/mutation-claim/invalid/,
-          # which asserts the defect class rather than the exit code. It used
-          # to be a third enumerated list here.
+          python3 conformance/negative_fixtures.py \
+            --rs "${RUNNER_TEMP}/dagtoml-validate-rs" \
+            --go "${RUNNER_TEMP}/dagtoml-validate-go" \
+            --receipt .local/database-ci/negative-fixtures.json
 
       - name: Provenance source_path containment guard (SPEC §11)
         # Behavioural guard: a static fixture cannot isolate the
@@ -1333,6 +940,7 @@ jobs:
           hits=$(grep -rn "$NEEDLE" . \
                     --exclude-dir=.git \
                     --exclude-dir=.github \
+                    --exclude-dir=.local \
                     --exclude=AGENTS.md \
                     --exclude=CHANGELOG.md \
                     2>/dev/null \
@@ -1496,7 +1104,7 @@ jobs:
             --select S,F \
             --ignore S404 \
             --line-length 120 \
-            validators/
+            validators/ reference/database/ conformance/
 
       # --- Existing 5 scanners follow below ---
 
@@ -1579,7 +1187,7 @@ jobs:
           # annotated with `# nosec B603 - <reason>` where the safety
           # argument is non-obvious.
           python3 -m bandit \
-            --recursive validators/ \
+            --recursive validators/ reference/database/ conformance/ \
             --severity-level low \
             --confidence-level low \
             --skip B404

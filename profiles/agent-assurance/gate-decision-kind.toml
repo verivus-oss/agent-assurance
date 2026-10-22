@@ -127,7 +127,7 @@ ijb_constraint_type = "structural"
 [[kind.required_fields]]
 path        = "meta.framework_profile"
 must_equal  = "agent-assurance"
-description = "Gate decision is an Agent Assurance Profile artifact."
+description = "Gate decision is an Agent Assurance Profile artifact. Identity comparison accepts AGDF as the agent-assurance alias under spec section 2.5; the source spelling is preserved."
 ijb_primitive       = "constraint"
 ijb_constraint_type = "structural"
 
@@ -225,7 +225,7 @@ attribute_vocabularies = [
   "provider_id",
   "model_family_id",
 ]
-note                = "No new entity or relation declarations. Gate-decision documents are flat artifacts citing bundles by opaque ref string; they expose no instance entity IDs and no predicate-bearing fields at the SPEC layer. The `subject_class`, `provider_id`, and `model_family_id` vocabularies back the cross-provider self-modification rule (INV06)."
+note                = "No new entity or relation declarations. Gate-decision documents are flat artifacts citing bundles by opaque ref string; they expose no instance entity IDs and no predicate-bearing fields at the SPEC layer. The `subject_class`, `provider_id`, and `model_family_id` vocabularies back the cross-provider self-modification rule (INV06). The signer_class, authority_role, severity_tier, autonomy_tier, override_decision_method, and override_rule_operator catalogs also associate with gate-decision authority rules. They name runtime operands inside opaque rule strings, not additional document fields; SPEC validation and reference storage do not evaluate those rules."
 ijb_primitive       = "constraint"
 ijb_constraint_type = "structural"
 

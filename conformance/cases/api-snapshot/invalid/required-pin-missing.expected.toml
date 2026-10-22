@@ -1,0 +1,3 @@
+# Expected diagnostics from the kind and closure validation routes.
+error_contains = ["pinned closure record `snapshot.request.descriptor_sha256`", "is missing"]
+error_not_contains = ["Traceback"]
