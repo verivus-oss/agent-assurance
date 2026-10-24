@@ -25,7 +25,7 @@ def worker(root):
     for case in specimens(root):
         errors = validators[case.kind](case.doc, roots[case.root_mode])
         observations.append({"specimen": case.name, "expected": case.accepted,
-                             "accepted": not errors, "errors": errors,
+                             "accepted": not errors, "errors": errors, "needle": case.needle,
                              "passed": (not errors) == case.accepted and (not case.needle or any(case.needle.lower() in error.lower() for error in errors))})
     print(json.dumps(observations, ensure_ascii=True))
 
@@ -49,11 +49,55 @@ def execute(root):
     return observed
 
 
+def mutation_result(baseline, observed):
+    population = [(row["specimen"], row["expected"], row["needle"]) for row in baseline]
+    if population != [(row["specimen"], row["expected"], row["needle"]) for row in observed]:
+        raise RuntimeError("mutation changed the executed specimen population")
+    witnesses = []
+    diagnostic_changes = []
+    for before, after in zip(baseline, observed, strict=True):
+        failures = []
+        if after["accepted"] != after["expected"]:
+            failures.append("expected acceptance or rejection")
+        if after["needle"] and not any(after["needle"].lower() in error.lower() for error in after["errors"]):
+            failures.append("required diagnostic token")
+        if not before["passed"] or after["passed"] != (not failures):
+            raise RuntimeError("runtime specimen property result is inconsistent")
+        if failures:
+            witnesses.append({"specimen": after["specimen"], "failing_properties": failures,
+                              "expected": after["expected"], "accepted": after["accepted"],
+                              "required_diagnostic": after["needle"],
+                              "before": before["errors"], "after": after["errors"]})
+        elif before["errors"] != after["errors"]:
+            diagnostic_changes.append({"specimen": after["specimen"],
+                                       "before": before["errors"], "after": after["errors"]})
+    status = "killed" if witnesses else "diagnostic-only" if diagnostic_changes else "unprotected"
+    return {"status": status, "witnesses": witnesses, "diagnostic_changes": diagnostic_changes}
+
+
+def diagnostic_only_control(root, baseline):
+    path = root / "validators/validate_gate_decision.py"
+    original = path.read_text()
+    target = "decision.failed_constraint_refs must be an array"
+    if original.count(target) != 1:
+        raise RuntimeError("diagnostic-only control did not select exactly one message")
+    path.write_text(original.replace(target, "control: " + target, 1))
+    try:
+        observed = execute(root)
+    finally:
+        path.write_text(original)
+    result = mutation_result(baseline, observed)
+    if result["status"] != "diagnostic-only" or not result["diagnostic_changes"] or result["witnesses"]:
+        raise AssertionError("diagnostic-only control must change messages without failing a specimen property")
+    return {"mutation": "diagnostic-text-prefix", **result}
+
+
 def audit(root, report):
     baseline = execute(root)
     if not all(row["passed"] for row in baseline):
         report.write_text(json.dumps({"status": "baseline-failed", "failures": [row for row in baseline if not row["passed"]]}, indent=2))
         raise RuntimeError("independent runtime specimens failed before any mutation")
+    control = diagnostic_only_control(root, baseline)
     results = []
     for owner in sorted(audited_owners(root)):
         path = root / owner
@@ -82,19 +126,16 @@ def audit(root, report):
                 observed = execute(root)
             finally:
                 path.write_text(original)
-            if len(observed) != len(baseline):
-                raise RuntimeError("mutation changed the executed specimen population")
-            witnesses = [{"specimen": after["specimen"], "before": before["errors"], "after": after["errors"]}
-                         for before, after in zip(baseline, observed, strict=True)
-                         if before["errors"] != after["errors"]]
-            results.append({"owner": owner, "mutation": label, "status": "killed" if witnesses else "unprotected",
-                            "property": "expected rejection or diagnostic removed", "witnesses": witnesses})
-    report.write_text(json.dumps({"status": "passed" if all(row["status"] == "killed" for row in results) else "failed",
-                                 "mutations": results, "skipped": []}, ensure_ascii=True, indent=2) + "\n")
+            results.append({"owner": owner, "mutation": label, **mutation_result(baseline, observed)})
+    report.write_text(json.dumps({"status": "passed" if results and all(row["status"] == "killed" for row in results) else "failed",
+                                 "control": control, "mutations": results, "skipped": []}, ensure_ascii=True, indent=2) + "\n")
     unprotected = [row for row in results if row["status"] != "killed"]
     if not results or unprotected:
         raise AssertionError("new runtime checks lack removal witnesses: " + json.dumps(unprotected))
-    print(f"Runtime coverage: {len(results)} isolated mutations have failing-property witnesses; new exemptions=0; skipped=[]")
+    killed = sum(row["status"] == "killed" for row in results)
+    if killed != len(results) or control["status"] != "diagnostic-only":
+        raise AssertionError("runtime mutation report counts do not match verdicts")
+    print(f"Runtime coverage: {killed}/{len(results)} isolated mutations have failing-property witnesses; diagnostic-only control=1; skipped=[]")
 
 
 if __name__ == "__main__":
