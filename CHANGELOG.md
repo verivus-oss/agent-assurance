@@ -9,6 +9,11 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Refresh pinned reference-tool dependencies together: Rust `toml` 1.1.5,
+  `serde_json` 1.0.154, `oxttl` 0.2.5 and its `oxrdf` 0.3.5 dependency;
+  Python `tomli` 2.5.0, `ruff` 0.17.1, and `zizmor` 1.31.1. This combines
+  the compatible updates proposed in #116, #127, #128, #131, #132, and #133.
+
 - Address the issue #74 vocabulary gap with complete declared catalogs in all
   three SQL mirrors, six constrained runtime-document projections, and
   captured-source ingestion and audit. Add structural adapter and binding
