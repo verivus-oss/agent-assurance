@@ -146,7 +146,8 @@ def specimens(root: Path) -> list[Specimen]:
     add(gate, "fail-without-failures", False, "INV01", lambda doc: doc["decision"].pop("failed_constraint_refs"), "INV01")
     for field in ("failed_constraint_refs", "override_refs"):
         for label, value in (("table", {}), ("boolean", False), ("integer", 0)):
-            add(gate, field + "/wrong-type/" + label, False, "optional-structure", lambda doc: doc["decision"].update({field: value}), field)
+            add(gate, field + "/wrong-type/" + label, False, "optional-structure",
+                lambda doc: doc["decision"].update({field: value, **({"verdict": "pass"} if field == "failed_constraint_refs" else {})}), field)
         add(gate, field + "/wrong-entry", False, "optional-structure", lambda doc: doc["decision"].update({field: [1]}), field)
     add(gate, "override/malformed-observed", False, "INV03",
         lambda doc: doc["decision"].update(override_refs=[{"observation_line": "A-wrong = thing()"}]), "INV03")
@@ -163,6 +164,9 @@ def specimens(root: Path) -> list[Specimen]:
         add(gate, "self-modification/" + name, False, "INV06", lambda doc: doc["decision"].update({**attribution, **changed}), "INV06")
     add(gate, "repository/missing-subject-catalog", False, "required-input",
         lambda doc: doc["decision"].update(subject_class="downstream-change"), root_mode="malformed-ontology")
+    add(gate, "repository/undeclared-subject-catalog", False, "required-input",
+        lambda doc: doc["decision"].update(subject_class="downstream-change"),
+        root_mode="missing-subject")
     add(gate, "repository/missing-provider-catalog", False, "required-input",
         lambda doc: doc["decision"].update(attribution), "INV06", root_mode="missing-provider")
     add(gate, "repository/missing-family-catalog", False, "required-input",
@@ -198,8 +202,9 @@ def prepare_roots(root, work):
             ontology.write_text(prefix + tail.replace('extensible  = false', 'extensible  = true', 1))
         elif mode == "missing-core":
             (candidate / "core/ontology.toml").unlink()
-        elif mode in {"missing-provider", "missing-family"}:
-            attribute = "provider_id" if mode == "missing-provider" else "model_family_id"
+        elif mode in {"missing-subject", "missing-provider", "missing-family"}:
+            attribute = {"missing-subject": "subject_class", "missing-provider": "provider_id",
+                         "missing-family": "model_family_id"}[mode]
             marker = f'attribute   = "{attribute}"'
             require(text.count(marker) == 1)
             # Keep the rest of the ontology, including verdict, loadable.

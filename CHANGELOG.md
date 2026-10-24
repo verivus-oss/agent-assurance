@@ -110,6 +110,11 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- Count a runtime validator mutation as covered only when a specimen fails its
+  expected outcome or required diagnostic. Report diagnostic-only changes
+  separately and isolate the two gate checks whose removals were previously
+  masked by other errors. Closes #137.
+
 - **`check_commit_citations.py` excluded UUIDs from its token rule.** A UUID is
   hyphen-separated hex and a hyphen is a non-word character, so every segment
   satisfied the rule on its own: one gateway job id pasted into a scanned file
