@@ -9,6 +9,8 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Pin the Rust toolchain action to a commit reachable from its maintained
+  branch and pass its required `toolchain` input explicitly.
 - Address the issue #74 vocabulary gap with complete declared catalogs in all
   three SQL mirrors, six constrained runtime-document projections, and
   captured-source ingestion and audit. Add structural adapter and binding
