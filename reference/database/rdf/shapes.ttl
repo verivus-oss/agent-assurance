@@ -179,33 +179,51 @@ dagtoml:ThreatRiskShape a sh:NodeShape ;
 ###     match the prefix declared in its class. This is informational —
 ###     real enforcement happens at ingestion time when the qualified_id
 ###     is parsed against id_prefix / typed decimal ID shape from the ontology.
-###     Listed here as a pattern shape only for the fixed-prefix kinds;
+###     Listed here as a literal prefix check for fixed-prefix kinds;
 ###     decimal-ID entities (units, gates, artifact_class, contracts,
 ###     claims, evidence, matrix) require client-side parsing.
 ###
 
 dagtoml:RequirementIdPrefixShape a sh:NodeShape ;
     sh:targetClass dagtoml:Requirement ;
-    sh:property [
-        sh:path     rdfs:label ;
-        sh:pattern  "^REQ:" ;
+    sh:sparql [
         sh:message  "Requirement qualified_id must begin with REQ:." ;
+        sh:prefixes dagtoml:Prefixes ;
+        sh:select """
+            SELECT $this ?value
+            WHERE {
+                $this rdfs:label ?value .
+                FILTER (!STRSTARTS(STR(?value), "REQ:"))
+            }
+        """ ;
     ] .
 
 dagtoml:ImplementationIdPrefixShape a sh:NodeShape ;
     sh:targetClass dagtoml:Implementation ;
-    sh:property [
-        sh:path     rdfs:label ;
-        sh:pattern  "^IMP:" ;
+    sh:sparql [
         sh:message  "Implementation qualified_id must begin with IMP:." ;
+        sh:prefixes dagtoml:Prefixes ;
+        sh:select """
+            SELECT $this ?value
+            WHERE {
+                $this rdfs:label ?value .
+                FILTER (!STRSTARTS(STR(?value), "IMP:"))
+            }
+        """ ;
     ] .
 
 dagtoml:TestIdPrefixShape a sh:NodeShape ;
     sh:targetClass dagtoml:Test ;
-    sh:property [
-        sh:path     rdfs:label ;
-        sh:pattern  "^TEST:" ;
+    sh:sparql [
         sh:message  "Test qualified_id must begin with TEST:." ;
+        sh:prefixes dagtoml:Prefixes ;
+        sh:select """
+            SELECT $this ?value
+            WHERE {
+                $this rdfs:label ?value .
+                FILTER (!STRSTARTS(STR(?value), "TEST:"))
+            }
+        """ ;
     ] .
 
 

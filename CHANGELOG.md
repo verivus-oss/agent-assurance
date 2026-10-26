@@ -10,7 +10,8 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 ### Changed
 
 - Replace active regex checks in the Python validators, conformance tools,
-  database mirrors, and CI text gates with explicit predicates and scanners.
+  database mirrors, RDF shapes, website check, and CI text gates with explicit
+  predicates and scanners.
   Declare ontology decimal ID shapes as typed fields and carry them through
   the SQL, graph, and RDF mirrors. Keep the existing Gitleaks gate for
   credential scanning under the explicit third-party verification allowance.

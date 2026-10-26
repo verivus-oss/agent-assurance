@@ -34,21 +34,28 @@ for (const file of required) {
   }
 }
 
-function walk(dir) {
+export function hasProviderTagline(content) {
   const providerName = ["Clau", "de"].join("");
-  const disallowed = [
-    new RegExp(`${providerName} Code`, "i"),
-    new RegExp(`${providerName.toLowerCase()}\\.ai/code`, "i"),
-    new RegExp(`Generated with ${providerName}`, "i"),
-    new RegExp(`Co-Authored-By:.*${providerName}`, "i"),
-  ];
+  const folded = content.toLowerCase();
+  const provider = providerName.toLowerCase();
+  return folded.includes(`${provider} code`)
+    || folded.includes(`${provider}.ai/code`)
+    || folded.includes(`generated with ${provider}`)
+    || content.split("\n").some((line) => {
+      const lower = line.toLowerCase();
+      const trailer = lower.indexOf("co-authored-by:");
+      return trailer >= 0 && lower.slice(trailer).includes(provider);
+    });
+}
+
+function walk(dir) {
   for (const name of readdirSync(dir)) {
     const path = join(dir, name);
     const stat = statSync(path);
     if (stat.isDirectory()) walk(path);
-    else if (/\.(html|md|txt|xml|json|css|svg)$/.test(name)) {
-      const text = readFileSync(path, "utf8");
-      if (disallowed.some((pattern) => pattern.test(text))) {
+    else if ([".html", ".md", ".txt", ".xml", ".json", ".css", ".svg"].some((suffix) => name.endsWith(suffix))) {
+      const content = readFileSync(path, "utf8");
+      if (hasProviderTagline(content)) {
         console.error(`provider tagline found in ${path}`);
         ok = false;
       }
