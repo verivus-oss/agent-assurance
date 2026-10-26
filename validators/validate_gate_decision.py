@@ -23,6 +23,9 @@ import argparse
 import pathlib
 import re
 import sys
+from _runtime_document_vocab import validate_fields
+from _vocabulary import load_catalog
+from _diagnostics import printable, value_summary
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
 
 
@@ -30,7 +33,7 @@ EVIDENCE_ROOT_RX = re.compile(r"^[0-9a-f]{64}$")
 ASSERTION_ID_RX = re.compile(r"^A-[A-Za-z0-9][A-Za-z0-9_-]*$")
 OBSERVED_LINE_RX = re.compile(
     # Loose check against the canonical-grammar `observed(...)` shape from
-    # foundations/ijb/canonical-assertion-grammar.md lines 46-68. SPEC-layer
+    # foundations/ijb/canonical-assertion-grammar.md, observed production. SPEC-layer
     # validation accepts any `<assertion-id> = observed(<arg-list>)` where
     # arg-list is comma-separated `key=value` pairs. Full ABNF validation
     # is RUNTIME-SPEC; this regex catches obvious shape defects.
@@ -42,41 +45,25 @@ def load_vocab(ontology_path: pathlib.Path, attribute: str) -> set[str]:
     """Load an attribute_vocabulary's `values` set from the agent-assurance
     ontology. Raises FileNotFoundError if the ontology is missing; raises
     KeyError if the attribute is not declared."""
-    doc = tomllib.loads(ontology_path.read_text())
-    for entry in doc.get("attribute_vocabularies", []):
-        if entry.get("attribute") == attribute:
-            return set(entry.get("values", []))
-    raise KeyError(f"attribute_vocabulary {attribute!r} not declared in {ontology_path}")
+    return set(load_catalog(ontology_path.parents[2])[attribute].values)
 
 
-def validate_one(path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
+def validate_one(path: pathlib.Path, repo_root: pathlib.Path, *, doc: dict | None = None) -> list[str]:
     """Return a list of defect strings (empty list = PASS)."""
     defects: list[str] = []
-    try:
-        doc = tomllib.loads(path.read_text())
-    except (OSError, tomllib.TOMLDecodeError) as e:
-        return [f"{path}: TOML parse failed: {e}"]
+    if doc is None:
+        try:
+            doc = tomllib.loads(path.read_text())
+        except (OSError, tomllib.TOMLDecodeError) as e:
+            return [f"{path}: TOML parse failed: {e}"]
 
-    meta = doc.get("meta", {})
-    if meta.get("template_kind") != "gate-decision":
-        return [
-            f"{path}: meta.template_kind = {meta.get('template_kind')!r} "
-            "(expected 'gate-decision'); not a gate-decision instance"
-        ]
-    if meta.get("framework_profile") != "agent-assurance":
-        defects.append(
-            f"{path}: meta.framework_profile = "
-            f"{meta.get('framework_profile')!r} (expected 'agent-assurance' "
-            "per gate-decision-kind.toml required_fields)"
-        )
-
-    decision = doc.get("decision") or {}
+    defects.extend(f"{path}: {error}" for error in validate_fields(doc, "gate-decision", repo_root))
+    decision = doc.get("decision")
     if not isinstance(decision, dict):
-        defects.append(f"{path}: missing or non-table [decision]")
-        return defects
+        return [*defects, f"{path}: missing or non-table [decision]"]
 
     verdict = decision.get("verdict")
-    failed_refs = decision.get("failed_constraint_refs") or []
+    failed_refs = decision.get("failed_constraint_refs", [])
     if not isinstance(failed_refs, list):
         defects.append(
             f"{path}: decision.failed_constraint_refs must be an array; "
@@ -91,7 +78,7 @@ def validate_one(path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
     is_empty = len(failed_refs) == 0
     if is_pass != is_empty:
         defects.append(
-            f"{path}: INV01 violated: decision.verdict = {verdict!r} but "
+            f"{path}: INV01 violated: decision.verdict = {value_summary(verdict)} but "
             f"failed_constraint_refs has {len(failed_refs)} entr"
             f"{'y' if len(failed_refs) == 1 else 'ies'}. Verdict 'pass' "
             "requires empty/absent failed_constraint_refs; verdict 'fail' "
@@ -109,17 +96,17 @@ def validate_one(path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
             )
             continue
         cid = ref.get("constraint_id")
-        if not isinstance(cid, str) or not ASSERTION_ID_RX.match(cid):
+        if not isinstance(cid, str) or not ASSERTION_ID_RX.fullmatch(cid):
             defects.append(
                 f"{path}: INV02 violated: failed_constraint_refs[{i}]."
-                f"constraint_id = {cid!r} does not match assertion-id "
+                f"constraint_id = {value_summary(cid)} does not match assertion-id "
                 f"regex {ASSERTION_ID_RX.pattern}"
             )
 
     # ------------------------------------------------------------------
     # INV03: every override_refs[].observation_line parses as observed(...).
     # ------------------------------------------------------------------
-    overrides = decision.get("override_refs") or []
+    overrides = decision.get("override_refs", [])
     if not isinstance(overrides, list):
         defects.append(
             f"{path}: decision.override_refs must be an array; "
@@ -138,16 +125,16 @@ def validate_one(path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
             defects.append(
                 f"{path}: INV03 violated: override_refs[{i}]."
                 f"observation_line does not match canonical observed(...) "
-                f"shape: {line!r}"
+                f"shape: {value_summary(line)}"
             )
 
     # ------------------------------------------------------------------
     # INV04: evidence_root matches 64 hex chars.
     # ------------------------------------------------------------------
     er = decision.get("evidence_root")
-    if not isinstance(er, str) or not EVIDENCE_ROOT_RX.match(er):
+    if not isinstance(er, str) or not EVIDENCE_ROOT_RX.fullmatch(er):
         defects.append(
-            f"{path}: INV04 violated: decision.evidence_root = {er!r} "
+            f"{path}: INV04 violated: decision.evidence_root = {value_summary(er)} "
             f"does not match {EVIDENCE_ROOT_RX.pattern}"
         )
 
@@ -162,15 +149,15 @@ def validate_one(path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
                 repo_root / "profiles" / "agent-assurance" / "ontology.toml",
                 "subject_class",
             )
-        except (FileNotFoundError, KeyError) as e:
+        except (OSError, ValueError, KeyError) as e:
             defects.append(
                 f"{path}: INV06 vocab load failed (subject_class): {e}"
             )
             subject_class_vocab = None
-        if subject_class_vocab is not None and subject_class not in subject_class_vocab:
+        if subject_class_vocab is not None and (not isinstance(subject_class, str) or subject_class not in subject_class_vocab):
             defects.append(
                 f"{path}: INV06 violated: decision.subject_class = "
-                f"{subject_class!r} not in subject_class vocabulary "
+                f"{value_summary(subject_class)} not in subject_class vocabulary "
                 f"{sorted(subject_class_vocab)}"
             )
 
@@ -202,7 +189,7 @@ def validate_one(path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
                 repo_root / "profiles" / "agent-assurance" / "ontology.toml",
                 "model_family_id",
             )
-        except (FileNotFoundError, KeyError) as e:
+        except (OSError, ValueError, KeyError) as e:
             defects.append(
                 f"{path}: INV06 vocab load failed: {e}"
             )
@@ -221,7 +208,7 @@ def validate_one(path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
         ):
             if isinstance(value, str) and value and value not in vocab:
                 defects.append(
-                    f"{path}: INV06 violated: decision.{label} = {value!r} "
+                    f"{path}: INV06 violated: decision.{label} = {value_summary(value)} "
                     f"not in vocabulary {sorted(vocab)}"
                 )
 
@@ -289,7 +276,7 @@ def main(argv: list[str]) -> int:
 
     if all_defects:
         for d in all_defects:
-            print(f"FAIL: {d}")
+            print("FAIL: " + printable(d))
         print(f"\nGATE-DECISION VALIDATION FAILED ({len(all_defects)} "
               f"defect{'s' if len(all_defects) != 1 else ''}; "
               f"{pass_count} file{'s' if pass_count != 1 else ''} passed).")

@@ -99,6 +99,7 @@ Choose by reader role.
 | Primary safe-Rust validator | [tools/dagtoml-validate-rs/](tools/dagtoml-validate-rs/) |
 | Primary safe-Go validator | [tools/dagtoml-validate-go/](tools/dagtoml-validate-go/) |
 | Python reference validators (cross-check, not normative) | [validators/](validators/) |
+| Store adapter contracts, registry bindings, and gate decisions with original bytes and audited vocabulary projections | [reference/database/README.md](reference/database/README.md) |
 | TOML parser-conformance harnesses (`toml-test`) | [Makefile](Makefile) — `toml-conformance` (Go-parser) and `toml-conformance-rs` (Rust-parser) |
 | Per-kind contract (what each `*-kind.toml` declares) | the `*-kind.toml` descriptors under [core/](core/) and [profiles/](profiles/) |
 | IJB substrate (the meta-ontology that every kind binds to) | [foundations/ijb/](foundations/ijb/), [spec.md §10](spec.md#10-foundation-ijb) |

@@ -1,0 +1,60 @@
+# Exact executed compatibility lanes. Driver distributions are hash-pinned
+# in the referenced requirements files. libSQL has no verified lane here.
+[meta]
+document_kind = "reference-database-engine-lock"
+schema_version = "0.1.0"
+normative = false
+platform = "linux-amd64"
+
+[duckdb_cli]
+version = "1.5.3"
+url = "https://github.com/duckdb/duckdb/releases/download/v1.5.3/duckdb_cli-linux-amd64.zip"
+sha256 = "35caef1fecbc8d7e2c07de4fd2cdefc5189ec9ba9e1cca228fb1a1c48cc52a8a"
+
+[syscall_instrument]
+name = "strace"
+version = "6.18"
+source_url = "https://strace.io/files/6.18/strace-6.18.tar.xz"
+source_sha256 = "0ad5dcba973a69e779650ef1cb335b12ee60716fc7326609895bd33e6d2a7325"
+
+[[lanes]]
+id = "postgres-floor"
+engine = "postgres"
+version = "14.0"
+image = "docker.io/library/postgres:14.0-alpine@sha256:9d42dae9405a2650042d31e8ca95887d064cb0594eb5cf03d82eddb34f5ee21c"
+driver_lock = "requirements/database.txt"
+
+[[lanes]]
+id = "postgres-maintained"
+engine = "postgres"
+version = "16.14"
+image = "docker.io/library/postgres:16.14-alpine@sha256:7a396fd264a2067788b6551122b50f162bf6136312c7fc9d74381cb92c648382"
+driver_lock = "requirements/database.txt"
+
+[[lanes]]
+id = "sqlite-floor"
+engine = "sqlite"
+version = "3.38.0"
+source_url = "https://www.sqlite.org/2022/sqlite-autoconf-3380000.tar.gz"
+source_sha256 = "1c76e25dc63d9f3935e0f406aec520a33ee77cf54ea5147dffe1fae8369eff68"
+driver = "Python sqlite3 linked to the selected library; assert SELECT sqlite_version()"
+
+[[lanes]]
+id = "sqlite-maintained"
+engine = "sqlite"
+version = "3.53.2"
+source_url = "https://www.sqlite.org/2026/sqlite-autoconf-3530200.tar.gz"
+source_sha256 = "588ad51949419a56ebe81fe56193d510c559eb94c9a57748387860b5d3069316"
+driver = "Python sqlite3 linked to the selected library; assert SELECT sqlite_version()"
+
+[[lanes]]
+id = "duckdb-floor"
+engine = "duckdb"
+version = "1.5.0"
+driver_lock = "requirements/database-floor.txt"
+
+[[lanes]]
+id = "duckdb-maintained"
+engine = "duckdb"
+version = "1.5.3"
+driver_lock = "requirements/database.txt"

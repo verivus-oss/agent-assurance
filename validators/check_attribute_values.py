@@ -1,36 +1,5 @@
 #!/usr/bin/env python3
-"""Comprehensive count-mirror drift gate.
-
-Recomputes every count surface in the repository from its real
-source and compares against the declared values in
-`reference/database/MANIFEST.toml`, the hardcoded EXPECTED_COUNTS
-arrays in the dagtoml-duckdb tools, and (informationally) the
-seed.sql header comments. Exits non-zero on any drift.
-
-Count surfaces gated (per the Opus consultant's broadened
-evidence + codex's critique that defers nothing):
-
-  1. `[counts]` — ontology block counts + attribute_values_{declared,closed}
-  2. `expected_seed_counts` × 3 engines (postgres / duckdb / sqlite)
-  3. `expected_node_counts` (graph)
-  4. `expected_triple_counts` (rdf)
-  5. `expected_footer_counts` (rdf — already auto-generated)
-  6. `tools/dagtoml-duckdb/src/main.rs:22-26` (Rust hardcode)
-  7. `tools/dagtoml-duckdb-go/main.go:40-44` (Go hardcode)
-
-The script does NOT regenerate the seed files; if a seed row
-count differs from its expected value, the script reports the
-drift. The fix is either to regenerate the seed from the
-ontology or update the expected value to match the seed — both
-are conscious maintainer actions, not automated.
-
-This validator is independent of `check_manifest_drift.sh`
-(which gates a narrower four-field surface) — the bash script
-invokes this Python script as an additional step so the two
-work together without overlap.
-
-Exit 0 on full agreement; 1 on any drift.
-"""
+"""Compare declarations and artifact-bound executed receipts, without SQL inference."""
 
 from __future__ import annotations
 
@@ -39,399 +8,25 @@ import contextlib
 import pathlib
 import re
 import sys
-import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
 
+import _toml11 as tomllib
+from _vocabulary import load_catalog
 
-# ---------- ontology truth ---------------------------------------------------
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "reference/database"))
+from _contract import expected_counts, load_mapping
+
 
 def derive_ontology_counts(repo_root: pathlib.Path) -> dict[str, int]:
-    """Return ontology-derived counts: template_kinds, entity_kinds,
-    relation_predicates, attribute_vocabularies, attribute_values_declared,
-    attribute_values_closed.
-    """
-    ontology_paths = [repo_root / "core" / "ontology.toml"]
-    profiles_dir = repo_root / "profiles"
-    if profiles_dir.exists():
-        ontology_paths.extend(sorted(profiles_dir.glob("*/ontology.toml")))
-
-    kind_files = list((repo_root / "core").glob("*-kind.toml"))
-    if profiles_dir.exists():
-        kind_files.extend(profiles_dir.glob("*/*-kind.toml"))
-
-    entities = relations = vocabs = values_declared = values_closed = 0
-    for p in ontology_paths:
-        d = tomllib.loads(p.read_text())
-        entities += len(d.get("entities", []))
-        relations += len(d.get("relations", []))
-        for v in d.get("attribute_vocabularies", []):
-            vocabs += 1
-            n = len(v.get("values", []))
-            values_declared += n
-            if not v.get("extensible", False):
-                values_closed += n
-
+    registry = expected_counts(repo_root)
+    catalog = load_catalog(repo_root)
     return {
-        # template_kinds = N descriptor files + 1 for the meta `kind-descriptor`
-        # itself, which is described in spec.md and not by a separate descriptor.
-        "template_kinds": len(kind_files) + 1,
-        "entity_kinds": entities,
-        "relation_predicates": relations,
-        "attribute_vocabularies": vocabs,
-        "attribute_values_declared": values_declared,
-        "attribute_values_closed": values_closed,
+        "template_kinds": registry["kind_descriptor"],
+        "entity_kinds": registry["entity_kind_descriptor"],
+        "relation_predicates": registry["relation_descriptor"],
+        "attribute_vocabularies": len(catalog),
+        "attribute_values_declared": sum(len(item.values) for item in catalog.values()),
+        "attribute_values_closed": sum(len(item.values) for item in catalog.values() if not item.extensible),
     }
-
-
-# ---------- seed-file truth --------------------------------------------------
-
-def _paren_delta(line: str) -> int:
-    """Net bracket depth of a line, ignoring brackets inside quoted strings."""
-    depth, in_str, prev = 0, False, ""
-    for ch in line:
-        if ch == "'" and prev != "\\":
-            in_str = not in_str
-        elif not in_str:
-            if ch in "([":
-                depth += 1
-            elif ch in ")]":
-                depth -= 1
-        prev = ch
-    return depth
-
-
-def _split_columns(row: str) -> list[str]:
-    """Split a tuple row on top-level commas only, so commas inside quotes or
-    inside ARRAY[...] / [...] / json_array(...) literals do not split it."""
-    inner = row.strip()
-    inner = inner[1:] if inner.startswith("(") else inner
-    inner = inner.rstrip(",;").rstrip()
-    inner = inner[:-1] if inner.endswith(")") else inner
-    cols, buf, depth, in_str, prev = [], "", 0, False, ""
-    for ch in inner:
-        if ch == "'" and prev != "\\":
-            in_str = not in_str
-            buf += ch
-        elif in_str:
-            buf += ch
-        elif ch in "([":
-            depth += 1
-            buf += ch
-        elif ch in ")]":
-            depth -= 1
-            buf += ch
-        elif ch == "," and depth == 0:
-            cols.append(buf.strip())
-            buf = ""
-        else:
-            buf += ch
-        prev = ch
-    if buf.strip():
-        cols.append(buf.strip())
-    return cols
-
-
-def _tuple_rows(seed_path: pathlib.Path, table_re_str: str) -> list[str]:
-    """Return complete tuple rows inside the named INSERT INTO block.
-
-    Rows are joined until bracket balance returns to zero, so a row split
-    across several lines is returned whole. A line-based reader looks correct
-    against today's seeds, where every row happens to fit on one line, and
-    silently reads the wrong column the moment one is reformatted.
-    """
-    if not seed_path.exists():
-        return []
-    txt = seed_path.read_text()
-    m = re.search(rf"INSERT INTO {table_re_str}\b.*?\bVALUES", txt, re.DOTALL)
-    if not m:
-        return []
-    rest = txt[m.end():]
-    end_match = re.search(
-        r"\n\s*(?:INSERT INTO|ALTER|CREATE|DROP|COMMIT|--\s*=====)", rest
-    )
-    block = rest[: end_match.start()] if end_match else rest
-
-    rows, buf, depth = [], "", 0
-    for raw in block.splitlines():
-        if not buf and not raw.strip().startswith("('"):
-            continue
-        buf = f"{buf} {raw.strip()}" if buf else raw.strip()
-        depth += _paren_delta(raw)
-        if depth <= 0:
-            rows.append(buf.strip())
-            buf, depth = "", 0
-    return rows
-
-
-def _count_tuple_rows(seed_path: pathlib.Path, table_re_str: str) -> int | None:
-    """Count tuple rows inside the named INSERT INTO block."""
-    if not seed_path.exists():
-        return None
-    return len(_tuple_rows(seed_path, table_re_str)) or None
-
-
-def derive_seed_vocab_surfaces(
-    repo_root: pathlib.Path, engine: str
-) -> tuple[dict[str, str | None], dict[str, list[str]]]:
-    """Return (vocabulary -> claimed native backing or None,
-    vocabulary -> the list of values seeded for it).
-
-    The last column of an `attribute_vocabulary` row names the native construct
-    that enforces a closed value set (`backing_enum_type` in postgres and
-    duckdb, `backing_check_constraint` in sqlite), or NULL. The claim is only a
-    claim: `derive_schema_native_constructs` checks whether the named construct
-    exists. A row that does not parse into 8 columns is an error rather than a
-    guess, because the permissive guess is the one that hides defects.
-    """
-    db_dir = repo_root / "reference" / "database" / engine
-    seed = db_dir / "seed.sql"
-    prefix = "dagtoml_" if engine == "sqlite" else "(?:dagtoml\\.)?"
-
-    claims: dict[str, str | None] = {}
-    unparsable: list[str] = []
-    for row in _tuple_rows(seed, f"{prefix}attribute_vocabulary"):
-        cols = _split_columns(row)
-        if len(cols) != 8 or not cols[0].startswith("'"):
-            unparsable.append(row[:70])
-            continue
-        last = cols[-1].strip()
-        claims[cols[0].strip("'")] = None if last.upper() == "NULL" else last.strip("'")
-    if unparsable:
-        raise ValueError(
-            f"{engine}: {len(unparsable)} attribute_vocabulary row(s) did not "
-            f"parse into 8 columns, so the backing column cannot be read. A "
-            f"gate that cannot tell MUST NOT guess: {unparsable[:3]}"
-        )
-
-    seeded: dict[str, list[str]] = {}
-    for row in _tuple_rows(seed, f"{prefix}attribute_value_allowed"):
-        cols = _split_columns(row)
-        if len(cols) != 2:
-            raise ValueError(
-                f"{engine}: attribute_value_allowed row did not parse into 2 "
-                f"columns: {row[:70]}"
-            )
-        seeded.setdefault(cols[0].strip("'"), []).append(cols[1].strip("'"))
-    return claims, seeded
-
-
-def _strip_dollar_quoted(txt: str) -> str:
-    """Blank out PostgreSQL dollar-quoted bodies ($$...$$ and $tag$...$tag$).
-
-    `SELECT $$CREATE TYPE fake_enum AS ENUM (...);$$;` is a SELECT of a
-    string, not DDL. The difference was proved by loading the mutated schema
-    into a real PostgreSQL 16 container: the type does not exist. The parser
-    must not read a string literal as a definition.
-    """
-    out, i, n = [], 0, len(txt)
-    while i < n:
-        if txt[i] == "$":
-            j = txt.find("$", i + 1)
-            if j != -1 and all(c.isalnum() or c == "_" for c in txt[i + 1:j]):
-                tag = txt[i:j + 1]
-                close = txt.find(tag, j + 1)
-                if close != -1:
-                    out.append(" " * (close + len(tag) - i))
-                    i = close + len(tag)
-                    continue
-        out.append(txt[i])
-        i += 1
-    return "".join(out)
-
-
-def _strip_sql_comments(txt: str) -> str:
-    """Remove `--` line comments and `/* */` block comments, respecting quotes.
-
-    The schema parse below is what makes a claimed backing "verified"
-    rather than believed. Without this, writing
-    `-- CREATE TYPE fake_enum AS ENUM (...)` in a comment was enough to satisfy
-    it, which reduces verification back to assertion with an extra step.
-    """
-    out, i, n = [], 0, len(txt)
-    in_str = in_line = in_block = False
-    while i < n:
-        ch = txt[i]
-        nxt = txt[i + 1] if i + 1 < n else ""
-        if in_line:
-            if ch == "\n":
-                in_line = False
-                out.append(ch)
-        elif in_block:
-            if ch == "*" and nxt == "/":
-                in_block = False
-                i += 1
-        elif in_str:
-            out.append(ch)
-            if ch == "'":
-                in_str = False
-        elif ch == "-" and nxt == "-":
-            in_line = True
-            i += 1
-        elif ch == "/" and nxt == "*":
-            in_block = True
-            i += 1
-        elif ch == "'":
-            in_str = True
-            out.append(ch)
-        else:
-            out.append(ch)
-        i += 1
-    return "".join(out)
-
-
-def _balanced(txt: str, open_idx: int) -> tuple[str, int]:
-    """Return (contents, index-after-close) for the parens starting at open_idx."""
-    depth, i, n = 0, open_idx, len(txt)
-    while i < n:
-        if txt[i] == "(":
-            depth += 1
-        elif txt[i] == ")":
-            depth -= 1
-            if depth == 0:
-                return txt[open_idx + 1:i], i + 1
-        i += 1
-    return "", n
-
-
-def derive_schema_native_constructs(
-    repo_root: pathlib.Path, engine: str
-) -> dict[str, dict]:
-    """Return construct name -> {"values": set, "used": bool}.
-
-    A construct is only enforcement if it both EXISTS and is WIRED to a column.
-    Testing defeated the previous version three ways, all of which proved that
-    text resembling a definition is not enforcement:
-
-      - a real `CREATE TYPE fake_enum AS ENUM (...)` that no column uses
-      - the same text inside a dollar-quoted string, which is a SELECT of a
-        string and creates nothing
-      - a sqlite `CHECK (likelihood IS NULL OR impact IN (...))`, where the
-        named column is unconstrained because the IN targets another column
-
-    So: dollar-quoted bodies are blanked before parsing, enum types must be
-    referenced by a column somewhere outside their own definition, and a sqlite
-    CHECK counts only when its IN clause constrains the column it belongs to.
-    """
-    schema = repo_root / "reference" / "database" / engine / "schema.sql"
-    if not schema.exists():
-        return {}
-    txt = _strip_sql_comments(_strip_dollar_quoted(schema.read_text()))
-    out: dict[str, dict] = {}
-
-    # Postgres and duckdb: CREATE TYPE <name> AS ENUM (...).
-    enum_spans: dict[str, list[tuple[int, int]]] = {}
-    for m in re.finditer(r"CREATE TYPE\s+(\w+)\s+AS ENUM\s*", txt):
-        open_idx = txt.find("(", m.end())
-        if open_idx == -1:
-            continue
-        body, after = _balanced(txt, open_idx)
-        name = m.group(1)
-        out[name] = {"values": set(re.findall(r"'([^']*)'", body)), "used": False}
-        enum_spans.setdefault(name, []).append((m.start(), after))
-
-    # A type is enforcement only if some column is declared with it. Look for
-    # the identifier anywhere outside its own CREATE TYPE statement(s).
-    for name, spans in enum_spans.items():
-        for m in re.finditer(rf"\b{re.escape(name)}\b", txt):
-            if not any(s <= m.start() < e for s, e in spans):
-                out[name]["used"] = True
-                break
-
-    # Sqlite: `<col> TEXT CHECK ( ... <col> IN (...) ... )`. The IN must
-    # constrain the column the CHECK belongs to, or the column is unenforced.
-    for m in re.finditer(r"(\w+)\s+TEXT\s+CHECK\s*", txt):
-        col = m.group(1)
-        open_idx = txt.find("(", m.end())
-        if open_idx == -1:
-            continue
-        expr, _ = _balanced(txt, open_idx)
-        in_m = re.search(rf"\b{re.escape(col)}\s+IN\s*", expr)
-        if not in_m:
-            continue  # the CHECK does not constrain this column
-        list_open = expr.find("(", in_m.end())
-        if list_open == -1:
-            continue
-        body, _ = _balanced(expr, list_open)
-        out.setdefault(
-            col, {"values": set(re.findall(r"'([^']*)'", body)), "used": True}
-        )
-    return out
-
-
-# Eight vocabularies that no engine mirror actually enforces, predating this
-# branch. The use-site check proved the gap is wider than believed: they
-# were known to be unenforced in sqlite (NULL backing, no value rows, no CHECK),
-# and the same eight turn out to have postgres and duckdb enum types that NO
-# COLUMN REFERENCES, so those types enforce nothing either. `severity_tier` for
-# instance appears exactly once in postgres/schema.sql, on its own CREATE TYPE
-# line, whereas `priority_level` is used by a real column.
-#
-# `git log f9a37cf..HEAD -S<name>` returns 0 commits for all eight in both
-# seed.sql and schema.sql, so none of this is the mutation-kind branch's doing.
-#
-# A baseline, not a green light: every entry prints on every run, and it applies
-# ONLY while the vocabulary is fully unenforced and unseeded. A baselined name
-# that acquires a partial seed, or whose construct becomes wired to a column
-# with the wrong values, is checked normally.
-UNENFORCED_VOCABULARY_BASELINE = {
-    "adapter_id_derivation",
-    "adapter_ref_syntax",
-    "gate_decision_verdict",
-    "override_rule_operator",
-    "runtime_clock_policy",
-    "runtime_kind",
-    "runtime_network_policy",
-    "severity_tier",
-}
-
-
-def derive_ontology_vocabularies(
-    repo_root: pathlib.Path,
-) -> tuple[dict[str, set[str]], list[str]]:
-    """Return (vocabulary name -> declared value set, duplicate names).
-
-    Duplicates are returned rather than silently collapsed: two ontologies
-    declaring the same vocabulary under different value sets is a defect no
-    count can see, and a dict-overwrite would make the last one win.
-    """
-    paths = [repo_root / "core" / "ontology.toml"]
-    profiles_dir = repo_root / "profiles"
-    if profiles_dir.exists():
-        paths.extend(sorted(profiles_dir.glob("*/ontology.toml")))
-    out: dict[str, set[str]] = {}
-    duplicates: list[str] = []
-    for p in paths:
-        d = tomllib.loads(p.read_text())
-        for v in d.get("attribute_vocabularies", []):
-            name = v["attribute"]
-            if name in out:
-                duplicates.append(f"{name} (redeclared in {p})")
-            out[name] = set(v.get("values", []))
-    return out, duplicates
-
-
-def derive_seed_counts(repo_root: pathlib.Path, engine: str) -> dict[str, int]:
-    """Return per-engine seed-row counts under
-    `reference/database/<engine>/seed.sql`."""
-    db_dir = repo_root / "reference" / "database" / engine
-    seed = db_dir / "seed.sql"
-    prefix = "dagtoml_" if engine == "sqlite" else "(?:dagtoml\\.)?"
-    tables = [
-        "kind_descriptor",
-        "entity_kind_descriptor",
-        "relation_descriptor",
-        "attribute_vocabulary",
-        "attribute_value_allowed",
-    ]
-    out: dict[str, int] = {}
-    for t in tables:
-        # Sqlite prefixes its tables with `dagtoml_`; postgres has no schema
-        # qualifier; duckdb uses `dagtoml.` prefix.
-        full_table = f"{prefix}{t}"
-        out[t] = _count_tuple_rows(seed, full_table) or 0
-    return out
-
-
-# ---------- RDF triple truth -------------------------------------------------
 
 def derive_rdf_counts(repo_root: pathlib.Path) -> dict[str, int | None]:
     """Return RDF triple counts via the dagtoml-rdf tool. Falls back to
@@ -464,12 +59,9 @@ def derive_rdf_counts(repo_root: pathlib.Path) -> dict[str, int | None]:
                 timeout=30,
             )
             m = re.search(r"parsed\s+(\d+)\s+triples", res.stdout + res.stderr)
-            if m:
+            if res.returncode == 0 and m:
                 out[label] = int(m.group(1))
     return out
-
-
-# ---------- hardcoded-mirror truth -------------------------------------------
 
 def parse_rust_expected_counts(repo_root: pathlib.Path) -> dict[str, int]:
     """Extract EXPECTED_COUNTS from tools/dagtoml-duckdb/src/main.rs."""
@@ -478,9 +70,10 @@ def parse_rust_expected_counts(repo_root: pathlib.Path) -> dict[str, int]:
         return {}
     out = {}
     for m in re.finditer(r'\("([^"]+)"\s*,\s*(\d+)\)', p.read_text()):
+        if m.group(1) in out:
+            raise ValueError("duplicate loader count key: " + m.group(1))
         out[m.group(1)] = int(m.group(2))
     return out
-
 
 def parse_go_expected_counts(repo_root: pathlib.Path) -> dict[str, int]:
     """Extract expectedCounts from tools/dagtoml-duckdb-go/main.go."""
@@ -489,372 +82,84 @@ def parse_go_expected_counts(repo_root: pathlib.Path) -> dict[str, int]:
         return {}
     out = {}
     for m in re.finditer(r'\{"([^"]+)"\s*,\s*(\d+)\}', p.read_text()):
+        if m.group(1) in out:
+            raise ValueError("duplicate loader count key: " + m.group(1))
         out[m.group(1)] = int(m.group(2))
     return out
 
 
-# ---------- manifest counts --------------------------------------------------
-
-def manifest_data(repo_root: pathlib.Path) -> dict:
-    return tomllib.loads(
-        (repo_root / "reference" / "database" / "MANIFEST.toml").read_text()
-    )
-
-
-# ---------- reporting --------------------------------------------------------
-
-class DriftReport:
-    def __init__(self) -> None:
-        self.failures: list[str] = []
-        self.summary: list[str] = []
-
-    def check(self, label: str, expected: int | None, actual: int | None) -> None:
-        if expected is None and actual is None:
-            self.summary.append(f"  {label:60s}   (skipped — both unknown)")
-            return
-        op = "==" if expected == actual else "!="
-        tag = "" if expected == actual else "   <-- DRIFT"
-        self.summary.append(
-            f"  {label:60s} {str(expected):>6} {op} {str(actual):>6}{tag}"
-        )
-        if expected != actual:
-            self.failures.append(f"{label}: declared {expected}, actual {actual}")
-
-    def print(self) -> int:
-        for line in self.summary:
-            print(line)
-        if self.failures:
-            # Emit every failure diagnostic verbatim before the summary
-            # count — otherwise the operator sees only a phantom "DRIFT: N"
-            # with no named reason. This is the mirror-rot pattern the
-            # module exists to prevent (per ISS-001).
-            print()
-            print("FAILURES (each is one surface out of sync):")
-            for i, msg in enumerate(self.failures, 1):
-                # Indent multi-line messages for readability.
-                lines = msg.splitlines() or [""]
-                print(f"  {i}. {lines[0]}")
-                for cont in lines[1:]:
-                    print(f"     {cont}")
-            print()
-            print(f"COUNT-MIRROR DRIFT: {len(self.failures)} surface(s) out of sync.")
-            return 1
-        print()
-        print("COUNT-MIRROR OK — every surface agrees with reality.")
-        return 0
-
-
-# ---------- main -------------------------------------------------------------
-
-def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(
-        description=(
-            "Comprehensive count-mirror drift gate. Compares every "
-            "count surface in the repo (MANIFEST.toml, tools/dagtoml-* "
-            "hardcodes, seed.sql row counts, RDF triple counts) against "
-            "their authoritative sources (ontology TOML, seed SQL, "
-            "RDF tool output) and fails CI on any divergence."
-        )
-    )
-    parser.add_argument(
-        "--repo-root", type=pathlib.Path, default=pathlib.Path("."),
-        help="Repository root (defaults to current directory).",
-    )
-    parser.add_argument(
-        "--no-rdf", dest="rdf", action="store_false",
-        help=(
-            "Skip the RDF triple-count probe. By default the gate WILL "
-            "verify `[verification.rdf].expected_triple_counts` against "
-            "the actual RDF triple count from `dagtoml-rdf verify`. "
-            "Passing --no-rdf is only sensible when the tool isn't "
-            "built; missing-binary is handled gracefully even without "
-            "this flag (the gate fails-soft with an explicit note)."
-        ),
-    )
-    parser.set_defaults(rdf=True)
-    parser.add_argument(
-        "--quiet", action="store_true",
-        help="Print only the per-surface drift summary header on success.",
-    )
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo-root", type=pathlib.Path, default=pathlib.Path("."))
+    parser.add_argument("--declarations-only", action="store_true",
+                        help="explicit partial check; database execution is covered by the required database gate")
+    parser.add_argument("--receipts", type=pathlib.Path, nargs="*", default=[])
+    parser.add_argument("--no-rdf", dest="rdf", action="store_false", help="explicitly skip RDF execution")
+    parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args(argv)
-    repo = args.repo_root.resolve()
+    root = args.repo_root.resolve()
+    failures = []
+    compared = []
 
-    ontology = derive_ontology_counts(repo)
-    seeds = {
-        "postgres": derive_seed_counts(repo, "postgres"),
-        "sqlite": derive_seed_counts(repo, "sqlite"),
-        "duckdb": derive_seed_counts(repo, "duckdb"),
-    }
-    rust = parse_rust_expected_counts(repo)
-    go = parse_go_expected_counts(repo)
-    manifest = manifest_data(repo)
-    rdf = derive_rdf_counts(repo) if args.rdf else {"schema": None, "shapes": None}
+    def check(label, expected, actual):
+        if expected is None or actual is None or expected != actual:
+            failures.append(f"{label}: expected {expected!r}, observed {actual!r}")
+        compared.append(label)
 
-    counts = manifest.get("counts", {})
-    # The verification blocks live under [verification.postgres] / [verification.sqlite] etc.
-    ver = manifest.get("verification", {})
-    pg_v = ver.get("postgres", {}).get("expected_seed_counts", {})
-    sqlite_v = ver.get("sqlite", {}).get("expected_seed_counts", {})
-    duckdb_v = ver.get("duckdb", {}).get("expected_seed_counts", {})
-    graph_v = ver.get("graph", {}).get("expected_node_counts", {})
-    rdf_v_footer = ver.get("rdf", {}).get("expected_footer_counts", {})
-    rdf_v_triples = ver.get("rdf", {}).get("expected_triple_counts", {})
-
-    report = DriftReport()
-    report.summary.append("count-mirror gate  (declared vs actual)")
-    report.summary.append("=" * 90)
-
-    report.summary.append("\n[counts] (ontology-derived):")
-    for k in (
-        "template_kinds",
-        "entity_kinds",
-        "relation_predicates",
-        "attribute_vocabularies",
-        "attribute_values_declared",
-        "attribute_values_closed",
-    ):
-        report.check(f"  [counts].{k}", counts.get(k), ontology[k])
-
-    # Legacy single-field rejection: the OLD `attribute_values` field was
-    # split into _declared + _closed during the methodology-convergence
-    # session (docs/reviews/2026-05-23-attribute-values-methodology/).
-    # Once a field exits production, the gate MUST reject re-introduction
-    # regardless of whether the new fields are also present — otherwise a
-    # future PR can silently restore the ambiguous field by adding it
-    # alongside the named ones. Per ISS-001 (brittleness-as-feature):
-    # invalidations must propagate visibly; this is one such surface.
-    if "attribute_values" in counts:
-        report.failures.append(
-            "[counts].attribute_values is the legacy ambiguous field that "
-            "was retired in commit 9996826. It has been split into "
-            "`attribute_values_declared` (170) and `attribute_values_closed` "
-            "(99). The field MUST NOT be re-introduced regardless of "
-            "whether the named successors are also present — silent "
-            "coexistence is itself a defect. Remove the `attribute_values "
-            "= ...` line from MANIFEST.toml."
-        )
-
-    for engine, seed_truth, mfst_block in (
-        ("postgres", seeds["postgres"], pg_v),
-        ("sqlite", seeds["sqlite"], sqlite_v),
-        ("duckdb", seeds["duckdb"], duckdb_v),
-    ):
-        report.summary.append(f"\nexpected_seed_counts.{engine}:")
-        # sqlite uses the `dagtoml_` prefix in its [verification] table keys
-        prefix = "dagtoml_" if engine == "sqlite" else ""
-        for k in (
-            "kind_descriptor",
-            "entity_kind_descriptor",
-            "relation_descriptor",
-            "attribute_vocabulary",
-            "attribute_value_allowed",
-        ):
-            report.check(
-                f"  {engine}.expected_seed_counts.{prefix}{k}",
-                mfst_block.get(f"{prefix}{k}"),
-                seed_truth[k],
-            )
-
-    # Counts agreeing is necessary and NOT sufficient, and neither is a
-    # seed-driven name check. Testing defeated the first version of this gate
-    # three separate ways: rename a vocabulary in the seeds and the ontology
-    # name went unenforced; claim a backing type that does not exist and the
-    # values could be deleted; typo a value and the count still matched. The
-    # loop below is therefore ONTOLOGY-driven, verifies every claimed backing
-    # against the engine's schema, and compares exact value SETS.
-    ont_vocab, ont_duplicates = derive_ontology_vocabularies(repo)
-    for dup in ont_duplicates:
-        report.failures.append(
-            f"  ontology: {dup} is declared by more than one ontology, so its "
-            f"value set is ambiguous"
-        )
-
-    for engine in ("postgres", "sqlite", "duckdb"):
-        report.summary.append(f"\nattribute_value_allowed membership.{engine}:")
-        claims, seeded = derive_seed_vocab_surfaces(repo, engine)
-        native = derive_schema_native_constructs(repo, engine)
-        baselined: list[str] = []
-
-        for name, declared in sorted(ont_vocab.items()):
-            if name not in claims:
-                report.failures.append(
-                    f"  {engine}: {name} is declared by an ontology but has no "
-                    f"attribute_vocabulary row"
-                )
-                continue
-            backing = claims[name]
-            rows = seeded.get(name, [])
-
-            if backing is not None:
-                construct = native.get(backing)
-                if construct is None:
-                    report.failures.append(
-                        f"  {engine}: {name} claims native backing {backing!r}, "
-                        f"which no CREATE TYPE or CHECK in {engine}/schema.sql "
-                        f"defines, so nothing enforces it"
-                    )
-                elif not construct["used"]:
-                    if name in UNENFORCED_VOCABULARY_BASELINE:
-                        baselined.append(
-                            f"{name} (type {backing} defined, referenced by no column)"
-                        )
-                    else:
-                        report.failures.append(
-                            f"  {engine}: {name} claims native backing {backing!r}, "
-                            f"which is defined but referenced by no column, so it "
-                            f"enforces nothing"
-                        )
-                elif declared != construct["values"]:
-                    report.failures.append(
-                        f"  {engine}: {name} is backed by {backing!r}, whose value "
-                        f"set differs from the ontology: the engine is missing "
-                        f"{sorted(declared - construct['values'])} and admits "
-                        f"{sorted(construct['values'] - declared)} that no "
-                        f"ontology declares"
-                    )
-                elif rows:
-                    report.failures.append(
-                        f"  {engine}: {name} has {len(rows)} value row(s) despite "
-                        f"being backed by {backing!r}"
-                    )
-                continue
-
-            if not declared:
-                continue  # open vocabulary with no enumerated values
-            if name in UNENFORCED_VOCABULARY_BASELINE and not rows:
-                baselined.append(f"{name} ({len(declared)} values)")
-                continue
-            if not rows:
-                report.failures.append(
-                    f"  {engine}: {name} ({len(declared)} values declared) is "
-                    f"absent from attribute_value_allowed"
-                )
-            elif set(rows) != declared:
-                report.failures.append(
-                    f"  {engine}: {name} value set differs from the ontology: "
-                    f"missing {sorted(declared - set(rows))}, "
-                    f"unexpected {sorted(set(rows) - declared)}"
-                )
-            elif len(rows) != len(declared):
-                report.failures.append(
-                    f"  {engine}: {name} has duplicate value rows "
-                    f"({len(rows)} rows for {len(declared)} values)"
-                )
-
-        for name in sorted(set(claims) - set(ont_vocab)):
-            report.failures.append(
-                f"  {engine}: {name} has an attribute_vocabulary row but is "
-                f"declared by no ontology"
-            )
-        for name in sorted(set(seeded) - set(ont_vocab)):
-            report.failures.append(
-                f"  {engine}: {name} has value rows but is declared by no ontology"
-            )
-
-        report.summary.append(
-            f"  {len(ont_vocab)} ontology vocabularies, "
-            f"{sum(1 for b in claims.values() if b is None)} unbacked in this "
-            f"mirror, {len(seeded)} with value rows, "
-            f"{len(native)} native constructs in schema.sql"
-        )
-        for item in baselined:
-            report.summary.append(
-                f"  BASELINED (pre-existing, unenforced in any mirror): {item}"
-            )
-
-    report.summary.append("\nexpected_node_counts.graph (cross-checked vs ontology):")
-    for src_key, ont_key in (
-        ("KindDescriptor", "template_kinds"),
-        ("EntityKind", "entity_kinds"),
-        ("RelationPredicate", "relation_predicates"),
-    ):
-        report.check(
-            f"  graph.expected_node_counts.{src_key}",
-            graph_v.get(src_key),
-            ontology[ont_key],
-        )
-
-    report.summary.append("\nexpected_footer_counts.rdf (vs ontology):")
-    for src_key, ont_key in (
-        ("template_kinds", "template_kinds"),
-        ("entity_kinds", "entity_kinds"),
-        ("relation_predicates", "relation_predicates"),
-        ("attribute_vocabularies", "attribute_vocabularies"),
-    ):
-        report.check(
-            f"  rdf.expected_footer_counts.{src_key}",
-            rdf_v_footer.get(src_key),
-            ontology[ont_key],
-        )
-
-    if args.rdf:
-        report.summary.append("\nexpected_triple_counts.rdf (vs dagtoml-rdf verify):")
-        # If the dagtoml-rdf binary isn't built, refuse to silently skip:
-        # the maintainer MUST either build it or pass --no-rdf explicitly.
-        # Anything else is the silent-mirror-rot pattern the gate exists
-        # to prevent.
-        if rdf["schema"] is None or rdf["shapes"] is None:
-            report.failures.append(
-                "RDF triple-count gate could not run: "
-                "tools/dagtoml-rdf/target/release/dagtoml-rdf is missing or "
-                "did not produce a parseable `parsed N triples` line. "
-                "Either `cargo build --release -p dagtoml-rdf "
-                "--manifest-path tools/dagtoml-rdf/Cargo.toml` or pass "
-                "`--no-rdf` to acknowledge skipping this surface."
-            )
-            report.summary.append(
-                "  rdf.expected_triple_counts.schema                              "
-                "(tool not available — hard fail, see FAILURES below)"
-            )
-        else:
-            report.check(
-                "  rdf.expected_triple_counts.schema",
-                rdf_v_triples.get("schema"),
-                rdf["schema"],
-            )
-            report.check(
-                "  rdf.expected_triple_counts.shapes",
-                rdf_v_triples.get("shapes"),
-                rdf["shapes"],
-            )
-
-    report.summary.append("\ntools/dagtoml-duckdb/src/main.rs EXPECTED_COUNTS:")
-    for k in (
-        "kind_descriptor",
-        "entity_kind_descriptor",
-        "relation_descriptor",
-        "attribute_vocabulary",
-        "attribute_value_allowed",
-    ):
-        report.check(
-            f"  rust.EXPECTED_COUNTS.{k}",
-            rust.get(k),
-            seeds["postgres"][k] if k == "attribute_value_allowed" or k != "" else None,
-        )
-
-    # The Rust + Go hardcodes mirror duckdb's expected_seed_counts. Cross-check
-    # against the duckdb seed truth (all three engines agree at HEAD anyway).
-    report.summary.append("\ntools/dagtoml-duckdb-go/main.go expectedCounts:")
-    for k in (
-        "kind_descriptor",
-        "entity_kind_descriptor",
-        "relation_descriptor",
-        "attribute_vocabulary",
-        "attribute_value_allowed",
-    ):
-        report.check(
-            f"  go.expectedCounts.{k}",
-            go.get(k),
-            seeds["duckdb"][k],
-        )
-
-    if args.quiet and not report.failures:
-        # Quieter CI output on success: just the header.
-        print("count-mirror gate: OK")
-        return 0
-
-    return report.print()
+    try:
+        load_mapping(root)
+        ontology = derive_ontology_counts(root)
+        registry = expected_counts(root)
+        manifest = tomllib.loads((root / "reference/database/MANIFEST.toml").read_text())
+        if "attribute_values" in manifest["counts"]:
+            failures.append("retired ambiguous counts.attribute_values must not coexist with declared/closed counts")
+        for name, value in ontology.items():
+            check("ontology/manifest/" + name, value, manifest["counts"].get(name))
+        verification = manifest["verification"]
+        for engine in ("postgres", "sqlite", "duckdb"):
+            if {"closed_enums", "closed_checks"} & manifest[engine].keys():
+                raise ValueError("retired manifest constraint labels must use the storage mapping")
+            prefix = "dagtoml_" if engine == "sqlite" else ""
+            for name, value in registry.items():
+                check(engine + "/declared/" + name, value,
+                      verification[engine]["expected_seed_counts"].get(prefix + name))
+        for name, actual in (("Rust", parse_rust_expected_counts(root)), ("Go", parse_go_expected_counts(root))):
+            check(name + "/DuckDB-loader-declaration", {**registry, "reference_contract": 0, "runtime_document": 0}, actual)
+        for name, key in (("KindDescriptor", "template_kinds"), ("EntityKind", "entity_kinds"),
+                          ("RelationPredicate", "relation_predicates")):
+            check("graph/" + name, ontology[key], verification["graph"]["expected_node_counts"].get(name))
+        for name in ("template_kinds", "entity_kinds", "relation_predicates", "attribute_vocabularies"):
+            check("rdf/footer/" + name, ontology[name], verification["rdf"]["expected_footer_counts"].get(name))
+        footer = re.findall(r"^### Counts at generation: (\d+) template kinds, (\d+) entity kinds, (\d+) relation predicates, (\d+) attribute vocabularies\.$",
+                            (root / "reference/database/rdf/schema.ttl").read_text(), re.MULTILINE)
+        if len(footer) != 1:
+            raise ValueError("RDF schema must contain exactly one generation-count footer")
+        for name, value in zip(("template_kinds", "entity_kinds", "relation_predicates", "attribute_vocabularies"), footer[0], strict=True):
+            check("rdf/executed-file-footer/" + name, ontology[name], int(value))
+        if args.rdf:
+            rdf = derive_rdf_counts(root)
+            for name in ("schema", "shapes"):
+                check("rdf/executed/" + name, verification["rdf"]["expected_triple_counts"].get(name), rdf[name])
+        if not args.declarations_only:
+            from _receipts import validate_receipts
+            validate_receipts(root, args.receipts)
+            compared.append("complete executed database and loader receipt matrix")
+        elif args.receipts:
+            raise ValueError("declarations-only must not be combined with executed receipts")
+    except (ValueError, KeyError, OSError) as exc:
+        failures.append(str(exc))
+    skipped = (["database execution and loader binaries"] if args.declarations_only else []) + ([] if args.rdf else ["RDF execution"])
+    print(f"Skipped: {skipped}; comparison: ontology declarations, manifest, loader declarations, "
+          "and explicitly selected executed evidence")
+    if failures:
+        for failure in failures:
+            print("FAIL: " + failure)
+        return 1
+    if not compared:
+        raise AssertionError("count gate compared no surfaces")
+    print(f"PASS: {len(compared)} asserted comparisons" + ("; partial declarations-only run" if args.declarations_only else ""))
+    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    raise SystemExit(main())
