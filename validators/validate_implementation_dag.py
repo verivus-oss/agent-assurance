@@ -8,8 +8,7 @@ import pathlib
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
 from collections import Counter, defaultdict
-
-import networkx as nx
+from heapq import heapify, heappop, heappush
 
 
 VALID_STATUS = {"pending", "in_progress", "done", "blocked", "deferred"}
@@ -127,32 +126,79 @@ def validate_edges(units: dict[str, dict]) -> tuple[list[str], dict[str, set[str
     return errors, dep_sets, blk_sets
 
 
-def _build_dep_graph(dep_sets: dict[str, set[str]]) -> nx.DiGraph:
-    G = nx.DiGraph()
-    G.add_nodes_from(dep_sets)
-    for u, deps in dep_sets.items():
-        for v in deps:
-            G.add_edge(u, v)
-    return G
-
-
 def detect_cycles(dep_sets: dict[str, set[str]]) -> list[str]:
-    G = _build_dep_graph(dep_sets)
-    errors: list[str] = []
-    seen: set[tuple[str, ...]] = set()
-    for cycle in nx.simple_cycles(G):
-        # nx.simple_cycles yields each cycle as a list of nodes (no repeat of
-        # the first node at the end). Normalise to the canonical rotation so
-        # the same cycle reported from a different entry point dedupes, and
-        # close the loop in the printed form to match the historical output.
-        rot = min(range(len(cycle)), key=lambda i: cycle[i:] + cycle[:i])
-        canonical = tuple(cycle[rot:] + cycle[:rot])
-        if canonical in seen:
+    """Report each simple directed cycle once, starting at its smallest unit ID."""
+    known = set(dep_sets)
+    adjacent = {u: sorted(v for v in deps if v in known) for u, deps in dep_sets.items()}
+    reverse: dict[str, list[str]] = {u: [] for u in known}
+    for u, deps in adjacent.items():
+        for v in deps:
+            reverse[v].append(u)
+
+    # Kosaraju's two passes discard acyclic regions before cycle enumeration.
+    # Both passes use explicit stacks so deeply nested DAGs do not depend on
+    # Python's recursion limit.
+    visited: set[str] = set()
+    finished: list[str] = []
+    for start in sorted(known):
+        if start in visited:
             continue
-        seen.add(canonical)
-        path = list(canonical) + [canonical[0]]
-        errors.append(f"cycle in depends_on: {' -> '.join(path)}")
-    return errors
+        visited.add(start)
+        frames = [(start, iter(adjacent[start]))]
+        while frames:
+            u, neighbors = frames[-1]
+            try:
+                v = next(neighbors)
+            except StopIteration:
+                finished.append(u)
+                frames.pop()
+                continue
+            if v not in visited:
+                visited.add(v)
+                frames.append((v, iter(adjacent[v])))
+
+    assigned: set[str] = set()
+    cycles: set[tuple[str, ...]] = set()
+    for seed in reversed(finished):
+        if seed in assigned:
+            continue
+        component: set[str] = set()
+        pending = [seed]
+        assigned.add(seed)
+        while pending:
+            u = pending.pop()
+            component.add(u)
+            for v in reverse[u]:
+                if v not in assigned:
+                    assigned.add(v)
+                    pending.append(v)
+        if len(component) == 1 and seed not in adjacent[seed]:
+            continue
+
+        for start in sorted(component):
+            path = [start]
+            used = {start}
+            frames = [iter(adjacent[start])]
+            while frames:
+                try:
+                    v = next(frames[-1])
+                except StopIteration:
+                    frames.pop()
+                    used.remove(path.pop())
+                    continue
+                if v not in component:
+                    continue
+                if v == start:
+                    cycles.add(tuple(path))
+                elif v > start and v not in used:
+                    used.add(v)
+                    path.append(v)
+                    frames.append(iter(adjacent[v]))
+
+    return [
+        f"cycle in depends_on: {' -> '.join((*cycle, cycle[0]))}"
+        for cycle in sorted(cycles)
+    ]
 
 
 def validate_artifacts(units: dict[str, dict]) -> list[str]:
@@ -199,7 +245,7 @@ def validate_layer_ordering(
                 continue
             if ul <= dl:
                 errors.append(
-                    f"layer ordering: {u} (layer={ul}) depends_on {d} (layer={dl}) — "
+                    f"layer ordering: {u} (layer={ul}) depends_on {d} (layer={dl}): "
                     f"a depender must be in a strictly higher layer"
                 )
     return errors
@@ -240,20 +286,29 @@ def longest_path_loc(units: dict[str, dict], blk_sets: dict[str, set[str]]) -> i
     """
     if not units:
         return 0
-    G = nx.DiGraph()
-    G.add_nodes_from(units)
-    for u, blocked in blk_sets.items():
+    successors = {
+        u: sorted(v for v in blk_sets.get(u, set()) if v in units) for u in units
+    }
+    indegree = {u: 0 for u in units}
+    for blocked in successors.values():
         for v in blocked:
-            if v in units:
-                G.add_edge(u, v)
-    if not nx.is_directed_acyclic_graph(G):
-        return None
-    best: dict[str, int] = {u: units[u].get("estimated_loc", 0) for u in G.nodes}
-    for u in nx.topological_sort(G):
-        for v in G.successors(u):
+            indegree[v] += 1
+    ready = [u for u, degree in indegree.items() if degree == 0]
+    heapify(ready)
+    best: dict[str, int] = {u: units[u].get("estimated_loc", 0) for u in units}
+    visited = 0
+    while ready:
+        u = heappop(ready)
+        visited += 1
+        for v in successors[u]:
             cand = best[u] + units[v].get("estimated_loc", 0)
             if cand > best[v]:
                 best[v] = cand
+            indegree[v] -= 1
+            if indegree[v] == 0:
+                heappush(ready, v)
+    if visited != len(units):
+        return None
     return max(best.values())
 
 

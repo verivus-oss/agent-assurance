@@ -3,8 +3,8 @@ version: 2
 # Dependabot scope:
 # - github-actions: pinned by SHA org-wide; weekly bumps keep us current
 #   with the upstream maintainer's latest tag → SHA mapping.
-# - pip: runtime + tooling Python deps (networkx runtime; ruff/zizmor/etc.
-#   tooling), all resolved from the repo root.
+# - pip: Python parser and tooling dependencies (tomli, ruff, zizmor, etc.),
+#   all resolved from the repo root.
 # - cargo: primary-validator + reference tooling Rust crates under tools/.
 #   Each crate has an independent lockfile, but a single dependency block
 #   with `directories:` + `group-by: dependency-name` collapses the

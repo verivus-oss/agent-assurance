@@ -9,6 +9,9 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Remove NetworkX from the Python reference validator. Use explicit graph
+  traversal for cycle detection and longest weighted paths, and remove the
+  runtime package pin that executed regex matching on the active path.
 - Pin the Rust toolchain action to a commit reachable from its maintained
   branch and pass its required `toolchain` input explicitly.
 - Address the issue #74 vocabulary gap with complete declared catalogs in all

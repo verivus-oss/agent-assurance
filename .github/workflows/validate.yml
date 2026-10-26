@@ -59,8 +59,7 @@ jobs:
         # the Python reference validators use (stdlib tomllib is 1.0-only);
         # see validators/_toml11.py. `--no-binary tomli` forces the pure-Python
         # build (not the optional mypyc wheels) so the reference stays
-        # auditable; the flag is scoped to tomli, so networkx still uses its
-        # wheel.
+        # auditable.
         run: >-
           python3 -m pip install --require-hashes --no-binary tomli
           -r requirements.txt -r requirements/toml.txt
@@ -568,6 +567,7 @@ jobs:
       - name: Validate canonical examples (strict, no --allow-placeholders)
         run: |
           set -e
+          python3 validators/test_implementation_dag_graph.py
           python3 validators/validate_implementation_dag.py \
             examples/minimal-implementation-dag.toml
           python3 validators/validate_traceability.py \
@@ -1121,13 +1121,10 @@ jobs:
           # --no-resolve disables network-required transitive dependency
           # resolution. We rely on lockfile-based scanning (Cargo.lock,
           # go.sum) instead, which has full transitive info baked in.
-          # The only manifest that lacks a lockfile (requirements.txt
-          # — 1 Python package, networkx) gets direct-dep-only coverage
-          # rather than transitive. Acceptable trade-off: the
-          # transitive-resolution gRPC service is flaky and treating
-          # its outages as build failures is wrong (a clean dep tree
-          # isn't a CVE finding). When we add a requirements.lock file
-          # we can re-enable transitive resolution.
+          # requirements.txt has no runtime package. The transitive-resolution
+          # gRPC service is flaky, so scan the pinned Python requirements and
+          # native lockfiles without contacting it. An outage is not a CVE
+          # finding.
           scan-args: |-
             --recursive
             --no-resolve
