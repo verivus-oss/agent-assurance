@@ -134,6 +134,7 @@ CREATE TABLE dagtoml.instance_file (
     created_at         TIMESTAMPTZ,
     meta_extras        JSON NOT NULL DEFAULT '{}'::JSON,
     ingested_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (id, template_kind),
     UNIQUE (source_path, content_sha256),
     CHECK (framework_profile IS NULL OR framework_profile IN ('agent-assurance', 'AGDF'))
 );
@@ -305,3 +306,49 @@ JOIN dagtoml.relation_descriptor rd ON rd.predicate = r.predicate
 WHERE r.target_entity_id IS NULL
   AND r.target_label IS NOT NULL
   AND rd.target_freeform = FALSE;
+
+-- Document-owned projections, not ontology entities. Raw TOML remains exact.
+CREATE TABLE dagtoml.reference_contract (
+    singleton_id INTEGER PRIMARY KEY CHECK (singleton_id = 1),
+    contract_bundle_sha256 TEXT NOT NULL UNIQUE CHECK (length(contract_bundle_sha256) = 64 AND regexp_full_match(contract_bundle_sha256, '[0-9a-f]{64}')),
+    projection_version INTEGER NOT NULL CHECK (projection_version = 1)
+);
+
+CREATE TABLE dagtoml.runtime_document (
+    instance_file_id UUID PRIMARY KEY NOT NULL,
+    template_kind TEXT NOT NULL,
+    source_toml BLOB NOT NULL,
+    projection_version INTEGER NOT NULL CHECK (projection_version = 1),
+    contract_bundle_sha256 TEXT NOT NULL REFERENCES dagtoml.reference_contract(contract_bundle_sha256),
+    runtime_kind runtime_kind,
+    runtime_network_policy network_policy,
+    runtime_clock_policy clock_policy,
+    adapter_id_derivation adapter_id_derivation,
+    adapter_ref_syntax adapter_ref_syntax,
+    gate_decision_verdict gate_verdict,
+    CONSTRAINT runtime_document_parent_kind FOREIGN KEY (instance_file_id, template_kind)
+        REFERENCES dagtoml.instance_file(id, template_kind),
+    CONSTRAINT runtime_document_kind_shape CHECK (
+        (template_kind = 'adapter-contract' AND runtime_kind IS NOT NULL AND runtime_network_policy IS NOT NULL AND runtime_clock_policy IS NOT NULL AND adapter_ref_syntax IS NULL AND gate_decision_verdict IS NULL)
+        OR         (template_kind = 'adapter-registry-binding' AND adapter_ref_syntax IS NOT NULL AND runtime_kind IS NULL AND runtime_network_policy IS NULL AND runtime_clock_policy IS NULL AND adapter_id_derivation IS NULL AND gate_decision_verdict IS NULL)
+        OR         (template_kind = 'gate-decision' AND gate_decision_verdict IS NOT NULL AND runtime_kind IS NULL AND runtime_network_policy IS NULL AND runtime_clock_policy IS NULL AND adapter_id_derivation IS NULL AND adapter_ref_syntax IS NULL)
+    )
+);
+
+CREATE VIEW dagtoml.adapter_contract_document AS
+SELECT d.*, f.source_path, f.content_sha256, f.framework_profile, f.title
+FROM dagtoml.runtime_document AS d
+JOIN dagtoml.instance_file AS f ON f.id = d.instance_file_id
+WHERE d.template_kind = 'adapter-contract';
+
+CREATE VIEW dagtoml.adapter_registry_binding_document AS
+SELECT d.*, f.source_path, f.content_sha256, f.framework_profile, f.title
+FROM dagtoml.runtime_document AS d
+JOIN dagtoml.instance_file AS f ON f.id = d.instance_file_id
+WHERE d.template_kind = 'adapter-registry-binding';
+
+CREATE VIEW dagtoml.gate_decision_document AS
+SELECT d.*, f.source_path, f.content_sha256, f.framework_profile, f.title
+FROM dagtoml.runtime_document AS d
+JOIN dagtoml.instance_file AS f ON f.id = d.instance_file_id
+WHERE d.template_kind = 'gate-decision';

@@ -43,24 +43,46 @@ ALLOWED_COLLISIONS = {
     ),
 }
 
-# Kinds whose sidecars this check covers.
-#
-# api-snapshot was NOT in this tuple when its sidecars were first written, so
-# they sat here uncovered: the cross-product never ran over them and they could
-# have blessed the wrong defect class without anything noticing. That is the
-# same failure mode this file exists to catch, one level up, so the tuple and
-# the per-kind validator map below are kept in step deliberately. Adding a kind
-# with sidecars means adding it to BOTH.
-KINDS = ("state-mutation", "mutation-claim", "api-snapshot", "implementation-dag")
-
+# The discovered case directories define the governed kind population.
 # The kind-layer reference validator per kind. The primaries dispatch on
 # template_kind themselves, so they need no per-kind entry.
 KIND_VALIDATOR = {
     "state-mutation": "validators/validate_state_mutation.py",
     "mutation-claim": "validators/validate_state_mutation.py",
+    'adapter-contract': 'validators/validate_adapter_contract.py',
+    'adapter-registry-binding': 'validators/validate_adapter_registry_binding.py',
+    'gate-decision': 'validators/validate_gate_decision.py',
     "api-snapshot": "validators/validate_api_snapshot.py",
     "implementation-dag": "validators/validate_implementation_dag.py",
 }
+
+
+def discover_cases(root: pathlib.Path) -> list[pathlib.Path]:
+    """The tree defines the population; sidecars cannot hide missing specimens."""
+    directories = sorted(path for path in root.iterdir() if path.is_dir())
+    if not directories:
+        raise ValueError("no conformance kind directories discovered")
+    missing = set(KIND_VALIDATOR) - {directory.name for directory in directories}
+    if missing:
+        raise ValueError(f"mapped kinds have no conformance directory: {sorted(missing)}")
+    cases = []
+    for directory in directories:
+        if directory.name not in KIND_VALIDATOR:
+            raise ValueError(f"kind has no KIND_VALIDATOR mapping: {directory.name}")
+        for verdict in ("valid", "invalid"):
+            files = sorted(path for path in (directory / verdict).glob("*.toml")
+                           if not path.name.endswith(".expected.toml"))
+            if not files:
+                raise ValueError(f"{directory.name} has no {verdict} control")
+            for side in (directory / verdict).glob("*.expected.toml"):
+                if side.with_name(side.name.removesuffix(".expected.toml") + ".toml") not in files:
+                    raise ValueError(f"orphan sidecar: {side}")
+            if verdict == "invalid":
+                for case in files:
+                    if not case.with_suffix(".expected.toml").is_file():
+                        raise ValueError(f"invalid specimen has no expected sidecar: {case}")
+                cases.extend(files)
+    return cases
 
 
 def collect_output(case: pathlib.Path, rs: str, go: str, repo_root: str) -> str:
@@ -74,7 +96,7 @@ def collect_output(case: pathlib.Path, rs: str, go: str, repo_root: str) -> str:
     ]
     for cmd in commands:
         try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)  # nosec B603 # noqa: S603
         except FileNotFoundError:
             print(f"error: cannot execute {cmd[0]}", file=sys.stderr)
             raise SystemExit(2)
@@ -90,57 +112,19 @@ def main() -> int:
     parser.add_argument("--cases", default="conformance/cases")
     args = parser.parse_args()
 
-    cases = [
-        c
-        for c in sorted(pathlib.Path(args.cases).glob("*/invalid/*.toml"))
-        if not c.name.endswith(".expected.toml") and c.parent.parent.name in KINDS
-    ]
-    if not cases:
-        print("error: no cases discovered", file=sys.stderr)
-        return 2
-
-    # Coverage self-check.
-    #
-    # A kind directory that ships sidecars but is absent from KINDS is silently
-    # unreviewed: the cross-product never runs over it and its sidecars could
-    # bless the wrong defect class with nothing noticing. That is the very
-    # failure this file exists to catch, one level up on itself.
-    #
-    # This guard is not defensive noise. Before it existed, reverting KINDS to
-    # drop "api-snapshot" was a live MUTATION SURVIVOR: the shipped suite still
-    # exited 0 and merely reported "14 sidecar(s) over 14 case(s)" instead of
-    # 19 over 25. A coverage fix that nothing detects the removal of is not a
-    # fix, so the coverage is now asserted rather than assumed.
-    sidecar_kinds = {
-        side.parent.parent.name
-        for side in pathlib.Path(args.cases).glob("*/invalid/*.expected.toml")
-    }
-    unreviewed = sorted(sidecar_kinds - set(KINDS))
-    if unreviewed:
-        print(
-            "error: these kinds ship discrimination sidecars but are not in KINDS, "
-            f"so their sidecars are never cross-checked: {', '.join(unreviewed)}",
-            file=sys.stderr,
-        )
-        return 2
-    unmapped = sorted(k for k in KINDS if k not in KIND_VALIDATOR)
-    if unmapped:
-        print(
-            "error: KINDS entries with no KIND_VALIDATOR mapping: "
-            f"{', '.join(unmapped)}",
-            file=sys.stderr,
-        )
+    try:
+        cases = discover_cases(pathlib.Path(args.cases))
+    except (ValueError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 2
 
     outputs = {c: collect_output(c, args.rs, args.go, args.repo_root) for c in cases}
 
     sidecars: dict[pathlib.Path, tuple[list[str], list[str]]] = {}
-    missing: list[str] = []
     for case in cases:
-        side = case.with_suffix("").with_suffix(".expected.toml")
+        side = case.with_suffix(".expected.toml")
         if not side.exists():
-            missing.append(case.name)
-            continue
+            raise AssertionError("discovered sidecar disappeared")
         doc = tomllib.loads(side.read_text())
         sidecars[case] = (
             doc.get("error_contains", []),
@@ -152,6 +136,9 @@ def main() -> int:
         if not needles:
             failures.append(f"{owner.name}: sidecar declares no error_contains")
             continue
+        own = outputs[owner]
+        if not all(needle.lower() in own for needle in needles) or any(word.lower() in own for word in forbidden):
+            failures.append(f"{owner.name}: sidecar fails to match its own specimen")
         for other in cases:
             if other == owner:
                 continue
@@ -171,8 +158,6 @@ def main() -> int:
             )
 
     print(f"\ndiscrimination: {len(sidecars)} sidecar(s) over {len(cases)} case(s)")
-    for name in missing:
-        print(f"NOTE {name} has no sidecar (verdict-only case)")
     if failures:
         print(f"\nDISCRIMINATION FAILED ({len(failures)})")
         for failure in failures:
