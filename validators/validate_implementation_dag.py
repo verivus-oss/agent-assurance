@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
-import argparse
 import pathlib
 import sys
+from types import SimpleNamespace
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
 from collections import Counter, defaultdict
 from heapq import heapify, heappop, heappush
@@ -27,24 +27,49 @@ ARTIFACT_PREFIXES = ("ART:", "OUT:")
 PLACEHOLDER_MARKERS = ("<", ">")
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Validate an implementation DAG TOML file.")
-    parser.add_argument("dag_file", help="Path to the TOML file to validate.")
-    parser.add_argument(
-        "--repo-root",
-        help="Repository root used for optional files_modify path existence checks.",
+def parse_args() -> SimpleNamespace:
+    """Parse the four documented CLI inputs with exact option names."""
+    dag_file: str | None = None
+    repo_root: str | None = None
+    check_paths_exist = False
+    allow_placeholders = False
+    positional_only = False
+    args = iter(sys.argv[1:])
+    for item in args:
+        if item in ("-h", "--help") and not positional_only:
+            print("usage: validate_implementation_dag.py [--repo-root PATH] "
+                  "[--check-paths-exist] [--allow-placeholders] dag_file")
+            raise SystemExit(0)
+        if item == "--" and not positional_only:
+            positional_only = True
+        elif item == "--repo-root" and not positional_only:
+            repo_root = next(args, None)
+            if repo_root is None or repo_root.startswith("-"):
+                print("error: --repo-root requires a path", file=sys.stderr)
+                raise SystemExit(2)
+        elif item.startswith("--repo-root=") and not positional_only:
+            repo_root = item.partition("=")[2]
+        elif item == "--check-paths-exist" and not positional_only:
+            check_paths_exist = True
+        elif item == "--allow-placeholders" and not positional_only:
+            allow_placeholders = True
+        elif item.startswith("-") and not positional_only:
+            print(f"error: unknown option {item}", file=sys.stderr)
+            raise SystemExit(2)
+        elif dag_file is None:
+            dag_file = item
+        else:
+            print(f"error: unexpected argument {item}", file=sys.stderr)
+            raise SystemExit(2)
+    if dag_file is None:
+        print("error: dag_file is required", file=sys.stderr)
+        raise SystemExit(2)
+    return SimpleNamespace(
+        dag_file=dag_file,
+        repo_root=repo_root,
+        check_paths_exist=check_paths_exist,
+        allow_placeholders=allow_placeholders,
     )
-    parser.add_argument(
-        "--check-paths-exist",
-        action="store_true",
-        help="Verify files_modify paths exist relative to --repo-root.",
-    )
-    parser.add_argument(
-        "--allow-placeholders",
-        action="store_true",
-        help="Allow placeholder strings like <files-from-triage> in file paths.",
-    )
-    return parser.parse_args()
 
 
 def load_toml(path: pathlib.Path) -> dict:

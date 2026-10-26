@@ -1,3 +1,3 @@
-# The Python reference validators have no third-party runtime dependencies
-# beyond the TOML parser pinned in requirements/toml.txt. Keep this file as
+# The Python reference validators have no third-party runtime dependencies.
+# The TOML 1.1 parser is vendored under validators/_toml11_vendor. Keep this as
 # the stable runtime requirements entry point for local use and CI.

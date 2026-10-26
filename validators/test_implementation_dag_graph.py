@@ -2,8 +2,9 @@
 """Hand-derived graph examples for the implementation DAG validator."""
 
 import unittest
+import sys
 
-from validate_implementation_dag import detect_cycles, longest_path_loc
+from validate_implementation_dag import detect_cycles, longest_path_loc, parse_args
 
 
 class GraphTests(unittest.TestCase):
@@ -49,6 +50,25 @@ class GraphTests(unittest.TestCase):
         edges[f"U{length - 1}"] = set()
         self.assertEqual(detect_cycles(edges), [])
         self.assertEqual(longest_path_loc(units, edges), length)
+
+    def test_cli_accepts_exact_options_and_rejects_unknown(self) -> None:
+        original = sys.argv
+        try:
+            sys.argv = ["validator", "--repo-root", "repo", "--check-paths-exist", "file.toml"]
+            parsed = parse_args()
+            self.assertEqual(parsed.dag_file, "file.toml")
+            self.assertEqual(parsed.repo_root, "repo")
+            self.assertTrue(parsed.check_paths_exist)
+            sys.argv = ["validator", "--unknown", "file.toml"]
+            with self.assertRaises(SystemExit) as error:
+                parse_args()
+            self.assertEqual(error.exception.code, 2)
+            sys.argv = ["validator", "--repo-root", "--check-paths-exist", "file.toml"]
+            with self.assertRaises(SystemExit) as error:
+                parse_args()
+            self.assertEqual(error.exception.code, 2)
+        finally:
+            sys.argv = original
 
 
 if __name__ == "__main__":

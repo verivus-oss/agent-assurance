@@ -48,20 +48,14 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Python dependencies
-        # --require-hashes refuses to install anything not pinned by
-        # sha256 in requirements.txt (Pinned-Dependencies / Scorecard
-        # compliance). The ubuntu-24.04 runner ships pip 24.x which is
-        # new enough; we deliberately do NOT --upgrade pip here because
-        # `pip install --upgrade pip` is itself an unpinned install.
-        #
-        # requirements/toml.txt pins `tomli` >= 2.4.0 — the TOML 1.1 parser
-        # the Python reference validators use (stdlib tomllib is 1.0-only);
-        # see validators/_toml11.py. `--no-binary tomli` forces the pure-Python
-        # build (not the optional mypyc wheels) so the reference stays
-        # auditable.
+      - name: Check Python requirements entry points
+        # Keep the established install command in CI so future runtime
+        # packages must be hash pinned. Both files are currently empty.
+        # The Python reference uses the vendored TOML 1.1 parser under
+        # validators/_toml11_vendor. These requirements files remain as stable
+        # entry points and currently install no third-party runtime package.
         run: >-
-          python3 -m pip install --require-hashes --no-binary tomli
+          python3 -m pip install --require-hashes
           -r requirements.txt -r requirements/toml.txt
 
       - name: Set up Go (primary validator toolchain)
@@ -262,6 +256,15 @@ jobs:
           set -e
           make toml-conformance-rs
 
+      - name: TOML 1.1 spec conformance (vendored Python parser)
+        # The same pinned toml-test executable used for Go and Rust exercises
+        # all 189 accepted and 362 rejected TOML 1.1 cases through the Python
+        # reference parser. No case is skipped.
+        run: |
+          set -e
+          "$(go env GOPATH)/bin/toml-test" -toml 1.1.0 -color never \
+            python3 tools/toml-test-decode-py.py
+
       - name: Manifest drift (reference/database/MANIFEST.toml vs ontology)
         run: bash validators/check_manifest_drift.sh --declarations-only
 
@@ -328,9 +331,9 @@ jobs:
         run: |
           python3 - <<'PY'
           import sys, pathlib
-          # Parse with the TOML 1.1 reference shim (validators/_toml11.py wraps
-          # tomli >= 2.4.0) — stdlib tomllib is 1.0-only and would reject valid
-          # 1.1 content, reintroducing a cross-implementation split (C01).
+          # Parse with the vendored TOML 1.1 reference parser; stdlib tomllib
+          # is 1.0-only and would reject valid 1.1 content, reintroducing a
+          # cross-implementation split (C01).
           sys.path.insert(0, "validators")
           import _toml11 as tomllib
           fails, parsed, skipped = [], [], []
@@ -478,7 +481,7 @@ jobs:
           set -e
           python3 - <<'PY' > "${RUNNER_TEMP}/conforming-dagtoml-files.txt"
           import sys, pathlib
-          # TOML 1.1 reference shim (tomli >= 2.4.0); stdlib tomllib is 1.0-only.
+          # Vendored TOML 1.1 parser; stdlib tomllib is 1.0-only.
           sys.path.insert(0, "validators")
           import _toml11 as tomllib
 
@@ -568,6 +571,7 @@ jobs:
         run: |
           set -e
           python3 validators/test_implementation_dag_graph.py
+          python3 validators/test_toml11_scanner.py
           python3 validators/validate_implementation_dag.py \
             examples/minimal-implementation-dag.toml
           python3 validators/validate_traceability.py \
