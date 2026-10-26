@@ -41,9 +41,9 @@ mirror gate that skips its subject has measured nothing.
 
 from __future__ import annotations
 
-import argparse
+import _literal_args as argparse
+import ast
 import pathlib
-import re
 import subprocess
 import shutil
 import sys
@@ -58,24 +58,9 @@ GIT = shutil.which("git")
 # extracted, so a similarly shaped literal elsewhere in the file cannot be
 # mistaken for it.
 SOURCES = {
-    "python": {
-        "path": "validators/validate_state_mutation.py",
-        "open": r"BOUND_TUPLE_FIELDS\s*=\s*\(",
-        "close": r"\)",
-        "field": r'"([A-Za-z0-9_.-]+)"',
-    },
-    "rust": {
-        "path": "tools/dagtoml-validate-rs/src/main.rs",
-        "open": r"BOUND_TUPLE_FIELDS\s*:\s*\[\([^\]]*\]\s*=\s*\[",
-        "close": r"\];",
-        "field": r'\(\s*"([A-Za-z0-9_.-]+)"\s*,',
-    },
-    "go": {
-        "path": "tools/dagtoml-validate-go/main.go",
-        "open": r"boundTupleFields\s*=\s*\[\]\[2\]string\{",
-        "close": r"\n\}",
-        "field": r'\{\s*"([A-Za-z0-9_.-]+)"\s*,',
-    },
+    "python": {"path": "validators/validate_state_mutation.py"},
+    "rust": {"path": "tools/dagtoml-validate-rs/src/main.rs"},
+    "go": {"path": "tools/dagtoml-validate-go/main.go"},
 }
 
 
@@ -148,21 +133,44 @@ def compiled_tuple(root: pathlib.Path, impl: str) -> set[str]:
             "over an implementation it did not read."
         )
     text = path.read_text()
-    opener = re.search(spec["open"], text)
-    if opener is None:
-        raise Infrastructure(
-            f"{spec['path']}: could not locate the bound-tuple constant. "
-            "Either it was renamed, in which case update SOURCES here in the "
-            "same change, or it was deleted, in which case that implementation "
-            "no longer enforces SPEC 12.8.2."
-        )
-    closer = re.search(spec["close"], text[opener.end():])
-    if closer is None:
-        raise Infrastructure(
-            f"{spec['path']}: found the constant but not the end of its block"
-        )
-    block = text[opener.end():opener.end() + closer.start()]
-    fields = re.findall(spec["field"], block)
+    try:
+        if impl == "python":
+            assignments = [node for node in ast.parse(text).body
+                           if isinstance(node, ast.Assign)
+                           and any(isinstance(target, ast.Name) and target.id == "BOUND_TUPLE_FIELDS"
+                                   for target in node.targets)]
+            if len(assignments) != 1:
+                raise ValueError("expected one Python tuple constant")
+            fields = ast.literal_eval(assignments[0].value)
+        else:
+            marker = "const BOUND_TUPLE_FIELDS:" if impl == "rust" else "var boundTupleFields = [][2]string{"
+            if text.count(marker) != 1:
+                raise ValueError("expected one tuple constant")
+            start = text.index(marker) + len(marker)
+            if impl == "rust":
+                opening = text.find("= [", start)
+                closing = text.find("];", opening + 3)
+                if opening < 0 or closing < 0:
+                    raise ValueError("Rust tuple block is incomplete")
+                pairs = ast.literal_eval("[" + text[opening + 3:closing] + "]")
+            else:
+                closing = text.find("\n}", start)
+                if closing < 0:
+                    raise ValueError("Go tuple block is incomplete")
+                pairs = []
+                for line in text[start:closing].splitlines():
+                    row = line.strip().removesuffix(",")
+                    if not row:
+                        continue
+                    if not row.startswith("{") or not row.endswith("}"):
+                        raise ValueError("Go tuple row is malformed")
+                    pairs.append(ast.literal_eval("(" + row[1:-1] + ")"))
+            if not all(isinstance(pair, tuple) and len(pair) == 2
+                       and pair[1] == pair[0].partition(".")[2] for pair in pairs):
+                raise ValueError("tuple field and selector pairs disagree")
+            fields = [pair[0] for pair in pairs]
+    except (SyntaxError, ValueError, TypeError) as exc:
+        raise Infrastructure(f"{spec['path']}: bound-tuple constant could not be parsed: {exc}") from exc
     if not fields:
         raise Infrastructure(
             f"{spec['path']}: the bound-tuple block parsed to zero fields. "

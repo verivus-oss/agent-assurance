@@ -5,11 +5,12 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 import hashlib
 import json
+from _json_decode import loads as loads_json
 import math
 from pathlib import Path
-import re
 
 from _contract import load_mapping
+from _ascii_predicates import valid_date, valid_index_timestamp, valid_sha256
 from _runtime_validation import validate_document
 from _runtime_document_vocab import KINDS
 import _toml11 as toml
@@ -23,7 +24,6 @@ PROJECTION_COLUMNS = ("runtime_kind", "runtime_network_policy", "runtime_clock_p
                       "adapter_id_derivation", "adapter_ref_syntax", "gate_decision_verdict")
 META_KEYS = {"schema_version", "ontology_version", "template_kind", "framework_profile",
              "title", "docs", "created", "created_at"}
-RFC3339 = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?(?:[Zz]|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])")
 
 
 @dataclass(frozen=True)
@@ -91,7 +91,7 @@ def optional_text(value: object) -> str | None:
 def date_index(value: object) -> str | None:
     if type(value) is date:
         return value.isoformat()
-    if isinstance(value, str) and re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", value):
+    if isinstance(value, str) and valid_date(value):
         try:
             return date.fromisoformat(value).isoformat()
         except ValueError:
@@ -101,7 +101,7 @@ def date_index(value: object) -> str | None:
 
 def timestamp_index(value: object) -> str | None:
     if isinstance(value, str):
-        if not RFC3339.fullmatch(value):
+        if not valid_index_timestamp(value):
             return None
         try:
             value = datetime.fromisoformat(value.upper().replace("Z", "+00:00"))
@@ -126,7 +126,7 @@ def _unique_object(pairs: list) -> dict:
 
 def semantic_json(text: str) -> object:
     """Tagged scalars prevent Python's True == 1 from hiding index corruption."""
-    value = json.loads(text, parse_int=Decimal, parse_float=Decimal,
+    value = loads_json(text, parse_int=Decimal, parse_float=Decimal,
                        parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite JSON")),
                        object_pairs_hook=_unique_object)
 
@@ -170,7 +170,7 @@ def project(source: bytes, source_path: str, repo_root: Path) -> Projection:
         table = doc["provenance"]
         provenance = {key: text_identity(table.get(key), "provenance." + key)
                       for key in ("source_path", "source_sha256")}
-        if not re.fullmatch(r"sha256:[0-9a-f]{64}", provenance["source_sha256"]):
+        if not valid_sha256(provenance["source_sha256"]):
             raise ValueError("provenance.source_sha256 must use canonical prefixed lowercase encoding")
         count = table.get("source_bytes")
         if type(count) is not int or not 0 <= count <= 9223372036854775807:

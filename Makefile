@@ -55,7 +55,7 @@ RS_DECODER_BIN := tools/toml-test-decode-rs/target/release/toml-test-decode-rs
 .PHONY: help toml-conformance toml-conformance-install toml-conformance-rs toml-conformance-all dagtoml-conformance
 
 help: ## Show available targets.
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[1m%-32s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@python3 validators/check_workflow_text.py make-help $(MAKEFILE_LIST)
 
 toml-conformance-install: ## Install pinned toml-test under $GOBIN.
 	GOBIN=$(GOBIN) go install github.com/toml-lang/toml-test/cmd/toml-test@$(TOML_TEST_VERSION)

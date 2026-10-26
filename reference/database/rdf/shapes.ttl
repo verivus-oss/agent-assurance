@@ -36,7 +36,7 @@ dagtoml:GateArtifactClassShape a sh:NodeShape ;
         sh:minCount    1 ;
         sh:maxCount    1 ;
         sh:class       dagtoml:ArtifactClass ;
-        sh:message     "Every gate (G\\d+) must reference exactly one artifact_class (A\\d+). SPEC: core/readiness-gate-kind.toml hard_invariant." ;
+        sh:message     "Every gate with a G plus decimal ID must reference exactly one artifact class with an A plus decimal ID. SPEC: core/readiness-gate-kind.toml hard_invariant." ;
         sh:severity    sh:Violation ;
     ] .
 
@@ -178,9 +178,9 @@ dagtoml:ThreatRiskShape a sh:NodeShape ;
 ###     Each entity instance's qualified_id (the URI's local name) must
 ###     match the prefix declared in its class. This is informational —
 ###     real enforcement happens at ingestion time when the qualified_id
-###     is parsed against id_prefix / id_pattern from the ontology.
+###     is parsed against id_prefix / typed decimal ID shape from the ontology.
 ###     Listed here as a pattern shape only for the fixed-prefix kinds;
-###     regex-keyed entities (units, gates, artifact_class, contracts,
+###     decimal-ID entities (units, gates, artifact_class, contracts,
 ###     claims, evidence, matrix) require client-side parsing.
 ###
 

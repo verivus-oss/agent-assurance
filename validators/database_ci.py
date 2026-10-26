@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Build a pinned private database lane or loader and retain its executed receipt."""
 
-import argparse
+import _literal_args as argparse
 import hashlib
 import json
+from _literal_json import loads as loads_json
 import os
-import re
+from _text_checks import contains_table_diagnostic
 from pathlib import Path
 import shutil
 import subprocess
@@ -57,7 +58,7 @@ def loader_verify_checks(root, work, binary, cli, destination, env):
         expected = {"reference_contract": 0 if name == "pristine-seed" else 1,
                     "runtime_document": int(name == "runtime-document-populated")}
         if process.returncode != int(name != "pristine-seed") or any(
-                not re.search(r"^\s*" + table + r"\s+" + str(count) + (r" != 0" if count else r" == 0"), output, re.M)
+                not contains_table_diagnostic(output, table, count)
                 for table, count in expected.items()):
             raise AssertionError("standalone loader verify missed its intended table state: " + name + "\n" + output)
         outcomes.append({"check": name, "exit_code": process.returncode, "counts": expected, "output": output})
@@ -172,7 +173,7 @@ def main(argv=None):
             command.append("--existing-seed")
         print(run(command, root, env), end="")
         if loader_record:
-            receipt = json.loads(receipt_path.read_text())
+            receipt = loads_json(receipt_path.read_text())
             receipt["loader"] = loader_record
             receipt_path.write_text(json.dumps(receipt, ensure_ascii=True, sort_keys=True, indent=2) + "\n")
     finally:

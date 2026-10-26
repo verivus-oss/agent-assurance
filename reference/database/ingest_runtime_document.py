@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Initialize, ingest, or audit runtime documents in a reference SQL mirror."""
 
-import argparse
+import _argument_parser as argparse
 import json
 from pathlib import Path
 import sys

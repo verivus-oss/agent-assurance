@@ -19,26 +19,14 @@ Exit code 0 on full agreement, 1 on any defect.
 
 from __future__ import annotations
 
-import argparse
+import _literal_args as argparse
 import pathlib
-import re
 import sys
+from _ascii_predicates import valid_assertion_id, valid_hex, valid_observed_line
 from _runtime_document_vocab import validate_fields
 from _vocabulary import load_catalog
 from _diagnostics import printable, value_summary
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
-
-
-EVIDENCE_ROOT_RX = re.compile(r"^[0-9a-f]{64}$")
-ASSERTION_ID_RX = re.compile(r"^A-[A-Za-z0-9][A-Za-z0-9_-]*$")
-OBSERVED_LINE_RX = re.compile(
-    # Loose check against the canonical-grammar `observed(...)` shape from
-    # foundations/ijb/canonical-assertion-grammar.md, observed production. SPEC-layer
-    # validation accepts any `<assertion-id> = observed(<arg-list>)` where
-    # arg-list is comma-separated `key=value` pairs. Full ABNF validation
-    # is RUNTIME-SPEC; this regex catches obvious shape defects.
-    r"^A-[A-Za-z0-9][A-Za-z0-9_-]*\s*=\s*observed\([^)]+\)\s*$"
-)
 
 
 def load_vocab(ontology_path: pathlib.Path, attribute: str) -> set[str]:
@@ -96,11 +84,11 @@ def validate_one(path: pathlib.Path, repo_root: pathlib.Path, *, doc: dict | Non
             )
             continue
         cid = ref.get("constraint_id")
-        if not isinstance(cid, str) or not ASSERTION_ID_RX.fullmatch(cid):
+        if not isinstance(cid, str) or not valid_assertion_id(cid):
             defects.append(
                 f"{path}: INV02 violated: failed_constraint_refs[{i}]."
                 f"constraint_id = {value_summary(cid)} does not match assertion-id "
-                f"regex {ASSERTION_ID_RX.pattern}"
+                "the ASCII assertion ID shape"
             )
 
     # ------------------------------------------------------------------
@@ -121,7 +109,7 @@ def validate_one(path: pathlib.Path, repo_root: pathlib.Path, *, doc: dict | Non
             )
             continue
         line = ovr.get("observation_line")
-        if not isinstance(line, str) or not OBSERVED_LINE_RX.match(line):
+        if not isinstance(line, str) or not valid_observed_line(line):
             defects.append(
                 f"{path}: INV03 violated: override_refs[{i}]."
                 f"observation_line does not match canonical observed(...) "
@@ -132,10 +120,10 @@ def validate_one(path: pathlib.Path, repo_root: pathlib.Path, *, doc: dict | Non
     # INV04: evidence_root matches 64 hex chars.
     # ------------------------------------------------------------------
     er = decision.get("evidence_root")
-    if not isinstance(er, str) or not EVIDENCE_ROOT_RX.fullmatch(er):
+    if not isinstance(er, str) or not valid_hex(er, 64):
         defects.append(
             f"{path}: INV04 violated: decision.evidence_root = {value_summary(er)} "
-            f"does not match {EVIDENCE_ROOT_RX.pattern}"
+            "does not match 64 lowercase hexadecimal characters"
         )
 
     # ------------------------------------------------------------------
@@ -249,7 +237,7 @@ def main(argv: list[str]) -> int:
             "invariants INV01..INV06 declared in "
             "profiles/agent-assurance/gate-decision-kind.toml. "
             "INV01: verdict-failed_refs bijection. INV02: assertion-id "
-            "regex on failed_constraint_refs[]. INV03: canonical "
+            "shape on failed_constraint_refs[]. INV03: canonical "
             "observed(...) shape on override_refs[]. INV04: 64-hex "
             "evidence_root. INV05: scope declaration only (no validator "
             "action; RUNTIME-SPEC handles bundle/hash/override checks). "

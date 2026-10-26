@@ -13,7 +13,7 @@ the prose definition in spec.md §2.4 plus this validator; no
 
 from __future__ import annotations
 
-import argparse
+import _literal_args as argparse
 import pathlib
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py

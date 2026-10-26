@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Replay original source versions into an empty, initialized private destination."""
 
-import argparse
+import _argument_parser as argparse
 import hashlib
 import json
 from pathlib import Path

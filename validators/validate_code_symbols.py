@@ -9,8 +9,9 @@ the intended reference engine: Rust, Go, TypeScript, and Java.
 
 from __future__ import annotations
 
-import argparse
+import _literal_args as argparse
 import json
+from _literal_json import InvalidJSON, loads as loads_json
 import pathlib
 import shutil
 import subprocess
@@ -187,8 +188,8 @@ def sqry_search(
         detail = proc.stderr.strip() or proc.stdout.strip() or f"exit {proc.returncode}"
         return [], detail
     try:
-        payload = json.loads(proc.stdout)
-    except json.JSONDecodeError as exc:
+        payload = loads_json(proc.stdout)
+    except InvalidJSON as exc:
         return [], f"sqry returned invalid JSON: {exc}"
     wanted = (repo_root / ref.path).resolve()
     results = []
@@ -215,7 +216,6 @@ def result_summary(ref: SymbolRef, matches: list[dict]) -> dict:
             {
                 "qualified_name": match.get("qualified_name"),
                 "kind": match.get("kind"),
-                "line": match.get("start_line"),
             }
             for match in matches
         ],

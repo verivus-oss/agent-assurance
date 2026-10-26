@@ -46,12 +46,19 @@ Out of scope for v0.1.0 (see SPEC §10.4):
 
 from __future__ import annotations
 
-import argparse
-import contextlib
+import _literal_args as argparse
 import pathlib
-import re
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
+from _ascii_predicates import (
+    matches_decimal_id,
+    valid_date,
+    valid_datetime,
+    valid_reverse_dns,
+    valid_semver,
+    valid_unprefixed_name,
+    valid_upper_prefix,
+)
 
 
 IJB_PRIMITIVES = ("thing", "scope", "path", "observed", "constraint", "time")
@@ -63,11 +70,6 @@ PROFILE_ONTOLOGY_TEMPLATE = "profiles/{profile}/ontology.toml"
 
 # Profile name aliases per SPEC §2.5.
 FRAMEWORK_PROFILE_ALIASES = {"AGDF": "agent-assurance"}
-
-# SPEC §2.5 namespacing partition regexes (mirrors the Rust + Go primaries).
-UNPREFIXED_NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
-REVERSE_DNS_NAME_RE = re.compile(r"^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$")
-SEMVER_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 
 # SPEC §2.7 closed set for confidentiality.
 CONFIDENTIALITY_CLOSED = (
@@ -81,19 +83,10 @@ CONFIDENTIALITY_CLOSED = (
 # SPEC §11.1 closed set for provenance.encryption.hash_is_over.
 HASH_IS_OVER_CLOSED = ("plaintext", "ciphertext")
 
-# SPEC §2.7 RFC 3339 date-or-datetime regexes. Syntactic only; the
+# SPEC §2.7 RFC 3339 date-or-datetime shape. Syntactic only; the
 # validator MUST NOT compare against wall-clock time.
-RFC3339_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-RFC3339_DATETIME_RE = re.compile(
-    r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})$"
-)
-
-
 def _is_rfc3339_date_or_datetime(s: str) -> bool:
-    return bool(RFC3339_DATE_RE.match(s) or RFC3339_DATETIME_RE.match(s))
-
-# Matches a candidate uppercase entity prefix (chars before the first `:`).
-UPPERCASE_PREFIX_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
+    return valid_date(s) or valid_datetime(s)
 
 
 def parse_args() -> argparse.Namespace:
@@ -129,7 +122,7 @@ def load_toml(path: pathlib.Path) -> dict:
 
 def _block_label(block: dict, kind: str) -> str:
     if kind == "entities":
-        return block.get("id_prefix") or block.get("id_pattern") or "?"
+        return block.get("id_prefix") or block.get("id_decimal_prefix") or "?"
     if kind == "relations":
         return block.get("predicate") or "?"
     if kind == "attribute_vocabularies":
@@ -171,6 +164,34 @@ def validate_ontology(doc: dict, source: str) -> list[str]:
 
     for index, block in enumerate(doc.get("entities", [])):
         label = _block_label(block, "entities")
+        if "id_pattern" in block:
+            errors.append(
+                f"{source}:entities[{index}]: id_pattern is unsupported; "
+                "use a typed decimal identifier declaration"
+            )
+        colon_prefix = block.get("id_prefix")
+        decimal_prefix = block.get("id_decimal_prefix")
+        if (
+            (colon_prefix is None) == (decimal_prefix is None)
+            or colon_prefix is not None and (
+                not isinstance(colon_prefix, str) or not valid_upper_prefix(colon_prefix)
+            )
+            or decimal_prefix is not None and (
+                not isinstance(decimal_prefix, str) or not valid_upper_prefix(decimal_prefix)
+            )
+        ):
+            errors.append(
+                f"{source}:entities[{index}]: declare exactly one uppercase "
+                "ASCII id_prefix or id_decimal_prefix"
+            )
+        if "id_optional_lower_suffix" in block and (
+            not isinstance(block["id_optional_lower_suffix"], bool)
+            or "id_decimal_prefix" not in block
+        ):
+            errors.append(
+                f"{source}:entities[{index}]: id_optional_lower_suffix "
+                "requires a boolean and id_decimal_prefix"
+            )
         errors.extend(
             _check_primitive_class(
                 block,
@@ -495,9 +516,9 @@ def validate_profile_descriptor(doc: dict, source: str) -> list[str]:
 
 
 def build_resolver(ontologies: list[tuple[str, dict]]) -> tuple[dict, list, dict]:
-    """Build lookup tables for entity prefixes, id patterns, and relation predicates."""
+    """Build lookup tables for entity prefixes, typed ID shapes, and relation predicates."""
     id_prefixes: dict[str, tuple[dict, str]] = {}
-    id_patterns: list[tuple[re.Pattern, dict, str]] = []
+    id_patterns: list[tuple[str, bool, dict, str]] = []
     predicate_to_relation: dict[str, list[tuple[dict, str]]] = {}
 
     for source, doc in ontologies:
@@ -505,12 +526,9 @@ def build_resolver(ontologies: list[tuple[str, dict]]) -> tuple[dict, list, dict
             prefix = block.get("id_prefix")
             if isinstance(prefix, str) and prefix:
                 id_prefixes[prefix] = (block, source)
-            pattern = block.get("id_pattern")
-            if isinstance(pattern, str) and pattern:
-                # An un-compilable id_pattern is skipped here; pattern
-                # validity is reported by the dedicated checks (py/empty-except).
-                with contextlib.suppress(re.error):
-                    id_patterns.append((re.compile(f"^{pattern}$"), block, source))
+            decimal_prefix = block.get("id_decimal_prefix")
+            if isinstance(decimal_prefix, str) and decimal_prefix:
+                id_patterns.append((decimal_prefix, block.get("id_optional_lower_suffix") is True, block, source))
         for block in doc.get("relations", []):
             predicate = block.get("predicate")
             if isinstance(predicate, str) and predicate:
@@ -524,12 +542,12 @@ def looks_like_entity_ref(token: str) -> bool:
 
     An entity reference is either:
     - `PREFIX:slug` where PREFIX is uppercase letters/digits/underscores, OR
-    - a token that could match one of the bare-id patterns (handled by
+    - a token that could match one of the typed bare-ID shapes (handled by
       caller via id_patterns).
     """
     if ":" in token:
         prefix = token.split(":", 1)[0]
-        return bool(UPPERCASE_PREFIX_RE.match(prefix))
+        return valid_upper_prefix(prefix)
     return False
 
 
@@ -544,7 +562,7 @@ def check_entity_ref(
         return None
     if ":" in token:
         prefix = token.split(":", 1)[0]
-        if not UPPERCASE_PREFIX_RE.match(prefix):
+        if not valid_upper_prefix(prefix):
             return None  # not entity-ref-shaped (e.g. "src/checkout::sym")
         if prefix in id_prefixes:
             return None
@@ -552,8 +570,8 @@ def check_entity_ref(
             f"entity prefix `{prefix}` in `{token}` does not resolve to a "
             f"declared `[[entities]].id_prefix` in the loaded ontologies"
         )
-    for rx, _block, _src in id_patterns:
-        if rx.match(token):
+    for decimal_prefix, optional_suffix, _block, _src in id_patterns:
+        if matches_decimal_id(decimal_prefix, optional_suffix, token):
             return None
     return None
 
@@ -586,20 +604,19 @@ def validate_instance(
 
     # Special case: implementation-DAG units are declared as
     # `[units.U01]` so the unit ID is the table key, not a value. Verify
-    # each such key resolves through the declared id_patterns (the
-    # closed `U\d+[a-z]?` pattern in core/ontology.toml).
+    # each such key resolves through a declared decimal ID shape.
     units = doc.get("units")
     if isinstance(units, dict):
         for unit_id in units.keys():
             matched = False
-            for rx, _block, _src in id_patterns:
-                if rx.match(unit_id):
+            for decimal_prefix, optional_suffix, _block, _src in id_patterns:
+                if matches_decimal_id(decimal_prefix, optional_suffix, unit_id):
                     matched = True
                     break
             if not matched:
                 errors.append(
                     f"units.{unit_id}: identifier does not match any declared "
-                    f"entity `id_pattern` in the loaded ontologies"
+                    f"decimal entity ID shape in the loaded ontologies"
                 )
 
     return errors
@@ -649,7 +666,7 @@ def validate_meta_posture(
 
     # §2.2 / §8 — version pin shapes.
     schema_version = meta.get("schema_version")
-    if not isinstance(schema_version, str) or not SEMVER_RE.match(schema_version):
+    if not isinstance(schema_version, str) or not valid_semver(schema_version):
         errors.append(
             f"{source}: [meta].schema_version must be a semver string "
             f"`MAJOR.MINOR.PATCH` (got {schema_version!r})"
@@ -731,8 +748,8 @@ def validate_meta_posture(
     fp = meta.get("framework_profile")
     if isinstance(fp, str) and fp:
         resolved = resolve_profile_name(fp)
-        is_unprefixed = bool(UNPREFIXED_NAME_RE.match(resolved))
-        is_reverse_dns = bool(REVERSE_DNS_NAME_RE.match(resolved))
+        is_unprefixed = valid_unprefixed_name(resolved)
+        is_reverse_dns = valid_reverse_dns(resolved)
         if not (is_unprefixed or is_reverse_dns):
             errors.append(
                 f"{source}: [meta].framework_profile = `{fp}` does not match the "

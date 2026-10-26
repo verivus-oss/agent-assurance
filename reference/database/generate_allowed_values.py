@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Emit the owned catalog section from TOML; do not infer SQL semantics."""
 
-import argparse
+import _argument_parser as argparse
 from pathlib import Path
 import sys
 

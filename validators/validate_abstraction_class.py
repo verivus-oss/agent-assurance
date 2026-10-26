@@ -43,13 +43,11 @@ Exits 0 on pass; 1 on any structural violation.
 
 from __future__ import annotations
 
-import argparse
+import _literal_args as argparse
 import pathlib
-import re
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
-
-ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]*\.v\d+$")
+from _ascii_predicates import valid_abstraction_id
 
 REQUIRED_IJB_PRIMITIVE = "constraint"
 REQUIRED_IJB_CONSTRAINT_TYPE = "structural"
@@ -244,7 +242,7 @@ def validate_abstraction_class(
     id_val = block.get("id")
     if not isinstance(id_val, str) or not id_val:
         errors.append(f"{loc}.id: must be a non-empty string, got {id_val!r}")
-    elif not ID_PATTERN.match(id_val):
+    elif not valid_abstraction_id(id_val):
         errors.append(
             f"{loc}.id: must match `<slug>.v<integer>` "
             f"(lowercase slug + `.v` + non-negative integer), "

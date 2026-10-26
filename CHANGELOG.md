@@ -9,9 +9,16 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Replace active regex checks in the Python validators, conformance tools,
+  database mirrors, and CI text gates with explicit predicates and scanners.
+  Declare ontology decimal ID shapes as typed fields and carry them through
+  the SQL, graph, and RDF mirrors. Keep the existing Gitleaks gate for
+  credential scanning under the explicit third-party verification allowance.
 - Scan commit citations with explicit ASCII token parsing and report file
   identities without source line coordinates. Exclude vendored parser source
   and unit fixtures from this authored citation check.
+- Replace the Go primary validator's direct regex matchers with typed ASCII
+  predicates for identifiers, dates, versions, digests, and observations.
 - Remove NetworkX from the Python reference validator. Use explicit graph
   traversal for cycle detection and longest weighted paths. Vendor the TOML
   1.1 parser with explicit token scanning and remove the upstream parser pin.

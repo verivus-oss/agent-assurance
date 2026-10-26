@@ -74,8 +74,8 @@ This repository runs the following defensive controls:
 
 `.github/workflows/validate.yml` runs the following scanners on every
 push and pull request; each step fails the build on any finding. The
-order and one-line role descriptions below are the verbatim "Coverage
-map" comment block in `validate.yml` (lines 694-719):
+order and one-line role descriptions below follow the "Coverage map"
+comment block in `validate.yml`:
 
 - `actionlint` — GHA workflow correctness (broken expressions,
   deprecated APIs, shell-injection in `run:`)
@@ -91,8 +91,8 @@ map" comment block in `validate.yml` (lines 694-719):
 - `osv-scanner` — CVEs in `requirements.txt` + `Cargo.lock` + `go.sum`
   (complements Dependabot: catches transitive and advisory-DB-only
   entries Dependabot misses)
-- `gitleaks` — secret leak detection in commits + working tree
-  (replaces GHAS secret scanning)
+- `gitleaks` checks credential patterns in reachable commits, including
+  the checked-out tracked tree, with planted positive and negative controls
 - `cargo-audit` — RustSec advisory DB check for every `tools/*-rs`
 - `cargo-deny` — Rust license policy + dep ban + advisories (catches
   license drift that audit doesn't)

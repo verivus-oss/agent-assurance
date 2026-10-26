@@ -24,7 +24,8 @@ Exit 0 all sidecars discriminate, 1 one or more do not, 2 infrastructure error.
 
 from __future__ import annotations
 
-import argparse
+from _path_scan import glob as literal_glob
+import _argument_parser as argparse
 import pathlib
 import subprocess
 import sys
@@ -70,11 +71,11 @@ def discover_cases(root: pathlib.Path) -> list[pathlib.Path]:
         if directory.name not in KIND_VALIDATOR:
             raise ValueError(f"kind has no KIND_VALIDATOR mapping: {directory.name}")
         for verdict in ("valid", "invalid"):
-            files = sorted(path for path in (directory / verdict).glob("*.toml")
+            files = sorted(path for path in literal_glob(directory / verdict, "*.toml")
                            if not path.name.endswith(".expected.toml"))
             if not files:
                 raise ValueError(f"{directory.name} has no {verdict} control")
-            for side in (directory / verdict).glob("*.expected.toml"):
+            for side in literal_glob(directory / verdict, "*.expected.toml"):
                 if side.with_name(side.name.removesuffix(".expected.toml") + ".toml") not in files:
                     raise ValueError(f"orphan sidecar: {side}")
             if verdict == "invalid":

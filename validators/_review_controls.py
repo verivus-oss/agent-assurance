@@ -1,9 +1,10 @@
 """Executed regression controls for declaration and source-discovery boundaries."""
 
+from _literal_paths import glob as literal_glob
 import contextlib
 import hashlib
 import io
-import json
+from _literal_json import loads as loads_json
 import subprocess
 import sys
 import textwrap
@@ -97,7 +98,7 @@ def exercise(candidate, work):
 
     # A dotted stem's sidecar contains an impossible diagnostic. The readers
     # must consume it even when process results are supplied by this instrument.
-    side = next(directory.glob("invalid/*.expected.toml"))
+    side = next(literal_glob(directory, "invalid/*.expected.toml"))
     case = side.with_name(side.name.removesuffix(".expected.toml") + ".toml")
     dotted = case.with_name("review.dotted.toml")
     dotted_side = dotted.with_suffix(".expected.toml")
@@ -136,7 +137,7 @@ def exercise(candidate, work):
             else:
                 args += ["--manifest", "inert.toml", "--report", str(work / "unknown-report.json")]
             require(module.main(args) == 1)
-        result = json.loads(err.getvalue() if module is ingest_cli else out.getvalue())
+        result = loads_json(err.getvalue() if module is ingest_cli else out.getvalue())
         require(result["status"] == "commit-outcome-unknown" and result["code"] == "commit-outcome-unknown")
         require({key: result[key] for key in error.context} == error.context)
         observations.append({"control": module.__name__ + "/unknown-identities", "status": "confirmed", "output": result})

@@ -3,10 +3,10 @@
 
 from __future__ import annotations
 
-import argparse
+import _literal_args as argparse
+import ast
 import contextlib
 import pathlib
-import re
 import sys
 
 import _toml11 as tomllib
@@ -58,34 +58,82 @@ def derive_rdf_counts(repo_root: pathlib.Path) -> dict[str, int | None]:
                 text=True,
                 timeout=30,
             )
-            m = re.search(r"parsed\s+(\d+)\s+triples", res.stdout + res.stderr)
-            if res.returncode == 0 and m:
-                out[label] = int(m.group(1))
+            tokens = (res.stdout + res.stderr).split()
+            counts = [int(tokens[index + 1])
+                      for index in range(len(tokens) - 2)
+                      if tokens[index] == "parsed" and tokens[index + 1].isascii()
+                      and tokens[index + 1].isdigit() and tokens[index + 2] == "triples"]
+            if res.returncode == 0 and len(counts) == 1:
+                out[label] = counts[0]
     return out
+
+
+def _count_pairs(source: str, opening: str, closing: str, *, go: bool) -> dict[str, int]:
+    if source.count(opening) != 1:
+        raise ValueError("loader declaration constant is missing or duplicated")
+    start = source.index(opening) + len(opening)
+    end = source.find(closing, start)
+    if end < 0:
+        raise ValueError("loader declaration constant has no closing delimiter")
+    body = source[start:end]
+    if go:
+        separator = body.find("}{\n")
+        if separator < 0:
+            raise ValueError("Go loader count declaration has no row block")
+        body = body[separator + 3:]
+        pairs = []
+        for line in body.splitlines():
+            row = line.strip().removesuffix(",")
+            if not row:
+                continue
+            if not row.startswith("{") or not row.endswith("}"):
+                raise ValueError("Go loader count row is malformed")
+            pairs.append(ast.literal_eval("(" + row[1:-1] + ")"))
+    else:
+        pairs = ast.literal_eval("[" + body + "]")
+    result = {}
+    for pair in pairs:
+        if (not isinstance(pair, tuple) or len(pair) != 2
+                or not isinstance(pair[0], str) or type(pair[1]) is not int):
+            raise ValueError("loader declaration has an invalid count")
+        if pair[0] in result:
+            raise ValueError("duplicate loader count key: " + pair[0])
+        result[pair[0]] = pair[1]
+    if not result:
+        raise ValueError("loader declaration has no counts")
+    return result
 
 def parse_rust_expected_counts(repo_root: pathlib.Path) -> dict[str, int]:
     """Extract EXPECTED_COUNTS from tools/dagtoml-duckdb/src/main.rs."""
     p = repo_root / "tools" / "dagtoml-duckdb" / "src" / "main.rs"
     if not p.exists():
         return {}
-    out = {}
-    for m in re.finditer(r'\("([^"]+)"\s*,\s*(\d+)\)', p.read_text()):
-        if m.group(1) in out:
-            raise ValueError("duplicate loader count key: " + m.group(1))
-        out[m.group(1)] = int(m.group(2))
-    return out
+    return _count_pairs(p.read_text(), "const EXPECTED_COUNTS: &[(&str, i64)] = &[", "];", go=False)
 
 def parse_go_expected_counts(repo_root: pathlib.Path) -> dict[str, int]:
     """Extract expectedCounts from tools/dagtoml-duckdb-go/main.go."""
     p = repo_root / "tools" / "dagtoml-duckdb-go" / "main.go"
     if not p.exists():
         return {}
-    out = {}
-    for m in re.finditer(r'\{"([^"]+)"\s*,\s*(\d+)\}', p.read_text()):
-        if m.group(1) in out:
-            raise ValueError("duplicate loader count key: " + m.group(1))
-        out[m.group(1)] = int(m.group(2))
-    return out
+    return _count_pairs(p.read_text(), "var expectedCounts = []struct {", "\n}\n", go=True)
+
+
+def parse_rdf_footer(source: str) -> tuple[int, int, int, int]:
+    prefix = "### Counts at generation: "
+    rows = [line[len(prefix):] for line in source.splitlines() if line.startswith(prefix)]
+    if len(rows) != 1 or not rows[0].endswith(" attribute vocabularies."):
+        raise ValueError("RDF schema must contain exactly one generation-count footer")
+    parts = rows[0].removesuffix(".").split(", ")
+    labels = ("template kinds", "entity kinds", "relation predicates", "attribute vocabularies")
+    if len(parts) != 4:
+        raise ValueError("RDF schema generation-count footer has the wrong shape")
+    counts = []
+    for part, label in zip(parts, labels, strict=True):
+        number, separator, actual = part.partition(" ")
+        if not separator or actual != label or not number.isascii() or not number.isdigit():
+            raise ValueError("RDF schema generation-count footer has the wrong shape")
+        counts.append(int(number))
+    return tuple(counts)
 
 
 def main(argv=None) -> int:
@@ -130,12 +178,9 @@ def main(argv=None) -> int:
             check("graph/" + name, ontology[key], verification["graph"]["expected_node_counts"].get(name))
         for name in ("template_kinds", "entity_kinds", "relation_predicates", "attribute_vocabularies"):
             check("rdf/footer/" + name, ontology[name], verification["rdf"]["expected_footer_counts"].get(name))
-        footer = re.findall(r"^### Counts at generation: (\d+) template kinds, (\d+) entity kinds, (\d+) relation predicates, (\d+) attribute vocabularies\.$",
-                            (root / "reference/database/rdf/schema.ttl").read_text(), re.MULTILINE)
-        if len(footer) != 1:
-            raise ValueError("RDF schema must contain exactly one generation-count footer")
-        for name, value in zip(("template_kinds", "entity_kinds", "relation_predicates", "attribute_vocabularies"), footer[0], strict=True):
-            check("rdf/executed-file-footer/" + name, ontology[name], int(value))
+        footer = parse_rdf_footer((root / "reference/database/rdf/schema.ttl").read_text())
+        for name, value in zip(("template_kinds", "entity_kinds", "relation_predicates", "attribute_vocabularies"), footer, strict=True):
+            check("rdf/executed-file-footer/" + name, ontology[name], value)
         if args.rdf:
             rdf = derive_rdf_counts(root)
             for name in ("schema", "shapes"):

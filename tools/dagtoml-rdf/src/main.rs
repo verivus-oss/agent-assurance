@@ -45,7 +45,9 @@ struct Entity {
     #[serde(default)]
     id_prefix: Option<String>,
     #[serde(default)]
-    id_pattern: Option<String>,
+    id_decimal_prefix: Option<String>,
+    #[serde(default)]
+    id_optional_lower_suffix: bool,
     #[serde(default)]
     section: Option<String>,
     #[serde(default)]
@@ -176,7 +178,7 @@ fn token_to_class(token: &str) -> Option<String> {
         "unconstrained_label" | "" => None,
         // upper-case ID prefixes (INT, FEAT, REQ, …) — convert to the
         // entity class name. We rely on a small lookup so prefixes that
-        // don't map cleanly (regex-keyed entities) raise no panic.
+        // don't map cleanly (decimal-ID entities) raise no panic.
         prefix => {
             // Map common prefixes back to entity_kind names. Keep this
             // table in sync with src/main.rs::ENTITY_PREFIX_TO_KIND.
@@ -209,10 +211,8 @@ fn token_to_class(token: &str) -> Option<String> {
 }
 
 fn entity_kind_name(e: &Entity) -> Option<String> {
-    // The ontology stores either an id_prefix (REQ, FEAT, GUAR, …) or an
-    // id_pattern (U\d+[a-z]?). We derive a canonical kind name by
-    // consulting the same prefix-to-kind table, falling back to the
-    // section name for regex-keyed entities.
+    // The ontology stores either a colon prefix or a typed decimal ID shape.
+    // Derive a canonical kind name from the prefix table or section name.
     if let Some(prefix) = &e.id_prefix {
         let kind = match prefix.as_str() {
             "INT" => "intent",
@@ -238,7 +238,7 @@ fn entity_kind_name(e: &Entity) -> Option<String> {
         };
         Some(kind.to_string())
     } else if let Some(section) = &e.section {
-        // regex-keyed entities (U\d+, A\d+, …) use the section to name
+        // decimal-ID entities use the section to name
         // the kind: units → unit, artifact_classes → artifact_class, etc.
         let singular = match section.as_str() {
             "units" => "unit",
@@ -371,8 +371,11 @@ impl Emitter {
             if let Some(p) = &e.id_prefix {
                 let _ = write!(self.out, ";\n    dagtoml:idPrefix {} ", ttl_lit(p));
             }
-            if let Some(p) = &e.id_pattern {
-                let _ = write!(self.out, ";\n    dagtoml:idPattern {} ", ttl_lit(p));
+            if let Some(p) = &e.id_decimal_prefix {
+                let _ = write!(self.out, ";\n    dagtoml:idDecimalPrefix {} ", ttl_lit(p));
+            }
+            if e.id_optional_lower_suffix {
+                let _ = write!(self.out, ";\n    dagtoml:idOptionalLowerSuffix true ");
             }
             if let Some(s) = &e.section {
                 let _ = write!(self.out, ";\n    dagtoml:section {} ", ttl_lit(s));
@@ -717,7 +720,8 @@ fn main() -> ExitCode {
                     format!("profile:{prof_name}"),
                     Entity {
                         id_prefix: e.id_prefix.clone(),
-                        id_pattern: e.id_pattern.clone(),
+                        id_decimal_prefix: e.id_decimal_prefix.clone(),
+                        id_optional_lower_suffix: e.id_optional_lower_suffix,
                         section: e.section.clone(),
                         schema: e.schema.clone(),
                         description: e.description.clone(),

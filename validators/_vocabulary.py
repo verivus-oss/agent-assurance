@@ -1,5 +1,6 @@
 """Read the authoritative TOML vocabulary declarations, without SQL inference."""
 
+from _literal_paths import glob as literal_glob
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,7 +18,7 @@ class Vocabulary:
 
 def load_catalog(repo_root: Path) -> dict[str, Vocabulary]:
     """Reject malformed and duplicate declarations before constructing any set."""
-    paths = [repo_root / "core/ontology.toml", *sorted(repo_root.glob("profiles/*/ontology.toml"))]
+    paths = [repo_root / "core/ontology.toml", *sorted(literal_glob(repo_root, "profiles/*/ontology.toml"))]
     if not (repo_root / "profiles/agent-assurance/ontology.toml").is_file():
         raise ValueError("missing agent-assurance ontology")
     catalog = {}

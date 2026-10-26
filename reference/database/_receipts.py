@@ -1,12 +1,12 @@
 """Require fresh receipts for every declared engine lane and both seed loaders."""
 
 import hashlib
-import json
-import re
+from _json_decode import loads as loads_json
 from pathlib import Path
 import sys
 
 from _contract import artifact_hashes, bundle_digest, expected_counts, load_mapping
+from _text_checks import contains_table_diagnostic
 from _vocabulary import load_catalog
 from _sql_probes import expected_probes
 from _catalog_checks import CHECKS as METADATA_CHECKS
@@ -29,7 +29,7 @@ def validate_receipts(root: Path, paths: list[Path], *, require_clean=True, incl
     if include_loaders:
         for name in ("rust", "go"):
             by_lane["duckdb-loader-" + name] = {**by_lane["duckdb-maintained"], "loader": name}
-    receipts = [json.loads(path.read_text()) for path in paths]
+    receipts = [loads_json(path.read_text()) for path in paths]
     names = [receipt.get("lane") for receipt in receipts]
     if len(names) != len(set(names)) or set(names) != set(by_lane):
         raise ValueError("missing, duplicate, or unexpected executed lane receipt")
@@ -112,7 +112,7 @@ def validate_receipts(root: Path, paths: list[Path], *, require_clean=True, incl
                 if row.get("exit_code") != code or row.get("counts") != {"reference_contract": contracts, "runtime_document": documents}:
                     raise ValueError("loader standalone verify did not observe the expected populated state")
                 for table, count in row["counts"].items():
-                    if not re.search(r"^\s*" + table + r"\s+" + str(count) + (r" != 0" if count else r" == 0"), row.get("output", ""), re.M):
+                    if not contains_table_diagnostic(row.get("output", ""), table, count):
                         raise ValueError("loader standalone verify lacks the intended table diagnostic")
             binary = root / loader.get("binary", "")
             if not binary.is_file() or hashlib.sha256(binary.read_bytes()).hexdigest() != loader.get("binary_sha256"):

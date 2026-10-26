@@ -44,12 +44,16 @@ CREATE TABLE dagtoml_kind_descriptor (
 
 CREATE TABLE dagtoml_entity_kind_descriptor (
     entity_kind        TEXT PRIMARY KEY,
-    id_prefix_pattern  TEXT NOT NULL,
+    id_prefix          TEXT,
+    id_decimal_prefix  TEXT,
+    id_optional_lower_suffix INTEGER NOT NULL DEFAULT 0 CHECK (id_optional_lower_suffix IN (0, 1)),
     layer              TEXT NOT NULL CHECK (layer IN ('core', 'profile:agent-assurance', 'profile:disclosure', 'profile:cost', 'profile:com.verivus.runtime')),
     defining_kind      TEXT NOT NULL REFERENCES dagtoml_kind_descriptor(template_kind),
     ijb_primitive      TEXT NOT NULL CHECK (ijb_primitive IN ('thing','scope','path','observed','constraint','time')),
     ijb_class          TEXT NOT NULL CHECK (ijb_class IN ('structural','instance')),
-    description        TEXT
+    description        TEXT,
+    CHECK ((id_prefix IS NULL) <> (id_decimal_prefix IS NULL)),
+    CHECK (id_optional_lower_suffix = 0 OR id_decimal_prefix IS NOT NULL)
 ) STRICT;
 
 CREATE TABLE dagtoml_relation_descriptor (

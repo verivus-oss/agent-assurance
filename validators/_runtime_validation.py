@@ -1,6 +1,7 @@
 """Validate one captured root document; referenced evidence resolves separately."""
 
-import argparse
+from _literal_paths import glob as literal_glob
+import _literal_args as argparse
 from pathlib import Path
 
 import _toml11 as toml
@@ -58,7 +59,7 @@ def validate_document(doc: dict, path: Path, repo_root: Path, kind: str) -> list
         # Referenced profile files are a separate trusted input population.
         # Parse each before calling legacy discovery, which otherwise skips a
         # malformed profile. Never let a skipped file remove a required pin.
-        for profile in sorted(repo_root.glob("profiles/*/PROFILE.toml")):
+        for profile in sorted(literal_glob(repo_root, "profiles/*/PROFILE.toml")):
             toml.loads(profile.read_text(encoding="utf-8"))
         duplicates = closure.duplicate_profile_names(repo_root)
         errors.extend(duplicates)

@@ -174,7 +174,7 @@ func validateRuntimeAdapter(doc rawDoc, root string, binding bool) []string {
 		}
 		for _, entry := range rdEntries(table, "policy_constraint_refs", section, false, &errors) {
 			value, ok := entry["constraint_id"].(string)
-			if !ok || !gdAssertionRe.MatchString(value) {
+			if !ok || !validAssertionID(value) {
 				errors = append(errors, "INV03: binding.policy_constraint_refs[].constraint_id must match the whole ASCII assertion-ID grammar")
 			}
 		}
@@ -197,7 +197,7 @@ func validateRuntimeAdapter(doc rawDoc, root string, binding bool) []string {
 			errors = append(errors, "INV02: adapter.runtime_artifact must be a table")
 		} else if field != "" {
 			value, ok := artifact[field].(string)
-			if !ok || !gdHex64Re.MatchString(value) {
+			if !ok || !validHex64(value) {
 				errors = append(errors, "INV02: adapter.runtime_artifact."+field+" must be exactly 64 lowercase ASCII hex characters")
 			}
 		}

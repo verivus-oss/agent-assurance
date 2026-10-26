@@ -149,14 +149,14 @@ UNWIND [
     {entity_kind: 'code',             id_prefix: 'CODE',        layer: 'core'},
     {entity_kind: 'test',             id_prefix: 'TEST',        layer: 'core'},
     {entity_kind: 'output',           id_prefix: 'OUT',         layer: 'core'},
-    {entity_kind: 'unit',             id_prefix: 'U\\d+[a-z]?', layer: 'core'},
+    {entity_kind: 'unit',             id_decimal_prefix: 'U', id_optional_lower_suffix: true, layer: 'core'},
     {entity_kind: 'artifact',         id_prefix: 'ART',         layer: 'core'},
-    {entity_kind: 'artifact_class',   id_prefix: 'A\\d+',       layer: 'core'},
-    {entity_kind: 'gate',             id_prefix: 'G\\d+',       layer: 'core'},
-    {entity_kind: 'contract',         id_prefix: 'C\\d+',       layer: 'core'},
-    {entity_kind: 'claim',            id_prefix: 'E\\d+',       layer: 'core'},
-    {entity_kind: 'evidence',         id_prefix: 'EV\\d+',      layer: 'core'},
-    {entity_kind: 'matrix',           id_prefix: 'M\\d+',       layer: 'core'},
+    {entity_kind: 'artifact_class',   id_decimal_prefix: 'A', layer: 'core'},
+    {entity_kind: 'gate',             id_decimal_prefix: 'G', layer: 'core'},
+    {entity_kind: 'contract',         id_decimal_prefix: 'C', layer: 'core'},
+    {entity_kind: 'claim',            id_decimal_prefix: 'E', layer: 'core'},
+    {entity_kind: 'evidence',         id_decimal_prefix: 'EV', layer: 'core'},
+    {entity_kind: 'matrix',           id_decimal_prefix: 'M', layer: 'core'},
     {entity_kind: 'guarantee',        id_prefix: 'GUAR',        layer: 'profile:agent-assurance'},
     {entity_kind: 'invariant',        id_prefix: 'INV',         layer: 'profile:agent-assurance'},
     {entity_kind: 'non_goal',         id_prefix: 'NG',          layer: 'profile:agent-assurance'},
@@ -165,7 +165,9 @@ UNWIND [
     {entity_kind: 'rollback_trigger', id_prefix: 'TRIG',        layer: 'profile:agent-assurance'}
 ] AS row
 MERGE (k:EntityKind {entity_kind: row.entity_kind})
-SET k.id_prefix_pattern = row.id_prefix,
+SET k.id_prefix         = row.id_prefix,
+    k.id_decimal_prefix = row.id_decimal_prefix,
+    k.id_optional_lower_suffix = coalesce(row.id_optional_lower_suffix, false),
     k.layer             = row.layer,
     k.ijb_primitive     = 'thing',
     k.ijb_class         = 'structural';

@@ -37,16 +37,14 @@ anything but a recorded producer claim. Those are RUNTIME-SPEC.
 
 from __future__ import annotations
 
-import argparse
+import _literal_args as argparse
 import hashlib
 import pathlib
-import re
 import sys
 import unicodedata
+from _ascii_predicates import valid_digest, valid_operation, valid_rfc3339_utc_shape, valid_scheme
 
 import _toml11 as tomllib  # TOML 1.1 reference shim; see validators/_toml11.py
-
-DIGEST_RE = re.compile(r"^(sha256:[0-9a-f]{64}|sha384:[0-9a-f]{96}|sha512:[0-9a-f]{128})\Z")
 
 # The tuple RKM04 binds, in the order the kind descriptor names them. The
 # canonical form sorts bytewise, so this list is documentation, not ordering.
@@ -92,11 +90,6 @@ REQUIRED_PROOF_KEYS = (
 # ASCII digits explicitly: `\d` on a str pattern also matches Unicode decimal
 # digits, so `\d{4}` accepts `٢026` while the Rust and Go primaries reject it.
 # Differential testing found that divergence.
-RFC3339_UTC_RE = re.compile(
-    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z\Z"
-)
-OPERATION_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}\Z")
-SCHEME_RE = re.compile(r"^[a-z][a-z0-9+.-]*\Z")
 # Longest permitted `rest` (everything after the first colon), in UTF-8 BYTES.
 URI_REST_MAX_BYTES = 480
 
@@ -112,7 +105,7 @@ SCHEME_FINALITY = {
 
 
 def is_digest(value: object) -> bool:
-    return isinstance(value, str) and bool(DIGEST_RE.match(value))
+    return isinstance(value, str) and valid_digest(value)
 
 
 def is_uri_shaped(value: str) -> bool:
@@ -137,7 +130,7 @@ def is_uri_shaped(value: str) -> bool:
     one the three implementations disagreed on.
     """
     scheme, sep, rest = value.partition(":")
-    if not sep or not SCHEME_RE.match(scheme):
+    if not sep or not valid_scheme(scheme):
         return False
     if not rest or len(rest.encode("utf-8")) > URI_REST_MAX_BYTES:
         return False
@@ -218,7 +211,7 @@ def is_rfc3339_utc(value: str) -> bool:
     the RKM04 bound tuple and carries the freshness claim, so a timestamp that
     cannot correspond to any instant is worth rejecting rather than binding.
     """
-    if not RFC3339_UTC_RE.match(value):
+    if not valid_rfc3339_utc_shape(value):
         return False
     year, month, day = int(value[0:4]), int(value[5:7]), int(value[8:10])
     hour, minute, second = int(value[11:13]), int(value[14:16]), int(value[17:19])
@@ -265,7 +258,7 @@ def _validate_mutation_table(doc: dict, path: pathlib.Path) -> list[str]:
             is_rfc3339_utc,
             "an RFC3339 UTC timestamp ending in Z, naming a real instant",
         ),
-        ("operation", OPERATION_RE.match, "a bare lowercase token, at most 64 characters"),
+        ("operation", valid_operation, "a bare lowercase token, at most 64 characters"),
         ("target_id", is_uri_shaped, "a URI or URN, no whitespace or control characters"),
     ):
         value = mutation.get(key)

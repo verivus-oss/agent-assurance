@@ -246,7 +246,8 @@ dagtoml:Unit a rdfs:Class ;
     rdfs:subClassOf ijb:Thing ;
     rdfs:label "unit" ;
     dagtoml:layer "core" ;
-    dagtoml:idPattern "U\\d+[a-z]?" ;
+    dagtoml:idDecimalPrefix "U" ;
+    dagtoml:idOptionalLowerSuffix true ;
     dagtoml:section "units" ;
     dagtoml:definedByKind "implementation-dag" ;
     rdfs:comment "Implementation-DAG unit." .
@@ -264,7 +265,7 @@ dagtoml:ArtifactClass a rdfs:Class ;
     rdfs:subClassOf ijb:Thing ;
     rdfs:label "artifact_class" ;
     dagtoml:layer "core" ;
-    dagtoml:idPattern "A\\d+" ;
+    dagtoml:idDecimalPrefix "A" ;
     dagtoml:section "artifact_classes" ;
     dagtoml:definedByKind "readiness-gate" ;
     rdfs:comment "Review artifact class." .
@@ -273,7 +274,7 @@ dagtoml:Gate a rdfs:Class ;
     rdfs:subClassOf ijb:Thing ;
     rdfs:label "gate" ;
     dagtoml:layer "core" ;
-    dagtoml:idPattern "G\\d+" ;
+    dagtoml:idDecimalPrefix "G" ;
     dagtoml:section "gates" ;
     dagtoml:definedByKind "readiness-gate" ;
     rdfs:comment "Readiness gate keyed to one artifact class." .
@@ -282,7 +283,7 @@ dagtoml:Contract a rdfs:Class ;
     rdfs:subClassOf ijb:Thing ;
     rdfs:label "contract" ;
     dagtoml:layer "core" ;
-    dagtoml:idPattern "C\\d+" ;
+    dagtoml:idDecimalPrefix "C" ;
     dagtoml:section "contracts" ;
     dagtoml:definedByKind "contract-declaration" ;
     rdfs:comment "Declared contract." .
@@ -291,7 +292,7 @@ dagtoml:Claim a rdfs:Class ;
     rdfs:subClassOf ijb:Thing ;
     rdfs:label "claim" ;
     dagtoml:layer "core" ;
-    dagtoml:idPattern "E\\d+" ;
+    dagtoml:idDecimalPrefix "E" ;
     dagtoml:section "claims" ;
     dagtoml:definedByKind "evidence-matrix" ;
     rdfs:comment "Strong review claim." .
@@ -300,7 +301,7 @@ dagtoml:Evidence a rdfs:Class ;
     rdfs:subClassOf ijb:Thing ;
     rdfs:label "evidence" ;
     dagtoml:layer "core" ;
-    dagtoml:idPattern "EV\\d+" ;
+    dagtoml:idDecimalPrefix "EV" ;
     dagtoml:section "evidence" ;
     dagtoml:definedByKind "evidence-matrix" ;
     rdfs:comment "Proof artifact." .
@@ -309,7 +310,7 @@ dagtoml:Matrix a rdfs:Class ;
     rdfs:subClassOf ijb:Thing ;
     rdfs:label "matrix" ;
     dagtoml:layer "core" ;
-    dagtoml:idPattern "M\\d+" ;
+    dagtoml:idDecimalPrefix "M" ;
     dagtoml:section "matrix" ;
     dagtoml:definedByKind "evidence-matrix" ;
     rdfs:comment "Claim ↔ evidence linkage row." .

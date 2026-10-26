@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Execute the reference SQL artifacts and retain an artifact-bound test receipt."""
 
-import argparse
+import _literal_args as argparse
 import hashlib
 import json
 from pathlib import Path

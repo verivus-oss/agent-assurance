@@ -1,7 +1,7 @@
 """Private-destination initialization and writer concurrency acceptance tests."""
 
 from concurrent.futures import ThreadPoolExecutor
-import json
+from _json_decode import loads as loads_json
 from pathlib import Path
 import subprocess
 import sys
@@ -182,7 +182,7 @@ sys.exit(1)
 '''
         result = subprocess.run([sys.executable, "-c", code, str(store.root / "reference/database"), destination],  # nosec B603 # noqa: S603
                                 check=False, capture_output=True, text=True, timeout=20)
-        if result.returncode != 0 or json.loads(result.stdout).get("status") != "busy/unsupported-writer":
+        if result.returncode != 0 or loads_json(result.stdout).get("status") != "busy/unsupported-writer":
             raise AssertionError("external DuckDB writer was not refused at file-open")
         checks.append({"check": "duckdb-external-writer-process", "outcome": "busy/unsupported-writer"})
     else:

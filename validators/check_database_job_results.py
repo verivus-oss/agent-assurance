@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fail the always-run aggregate on any absent, skipped, or failed dependency."""
 
-import json
+from _literal_json import loads as loads_json
 import os
 
 JOBS = frozenset({"engines", "loaders", "instruments"})
@@ -15,5 +15,5 @@ def validate(results):
 
 
 if __name__ == "__main__":
-    validate(json.loads(os.environ["DATABASE_JOB_RESULTS"]))
+    validate(loads_json(os.environ["DATABASE_JOB_RESULTS"]))
     print("All three required dependency jobs succeeded; skipped=[]")

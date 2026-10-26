@@ -34,10 +34,11 @@ Exit code 0 on pass; 1 on any violation.
 
 from __future__ import annotations
 
-import argparse
+from _literal_paths import glob as literal_glob, rglob as literal_rglob
+import _literal_args as argparse
 import hashlib
 import pathlib
-import re
+from _ascii_predicates import split_closure_root, valid_sha256
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
 
@@ -52,8 +53,6 @@ FORBIDDEN_ALGOS = ("md5", "sha1")
 # \Z hardening: no reachable verdict divergence today
 # (the raw value is compared for equality downstream), but $ would admit
 # a trailing newline into the match, so anchor like every other gate.
-CLOSURE_ROOT_RE = re.compile(r"^([a-z0-9]+):([0-9a-f]+)\Z")
-
 EMPTY_CLOSURE_SENTINELS = {
     "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "sha384:38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b",
@@ -70,8 +69,6 @@ EMPTY_CLOSURE_SENTINELS = {
 # \Z, not $: Python's $ also matches before a trailing newline, which a
 # TOML multiline string can smuggle in; rs/go reject it, so $ would be a
 # cross-implementation verdict divergence (U10 review, fix 1).
-PINNED_VALUE_RE = re.compile(r"^sha256:[0-9a-f]{64}\Z")
-
 
 def duplicate_profile_names(repo_root: pathlib.Path) -> list[str]:
     """Duplicate profile-descriptor names under profiles/*/PROFILE.toml.
@@ -271,7 +268,7 @@ def pinned_closure_inputs(
                     f"`{profile_name}`, SPEC §12.8.1) is missing"
                 )
             continue
-        if not isinstance(value, str) or not PINNED_VALUE_RE.match(value):
+        if not isinstance(value, str) or not valid_sha256(value):
             errors.append(
                 f"pinned closure record `{field}` must match "
                 f"`sha256:<64 lowercase hex chars>` (SPEC §12.8.1), "
@@ -300,7 +297,7 @@ def canonical_source_hash_inputs(data: dict) -> tuple[list[str], list[str]]:
     raw = provenance.get("source_sha256")
     if raw is None:
         return [], []
-    if not isinstance(raw, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", raw):
+    if not isinstance(raw, str) or not valid_sha256(raw):
         return [], [
             "`[provenance].source_sha256`, when present, must match "
             "`sha256:<64 lowercase hex chars>`"
@@ -344,15 +341,15 @@ def validate(
         )
         return errors
 
-    match = CLOSURE_ROOT_RE.match(value)
-    if not match:
+    parts = split_closure_root(value)
+    if parts is None:
         errors.append(
             f"{path}: `closure_root` must match `<algo>:<lowercase-hex-digest>` "
             f"(SPEC §12.1). Got: {value!r}"
         )
         return errors
 
-    algo, hexpart = match.group(1), match.group(2)
+    algo, hexpart = parts
 
     if algo in FORBIDDEN_ALGOS:
         errors.append(
@@ -444,13 +441,13 @@ def spec_reserved_kinds(repo_root: pathlib.Path) -> frozenset[str]:
     descriptor lands.
     """
     found: set[str] = set(ALWAYS_SPEC_RESERVED_KINDS)
-    for descriptor in (repo_root / "core").glob("*-kind.toml"):
+    for descriptor in literal_glob(repo_root / "core", "*-kind.toml"):
         name = _kind_name_from_descriptor(descriptor)
         if name:
             found.add(name)
     profiles_dir = repo_root / "profiles"
     if profiles_dir.exists():
-        for descriptor in profiles_dir.glob("*/*-kind.toml"):
+        for descriptor in literal_glob(profiles_dir, "*/*-kind.toml"):
             name = _kind_name_from_descriptor(descriptor)
             if name:
                 found.add(name)
@@ -498,7 +495,7 @@ def discover_conforming(
             if root.suffix == ".toml" and is_conforming_toml(root, spec_reserved):
                 out.append(root)
             continue
-        for path in sorted(root.rglob("*.toml")):
+        for path in sorted(literal_rglob(root, "*.toml")):
             if any(part.startswith(".") or part in skip_dirs for part in path.relative_to(root).parts):
                 continue
             if is_conforming_toml(path, spec_reserved):

@@ -46,17 +46,18 @@ const (
 // ---------- ontology shapes ----------
 
 type ontology struct {
-	Entities              []entity `toml:"entities"`
+	Entities              []entity   `toml:"entities"`
 	Relations             []relation `toml:"relations"`
-	AttributeVocabularies []vocab  `toml:"attribute_vocabularies"`
+	AttributeVocabularies []vocab    `toml:"attribute_vocabularies"`
 }
 
 type entity struct {
-	IDPrefix    string `toml:"id_prefix"`
-	IDPattern   string `toml:"id_pattern"`
-	Section     string `toml:"section"`
-	Schema      string `toml:"schema"`
-	Description string `toml:"description"`
+	IDPrefix              string `toml:"id_prefix"`
+	IDDecimalPrefix       string `toml:"id_decimal_prefix"`
+	IDOptionalLowerSuffix bool   `toml:"id_optional_lower_suffix"`
+	Section               string `toml:"section"`
+	Schema                string `toml:"schema"`
+	Description           string `toml:"description"`
 }
 
 type relation struct {
@@ -329,8 +330,8 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 
 	// Relations: namespace duplicates (only core has relations today).
 	type relRow struct {
-		r          relation
-		predicate  string
+		r         relation
+		predicate string
 	}
 	var relations []relRow
 	seen := map[string]int{}
@@ -423,8 +424,11 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 		if er.e.IDPrefix != "" {
 			fmt.Fprintf(&b, ";\n    dagtoml:idPrefix %s ", ttlLit(er.e.IDPrefix))
 		}
-		if er.e.IDPattern != "" {
-			fmt.Fprintf(&b, ";\n    dagtoml:idPattern %s ", ttlLit(er.e.IDPattern))
+		if er.e.IDDecimalPrefix != "" {
+			fmt.Fprintf(&b, ";\n    dagtoml:idDecimalPrefix %s ", ttlLit(er.e.IDDecimalPrefix))
+		}
+		if er.e.IDOptionalLowerSuffix {
+			fmt.Fprintf(&b, ";\n    dagtoml:idOptionalLowerSuffix true ")
 		}
 		if er.e.Section != "" {
 			fmt.Fprintf(&b, ";\n    dagtoml:section %s ", ttlLit(er.e.Section))

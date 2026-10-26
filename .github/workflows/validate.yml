@@ -155,6 +155,8 @@ jobs:
           set -e
           python3 - <<'PY'
           import ast, pathlib, sys
+          sys.path.insert(0, "validators")
+          from _literal_paths import glob
 
           src = pathlib.Path("conformance/discrimination.py")
           tree = ast.parse(src.read_text())
@@ -173,7 +175,7 @@ jobs:
 
           sidecar_kinds = {
               side.parent.parent.name
-              for side in pathlib.Path("conformance/cases").glob("*/invalid/*.expected.toml")
+              for side in glob(pathlib.Path("conformance/cases"), "*/invalid/*.expected.toml")
           }
           if not sidecar_kinds:
               raise SystemExit("FAIL: no sidecars discovered at all; the corpus or this "
@@ -328,7 +330,7 @@ jobs:
         # Rust crates under tools/ MUST carry #![forbid(unsafe_code)];
         # Go modules under tools/ MUST NOT import "unsafe". Dependencies'
         # internal unsafe is out of scope for this check.
-        run: bash validators/check_safe_tools.sh
+        run: python3 validators/check_safe_tools.py
 
       - name: Parse all TOML
         run: |
@@ -339,8 +341,9 @@ jobs:
           # cross-implementation split (C01).
           sys.path.insert(0, "validators")
           import _toml11 as tomllib
+          from _literal_paths import rglob
           fails, parsed, skipped = [], [], []
-          for p in sorted(pathlib.Path(".").rglob("*.toml")):
+          for p in sorted(rglob(pathlib.Path("."), "*.toml")):
               if any(part.startswith(".") for part in p.parts):
                   skipped.append(str(p))
                   continue
@@ -487,6 +490,7 @@ jobs:
           # Vendored TOML 1.1 parser; stdlib tomllib is 1.0-only.
           sys.path.insert(0, "validators")
           import _toml11 as tomllib
+          from _literal_paths import glob, rglob
 
           root = pathlib.Path(".")
           spec_reserved = {"kind-descriptor", "ontology"}
@@ -501,15 +505,15 @@ jobs:
                   return kind["name"]
               return None
 
-          for descriptor in root.glob("core/*-kind.toml"):
+          for descriptor in glob(root, "core/*-kind.toml"):
               if name := kind_name(descriptor):
                   spec_reserved.add(name)
-          for descriptor in root.glob("profiles/*/*-kind.toml"):
+          for descriptor in glob(root, "profiles/*/*-kind.toml"):
               if name := kind_name(descriptor):
                   spec_reserved.add(name)
 
           skip_dirs = {"target", "node_modules", "__pycache__"}
-          for path in sorted(root.rglob("*.toml")):
+          for path in sorted(rglob(root, "*.toml")):
               if any(part.startswith(".") or part in skip_dirs for part in path.parts):
                   continue
               # examples/negative/ holds deliberately-broken fixtures,
@@ -792,35 +796,7 @@ jobs:
           done
 
       - name: Validate [provenance] bindings (spec.md §11)
-        run: |
-          set -e
-          # Every TOML with a [provenance] table must bind to its
-          # source artifact (SHA-256 + byte length recompute).
-          # examples/negative/ holds deliberately-broken fixtures that
-          # MUST fail this validator; they are excluded from the
-          # positive sweep and asserted to fail explicitly below.
-          mapfile -t prov_files < <(grep -rl "^\[provenance\]" \
-            --include="*.toml" . | grep -v "^\./\." \
-            | grep -v "examples/negative/" | sort)
-          if [ "${#prov_files[@]}" -eq 0 ]; then
-            echo "no [provenance] tables found; skipping"
-          else
-            echo "files with [provenance]:"
-            printf '  %s\n' "${prov_files[@]}"
-            python3 validators/validate_provenance.py "${prov_files[@]}" \
-              --repo-root .
-          fi
-          # Expected-failure assertions: each negative fixture must be
-          # REJECTED. A pass here means the gate has stopped guarding.
-          for neg in ./examples/negative/*.toml; do
-            grep -q "^\[provenance\]" "$neg" || continue
-            if python3 validators/validate_provenance.py "$neg" \
-                --repo-root . >/dev/null 2>&1; then
-              echo "ERROR: negative fixture unexpectedly PASSED: $neg"
-              exit 1
-            fi
-            echo "negative fixture correctly rejected: $neg"
-          done
+        run: python3 validators/check_workflow_text.py provenance
 
       - name: Negative fixtures, recursive primary/reference agreement
         run: |
@@ -885,82 +861,11 @@ jobs:
             examples/language-validation/traceability.toml \
             --repo-root . --check-references-exist
 
-      - name: Verify language fixture symbols (grep-level drift check)
-        # This is a cheap, sqry-independent drift gate so the fixtures
-        # cannot silently lose the symbols their TRACEABILITY entries
-        # declare. The full AST-aware check lives in
-        # validators/validate_code_symbols.py and is gated on a
-        # separate sqry-install workflow (see docs/language-validators.md).
-        run: |
-          set -e
-          declare -A expect=(
-            ["examples/language-validation/src/rust/receipt.rs"]="render_receipt"
-            ["examples/language-validation/src/go/receipt.go"]="RenderReceipt"
-            ["examples/language-validation/src/typescript/receipt.ts"]="renderReceipt"
-            ["examples/language-validation/src/java/ReceiptRenderer.java"]="renderReceipt"
-          )
-          for path in "${!expect[@]}"; do
-            symbol="${expect[$path]}"
-            if [ ! -f "$path" ]; then
-              echo "MISSING fixture: $path"; exit 1
-            fi
-            if ! grep -q "$symbol" "$path"; then
-              echo "FAIL: symbol '$symbol' missing in $path"; exit 1
-            fi
-          done
-          echo "all language fixtures contain declared symbols"
+      - name: Verify language fixture symbols
+        run: python3 validators/check_workflow_text.py language-symbols
 
       - name: Verify no banned markers
-        run: |
-          set -e
-          if grep -rn "^[[:space:]]*kind[[:space:]]*=" examples/ --include="*.toml" \
-              | grep -vE "(requirement_kind|test_kind|trigger_kind|template_kind)"; then
-            echo "FAIL: bare \`kind\` field found in examples; use role-specific name."
-            exit 1
-          fi
-          # Look for internal paths (constructed dynamically so this rule
-          # does not match itself when scanning the workflow file).
-          #
-          # Excluded directories (grep --exclude-dir matches the basename,
-          # so we use `.git` and `.github`; docs/reviews/ is filtered with
-          # an explicit post-pipe because --exclude-dir cannot match a
-          # path prefix):
-          #   .git/              — version control internals.
-          #   .github/           — the workflow file constructs the needle
-          #                       and necessarily contains the literal
-          #                       substring in its rationale comments.
-          # Excluded files:
-          #   AGENTS.md          — agent instructions reference the policy
-          #                       by name.
-          #   CHANGELOG.md       — changelog entries discussing this gate
-          #                       must be able to name the policy too.
-          # Post-pipe filter:
-          #   docs/reviews/      — multi-LLM review audit trails legitimately
-          #                       discuss the policy by name as part of
-          #                       their evidence record ("Confirmed —
-          #                       banned internal path prefix absent.").
-          #                       The grep is meant to catch ACTUAL path
-          #                       leaks in spec/example/code/paper surfaces,
-          #                       not narrative discussion of the policy
-          #                       in audit trails. Editing historical
-          #                       review files to obfuscate the string
-          #                       would falsify the audit record.
-          NEEDLE="/srv/$(printf %s repos/internal)"
-          hits=$(grep -rn "$NEEDLE" . \
-                    --exclude-dir=.git \
-                    --exclude-dir=.github \
-                    --exclude-dir=.local \
-                    --exclude=AGENTS.md \
-                    --exclude=CHANGELOG.md \
-                    2>/dev/null \
-                | grep -vE "^\.?/?docs/reviews/" \
-                || true)
-          if [ -n "$hits" ]; then
-            echo "$hits"
-            echo "FAIL: hardcoded internal path leaked into public repo."
-            exit 1
-          fi
-          echo "no banned markers found"
+        run: python3 validators/check_workflow_text.py banned-markers
 
       - name: Verify documented examples exist
         run: |
@@ -1027,8 +932,8 @@ jobs:
       #   osv-scanner     — CVEs in requirements.txt + Cargo.lock + go.sum
       #                     (complements Dependabot: catches transitive
       #                     and advisory-DB-only entries Dependabot misses)
-      #   gitleaks        — secret leak detection in commits + working
-      #                     tree (replaces GHAS secret scanning)
+      #   gitleaks        : credential token checks in reachable commits,
+      #                     including the checked-out tracked tree
       #   cargo-audit     — RustSec advisory DB check for every tools/*-rs
       #   cargo-deny      — Rust license policy + dep ban + advisories
       #                     (catches license drift that audit doesn't)
@@ -1069,13 +974,12 @@ jobs:
       - name: Shell-script lint (shellcheck)
         continue-on-error: false
         # ubuntu-latest pre-installs shellcheck. Validator shell scripts
-        # are gate-critical (a bug in check_safe_tools.sh would silently
+        # are gate-critical (a bug in check_safe_tools.py would silently
         # let unsafe code ship).
         run: |
           set -euo pipefail
           shellcheck --version
           shellcheck \
-            validators/check_safe_tools.sh \
             validators/check_manifest_drift.sh
 
       - name: Source-code spellcheck (typos)
@@ -1139,31 +1043,42 @@ jobs:
 
       - name: Secret scan (gitleaks)
         continue-on-error: false
-        # Install the official gitleaks binary at a pinned version
-        # (not the gitleaks-action — the action requires an org license
-        # for >25-member orgs and adds a Node.js dep we don't need).
-        # The binary is a single static Go executable; the SHA256 below
-        # is the published release checksum for the linux_x64 tarball.
         run: |
           set -euo pipefail
           VERSION="8.30.1"
           TARBALL="gitleaks_${VERSION}_linux_x64.tar.gz"
-          # SHA256 fetched from the release artifact directly on
-          # 2026-05-26 by `sha256sum` of the linux_x64 tarball. Update
-          # this pin when bumping the VERSION above.
           EXPECTED_SHA="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
           curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/${TARBALL}" -o "/tmp/${TARBALL}"
-          actual=$(sha256sum "/tmp/${TARBALL}" | awk '{print $1}')
+          actual=$(sha256sum "/tmp/${TARBALL}")
+          actual=${actual%% *}
           if [ "${actual}" != "${EXPECTED_SHA}" ]; then
             echo "FAIL: gitleaks tarball SHA256 mismatch."
-            echo "  expected: ${EXPECTED_SHA}"
-            echo "  actual:   ${actual}"
             exit 1
           fi
           mkdir -p /tmp/gitleaks-bin
           tar -xzf "/tmp/${TARBALL}" -C /tmp/gitleaks-bin gitleaks
+          control='ghp_'"Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56Qr78"
+          if printf 'token=%s\n' "$control" | /tmp/gitleaks-bin/gitleaks detect \
+              --pipe --config .gitleaks.toml --no-banner --redact --exit-code 7 \
+              >/dev/null 2>&1; then
+            echo "FAIL: planted credential was accepted."
+            exit 1
+          else
+            code=$?
+            if [ "$code" -ne 7 ]; then
+              echo "FAIL: planted credential control did not reach the finding path."
+              exit 1
+            fi
+          fi
+          if ! printf 'token=%s\n' '0123456789abcdef' | /tmp/gitleaks-bin/gitleaks detect \
+              --pipe --config .gitleaks.toml --no-banner --redact --exit-code 7 \
+              >/dev/null 2>&1; then
+            echo "FAIL: public hex alphabet was treated as a credential."
+            exit 1
+          fi
           /tmp/gitleaks-bin/gitleaks detect \
             --source . \
+            --config .gitleaks.toml \
             --no-banner \
             --redact \
             --verbose \

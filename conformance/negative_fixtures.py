@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Require explicit rejection evidence for every recursively discovered negative."""
 
-import argparse
+from _path_scan import rglob as literal_rglob
+import _argument_parser as argparse
 import json
 from pathlib import Path
 import subprocess
@@ -12,7 +13,7 @@ import _toml11 as toml  # noqa: E402
 
 
 def population(root: Path, ledger: Path):
-    discovered = {path.relative_to(root).as_posix() for path in (root / "examples/negative").rglob("*.toml")}
+    discovered = {path.relative_to(root).as_posix() for path in literal_rglob(root / "examples/negative", "*.toml")}
     doc = toml.loads(ledger.read_text())
     entries = doc.get("fixtures", [])
     names = [entry["path"] for entry in entries]

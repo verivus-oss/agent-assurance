@@ -102,7 +102,7 @@ assert_rejects "python provenance-binding" \
 
 # Second vector: an ABSOLUTE source_path pointing at the same secret.
 abs_fixture="$work/provenance-absolute.toml"
-sed "s#^source_path .*#source_path   = \"$secret\"#" "$fixture" > "$abs_fixture"
+python3 validators/rewrite_provenance_path.py "$fixture" "$abs_fixture" "$secret"
 assert_rejects "rust absolute source_path" \
   "$RS_BIN" --repo-root "$REPO_ROOT" --mode provenance-binding "$abs_fixture"
 assert_rejects "go absolute source_path" \

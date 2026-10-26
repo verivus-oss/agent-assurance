@@ -26,12 +26,12 @@ Exit 0 on pass; 1 on any violation.
 
 from __future__ import annotations
 
-import argparse
+import _literal_args as argparse
 import datetime as _dt
 import pathlib
-import re
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
+from _ascii_predicates import valid_cost_timestamp
 
 REQUIRED_RECORD_FIELDS: tuple[str, ...] = (
     "action_id",
@@ -45,10 +45,6 @@ REQUIRED_RECORD_FIELDS: tuple[str, ...] = (
 )
 
 FORBIDDEN_HASH_ALGOS = frozenset({"md5", "sha1"})
-
-RFC3339_RE = re.compile(
-    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
-)
 
 
 def _load_vocabularies(repo_root: pathlib.Path) -> dict[str, set[str]]:
@@ -78,7 +74,7 @@ def _load_vocabularies(repo_root: pathlib.Path) -> dict[str, set[str]]:
 
 
 def _check_rfc3339(value: str) -> bool:
-    if not isinstance(value, str) or not RFC3339_RE.match(value):
+    if not isinstance(value, str) or not valid_cost_timestamp(value):
         return False
     try:
         # datetime.fromisoformat accepts the RFC 3339 forms (Z normalised below).

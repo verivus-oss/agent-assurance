@@ -3,6 +3,7 @@
 
 import hashlib
 import json
+from _json_decode import loads as loads_json
 
 from _projection import project, semantic_json, timestamp_index
 from _storage import Store, StorageError
@@ -54,11 +55,13 @@ def exercise_storage(store: Store) -> list[str]:
     require(relocated["documents"][0]["id"] != first["documents"][0]["id"])
     checks.append("changed-content-and-distinct-source-occurrences")
 
-    import re
     from pathlib import Path
     import uuid
     from unittest.mock import patch
-    omitted = re.sub(rb'^id_derivation[^\n]*\n', b'', sources[kinds[0]], count=1, flags=re.M)
+    original_lines = sources[kinds[0]].splitlines(keepends=True)
+    omitted_lines = [line for line in original_lines if not line.startswith(b"id_derivation")]
+    require(len(original_lines) - len(omitted_lines) == 1)
+    omitted = b"".join(omitted_lines)
     require(omitted != sources[kinds[0]])
     optional_result = store.ingest([("optional/derivation.toml", omitted)])
     require(store.rows("runtime_document", ("adapter_id_derivation",), "WHERE instance_file_id = ?",
@@ -72,7 +75,11 @@ def exercise_storage(store: Store) -> list[str]:
     a = sources[kinds[0]]
     b = a.replace(b'network_policy = "denied"', b'network_policy = "open"')
     if b == a:
-        b = re.sub(rb'(network_policy\s*=\s*)"denied"', rb'\1"open"', a, count=1)
+        candidates = [line for line in a.splitlines(keepends=True)
+                      if line.partition(b"=")[0].strip() == b"runtime_network_policy"
+                      and line.partition(b"=")[2].strip() == b'"denied"']
+        require(len(candidates) == 1)
+        b = a.replace(candidates[0], candidates[0].replace(b'"denied"', b'"open"', 1), 1)
     require(a != b)
     project(a, str(capture), root)
     project(b, str(capture), root)
@@ -154,8 +161,8 @@ docs_url = "extension-only"
                        ("meta", "nonfinite"), ("meta", "bad_nested"), ("meta", "bad\0key")}, omitted)
     saved = store.rows("instance_file", ("title", "created_at", "meta_extras"), "WHERE id = ?", (item["id"],))[0]
     require(saved["title"] is None)
-    require("nested.key" in json.loads(saved["meta_extras"]))
-    require(json.loads(saved["meta_extras"])["docs_url"] == "extension-only")
+    require("nested.key" in loads_json(saved["meta_extras"]))
+    require(loads_json(saved["meta_extras"])["docs_url"] == "extension-only")
     require(store.ingest([("metadata/indexes.toml", metadata)]) == result)
     checks.append("optional-metadata-portability-and-omission-report")
     for value, indexed in ((b'"2026-09-07"', "2026-09-07"), (b'2026-09-07', "2026-09-07"), (b'"invalid-date"', None)):
@@ -188,7 +195,7 @@ docs_url = "extension-only"
     checks.append("native-and-quoted-date-and-local-timestamp-indexes")
 
     original = saved["meta_extras"]
-    tree = json.loads(original)
+    tree = loads_json(original)
     equivalent = json.dumps(dict(reversed(list(tree.items()))), ensure_ascii=False).replace('"number": 1', '"number": 1.0')
     require(semantic_json(original) == semantic_json(equivalent))
     store.execute(f"UPDATE {store.table('instance_file')} SET meta_extras = ? WHERE id = ?", (equivalent, item["id"]))  # nosec B608 # noqa: S608

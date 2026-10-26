@@ -478,9 +478,34 @@ mod ijb {
             if let Some(t) = block.as_table() {
                 let label = t
                     .get("id_prefix")
-                    .or_else(|| t.get("id_pattern"))
+                    .or_else(|| t.get("id_decimal_prefix"))
                     .and_then(Value::as_str)
                     .unwrap_or("?");
+                if t.contains_key("id_pattern") {
+                    errors.push(format!(
+                        "{}:entities[{idx}]: id_pattern is unsupported; use a typed decimal identifier declaration",
+                        source.display()
+                    ));
+                }
+                let colon_prefix = t.get("id_prefix").and_then(Value::as_str);
+                let decimal_prefix = t.get("id_decimal_prefix").and_then(Value::as_str);
+                if colon_prefix.is_some() == decimal_prefix.is_some()
+                    || colon_prefix.is_some_and(|value| !looks_upper_prefix(value))
+                    || decimal_prefix.is_some_and(|value| !looks_upper_prefix(value))
+                {
+                    errors.push(format!(
+                        "{}:entities[{idx}]: declare exactly one uppercase ASCII id_prefix or id_decimal_prefix",
+                        source.display()
+                    ));
+                }
+                if let Some(suffix) = t.get("id_optional_lower_suffix") {
+                    if !suffix.is_bool() || decimal_prefix.is_none() {
+                        errors.push(format!(
+                            "{}:entities[{idx}]: id_optional_lower_suffix requires a boolean and id_decimal_prefix",
+                            source.display()
+                        ));
+                    }
+                }
                 errors.extend(primitive_class(
                     t,
                     &format!("{}:entities[{idx}] ({label})", source.display()),
@@ -691,14 +716,16 @@ mod ijb {
         }
     }
 
-    fn matches_id_pattern(pattern: &str, value: &str) -> bool {
-        let Some((prefix, rest)) = pattern.split_once("\\d+") else {
-            return value == pattern;
-        };
-        if !value.starts_with(prefix) {
+    struct DecimalIDShape {
+        prefix: String,
+        optional_lower_suffix: bool,
+    }
+
+    fn matches_decimal_id(shape: &DecimalIDShape, value: &str) -> bool {
+        if !value.starts_with(&shape.prefix) {
             return false;
         }
-        let suffix = &value[prefix.len()..];
+        let suffix = &value[shape.prefix.len()..];
         if suffix.is_empty() {
             return false;
         }
@@ -707,20 +734,36 @@ mod ijb {
             return false;
         }
         let after_digits = &suffix[digit_count..];
-        match rest {
-            "" => after_digits.is_empty(),
-            "[a-z]?" => {
-                after_digits.is_empty()
-                    || (after_digits.len() == 1
-                        && after_digits.chars().all(|c| c.is_ascii_lowercase()))
-            }
-            _ => false,
+        after_digits.is_empty()
+            || (shape.optional_lower_suffix
+                && after_digits.len() == 1
+                && after_digits.chars().all(|c| c.is_ascii_lowercase()))
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn decimal_id_shapes_accept_and_reject_boundaries() {
+        let unit = DecimalIDShape {
+            prefix: "U".to_string(),
+            optional_lower_suffix: true,
+        };
+        let artifact = DecimalIDShape {
+            prefix: "A".to_string(),
+            optional_lower_suffix: false,
+        };
+        for value in ["U0", "U01", "U01a"] {
+            assert!(matches_decimal_id(&unit, value), "{value}");
         }
+        for value in ["U", "U01A", "U01aa", "U-1", "X01", "U١"] {
+            assert!(!matches_decimal_id(&unit, value), "{value}");
+        }
+        assert!(matches_decimal_id(&artifact, "A12"));
+        assert!(!matches_decimal_id(&artifact, "A12a"));
     }
 
     fn build_resolver(
         ontologies: &[(PathBuf, Value)],
-    ) -> (BTreeSet<String>, Vec<String>, BTreeSet<String>) {
+    ) -> (BTreeSet<String>, Vec<DecimalIDShape>, BTreeSet<String>) {
         let mut prefixes = BTreeSet::new();
         let mut patterns = Vec::new();
         let mut predicates = BTreeSet::new();
@@ -730,8 +773,14 @@ mod ijb {
                     if let Some(prefix) = t.get("id_prefix").and_then(Value::as_str) {
                         prefixes.insert(prefix.to_string());
                     }
-                    if let Some(pattern) = t.get("id_pattern").and_then(Value::as_str) {
-                        patterns.push(pattern.to_string());
+                    if let Some(prefix) = t.get("id_decimal_prefix").and_then(Value::as_str) {
+                        patterns.push(DecimalIDShape {
+                            prefix: prefix.to_string(),
+                            optional_lower_suffix: t
+                                .get("id_optional_lower_suffix")
+                                .and_then(Value::as_bool)
+                                .unwrap_or(false),
+                        });
                     }
                 }
             }
@@ -760,7 +809,7 @@ mod ijb {
     fn check_entity_ref(
         token: &str,
         prefixes: &BTreeSet<String>,
-        patterns: &[String],
+        patterns: &[DecimalIDShape],
     ) -> Option<String> {
         if let Some((prefix, _)) = token.split_once(':') {
             if !looks_upper_prefix(prefix) {
@@ -775,7 +824,7 @@ mod ijb {
         }
         if patterns
             .iter()
-            .any(|pattern| matches_id_pattern(pattern, token))
+            .any(|pattern| matches_decimal_id(pattern, token))
         {
             return None;
         }
@@ -787,7 +836,7 @@ mod ijb {
         parent_key: &str,
         path: &str,
         prefixes: &BTreeSet<String>,
-        patterns: &[String],
+        patterns: &[DecimalIDShape],
         predicates: &BTreeSet<String>,
         errors: &mut Vec<String>,
     ) {
@@ -875,10 +924,10 @@ mod ijb {
             for unit_id in units.keys() {
                 if !patterns
                     .iter()
-                    .any(|pattern| matches_id_pattern(pattern, unit_id))
+                    .any(|pattern| matches_decimal_id(pattern, unit_id))
                 {
                     errors.push(format!(
-                        "units.{unit_id}: identifier does not match any declared entity `id_pattern` in the loaded ontologies"
+                        "units.{unit_id}: identifier does not match any declared decimal entity ID shape in the loaded ontologies"
                     ));
                 }
             }

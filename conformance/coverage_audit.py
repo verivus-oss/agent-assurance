@@ -39,7 +39,8 @@ baseline, 1 when it regresses above it, 2 on an infrastructure error.
 
 from __future__ import annotations
 
-import argparse
+from _path_scan import glob as literal_glob
+import _argument_parser as argparse
 import ast
 import atexit
 import os
@@ -118,7 +119,7 @@ class Restorer:
 
 def rejected(validator: str, pattern: str, root: pathlib.Path) -> set[str]:
     out: set[str] = set()
-    for f in sorted(root.glob(pattern)):
+    for f in sorted(literal_glob(root, pattern)):
         rel = str(f.relative_to(root))
         if any(s in rel for s in BASELINE_SKIP):
             continue
@@ -153,7 +154,7 @@ def legacy_main() -> int:
         print("error: baseline suites do not pass; fix the tree before auditing", file=sys.stderr)
         return 2
 
-    unprotected: list[tuple[str, int, str]] = []
+    unprotected: list[tuple[str, str]] = []
     audited = 0
     for validator, pattern in AUDITED.items():
         path = root / validator
@@ -173,16 +174,16 @@ def legacy_main() -> int:
                     path.write_text(original)
                 audited += 1
                 if not detected:
-                    unprotected.append((validator, tr.line or 0, tr.fingerprint))
+                    unprotected.append((validator, tr.fingerprint))
 
     declared = set(baseline_doc["coverage"].get("unprotected", []))
-    actual = {f"{v}|{fp}" for v, _line, fp in unprotected}
+    actual = {f"{v}|{fp}" for v, fp in unprotected}
 
     print("COVERAGE AUDIT")
     print(f"- checks audited      : {audited}")
     print(f"- unprotected         : {len(unprotected)}")
     print(f"- declared baseline   : {allowed}")
-    for validator, line, fp in sorted(unprotected):
+    for validator, fp in sorted(unprotected):
         print(f"  UNPROTECTED {validator}  {fp}")
 
     # The SET matters, not only the count. A count-only ratchet is fungible:

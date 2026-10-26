@@ -2,6 +2,7 @@
 
 import ast
 import json
+from _json_decode import loads as loads_json
 from pathlib import Path
 import subprocess
 import sys
@@ -43,7 +44,7 @@ def execute(root):
                              cwd=root, capture_output=True, text=True, timeout=120)  # nosec B603 # noqa: S603
     if process.returncode != 0:
         raise RuntimeError("runtime mutation suite did not run: " + process.stdout + process.stderr)
-    observed = json.loads(process.stdout)
+    observed = loads_json(process.stdout)
     if not observed or not any(row["expected"] for row in observed) or all(row["expected"] for row in observed):
         raise RuntimeError("runtime mutation suite has no positive/negative population")
     return observed

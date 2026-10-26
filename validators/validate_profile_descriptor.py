@@ -48,18 +48,12 @@ primaries' fall-back semantics (U10 review fix 3).
 
 from __future__ import annotations
 
-import argparse
+import _literal_args as argparse
 import pathlib
-import re
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
+from _ascii_predicates import valid_closure_field, valid_reverse_dns, valid_unprefixed_name
 
-
-# \Z, not $: Python's $ also matches before a trailing newline; rs/go
-# reject such names, so $ would be a cross-implementation divergence
-# (U10 review round 2, R2-1).
-UNPREFIXED_RE = re.compile(r"^[a-z][a-z0-9-]*\Z")
-REVERSE_DNS_RE = re.compile(r"^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+\Z")
 
 REQUIRED_PROFILE_FIELDS = (
     "name",
@@ -74,9 +68,6 @@ REQUIRED_PROFILE_FIELDS = (
 # INV07 (spec.md §12.8.1): profile-pinned closure records.
 CLOSURE_RECORD_KEYS = ("contained_kind", "field", "presence")
 CLOSURE_RECORD_PRESENCE = ("required", "when-present")
-# \Z, not $: see the equivalent note in validate_closure_root.py
-# (Python's $ tolerates a trailing newline; rs/go do not).
-CLOSURE_RECORD_FIELD_RE = re.compile(r"^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*\Z")
 CLOSURE_RECORD_FORBIDDEN_FIELDS = (
     "closure_root",
     "provenance.source_sha256",
@@ -130,8 +121,8 @@ def discover_descriptors(repo_root: pathlib.Path) -> dict[str, tuple[pathlib.Pat
 
 def check_namespace_partition(name: str, namespace: str) -> list[str]:
     errors: list[str] = []
-    is_unprefixed = bool(UNPREFIXED_RE.match(name))
-    is_reverse_dns = bool(REVERSE_DNS_RE.match(name))
+    is_unprefixed = valid_unprefixed_name(name)
+    is_reverse_dns = valid_reverse_dns(name)
     if not (is_unprefixed or is_reverse_dns):
         errors.append(
             f"[profile].name `{name}` does not match the SPEC §2.5 namespacing "
@@ -277,10 +268,10 @@ def check_bound_tuples(
             continue
 
         digest_field = entry["digest_field"]
-        if not CLOSURE_RECORD_FIELD_RE.match(digest_field):
+        if not valid_closure_field(digest_field):
             errors.append(
                 f"{where}.digest_field `{digest_field}` does not match the "
-                r"frozen path grammar ^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$ "
+                "frozen path grammar: dot-separated ASCII letters, digits, underscores, or hyphens "
                 f"(INV08)"
             )
         elif (
@@ -295,10 +286,10 @@ def check_bound_tuples(
             )
 
         for field in fields:
-            if not CLOSURE_RECORD_FIELD_RE.match(field):
+            if not valid_closure_field(field):
                 errors.append(
                     f"{where}.fields member `{field}` does not match the "
-                    r"frozen path grammar ^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$ "
+                    "frozen path grammar: dot-separated ASCII letters, digits, underscores, or hyphens "
                     f"(INV08)"
                 )
         if len(set(fields)) != len(fields):
@@ -389,10 +380,10 @@ def check_closure_records(
 
         field = entry["field"]
         presence = entry["presence"]
-        if not CLOSURE_RECORD_FIELD_RE.match(field):
+        if not valid_closure_field(field):
             errors.append(
                 f"{where}.field `{field}` does not match the frozen path "
-                r"grammar ^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$ (INV07)"
+                "grammar of dot-separated ASCII letters, digits, underscores, or hyphens (INV07)"
             )
         elif (
             field in CLOSURE_RECORD_FORBIDDEN_FIELDS
