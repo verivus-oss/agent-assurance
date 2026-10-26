@@ -404,6 +404,12 @@ graph** induced by `closure_root` inputs: a document MUST NOT,
 directly or transitively, cite an upstream artifact whose own
 closure depends on this document.
 
+The [reference database model](reference/database/README.md) is non-normative
+implementer guidance. Its complete vocabulary catalogs and explicit document
+projections do not add instance fields or substitute for the kind validators.
+In particular, authority-rule operand catalogs remain opaque at the SPEC layer;
+runtime enforcement and signature verification remain separate responsibilities.
+
 ---
 
 ## 6. Extension model

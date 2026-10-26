@@ -30,11 +30,9 @@ import (
 	"strings"
 )
 
-// expectedCounts mirrors reference/database/MANIFEST.toml
-// `[verification.duckdb] expected_seed_counts` and the Rust binary's
-// EXPECTED_COUNTS. Gated by `validators/check_attribute_values.py` —
-// drift here vs MANIFEST or vs the actual seed file rows is a CI
-// failure.
+// Registry counts mirror MANIFEST expected_seed_counts. The two runtime
+// tables must also be empty in a seeded database. CI compares declarations
+// and executes verify against pristine and populated private destinations.
 var expectedCounts = []struct {
 	table string
 	want  int64
@@ -43,7 +41,9 @@ var expectedCounts = []struct {
 	{"entity_kind_descriptor", 27},
 	{"relation_descriptor", 31},
 	{"attribute_vocabulary", 50},
-	{"attribute_value_allowed", 152},
+	{"attribute_value_allowed", 216},
+	{"reference_contract", 0},
+	{"runtime_document", 0},
 }
 
 func main() {

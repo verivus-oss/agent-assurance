@@ -162,6 +162,8 @@ const (
 	modeProvenance
 	modeMeta
 	modeGateDecision
+	modeAdapterContract
+	modeAdapterRegistryBinding
 	modeMutationKinds
 	modeAPISnapshot
 	modeKindDescriptor
@@ -187,6 +189,10 @@ func parseMode(s string) (mode, error) {
 		return modeProvenance, nil
 	case "meta":
 		return modeMeta, nil
+	case "adapter-contract":
+		return modeAdapterContract, nil
+	case "adapter-registry-binding":
+		return modeAdapterRegistryBinding, nil
 	case "gate-decision":
 		return modeGateDecision, nil
 	case "mutation-kinds":
@@ -212,7 +218,7 @@ func parseMode(s string) (mode, error) {
 	case "abstraction-class":
 		return modeAbstractionClass, nil
 	}
-	return modeAuto, fmt.Errorf("invalid mode %q (want auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class|mutation-kinds|api-snapshot)", s)
+	return modeAuto, fmt.Errorf("invalid mode %q (want auto|profile|disclosure|provenance|meta|gate-decision|adapter-contract|adapter-registry-binding|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class|mutation-kinds|api-snapshot)", s)
 }
 
 // ----------------------------------------------------------------------------
@@ -3651,7 +3657,7 @@ func main() {
 		modeStr  string
 	)
 	flag.StringVar(&repoRoot, "repo-root", "", "Repository root (required)")
-	flag.StringVar(&modeStr, "mode", "auto", "Validation mode (auto|profile|disclosure|provenance|meta|gate-decision|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class|mutation-kinds|api-snapshot)")
+	flag.StringVar(&modeStr, "mode", "auto", "Validation mode (auto|profile|disclosure|provenance|meta|gate-decision|adapter-contract|adapter-registry-binding|kind-descriptor|ijb|provenance-binding|implementation-dag|traceability|review-readiness|cost-record|rollback-plan|abstraction-class|mutation-kinds|api-snapshot)")
 	flag.Parse()
 
 	if repoRoot == "" {
@@ -3740,6 +3746,9 @@ func main() {
 			case "disclosure-attestation", "redaction-manifest", "selective-disclosure-proof":
 				errs = append(errs, validateDisclosure(path, doc, root)...)
 				errs = append(errs, validateIJB(path, doc, root)...)
+			case "adapter-contract", "adapter-registry-binding":
+				errs = append(errs, validateRuntimeAdapter(doc, root, tk == "adapter-registry-binding")...)
+				errs = append(errs, validateIJB(path, doc, root)...)
 			case "gate-decision":
 				errs = append(errs, validateGateDecision(path, doc, root)...)
 				errs = append(errs, validateIJB(path, doc, root)...)
@@ -3757,6 +3766,8 @@ func main() {
 			errs = append(errs, validateProfileDescriptor(path, doc, root, descriptors)...)
 		case modeDisclosure:
 			errs = append(errs, validateDisclosure(path, doc, root)...)
+		case modeAdapterContract, modeAdapterRegistryBinding:
+			errs = append(errs, validateRuntimeAdapter(doc, root, m == modeAdapterRegistryBinding)...)
 		case modeGateDecision:
 			errs = append(errs, validateGateDecision(path, doc, root)...)
 		case modeMutationKinds:
@@ -3853,48 +3864,11 @@ func gdRawArray(v any) []any {
 }
 
 func loadGateDecisionVocab(repoRoot, attribute string) []string {
-	path := filepath.Join(repoRoot, "profiles/agent-assurance/ontology.toml")
-	doc, err := loadDoc(path)
-	if err != nil {
+	values, _, ok := rdVocab(repoRoot, attribute)
+	if !ok {
 		return nil
 	}
-	// BurntSushi/toml decodes [[array_of_tables]] into either []any (whose
-	// elements are map[string]any) or []map[string]any depending on the
-	// declared destination type. We accept either shape.
-	var entries []map[string]any
-	switch v := doc["attribute_vocabularies"].(type) {
-	case []map[string]any:
-		entries = v
-	case []any:
-		for _, e := range v {
-			if m, ok := e.(map[string]any); ok {
-				entries = append(entries, m)
-			}
-		}
-	default:
-		return nil
-	}
-	for _, t := range entries {
-		if a, _ := t["attribute"].(string); a == attribute {
-			var rawValues []any
-			switch vv := t["values"].(type) {
-			case []any:
-				rawValues = vv
-			case []string:
-				return append([]string(nil), vv...)
-			default:
-				return nil
-			}
-			out := make([]string, 0, len(rawValues))
-			for _, v := range rawValues {
-				if s, ok := v.(string); ok {
-					out = append(out, s)
-				}
-			}
-			return out
-		}
-	}
-	return nil
+	return values
 }
 
 func gdVocabContains(values []string, v string) bool {
@@ -4718,7 +4692,7 @@ func validateGateDecision(path string, doc rawDoc, repoRoot string) []string {
 		return []string{fmt.Sprintf("%s: template_kind = %q (expected 'gate-decision')", path, tk)}
 	}
 	fp, _ := stringOf(meta, "framework_profile")
-	if fp != "agent-assurance" {
+	if fp != "agent-assurance" && fp != "AGDF" {
 		defects = append(defects, fmt.Sprintf(
 			"%s: meta.framework_profile = %q (expected 'agent-assurance')", path, fp))
 	}
@@ -4728,6 +4702,14 @@ func validateGateDecision(path string, doc rawDoc, repoRoot string) []string {
 		return append(defects, fmt.Sprintf("%s: missing or non-table [decision]", path))
 	}
 
+	defects = append(defects, validateRuntimeFields(doc, "gate-decision", repoRoot)...)
+	for _, key := range []string{"failed_constraint_refs", "override_refs"} {
+		if value, present := decision[key]; present {
+			if _, ok := rdArray(value); !ok {
+				defects = append(defects, fmt.Sprintf("%s: decision.%s must be an array", path, key))
+			}
+		}
+	}
 	verdict, _ := decision["verdict"].(string)
 	// Raw array: length and element types preserved so a non-table element
 	// counts toward INV01 and is reported by INV02 (Rust parity).
@@ -4785,6 +4767,9 @@ func validateGateDecision(path string, doc rawDoc, repoRoot string) []string {
 
 	// INV06.
 	subjectClass, hasSubjectClass := decision["subject_class"].(string)
+	if _, present := decision["subject_class"]; present && !hasSubjectClass {
+		defects = append(defects, fmt.Sprintf("%s: INV06 violated: decision.subject_class must be a string", path))
+	}
 	if hasSubjectClass {
 		vocab := loadGateDecisionVocab(repoRoot, "subject_class")
 		if vocab == nil {
@@ -4817,6 +4802,9 @@ func validateGateDecision(path string, doc rawDoc, repoRoot string) []string {
 
 		providerVocab := loadGateDecisionVocab(repoRoot, "provider_id")
 		familyVocab := loadGateDecisionVocab(repoRoot, "model_family_id")
+		if providerVocab == nil || familyVocab == nil {
+			defects = append(defects, fmt.Sprintf("%s: INV06 vocab load failed (provider_id or model_family_id vocabulary missing)", path))
+		}
 
 		propP, _ := decision["proposing_provider_id"].(string)
 		propF, _ := decision["proposing_model_family_id"].(string)

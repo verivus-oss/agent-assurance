@@ -1,0 +1,2 @@
+error_contains = ["INV03", "ijb_primitive"]
+error_not_contains = ["RDLOAD", "Traceback"]

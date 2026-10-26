@@ -12,6 +12,7 @@ include = [
 ]
 
 exclude = [
+  ".local/**", # Persistent local review evidence and isolated mutation inputs.
   ".git/**",
   ".github/**",
   ".claude/**",
