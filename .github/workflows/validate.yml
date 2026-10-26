@@ -306,7 +306,8 @@ jobs:
         # Issue prose and validator messages cite commits as evidence. The
         # repository's own rule is that a claim naming a commit must name one a
         # reader can resolve, and nothing checked that until now. This fails on
-        # any commit-shaped token in docs/issues/ or validators/ that git cannot
+        # any commit-shaped token in docs/issues/ or authored validator prose
+        # and messages that git cannot
         # resolve and that is not recorded, with a reason, in
         # validators/unresolvable-commit-citations.toml.
         #
@@ -319,7 +320,9 @@ jobs:
         # `cited` list names, so the same SHA appearing anywhere new is a new
         # unresolvable citation and fails. The baseline ratchets down: an
         # entry that starts resolving, or stops being cited, is also a failure.
-        run: python3 validators/check_commit_citations.py --repo-root .
+        run: |
+          python3 validators/test_commit_citations.py
+          python3 validators/check_commit_citations.py --repo-root .
 
       - name: Safe-tools policy (no unsafe Rust or Go under tools/)
         # Rust crates under tools/ MUST carry #![forbid(unsafe_code)];

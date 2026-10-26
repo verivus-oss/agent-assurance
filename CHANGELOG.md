@@ -9,6 +9,9 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Scan commit citations with explicit ASCII token parsing and report file
+  identities without source line coordinates. Exclude vendored parser source
+  and unit fixtures from this authored citation check.
 - Remove NetworkX from the Python reference validator. Use explicit graph
   traversal for cycle detection and longest weighted paths. Vendor the TOML
   1.1 parser with explicit token scanning and remove the upstream parser pin.

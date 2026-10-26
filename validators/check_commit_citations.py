@@ -6,7 +6,10 @@ that can be resolved and checked. Prose under `docs/issues/` and messages in
 `validators/` cite commits as evidence, and nothing verified that those
 citations point at anything.
 
-This scans both trees for commit-shaped tokens, checks each is reachable
+This scans issue prose and authored validator text for commit-shaped tokens.
+Vendored parser source and unit fixtures are excluded because their numeric
+literals are input data, not commit claims. Each detected token is checked for
+reachability
 from HEAD, and fails on any that is not unless
 `validators/unresolvable-commit-citations.toml` records it with a reason.
 See `resolves` for why the test is reachability and not object existence.
@@ -20,7 +23,7 @@ unresolvable citation or a stale baseline entry, 2 on an infrastructure error.
 
 TOKEN RULE, and why it is what it is
 ------------------------------------
-A candidate is 7 to 40 lowercase hex characters bounded by non-word
+A candidate is 7 to 40 ASCII hex characters bounded by non-word
 characters. Two details are load-bearing and were both found by measurement,
 not by reasoning:
 
@@ -70,12 +73,12 @@ reason, rather than special-cased in this file.
 
 from __future__ import annotations
 
-import argparse
 import pathlib
-import re
 import shutil
-import subprocess
+# Git calls below use a resolved executable and argument lists without a shell.
+import subprocess  # nosec B404
 import sys
+from types import SimpleNamespace
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import _toml11 as tomllib  # noqa: E402
@@ -84,13 +87,93 @@ SCAN_DIRS = ("docs/issues", "validators")
 # Absolute path, resolved once. A bare "git" is a partial executable path
 # (ruff S607) and would also let PATH decide which binary runs.
 GIT = shutil.which("git")
-TOKEN = re.compile(r"(?<![A-Za-z0-9_])([0-9a-fA-F]{7,40})(?![A-Za-z0-9_])")
-# Matched only to be EXCLUDED. See the token rule above: every segment of a
-# UUID satisfies TOKEN, so without this a job id reads as several citations.
-UUID = re.compile(
-    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
-    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-)
+
+def ascii_word(char: str) -> bool:
+    return char == "_" or "0" <= char <= "9" or "a" <= char <= "z" or "A" <= char <= "Z"
+
+
+def ascii_hex(char: str) -> bool:
+    return "0" <= char <= "9" or "a" <= char <= "f" or "A" <= char <= "F"
+
+
+def uuid_spans(line: str) -> list[tuple[int, int]]:
+    """Identify UUID shapes so their segments are not read as commits."""
+    spans: list[tuple[int, int]] = []
+    widths = (8, 4, 4, 4, 12)
+    for start in range(max(0, len(line) - 35)):
+        cursor = start
+        for index, width in enumerate(widths):
+            if not all(ascii_hex(char) for char in line[cursor:cursor + width]) or len(line[cursor:cursor + width]) != width:
+                break
+            cursor += width
+            if index < len(widths) - 1:
+                if line[cursor:cursor + 1] != "-":
+                    break
+                cursor += 1
+        else:
+            spans.append((start, cursor))
+    return spans
+
+
+def commit_tokens(line: str) -> set[str]:
+    """Read complete ASCII words and retain only seven to forty hex digits."""
+    masked = [False] * len(line)
+    for start, end in uuid_spans(line):
+        for pos in range(start, end):
+            masked[pos] = True
+    tokens: set[str] = set()
+    pos = 0
+    while pos < len(line):
+        if not ascii_word(line[pos]):
+            pos += 1
+            continue
+        end = pos + 1
+        while end < len(line) and ascii_word(line[end]):
+            end += 1
+        word = line[pos:end]
+        if 7 <= len(word) <= 40 and all(ascii_hex(char) for char in word) and not any(masked[pos:end]):
+            tokens.add(word.lower())
+        pos = end
+    return tokens
+
+
+def governed_file(path: pathlib.Path, root: pathlib.Path) -> bool:
+    """Vendored parser source and unit fixtures do not make commit claims."""
+    rel = path.relative_to(root)
+    if rel.parts[:2] == ("validators", "_toml11_vendor"):
+        return False
+    return rel.as_posix() not in {
+        "validators/test_toml11_scanner.py",
+        "validators/test_commit_citations.py",
+    }
+
+
+def parse_args() -> SimpleNamespace:
+    repo_root = "."
+    baseline = "validators/unresolvable-commit-citations.toml"
+    args = iter(sys.argv[1:])
+    for item in args:
+        if item in ("-h", "--help"):
+            print("usage: check_commit_citations.py [--repo-root PATH] [--baseline PATH]")
+            raise SystemExit(0)
+        if item == "--repo-root":
+            repo_root = next(args, "")
+            if not repo_root or repo_root.startswith("-"):
+                print("error: --repo-root requires a path", file=sys.stderr)
+                raise SystemExit(2)
+        elif item.startswith("--repo-root="):
+            repo_root = item.partition("=")[2]
+        elif item == "--baseline":
+            baseline = next(args, "")
+            if not baseline or baseline.startswith("-"):
+                print("error: --baseline requires a path", file=sys.stderr)
+                raise SystemExit(2)
+        elif item.startswith("--baseline="):
+            baseline = item.partition("=")[2]
+        else:
+            print(f"error: unknown option {item}", file=sys.stderr)
+            raise SystemExit(2)
+    return SimpleNamespace(repo_root=repo_root, baseline=baseline)
 
 
 class Infrastructure(Exception):
@@ -155,13 +238,7 @@ def resolves(root: pathlib.Path, sha: str) -> bool:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--repo-root", default=".")
-    ap.add_argument(
-        "--baseline",
-        default="validators/unresolvable-commit-citations.toml",
-    )
-    args = ap.parse_args()
+    args = parse_args()
     root = pathlib.Path(args.repo_root).resolve()
 
     if GIT is None:
@@ -196,12 +273,13 @@ def main() -> int:
     except Infrastructure as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    governed = [path for path in tracked if path != baseline_path and governed_file(path, root)]
 
-    found: dict[str, list[str]] = {}
+    found: dict[str, set[str]] = {}
     scanned = 0
     undecodable: list[str] = []
     for path in tracked:
-        if path == baseline_path:
+        if path == baseline_path or not governed_file(path, root):
             continue
         try:
             text = path.read_text()
@@ -210,10 +288,9 @@ def main() -> int:
             continue
         scanned += 1
         rel = path.relative_to(root).as_posix()
-        for lineno, line in enumerate(text.splitlines(), 1):
-            masked = UUID.sub(lambda m: "\u0000" * (m.end() - m.start()), line)
-            for m in TOKEN.finditer(masked):
-                found.setdefault(m.group(1).lower(), []).append(f"{rel}:{lineno}")
+        for line in text.splitlines():
+            for token in commit_tokens(line):
+                found.setdefault(token, set()).add(rel)
 
     if scanned == 0:
         print(
@@ -230,18 +307,21 @@ def main() -> int:
         print("A citation in an unreadable file would be invisible to this check.",
               file=sys.stderr)
         return 2
+    if scanned != len(governed):
+        print("error: governed file count changed during citation scan", file=sys.stderr)
+        return 2
 
     unresolvable = {
         tok: sites for tok, sites in found.items()
         if tok not in ignored and not resolves(root, tok)
     }
-    unrecorded: dict[str, list[str]] = {}
+    unrecorded: dict[str, set[str]] = {}
     for tok, sites in unresolvable.items():
         allowed = recorded.get(tok)
         if allowed is None:
             unrecorded[tok] = sites
             continue
-        new_sites = [s for s in sites if s.rsplit(":", 1)[0] not in allowed]
+        new_sites = sites - allowed
         if new_sites:
             unrecorded[tok] = new_sites
     stale = sorted(set(recorded) - set(unresolvable))
@@ -260,8 +340,9 @@ def main() -> int:
         print("\nFAIL: commit citations that do not resolve and are not recorded:",
               file=sys.stderr)
         for tok, sites in sorted(unrecorded.items()):
-            print(f"  {tok}  cited at {', '.join(sites[:4])}"
-                  + (f" (+{len(sites) - 4} more)" if len(sites) > 4 else ""),
+            ordered = sorted(sites)
+            print(f"  {tok}  cited in {', '.join(ordered[:4])}"
+                  + (f" (+{len(ordered) - 4} more files)" if len(ordered) > 4 else ""),
                   file=sys.stderr)
         print(
             "\nEither cite a commit this repository carries, or record the token in\n"
