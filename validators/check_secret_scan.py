@@ -108,13 +108,24 @@ def main() -> None:
         report = Path(directory) / "findings.json"
         result = subprocess.run(  # nosec B603  # noqa: S603
             [str(binary), "detect", "--source", ".", "--config", ".gitleaks.toml",
-             "--no-banner", "--report-format", "json", "--report-path", str(report),
-             "--exit-code", "1"],
+             "--no-banner", "--no-color", "--log-level", "info",
+             "--log-opts=--all", "--report-format", "json",
+             "--report-path", str(report), "--exit-code", "1"],
             cwd=root, capture_output=True, text=True, check=False,
         )
         if result.returncode not in (0, 1) or not report.is_file():
             raise RuntimeError("Gitleaks did not complete and write its report")
-        scanned = scanned_count(result.stderr)
+        telemetry = result.stdout + "\n" + result.stderr
+        try:
+            scanned = scanned_count(telemetry)
+        except RuntimeError as exc:
+            marker_count = telemetry.count(" commits scanned.")
+            marker_state = "none" if marker_count == 0 else "one unreadable" if marker_count == 1 else "multiple"
+            raise RuntimeError(
+                str(exc) + f" (result={'findings' if result.returncode == 1 else 'clear'}, "
+                f"stdout_present={bool(result.stdout)}, stderr_present={bool(result.stderr)}, "
+                f"markers={marker_state})"
+            ) from exc
         if scanned < len(head_ancestry) or scanned > len(reachable):
             raise RuntimeError("Gitleaks scan count is outside the Git history bounds")
         findings = loads_json(report.read_text())
