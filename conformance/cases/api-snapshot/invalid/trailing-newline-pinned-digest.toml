@@ -1,7 +1,7 @@
-# Conformance case (invalid): a pinned value smuggling a trailing
-# newline via a TOML multiline string MUST be rejected by all three
-# implementations. Regression for the U10 review P1 fix: Python's $
-# anchor accepted this while rs/go rejected it; the anchors are now \Z.
+# A pinned digest with a trailing newline is invalid.
+# The closure route rejects its encoding in all three implementations.
+# The Python kind-only digest helper still accepts the suffix, but RKV01
+# rejects the request-descriptor mismatch. Follow-up: tighten-api-snapshot-digest-shape.
 
 closure_root = "sha256:013f3d34bab26a1b9d9fd77ff03aae76a3b07ee112c4995dc5ef448b2d1796db"
 

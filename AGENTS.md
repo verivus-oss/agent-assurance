@@ -92,19 +92,17 @@ containing three files (`review_readiness.toml`, `contract_declaration.toml`,
 `evidence_matrix.toml`) — not a single file. All other minimal examples are
 flat TOML files at the top of `examples/`.
 
-Runtime-facing profile examples beyond `gate-decision` (`adapter-contract`,
-`adapter-registry-binding`, `assertion-bundle`, `assertion-log-record`)
-currently have no dedicated semantic validator. CI parses them as TOML,
-runs the primary Rust and Go validators for shared meta/provenance/IJB
-surface, and runs `validate_ijb_conformance.py` as a Python cross-check.
-For these files today the instance IJB surface is intentionally small
-(roughly one `id` field plus any declared ontology-predicate values).
-The conformance pass is therefore mostly a structural-shape lock: any
-future content that introduces a `PREFIX:slug`-shaped token under a
-validated key, or a non-conforming `units.<id>` table key, will fail CI.
-Their kind descriptors get the full kind-descriptor, §13
-abstraction/capability-envelope, and IJB validator passes in Rust, Go,
-and Python.
+The adapter-contract and adapter-registry-binding instances have dedicated
+Python, Rust, and Go structural validators. They check declared vocabularies,
+required collections, digest shapes, and citation shapes. They do not execute
+adapters, contact registries, or evaluate trust and policy. Gate-decision keeps
+its INV01 through INV06 checks and enforces verdict vocabulary membership.
+
+Assertion-bundle and assertion-log-record still have no dedicated semantic
+validator. CI parses them and checks shared meta/provenance/IJB surfaces.
+Their descriptors receive full kind-descriptor and section 13 checks. The
+reference storage mapping records deferred invariant and required-section
+coverage explicitly; these residuals are not universal conformance claims.
 
 CI also enforces:
 - No bare `kind = ...` field in `examples/` (must use role-specific names —

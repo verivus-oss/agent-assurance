@@ -1,0 +1,2 @@
+error_contains = ["INV01", "registry_url_scheme"]
+error_not_contains = ["RDLOAD", "Traceback"]
