@@ -28,7 +28,7 @@ we write**:
   `go-version: "stable"` so the runner tracks Go's release cadence
   automatically.
 
-Both are enforced by `validators/check_safe_tools.sh`, which runs in
+Both are enforced by `validators/check_safe_tools.py`, which runs in
 `.github/workflows/validate.yml` right after the manifest-drift step.
 
 The choice between Rust and Go is judgment-call:
@@ -75,11 +75,9 @@ both implementations against the same positive/negative evidence.
 
 ### Tier 0 — forbidden defaults
 
-- **Bash / shell** for any logic beyond ~100 lines or any computation
-  more involved than `grep`/`awk`/`find`/`wc` orchestration. The
-  drift script (`validators/check_manifest_drift.sh`) and the
-  safe-tools script (`validators/check_safe_tools.sh`) sit at exactly
-  this threshold and intentionally do nothing more.
+- **Bash / shell** for any logic beyond simple process orchestration.
+  Source checks use explicit predicates in Python. The drift script
+  (`validators/check_manifest_drift.sh`) delegates to its Python checker.
 - **Python with a runtime dependency** for new spec-critical tools.
   Python is acceptable for Tier-2 cross-checks using only the stdlib
   (`tomllib`, `pathlib`, etc.) and the small allowed set in
@@ -90,7 +88,7 @@ both implementations against the same positive/negative evidence.
 
 ## Safety policy (CI-enforced)
 
-`validators/check_safe_tools.sh` runs in CI and fails the build on
+`validators/check_safe_tools.py` runs in CI and fails the build on
 any violation in tools/.
 
 ## Standard slopscan

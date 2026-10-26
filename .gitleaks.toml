@@ -2,7 +2,7 @@
 #
 # Consumed by the "Secret scan (gitleaks)" step in
 # .github/workflows/validate.yml, which runs `gitleaks detect --source .`
-# with no --config flag. gitleaks then reads this file from the source root.
+# with this file passed explicitly as its configuration.
 #
 # THE CONTRACT, the same one conformance/known-divergences.toml and
 # validators/unresolvable-commit-citations.toml carry: an entry records one

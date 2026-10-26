@@ -23,7 +23,7 @@
 //
 // Default output: stdout. Equivalent to the Rust binary — produces the
 // same Turtle artifact and the same `### Counts at generation:` footer
-// that validators/check_manifest_drift.sh greps.
+// that validators/check_manifest_drift.sh checks as a fixed string.
 package main
 
 import (
@@ -516,7 +516,7 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 		b.WriteString(".\n\n")
 	}
 
-	// Footer counts — the drift script greps this line.
+	// Footer counts used by the drift checker.
 	b.WriteString("###\n")
 	fmt.Fprintf(&b,
 		"### Counts at generation: %d template kinds, %d entity kinds, %d relation predicates, %d attribute vocabularies.\n",
@@ -542,7 +542,7 @@ func loadToml(path string, v any) error {
 // one of each top-level section. Full RDF parsing is the Rust verifier's
 // job (it has access to oxttl); doing a real RDF parse in Go would
 // require pulling in a heavier dependency. We deliberately keep this
-// counterpart lightweight and stick to grep-like assertions.
+// counterpart lightweight and use fixed-string assertions.
 func verifyTurtle(path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {

@@ -4,8 +4,8 @@
 // row counts.
 //
 // Safe Go: this file imports only the standard library. There is no
-// `import "unsafe"`. The CI safety check (validators/check_safe_tools.sh)
-// greps for `"unsafe"` imports across tools/ and fails the build if any
+// `import "unsafe"`. The CI safety check (validators/check_safe_tools.py)
+// scans import declarations across tools/ and fails the build if any
 // appear. Do not introduce one without removing this comment AND
 // updating the policy.
 //

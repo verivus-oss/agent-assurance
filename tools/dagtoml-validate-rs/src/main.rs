@@ -7,7 +7,7 @@
 //! as a build break.
 //!
 //! Safety posture: this crate sets `#![forbid(unsafe_code)]` and has no
-//! FFI (enforced by `validators/check_safe_tools.sh`). Transitive parser
+//! FFI (enforced by `validators/check_safe_tools.py`). Transitive parser
 //! dependencies — the widely-vetted `toml`/`toml_parser`/`winnow` and
 //! `serde` crates — may use `unsafe` internally; that is out of scope of
 //! the safe-tools policy, which governs the code WE write, not our deps.
