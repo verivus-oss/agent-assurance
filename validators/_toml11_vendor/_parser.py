@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import sys
 
 from ._scan import (
@@ -87,12 +88,8 @@ class DEPRECATED_DEFAULT:
 class TOMLDecodeError(ValueError):
     """An error raised if a document is not valid TOML.
 
-    Adds the following attributes to ValueError:
-    msg: The unformatted error message
-    doc: The TOML document being parsed
-    pos: The index of doc where parsing failed
-    lineno: The line corresponding to pos
-    colno: The column corresponding to pos
+    The digest and byte span identify the source without exposing its content
+    or returning unstable line and column coordinates.
     """
 
     def __init__(
@@ -125,24 +122,13 @@ class TOMLDecodeError(ValueError):
             ValueError.__init__(self, *args)
             return
 
-        lineno = doc.count("\n", 0, pos) + 1
-        if lineno == 1:
-            colno = pos + 1
-        else:
-            colno = pos - doc.rindex("\n", 0, pos)
-
-        if pos >= len(doc):
-            coord_repr = "end of document"
-        else:
-            coord_repr = f"line {lineno}, column {colno}"
-        errmsg = f"{msg} (at {coord_repr})"
-        ValueError.__init__(self, errmsg)
-
+        encoded = doc.encode("utf-8", errors="surrogatepass")
+        start = len(doc[:pos].encode("utf-8", errors="surrogatepass"))
+        end = start + len(doc[pos:pos + 1].encode("utf-8", errors="surrogatepass"))
+        ValueError.__init__(self, msg)
         self.msg = msg
-        self.doc = doc
-        self.pos = pos
-        self.lineno = lineno
-        self.colno = colno
+        self.source_sha256 = hashlib.sha256(encoded).hexdigest()
+        self.byte_span = (start, end)
 
 
 def load(__fp: IO[bytes], *, parse_float: ParseFloat = float) -> dict[str, Any]:

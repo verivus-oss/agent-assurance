@@ -37,6 +37,18 @@ class ParserTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(tomllib.TOMLDecodeError):
                 tomllib.loads(f"value = {value}\n")
 
+    def test_error_uses_digest_and_byte_span(self) -> None:
+        source = "value = @\n"
+        with self.assertRaises(tomllib.TOMLDecodeError) as result:
+            tomllib.loads(source)
+        error = result.exception
+        self.assertEqual(str(error), "Invalid value")
+        self.assertEqual(error.byte_span, (8, 9))
+        self.assertEqual(len(error.source_sha256), 64)
+        self.assertFalse(hasattr(error, "lineno"))
+        self.assertFalse(hasattr(error, "colno"))
+        self.assertFalse(hasattr(error, "pos"))
+
 
 if __name__ == "__main__":
     unittest.main()

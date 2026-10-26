@@ -8,6 +8,7 @@ replaces its number, date, and time matching with explicit character scans;
 validators through `validators/_toml11.py`.
 
 Changes from upstream are limited to the scanner replacement, its import and
-call sites in `_parser.py`, and removal of the upstream lazy regex module
-declaration. Keep the parser's TOML 1.1 behavior checked against the project
-fixtures and the Rust and Go primaries when changing it.
+call sites in `_parser.py`, removal of the upstream lazy regex module
+declaration, and a `TOMLDecodeError` that exposes a source digest and byte span
+without line or column coordinates. Keep the parser's TOML 1.1 behavior
+checked against the project fixtures and the Rust and Go primaries.

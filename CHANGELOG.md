@@ -13,7 +13,8 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   traversal for cycle detection and longest weighted paths. Vendor the TOML
   1.1 parser with explicit token scanning and remove the upstream parser pin.
   Parse the implementation DAG CLI options with exact comparisons so its
-  validation path does not execute regex matching.
+  validation path does not execute regex matching. Report TOML parser errors
+  with a source digest and byte span instead of line or column coordinates.
 - Pin the Rust toolchain action to a commit reachable from its maintained
   branch and pass its required `toolchain` input explicitly.
 - Address the issue #74 vocabulary gap with complete declared catalogs in all
