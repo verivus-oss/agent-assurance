@@ -1,5 +1,13 @@
 # Verification report — harden the `no-ai-attribution` gate
 
+> Archive status: This report records the review at commit
+> `200fdb94323347442a7e8d65448aa945e72dee80`. Its `verify.sh` was
+> retired in PR #142 because it executes regex matching and tests fixed
+> historical commits. The original script remains in that commit's Git
+> history. At `6b6f717bd843bd15dadb6fc5882d10ebe36eabf5`, the live
+> attribution check is `validators/check_ai_attribution.py`, with boundary
+> controls in `validators/test_ai_attribution.py`.
+
 **Date:** 2026-06-18
 **Change:** `.github/workflows/no-ai-attribution.yml` (+57 / −12)
 **Reproducible evidence:** `./verify.sh` (19 assertions, all PASS)
@@ -120,8 +128,9 @@ purely to *create* the fixtures):**
 | OLD fallback `-n 1 <tip>` on (bad-first-commit, clean-tip) branch | miss | miss — documents the fail-open bug |
 | FIX fallback `main..<tip>` (introduced range) | HIT | catches the earlier bad commit |
 
-Run: `bash docs/reviews/2026-06-18-no-ai-attribution-gate-hardening/verify.sh`
-(exit 0 = all 16 pass).
+The historical script recorded this 16-case result at
+`200fdb94323347442a7e8d65448aa945e72dee80`; it is no longer a
+current-checkout command.
 
 ## 5. Out of scope / follow-ups (not in this diff)
 
