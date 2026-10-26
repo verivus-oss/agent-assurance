@@ -10,7 +10,8 @@ def test_revisions() -> None:
     require(valid_revision(base))
     require(valid_revision(base + ".." + head))
     require(valid_revision("refs/remotes/origin/main.." + head))
-    for value in ("", "--all", "HEAD", "refs/remotes/origin/../main.." + head,
+    for value in ("", "--all", "HEAD", "g" * 40, "Ａ" * 40,
+                  "refs/remotes/origin/../main.." + head,
                   base + "..--all", "refs/remotes/origin/main~1.." + head):
         require(not valid_revision(value), "unsafe Git revision accepted")
 

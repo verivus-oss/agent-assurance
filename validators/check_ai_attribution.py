@@ -42,7 +42,10 @@ def git_log(format_string: str, revisions: list[str]) -> str:
 
 def valid_revision(value: str) -> bool:
     def is_sha(text: str) -> bool:
-        return len(text) == 40 and all(char in "0123456789abcdefABCDEF" for char in text)
+        return len(text) == 40 and all(
+            "0" <= char <= "9" or "a" <= char <= "f" or "A" <= char <= "F"
+            for char in text
+        )
 
     def is_remote_ref(text: str) -> bool:
         prefix = "refs/remotes/origin/"
