@@ -15,6 +15,76 @@ def rust_has_forbid(source: str) -> bool:
     return first == "#![forbid(unsafe_code)]"
 
 
+def rust_unsafe_keyword(source: str) -> bool:
+    """Read Rust tokens, ignoring comments and literals, for an unsafe keyword."""
+    index = 0
+    while index < len(source):
+        pair = source[index:index + 2]
+        if pair == "//":
+            end = source.find("\n", index)
+            index = len(source) if end < 0 else end
+            continue
+        if pair == "/*":
+            depth = 1
+            index += 2
+            while index < len(source) and depth:
+                pair = source[index:index + 2]
+                if pair == "/*":
+                    depth += 1
+                    index += 2
+                elif pair == "*/":
+                    depth -= 1
+                    index += 2
+                else:
+                    index += 1
+            if depth:
+                raise ValueError("unclosed Rust block comment")
+            continue
+        raw_start = None
+        for prefix in ("br", "cr", "r"):
+            if source.startswith(prefix, index) and (index == 0 or not (source[index - 1].isalnum() or source[index - 1] == "_")):
+                cursor = index + len(prefix)
+                while cursor < len(source) and source[cursor] == "#":
+                    cursor += 1
+                if cursor < len(source) and source[cursor] == '"':
+                    raw_start = cursor
+                    break
+        if raw_start is not None:
+            closing = '"' + source[index + len(prefix):raw_start]
+            end = source.find(closing, raw_start + 1)
+            if end < 0:
+                raise ValueError("unclosed Rust raw string")
+            index = end + len(closing)
+            continue
+        if source[index] == '"':
+            index += 1
+            while index < len(source) and source[index] != '"':
+                index += 2 if source[index] == "\\" else 1
+            if index >= len(source):
+                raise ValueError("unclosed Rust string")
+            index += 1
+            continue
+        if source[index] == "'" and index + 2 < len(source):
+            if source[index + 2] == "'":
+                index += 3
+                continue
+            if source[index + 1] == "\\":
+                end = source.find("'", index + 2)
+                if 0 <= end - index <= 10:
+                    index = end + 1
+                    continue
+        if source[index].isascii() and (source[index].isalpha() or source[index] == "_"):
+            end = index + 1
+            while end < len(source) and source[end].isascii() and (source[end].isalnum() or source[end] == "_"):
+                end += 1
+            if source[index:end] == "unsafe":
+                return True
+            index = end
+            continue
+        index += 1
+    return False
+
+
 def _without_comments(source: str) -> str:
     """Erase line and nested block comments while retaining source layout."""
     result: list[str] = []
@@ -133,8 +203,11 @@ def check(root: Path) -> tuple[int, int]:
         raise ValueError("safe tooling check requires both Rust and Go source populations")
     for manifest in crates:
         sources = [path for path in (manifest.parent / "src/main.rs", manifest.parent / "src/lib.rs") if path.is_file()]
-        if not sources or not any(rust_has_forbid(path.read_text()) for path in sources):
+        if not sources or any(not rust_has_forbid(path.read_text()) for path in sources):
             raise ValueError("Rust crate lacks a forbid unsafe code declaration: " + str(manifest.parent))
+        for path in sorted(rglob(manifest.parent / "src", "*.rs")):
+            if rust_unsafe_keyword(path.read_text()):
+                raise ValueError("Rust source contains an unsafe keyword: " + str(path))
     go_count = 0
     for manifest in modules:
         files = sorted(rglob(manifest.parent, "*.go"))

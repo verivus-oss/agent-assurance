@@ -13,7 +13,6 @@ import subprocess
 import sys
 import tarfile
 import time
-import urllib.request
 import uuid
 import zipfile
 
@@ -70,8 +69,17 @@ def loader_verify_checks(root, work, binary, cli, destination, env):
 def download(url, digest, target):
     if not url.startswith("https://"):
         raise ValueError("pinned build artifacts require HTTPS")
-    with urllib.request.urlopen(url, timeout=60) as response:  # nosec B310 # noqa: S310
-        data = response.read()
+    curl = shutil.which("curl")
+    if curl is None:
+        raise RuntimeError("curl is required for pinned build artifact downloads")
+    process = subprocess.run(  # nosec B603  # noqa: S603
+        [curl, "--fail", "--location", "--silent", "--show-error", "--max-time", "60",
+         "--proto", "=https", "--proto-redir", "=https", url],
+        capture_output=True, check=False,
+    )
+    if process.returncode:
+        raise RuntimeError("pinned HTTPS artifact download failed")
+    data = process.stdout
     if hashlib.sha256(data).hexdigest() != digest:
         raise ValueError("downloaded build artifact does not match its pinned SHA-256")
     target.write_bytes(data)

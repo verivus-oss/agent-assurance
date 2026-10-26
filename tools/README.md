@@ -17,16 +17,15 @@ required to be **memory-safe by construction at the level of the code
 we write**:
 
 - **Rust** crates MUST declare `#![forbid(unsafe_code)]` at the top of
-  `src/main.rs` or `src/lib.rs`. The compiler refuses to build any
-  `unsafe { ... }` block inside the crate. Dependencies may use `unsafe`
+  every present `src/main.rs` and `src/lib.rs`. CI also scans every Rust
+  source file for an `unsafe` keyword, including files outside compiled
+  module trees. Dependencies may use `unsafe`
   internally; that is out of scope for this rule. MSRV is pinned in
   each `Cargo.toml` (`rust-version = "1.85"`); CI tracks current
   stable, which MUST be >= MSRV.
 - **Go** modules MUST NOT contain any `.go` file that imports
-  `"unsafe"`. The `go.mod` declares `go 1.26` (latest stable at the
-  time this policy was written); CI's `actions/setup-go@v5` is set to
-  `go-version: "stable"` so the runner tracks Go's release cadence
-  automatically.
+  `"unsafe"`. The `go.mod` files and CI setup use the patched Go 1.26.10
+  release. Update both when a newer supported security release is needed.
 
 Both are enforced by `validators/check_safe_tools.py`, which runs in
 `.github/workflows/validate.yml` right after the manifest-drift step.

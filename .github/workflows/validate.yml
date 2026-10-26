@@ -65,7 +65,7 @@ jobs:
         # with the stdlib version declared by the reference Go modules.
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
-          go-version: "1.26.6"
+          go-version: "1.26.10"
           cache-dependency-path: tools/dagtoml-validate-go/go.sum
 
       - name: Set up Rust (primary validator toolchain)
@@ -90,6 +90,41 @@ jobs:
           set -e
           cd tools/dagtoml-validate-go
           go build -o "${RUNNER_TEMP}/dagtoml-validate-go" ./...
+
+      - name: Native and Python boundary controls
+        run: |
+          set -euo pipefail
+          (cd tools/dagtoml-validate-rs && cargo test --locked)
+          (cd tools/dagtoml-validate-go && go test ./...)
+          python3 - "${RUNNER_TEMP}/dagtoml-validate-rs" "${RUNNER_TEMP}/dagtoml-validate-go" <<'PY'
+          from pathlib import Path
+          import subprocess
+          import sys
+
+          tests = sorted(path for path in Path("validators").iterdir()
+                         if path.is_file() and path.name.startswith("test_")
+                         and path.name.endswith(".py"))
+          required = {"test_ai_attribution.py", "test_database_download.py",
+                      "test_link_scan.py", "test_ontology_prefix_types.py",
+                      "test_safe_tools.py", "test_secret_scan_filter.py"}
+          if len(tests) != 15 or not required <= {path.name for path in tests}:
+              raise SystemExit("FAIL: Python boundary test population changed")
+          for path in tests:
+              command = [sys.executable, str(path)]
+              if path.name == "test_ontology_prefix_types.py":
+                  command.extend(["--rs", sys.argv[1], "--go", sys.argv[2]])
+              subprocess.run(command, check=True)
+          print(f"Python boundary controls: {len(tests)} test files executed")
+          PY
+
+      - name: Static site boundaries
+        run: npm run site:check
+
+      - name: RDF prefix shape boundaries
+        run: |
+          set -euo pipefail
+          python3 -m pip install --require-hashes -r requirements/shacl.txt
+          python3 validators/check_rdf_prefix_shapes.py
 
       - name: DAG-TOML cross-implementation conformance corpus
         # Every fixture under conformance/cases/ runs through all three
@@ -1021,6 +1056,9 @@ jobs:
 
       # --- Existing 5 scanners follow below ---
 
+      - name: Prepare all Python locks for CVE scanning
+        run: python3 validators/prepare_osv_locks.py
+
       - name: Lock-file CVE scan (osv-scanner)
         continue-on-error: false
         uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36  # v2.7.0
@@ -1032,14 +1070,27 @@ jobs:
           # --no-resolve disables network-required transitive dependency
           # resolution. We rely on lockfile-based scanning (Cargo.lock,
           # go.sum) instead, which has full transitive info baked in.
-          # requirements.txt has no runtime package. The transitive-resolution
-          # gRPC service is flaky, so scan the pinned Python requirements and
-          # native lockfiles without contacting it. An outage is not a CVE
-          # finding.
+          # requirements.txt has no runtime package. The preparation step
+          # copies every requirements/*.txt lock under a scanner-recognized
+          # requirements.txt name, so the recursive walk sees all Python
+          # verification dependencies alongside the native lockfiles.
+          # The transitive-resolution gRPC service is flaky. These pinned
+          # inputs carry transitive packages without contacting it.
           scan-args: |-
             --recursive
             --no-resolve
             ./
+
+      - name: Remove prepared CVE scan inputs
+        if: always()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import shutil
+          directory = Path("osv-locks")
+          if directory.is_dir():
+              shutil.rmtree(directory)
+          PY
 
       - name: Secret scan (gitleaks)
         continue-on-error: false
@@ -1070,19 +1121,20 @@ jobs:
               exit 1
             fi
           fi
-          if ! printf 'token=%s\n' '0123456789abcdef' | /tmp/gitleaks-bin/gitleaks detect \
+          if printf 'token=%s\n' '0123456789abcdef' | /tmp/gitleaks-bin/gitleaks detect \
               --pipe --config .gitleaks.toml --no-banner --redact --exit-code 7 \
               >/dev/null 2>&1; then
-            echo "FAIL: public hex alphabet was treated as a credential."
+            echo "FAIL: raw Gitleaks suppressed the public hex control."
             exit 1
+          else
+            code=$?
+            if [ "$code" -ne 7 ]; then
+              echo "FAIL: public hex control did not reach the finding path."
+              exit 1
+            fi
           fi
-          /tmp/gitleaks-bin/gitleaks detect \
-            --source . \
-            --config .gitleaks.toml \
-            --no-banner \
-            --redact \
-            --verbose \
-            --exit-code 1
+          python3 validators/check_secret_scan.py \
+            --gitleaks /tmp/gitleaks-bin/gitleaks --repo-root .
 
       - name: Python static security analysis (bandit)
         continue-on-error: false
@@ -1224,10 +1276,24 @@ jobs:
 
       - name: Link-rot scan (lychee)
         continue-on-error: false
-        # lychee checks every http(s):// URL in tracked markdown, TOML,
-        # and TeX files. Catches dead citations and dead spec references.
-        # Configured by lychee.toml at the repo root.
-        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8  # v2.9.0
-        with:
-          fail: true
-          args: --config lychee.toml --no-progress .
+        # Verify the published release digest, then keep the extracted URL
+        # population and scanner report in private temporary files. The
+        # wrapper asserts the discovered, admitted, and checked URL sets.
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/lychee-0.24.2.tar.gz"
+          expected="1f4e0ef7f6554a6ed33dd7ac144fb2e1bbed98598e7af973042fc5cd43951c9a"
+          curl -fsSL \
+            https://github.com/lycheeverse/lychee/releases/download/lychee-v0.24.2/lychee-x86_64-unknown-linux-gnu.tar.gz \
+            -o "$archive"
+          actual=$(sha256sum "$archive")
+          actual=${actual%% *}
+          if [ "$actual" != "$expected" ]; then
+            echo "FAIL: Lychee release digest differs from the pinned asset."
+            exit 1
+          fi
+          mkdir -p "${RUNNER_TEMP}/lychee-bin"
+          tar -xzf "$archive" -C "${RUNNER_TEMP}/lychee-bin" \
+            --strip-components=1 lychee-x86_64-unknown-linux-gnu/lychee
+          python3 validators/check_link_scan.py \
+            --lychee "${RUNNER_TEMP}/lychee-bin/lychee"

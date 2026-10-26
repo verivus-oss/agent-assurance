@@ -12,14 +12,8 @@
 # meaning "if you see 'bad' in source, consider it correct and not a
 # typo of 'good'". For our purposes every entry below is treated as
 # already-correct.
-extend-ignore-identifiers-re = [
-  # IJB canonical-grammar identifiers (foundations/ijb/examples/*) use
-  # kebab- and snake-case structured names that typos mis-splits into
-  # substrings (e.g., "AKS-IntegrationHub" → "afe" from somewhere).
-  # Treat tokens that contain a digit, dash, or underscore as
-  # identifiers and skip them entirely.
-  "^[A-Z][A-Za-z0-9_-]+$",
-]
+# Structured identifiers are checked with the exact word and file entries
+# below. The former identifier-wide pattern hid misspellings in other names.
 
 [default.extend-words]
 # Cryptographic / standards acronyms used in normative spec content.
@@ -32,8 +26,7 @@ Synopsys = "Synopsys"   # EDA tools company; appears in research provenance
 decomission = "decomission"  # commonly-used colloquial spelling alongside "decommission"
 # Variable names (3-letter abbreviations) that match common-typo patterns
 # in Python validator code: (ep, ec, ect), `rto = ...`, etc. These are
-# false-positive matches against `etc`/`to`. Identifier-mode regex above
-# should catch most but explicit allowlist as belt-and-braces.
+# false-positive matches against `etc`/`to`.
 ect = "ect"             # (ep, ec, ect) tuple destructuring
 rto = "rto"             # relation_to_ontology shorthand
 ba = "ba"               # bytes alias

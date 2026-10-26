@@ -5,7 +5,7 @@
   "scripts": {
     "site:serve": "npx wrangler pages dev site",
     "site:deploy": "npx wrangler pages deploy site --project-name agent-assurance",
-    "site:check": "node site/check-site.mjs",
+    "site:check": "node site/check-site.mjs && node site/test-check-site.mjs",
     "site:indexnow": "node site/submit-indexnow.mjs"
   },
   "devDependencies": {}

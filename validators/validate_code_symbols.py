@@ -17,7 +17,6 @@ import shutil
 import subprocess
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
-from dataclasses import dataclass
 
 
 SUPPORTED_LANGUAGES = {"rust", "go", "typescript", "java"}
@@ -34,12 +33,14 @@ EXTENSION_LANGUAGE = {
 }
 
 
-@dataclass(frozen=True)
 class SymbolRef:
-    entity_id: str
-    path: str
-    symbol: str
-    language: str
+    __slots__ = ("entity_id", "path", "symbol", "language")
+
+    def __init__(self, entity_id: str, path: str, symbol: str, language: str) -> None:
+        self.entity_id = entity_id
+        self.path = path
+        self.symbol = symbol
+        self.language = language
 
 
 def parse_args() -> argparse.Namespace:

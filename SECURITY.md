@@ -92,7 +92,9 @@ comment block in `validate.yml`:
   (complements Dependabot: catches transitive and advisory-DB-only
   entries Dependabot misses)
 - `gitleaks` checks credential patterns in reachable commits, including
-  the checked-out tracked tree, with planted positive and negative controls
+  the checked-out tracked tree, with planted credential controls. An exact
+  post-scan check recognizes the historical public hex literal; all other
+  findings fail the gate.
 - `cargo-audit` — RustSec advisory DB check for every `tools/*-rs`
 - `cargo-deny` — Rust license policy + dep ban + advisories (catches
   license drift that audit doesn't)
@@ -101,9 +103,13 @@ comment block in `validate.yml`:
   govet + ineffassign + unused)
 - `lychee` — link rot across `spec.md`, README, `references.bib`
 
-Every workflow action is SHA-pinned. Pip and cargo installs are
-version-pinned; hash-pinning is on the roadmap and tracked in the
-`chore/pip-hash-pinning` branch.
+Workflow actions are SHA-pinned. Python verification packages use version
+and hash pins; Rust builds use checked-in Cargo.lock files.
+
+Third-party verification tools may use regex internally. This allowance
+covers scanner engines and the SHACL processor, while repository-authored
+validation logic and scanner exception rules use explicit predicates. The
+link checker receives URLs selected by exact path and host comparisons.
 
 ## Disclosure
 

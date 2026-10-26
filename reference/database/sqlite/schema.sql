@@ -3,7 +3,7 @@
 -- Sibling of reference/database/postgres/schema.sql, adapted to SQLite's
 -- type system. Works on:
 --   * SQLite >= 3.38 (uses STRICT tables, JSON1 built-in, expression
---     DEFAULTs, partial indexes, recursive CTEs, FK enforcement)
+--     default expressions, partial indexes, recursive CTEs, FK enforcement)
 -- libSQL / Turso compatibility is unverified and needs its own executed lane.
 --
 -- Translation table from the PG reference:

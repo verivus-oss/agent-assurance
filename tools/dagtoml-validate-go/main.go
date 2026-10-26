@@ -451,9 +451,11 @@ func validateIJBOntology(path string, doc rawDoc) []string {
 				if _, legacy := block["id_pattern"]; legacy {
 					errs = append(errs, fmt.Sprintf("%s:entities[%d]: id_pattern is unsupported; use a typed decimal identifier declaration", path, i))
 				}
-				colonPrefix, hasColonPrefix := block["id_prefix"].(string)
-				decimalPrefix, hasDecimalPrefix := block["id_decimal_prefix"].(string)
-				if hasColonPrefix == hasDecimalPrefix || hasColonPrefix && !looksUpperPrefix(colonPrefix) || hasDecimalPrefix && !looksUpperPrefix(decimalPrefix) {
+				colonValue, hasColonPrefix := block["id_prefix"]
+				decimalValue, hasDecimalPrefix := block["id_decimal_prefix"]
+				colonPrefix, colonString := colonValue.(string)
+				decimalPrefix, decimalString := decimalValue.(string)
+				if hasColonPrefix == hasDecimalPrefix || hasColonPrefix && (!colonString || !looksUpperPrefix(colonPrefix)) || hasDecimalPrefix && (!decimalString || !looksUpperPrefix(decimalPrefix)) {
 					errs = append(errs, fmt.Sprintf("%s:entities[%d]: declare exactly one uppercase ASCII id_prefix or id_decimal_prefix", path, i))
 				}
 				if raw, present := block["id_optional_lower_suffix"]; present {

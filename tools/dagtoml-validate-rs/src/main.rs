@@ -487,11 +487,13 @@ mod ijb {
                         source.display()
                     ));
                 }
+                let colon_present = t.contains_key("id_prefix");
+                let decimal_present = t.contains_key("id_decimal_prefix");
                 let colon_prefix = t.get("id_prefix").and_then(Value::as_str);
                 let decimal_prefix = t.get("id_decimal_prefix").and_then(Value::as_str);
-                if colon_prefix.is_some() == decimal_prefix.is_some()
-                    || colon_prefix.is_some_and(|value| !looks_upper_prefix(value))
-                    || decimal_prefix.is_some_and(|value| !looks_upper_prefix(value))
+                if colon_present == decimal_present
+                    || (colon_present && colon_prefix.is_none_or(|value| !looks_upper_prefix(value)))
+                    || (decimal_present && decimal_prefix.is_none_or(|value| !looks_upper_prefix(value)))
                 {
                     errors.push(format!(
                         "{}:entities[{idx}]: declare exactly one uppercase ASCII id_prefix or id_decimal_prefix",
@@ -499,7 +501,7 @@ mod ijb {
                     ));
                 }
                 if let Some(suffix) = t.get("id_optional_lower_suffix") {
-                    if !suffix.is_bool() || decimal_prefix.is_none() {
+                    if !suffix.is_bool() || !decimal_present {
                         errors.push(format!(
                             "{}:entities[{idx}]: id_optional_lower_suffix requires a boolean and id_decimal_prefix",
                             source.display()

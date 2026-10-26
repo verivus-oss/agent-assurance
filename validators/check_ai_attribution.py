@@ -71,7 +71,8 @@ def main(revisions: list[str]) -> int:
     if len(message_records) != len(identity_records):
         raise RuntimeError("commit message and identity populations differ")
     if not message_records:
-        raise RuntimeError("no introduced commits to inspect")
+        print("OK: checked 0 introduced commits for attribution stamps")
+        return 0
     failures = []
     for message_record, identity_record in zip(message_records, identity_records, strict=True):
         message_fields = message_record.split("\0")

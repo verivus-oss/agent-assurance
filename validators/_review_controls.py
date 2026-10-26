@@ -7,7 +7,6 @@ import io
 from _literal_json import loads as loads_json
 import subprocess
 import sys
-import textwrap
 from unittest.mock import patch
 
 from _instrument import require
@@ -79,7 +78,11 @@ def exercise(candidate, work):
 
     workflow = (candidate / ".github/workflows/validate.yml").read_text()
     section = workflow.split("- name: Discrimination coverage (external assertion)", 1)[1]
-    external = textwrap.dedent(section.split("python3 - <<'PY'\n", 1)[1].split("          PY\n", 1)[0])
+    block = section.split("python3 - <<'PY'\n", 1)[1].split("          PY\n", 1)[0]
+    lines = block.splitlines(keepends=True)
+    if not lines or any(line.strip() and not line.startswith("          ") for line in lines):
+        raise AssertionError("external discrimination source indentation changed")
+    external = "".join(line[10:] if line.startswith("          ") else line for line in lines)
     command("external-discovery-positive", [sys.executable, "-c", external], 0, "discrimination coverage OK")
     directory = candidate / "conformance/cases/gate-decision"
     hidden = work / "withheld-gate-decision"

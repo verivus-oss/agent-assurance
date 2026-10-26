@@ -13,8 +13,20 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   database mirrors, RDF shapes, website check, and CI text gates with explicit
   predicates and scanners.
   Declare ontology decimal ID shapes as typed fields and carry them through
-  the SQL, graph, and RDF mirrors. Keep the existing Gitleaks gate for
-  credential scanning under the explicit third-party verification allowance.
+  the SQL, graph, and RDF mirrors. Keep Gitleaks, Bandit, Ruff, typos, lychee,
+  and SHACL verification as third-party tools under the explicit verification
+  allowance. Their internal regex use does not make authored product logic
+  depend on regex matching.
+- Remove authored regex exemptions from Gitleaks, typos, and lychee
+  configuration. Prepare the link scan from Lychee's extracted URLs with
+  exact path and host comparisons.
+  Check Gitleaks findings against the exact known public literal and its
+  historical commits after an unsuppressed scan; any other finding fails CI.
+  Execute the Python, Go, Rust, website, and RDF prefix boundary controls in
+  CI, including accepted and rejected inputs.
+- Expose all seven pinned Python verification locks to OSV Scanner. Update
+  Go module and CI pins to the patched 1.26.10 release after the expanded
+  scan found vulnerable Go standard library pins at 1.26.6.
 - Scan commit citations with explicit ASCII token parsing and report file
   identities without source line coordinates. Exclude vendored parser source
   and unit fixtures from this authored citation check.
