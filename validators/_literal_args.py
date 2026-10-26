@@ -150,13 +150,30 @@ class ArgumentParser:
         tokens = list(sys.argv[1:] if args is None else args)
         child: ArgumentParser | None = None
         if self.subparsers:
-            for index, token in enumerate(tokens):
-                if token in self.subparsers.parsers:
-                    child = self.subparsers.parsers[token]
-                    tokens.pop(index)
-                    break
+            parent_options = {argument.name: argument for argument in self.arguments if not argument.positional}
+            cursor = 0
+            while cursor < len(tokens) and tokens[cursor] != "--":  # nosec B105  # noqa: S105
+                token = tokens[cursor]
+                name, equals, _ = token.partition("=")
+                option = parent_options.get(name)
+                if option is not None:
+                    cursor += 1
+                    if not equals and option.action not in ("store_true", "store_false", "version"):
+                        if option.nargs in ("*", "+"):
+                            self.error("variable arity before a subcommand is unsupported")
+                        cursor += 1
+                    continue
+                if token.startswith("--"):
+                    cursor += 1
+                    continue
+                child = self.subparsers.parsers.get(token)
+                if child is None:
+                    self.error("unrecognized subcommand: " + token)
+                tokens.pop(cursor)
+                break
         arguments = self.arguments + (child.arguments if child else [])
-        if "--help" in tokens:
+        help_tokens = tokens[:tokens.index("--")] if "--" in tokens else tokens  # nosec B105  # noqa: S105
+        if "--help" in help_tokens:
             print(self._help(child))
             raise SystemExit(0)
         by_name = {argument.name: argument for argument in arguments if not argument.positional}

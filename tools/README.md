@@ -182,10 +182,9 @@ Every Rust crate under `tools/` MUST declare:
 ```
 
 near the top of its `src/main.rs` or `src/lib.rs`. This is a
-compiler-level lint — the build itself fails if any code inside the
-crate reaches for `unsafe { ... }` or `unsafe fn`. The check script
-also greps `src/**.rs` for stray `unsafe` blocks as a belt-and-braces
-catch.
+compiler-level lint. The build fails if code inside the crate uses
+`unsafe { ... }` or `unsafe fn`. The safety check also verifies the
+declaration in each crate entry point.
 
 Dependencies (serde, oxttl, BurntSushi/toml, pelletier/go-toml/v2,
 etc.) may use `unsafe` internally; auditing them is out of scope for
@@ -194,12 +193,16 @@ coverage of the dependency tree.
 
 ### Go
 
-No `.go` file under `tools/` may `import "unsafe"`. The check script
-greps for any of:
+No `.go` file under `tools/` may import `unsafe`. The safety check
+scans import declarations, including:
 
 - `import "unsafe"`
 - `import _ "unsafe"`
+- `import alias "unsafe"`
 - `"unsafe"` inside an `import (...)` group
+
+The scan ignores comments and string literals outside import declarations.
+Escaped import paths stop the check for manual review.
 
 Dependencies' internal use of `unsafe` is out of scope.
 

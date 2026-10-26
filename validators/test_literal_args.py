@@ -44,6 +44,14 @@ def test_groups_and_subcommands() -> None:
     require(result.action == 'ingest' and result.paths == ['a.toml'])
     for tokens in (['--engine', 'sqlite', 'initialize'], ['--engine', 'sqlite', '--lane', 'floor'], ['--engine', 'sqlite', '--lane', 'floor', '--loader', 'go', 'initialize'], ['--engine', 'sqlite', '--lane', 'floor', 'ingest']):
         rejected(parser, tokens)
+    collision = ArgumentParser()
+    collision.add_argument('--destination', required=True)
+    commands = collision.add_subparsers(dest='action', required=True)
+    commands.add_parser('initialize')
+    commands.add_parser('ingest')
+    selected = collision.parse_args(['--destination', 'ingest', 'initialize'])
+    require(selected.destination == 'ingest' and selected.action == 'initialize')
+    rejected(collision, ['--destination', 'ingest'])
 
 def test_help_and_version() -> None:
     parser = ArgumentParser()
@@ -59,6 +67,7 @@ def test_help_and_version() -> None:
             else:
                 raise AssertionError('help or version did not exit')
         require(expected in output.getvalue())
+    require(parser.parse_args(['--', '--help']).file == '--help')
 if __name__ == '__main__':
     test_options_and_values()
     test_groups_and_subcommands()

@@ -11,32 +11,118 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def rust_has_forbid(source: str) -> bool:
-    return any(line.strip() == "#![forbid(unsafe_code)]" for line in source.splitlines())
+    first = next((line.strip() for line in _without_comments(source).splitlines() if line.strip()), "")
+    return first == "#![forbid(unsafe_code)]"
+
+
+def _without_comments(source: str) -> str:
+    """Erase line and nested block comments while retaining source layout."""
+    result: list[str] = []
+    index = 0
+    depth = 0
+    while index < len(source):
+        pair = source[index:index + 2]
+        if depth and pair == "/*":
+            depth += 1
+            result.extend("  ")
+            index += 2
+        elif depth and pair == "*/":
+            depth -= 1
+            result.extend("  ")
+            index += 2
+        elif depth:
+            result.append("\n" if source[index] == "\n" else " ")
+            index += 1
+        elif pair == "//":
+            end = source.find("\n", index)
+            if end < 0:
+                result.extend(" " * (len(source) - index))
+                break
+            result.extend(" " * (end - index))
+            index = end
+        elif pair == "/*":
+            depth = 1
+            result.extend("  ")
+            index += 2
+        else:
+            result.append(source[index])
+            index += 1
+    if depth:
+        raise ValueError("unclosed Rust block comment")
+    return "".join(result)
+
+
+def _go_tokens(source: str) -> list[tuple[str, str]]:
+    """Tokenize Go imports without interpreting strings or running a pattern engine."""
+    tokens: list[tuple[str, str]] = []
+    index = 0
+    while index < len(source):
+        char = source[index]
+        pair = source[index:index + 2]
+        if char.isspace():
+            index += 1
+        elif pair == "//":
+            end = source.find("\n", index)
+            index = len(source) if end < 0 else end
+        elif pair == "/*":
+            end = source.find("*/", index + 2)
+            if end < 0:
+                raise ValueError("unclosed Go block comment")
+            index = end + 2
+        elif char in ('"', "`", "'"):
+            quote = char
+            index += 1
+            start = index
+            while index < len(source) and source[index] != quote:
+                if source[index] == "\\" and quote != "`":
+                    index += 1
+                index += 1
+            if index == len(source):
+                raise ValueError("unclosed Go string")
+            tokens.append(("string" if quote != "'" else "rune", source[start:index]))
+            index += 1
+        elif char.isascii() and (char.isalpha() or char == "_"):
+            start = index
+            index += 1
+            while index < len(source) and source[index].isascii() and (source[index].isalnum() or source[index] == "_"):
+                index += 1
+            tokens.append(("word", source[start:index]))
+        else:
+            tokens.append(("symbol", char))
+            index += 1
+    return tokens
 
 
 def go_unsafe_import(source: str) -> bool:
-    in_group = False
-    for raw in source.splitlines():
-        line = raw.strip()
-        if line.startswith("//") or not line:
+    tokens = _go_tokens(source)
+    for index, token in enumerate(tokens):
+        if token != ("word", "import"):
             continue
-        if line == "import (":
-            in_group = True
-            continue
-        if in_group and line == ")":
-            in_group = False
-            continue
-        if line.startswith("import "):
-            line = line[len("import "):].strip()
-        elif not in_group:
-            continue
-        if line.startswith("_ ") or line.startswith(". "):
-            line = line[2:].strip()
-        return_value = line.startswith('"unsafe"') and (
-            len(line) == len('"unsafe"') or line[len('"unsafe"'):].lstrip().startswith("//")
-        )
-        if return_value:
-            return True
+        cursor = index + 1
+        grouped = cursor < len(tokens) and tokens[cursor] == ("symbol", "(")
+        if grouped:
+            cursor += 1
+        while cursor < len(tokens):
+            kind, value = tokens[cursor]
+            if grouped and (kind, value) == ("symbol", ")"):
+                break
+            if kind == "word" or (kind, value) == ("symbol", "."):
+                cursor += 1
+                if cursor == len(tokens):
+                    break
+                kind, value = tokens[cursor]
+            if kind == "string":
+                if "\\" in value:
+                    raise ValueError("escaped Go import path requires manual review")
+                if value == "unsafe":
+                    return True
+                cursor += 1
+                if not grouped:
+                    break
+                continue
+            if not grouped:
+                break
+            cursor += 1
     return False
 
 

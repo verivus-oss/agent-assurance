@@ -67,9 +67,17 @@ them from the tree rather than trusting this section:
 
 ```sh
 for d in conformance/cases/*/; do
+  invalid=0
+  for file in "$d"invalid/*.toml; do
+    [ -f "$file" ] || continue
+    case "$file" in
+      *.expected.toml) ;;
+      *) invalid=$((invalid + 1)) ;;
+    esac
+  done
   printf '%-20s valid=%-3s invalid=%-3s sidecars=%s\n' "$(basename "$d")" \
     "$(ls "$d"valid/*.toml 2>/dev/null | wc -l)" \
-    "$(ls "$d"invalid/*.toml 2>/dev/null | grep -vc '\.expected\.toml')" \
+    "$invalid" \
     "$(ls "$d"invalid/*.expected.toml 2>/dev/null | wc -l)"
 done
 ```
