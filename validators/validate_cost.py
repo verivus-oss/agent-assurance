@@ -60,7 +60,7 @@ def _load_vocabularies(repo_root: pathlib.Path) -> dict[str, set[str]]:
     is a deployment bug, not a soft fall-through.
     """
     ont = repo_root / "profiles" / "cost" / "ontology.toml"
-    data = tomllib.loads(ont.read_text())
+    data = tomllib.loads(ont.read_bytes().decode("utf-8"))
     want = {"decider_class", "cost_citing_kind", "cost_dimension_category"}
     found: dict[str, set[str]] = {}
     for entry in data.get("attribute_vocabularies", []):
@@ -91,7 +91,7 @@ def _check_rfc3339(value: str) -> bool:
 def validate(path: pathlib.Path, vocab: dict[str, set[str]]) -> list[str]:
     errors: list[str] = []
     try:
-        data = tomllib.loads(path.read_text())
+        data = tomllib.loads(path.read_bytes().decode("utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as exc:
         return [f"{path}: cannot parse TOML ({exc})"]
 

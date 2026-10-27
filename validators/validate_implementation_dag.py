@@ -201,24 +201,44 @@ def detect_cycles(dep_sets: dict[str, set[str]]) -> list[str]:
             continue
 
         for start in sorted(component):
+            # Johnson's blocked sets stop repeated walks down paths that
+            # cannot close a cycle. A simple-path walk alone can be
+            # exponential even when the graph has only a few cycles.
+            eligible = {u for u in component if u >= start}
+            neighbors = {u: [v for v in adjacent[u] if v in eligible] for u in eligible}
+            blocked = {start}
+            waiting: dict[str, set[str]] = {u: set() for u in eligible}
             path = [start]
-            used = {start}
-            frames = [iter(adjacent[start])]
+            frames: list[list] = [[start, iter(neighbors[start]), False]]
             while frames:
+                node, edges, found = frames[-1]
                 try:
-                    v = next(frames[-1])
+                    next_node = next(edges)
                 except StopIteration:
+                    if found:
+                        pending = [node]
+                        while pending:
+                            released = pending.pop()
+                            if released not in blocked:
+                                continue
+                            blocked.remove(released)
+                            pending.extend(waiting[released])
+                            waiting[released].clear()
+                    else:
+                        for successor in neighbors[node]:
+                            waiting[successor].add(node)
                     frames.pop()
-                    used.remove(path.pop())
+                    path.pop()
+                    if found and frames:
+                        frames[-1][2] = True
                     continue
-                if v not in component:
-                    continue
-                if v == start:
+                if next_node == start:
                     cycles.add(tuple(path))
-                elif v > start and v not in used:
-                    used.add(v)
-                    path.append(v)
-                    frames.append(iter(adjacent[v]))
+                    frames[-1][2] = True
+                elif next_node not in blocked:
+                    blocked.add(next_node)
+                    path.append(next_node)
+                    frames.append([next_node, iter(neighbors[next_node]), False])
 
     return [
         f"cycle in depends_on: {' -> '.join((*cycle, cycle[0]))}"

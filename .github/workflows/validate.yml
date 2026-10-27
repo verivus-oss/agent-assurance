@@ -345,7 +345,7 @@ jobs:
                   skipped.append(str(p))
                   continue
               try:
-                  tomllib.loads(p.read_text())
+                  tomllib.loads(p.read_bytes().decode("utf-8"))
                   parsed.append(str(p))
               except Exception as e:
                   fails.append((str(p), str(e)))
@@ -493,7 +493,7 @@ jobs:
 
           def kind_name(path):
               try:
-                  data = tomllib.loads(path.read_text())
+                  data = tomllib.loads(path.read_bytes().decode("utf-8"))
               except Exception:
                   return None
               kind = data.get("kind")
@@ -527,7 +527,7 @@ jobs:
               if path.as_posix().startswith("conformance/cases/") and "/invalid/" in path.as_posix():
                   continue
               try:
-                  data = tomllib.loads(path.read_text())
+                  data = tomllib.loads(path.read_bytes().decode("utf-8"))
               except Exception:
                   continue
               meta = data.get("meta")
@@ -662,7 +662,7 @@ jobs:
               "minimal-assertion-log-record.toml",
               "minimal-adapter-registry-binding.toml",
           ]:
-              tomllib.loads(pathlib.Path(f"examples/{name}").read_text())
+              tomllib.loads(pathlib.Path(f"examples/{name}").read_bytes().decode("utf-8"))
               print(f"parsed OK: examples/{name}")
           '
 

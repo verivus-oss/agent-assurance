@@ -3,6 +3,8 @@
 
 import hashlib
 import io
+import pathlib
+import tempfile
 import unittest
 from datetime import date, datetime, time, timedelta, timezone
 
@@ -81,6 +83,24 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(error.byte_span, (expected, expected + 1))
         self.assertIn(f"bytes {expected}:{expected + 1}", str(error))
         self.assertEqual(tomllib.loads("a = 1\r\nb = 2\r\n"), {"a": 1, "b": 2})
+
+    def test_gate_validator_reports_original_file_bytes(self) -> None:
+        from validate_gate_decision import validate_one
+        from validate_closure_root import validate as validate_closure_root
+
+        raw = b"a = 1\r\nb = 2\r\nbad = @\r\n"
+        expected = raw.index(b"@")
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "gate.toml"
+            path.write_bytes(raw)
+            errors = validate_one(path, pathlib.Path(directory))
+            closure_errors = validate_closure_root(path)
+        self.assertEqual(len(errors), 1)
+        self.assertIn(hashlib.sha256(raw).hexdigest(), errors[0])
+        self.assertIn(f"bytes {expected}:{expected + 1}", errors[0])
+        self.assertEqual(len(closure_errors), 1)
+        self.assertIn(hashlib.sha256(raw).hexdigest(), closure_errors[0])
+        self.assertIn(f"bytes {expected}:{expected + 1}", closure_errors[0])
 
     def test_multibyte_diagnostic_points_into_original_bytes(self) -> None:
         source = 'name = "值"\r\nbad = @\r\n'

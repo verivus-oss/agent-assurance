@@ -89,7 +89,7 @@ def run_validator(cmd: list[str]) -> tuple[int, str]:
 def load_known_divergences(path: pathlib.Path) -> dict[tuple[str, str], str]:
     if not path.exists():
         return {}
-    doc = tomllib.loads(path.read_text())
+    doc = tomllib.loads(path.read_bytes().decode("utf-8"))
     known: dict[tuple[str, str], str] = {}
     for entry in doc.get("divergence", []):
         for impl in entry["implementations"]:
@@ -124,7 +124,7 @@ def main() -> int:
                 expected_substrings: list[str] = []
                 forbidden_substrings: list[str] = []
                 if sidecar.exists():
-                    sidecar_doc = tomllib.loads(sidecar.read_text())
+                    sidecar_doc = tomllib.loads(sidecar.read_bytes().decode("utf-8"))
                     expected_substrings = sidecar_doc.get("error_contains", [])
                     forbidden_substrings = sidecar_doc.get("error_not_contains", [])
 

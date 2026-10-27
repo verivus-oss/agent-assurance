@@ -3,6 +3,7 @@
 
 import unittest
 import sys
+import time
 
 from validate_implementation_dag import detect_cycles, longest_path_loc, parse_args
 
@@ -50,6 +51,25 @@ class GraphTests(unittest.TestCase):
         edges[f"U{length - 1}"] = set()
         self.assertEqual(detect_cycles(edges), [])
         self.assertEqual(longest_path_loc(units, edges), length)
+
+    def test_branching_ladder_has_bounded_cycle_search(self) -> None:
+        edges: dict[str, set[str]] = {"A0000": set()}
+        previous = "A0000"
+        for index in range(1, 25):
+            left = f"N{index:04d}a"
+            right = f"N{index:04d}b"
+            join = f"C{index:04d}"
+            return_node = f"R{index:04d}"
+            edges[previous].update((left, right))
+            edges[left] = {join}
+            edges[right] = {join}
+            edges[join] = {return_node}
+            edges[return_node] = {previous}
+            previous = join
+        started = time.perf_counter()
+        cycles = detect_cycles(edges)
+        self.assertEqual(len(cycles), 48)
+        self.assertLess(time.perf_counter() - started, 10)
 
     def test_cli_accepts_exact_options_and_rejects_unknown(self) -> None:
         original = sys.argv

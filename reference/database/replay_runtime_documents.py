@@ -60,7 +60,7 @@ def main(argv=None):
     store = None
     try:
         store = Store(args.engine, reconnect(), args.repo_root, reconnect=reconnect)
-        manifest = toml.loads(args.manifest.read_text())
+        manifest = toml.loads(args.manifest.read_bytes().decode("utf-8"))
         result = replay(store, manifest.get("sources"), manifest_directory=args.manifest.resolve().parent,
                         exclusive_unpublished=args.exclusive_unpublished)
     except (ValueError, OSError, StorageError) as exc:

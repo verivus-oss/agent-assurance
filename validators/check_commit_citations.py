@@ -60,6 +60,8 @@ inside a UUID rather than relying on the population staying clean. This is
 also what would have to hold before `docs/reviews/` could be scanned: it
 carries several hundred gateway job ids, and most of what a naive run flags
 there is a UUID segment rather than a citation.
+The exclusion cannot create a new word boundary. Hex text joined directly
+to a UUID is one word in the original source, not a separate commit citation.
 
 A recorded entry permits a SHA only at the sites its `cited` list names. The
 same SHA appearing anywhere else is a NEW unresolvable citation and fails,
@@ -126,14 +128,14 @@ def commit_tokens(line: str) -> set[str]:
     tokens: set[str] = set()
     pos = 0
     while pos < len(line):
-        if masked[pos] or not ascii_word(line[pos]):
+        if not ascii_word(line[pos]):
             pos += 1
             continue
         end = pos + 1
-        while end < len(line) and not masked[end] and ascii_word(line[end]):
+        while end < len(line) and ascii_word(line[end]):
             end += 1
         word = line[pos:end]
-        if 7 <= len(word) <= 40 and all(ascii_hex(char) for char in word):
+        if 7 <= len(word) <= 40 and all(ascii_hex(char) for char in word) and not any(masked[pos:end]):
             tokens.add(word.lower())
         pos = end
     return tokens
@@ -142,7 +144,7 @@ def commit_tokens(line: str) -> set[str]:
 def governed_file(path: pathlib.Path, root: pathlib.Path) -> bool:
     """Vendored parser source and unit fixtures do not make commit claims."""
     rel = path.relative_to(root)
-    if rel.parts[:2] == ("validators", "_toml11_vendor"):
+    if rel.parts[:2] == ("validators", "_toml11_vendor") and rel.name != "README.md":
         return False
     return rel.as_posix() not in {
         "validators/test_toml11_scanner.py",
@@ -165,6 +167,9 @@ def parse_args() -> SimpleNamespace:
                 raise SystemExit(2)
         elif item.startswith("--repo-root="):
             repo_root = item.partition("=")[2]
+            if not repo_root:
+                print("error: --repo-root requires a path", file=sys.stderr)
+                raise SystemExit(2)
         elif item == "--baseline":
             baseline = next(args, "")
             if not baseline or baseline.startswith("-"):
@@ -172,6 +177,9 @@ def parse_args() -> SimpleNamespace:
                 raise SystemExit(2)
         elif item.startswith("--baseline="):
             baseline = item.partition("=")[2]
+            if not baseline:
+                print("error: --baseline requires a path", file=sys.stderr)
+                raise SystemExit(2)
         else:
             print(f"error: unknown option {item}", file=sys.stderr)
             raise SystemExit(2)
@@ -263,7 +271,7 @@ def main() -> int:
     if not baseline_path.is_file():
         print(f"error: missing baseline {baseline_path}", file=sys.stderr)
         return 2
-    baseline = tomllib.loads(baseline_path.read_text())
+    baseline = tomllib.loads(baseline_path.read_bytes().decode("utf-8"))
     recorded = {
         e["sha"].lower(): set(e.get("cited", []))
         for e in baseline.get("unresolvable", [])

@@ -22,14 +22,17 @@ class CitationTests(unittest.TestCase):
             {"9996826"},
         )
         self.assertEqual(
-            commit_tokens("deadbeefcafe12345678-1234-1234-1234-123456789abc"),
+            commit_tokens("deadbeefcafe 12345678-1234-1234-1234-123456789abc"),
             {"deadbeefcafe"},
         )
+        self.assertEqual(commit_tokens("deadbeefcafe12345678-1234-1234-1234-123456789abc"), set())
+        self.assertEqual(commit_tokens("12345678-1234-1234-1234-123456789abcdeadbeefcafe"), set())
 
     def test_scan_population_excludes_vendor_and_unit_fixtures(self) -> None:
         root = pathlib.Path("/repo")
         self.assertTrue(governed_file(root / "docs/issues/issue.md", root))
         self.assertTrue(governed_file(root / "validators/check_commit_citations.py", root))
+        self.assertTrue(governed_file(root / "validators/_toml11_vendor/README.md", root))
         self.assertFalse(governed_file(root / "validators/_toml11_vendor/_scan.py", root))
         self.assertFalse(governed_file(root / "validators/test_toml11_scanner.py", root))
 
@@ -43,6 +46,11 @@ class CitationTests(unittest.TestCase):
             with self.assertRaises(SystemExit) as error:
                 parse_args()
             self.assertEqual(error.exception.code, 2)
+            for invalid in ("--repo-root=", "--baseline="):
+                sys.argv = ["checker", invalid]
+                with self.assertRaises(SystemExit) as error:
+                    parse_args()
+                self.assertEqual(error.exception.code, 2)
         finally:
             sys.argv = original
 
