@@ -619,6 +619,7 @@ jobs:
         run: |
           set -e
           python3 validators/test_implementation_dag_graph.py
+          python3 tools/test_prepare_osv_python.py
           python3 validators/test_toml11_scanner.py
           python3 validators/validate_implementation_dag.py \
             examples/minimal-implementation-dag.toml
@@ -1060,7 +1061,7 @@ jobs:
             --ignore S404 \
             --config 'lint.flake8-bandit.check-typed-exception=true' \
             --line-length 120 \
-            validators/ reference/database/ conformance/ tools/toml-test-decode-py.py tools/prepare_osv_python.py
+            validators/ reference/database/ conformance/ tools/toml-test-decode-py.py tools/prepare_osv_python.py tools/test_prepare_osv_python.py
 
       # --- Existing 5 scanners follow below ---
 
@@ -1098,7 +1099,7 @@ jobs:
 
       - name: Remove staged Python locks
         if: always()
-        run: python3 -c 'import pathlib, shutil; shutil.rmtree(pathlib.Path("osv-python-lockfiles"), ignore_errors=True); pathlib.Path("osv-scan-results.json").unlink(missing_ok=True)'
+        run: python3 tools/prepare_osv_python.py --cleanup
 
       - name: Secret scan (gitleaks)
         continue-on-error: false
@@ -1170,7 +1171,7 @@ jobs:
           # annotated with `# nosec B603 - <reason>` where the safety
           # argument is non-obvious.
           python3 -m bandit \
-            --recursive validators/ reference/database/ conformance/ tools/toml-test-decode-py.py tools/prepare_osv_python.py \
+            --recursive validators/ reference/database/ conformance/ tools/toml-test-decode-py.py tools/prepare_osv_python.py tools/test_prepare_osv_python.py \
             --severity-level low \
             --confidence-level low \
             --skip B404

@@ -33,14 +33,14 @@ def tracked_sources(root: Path) -> list[Path]:
 
 def stage(root: Path) -> None:
     staging = root / "osv-python-lockfiles"
-    if staging.exists():
+    if staging.exists() or staging.is_symlink():
         raise SystemExit(f"OSV staging already exists: {staging}")
 
     sources = tracked_sources(root)
 
     for source in sources:
-        if not source.is_file():
-            raise SystemExit(f"Tracked requirements lock is absent: {source}")
+        if source.is_symlink() or not source.is_file():
+            raise SystemExit(f"Tracked requirements lock is absent or symlinked: {source}")
         destination = staging / source.stem / "requirements.txt"
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, destination)
@@ -53,6 +53,22 @@ def stage(root: Path) -> None:
     print(f"OSV Python lockfiles staged and verified: {len(sources)}")
 
 
+def canonical_name(name: str) -> str:
+    """Apply the PyPI name equivalence rule without a regex engine."""
+    result: list[str] = []
+    for character in name.lower():
+        if character in "-_.":
+            if not result or result[-1] != "-":
+                result.append("-")
+        elif character.isascii() and character.isalnum():
+            result.append(character)
+        else:
+            raise SystemExit(f"Invalid Python package name: {name}")
+    if not result or result[0] == "-" or result[-1] == "-":
+        raise SystemExit(f"Invalid Python package name: {name}")
+    return "".join(result)
+
+
 def pins(source: Path) -> set[tuple[str, str]]:
     expected: set[tuple[str, str]] = set()
     for raw in source.read_bytes().decode("utf-8").splitlines():
@@ -62,8 +78,11 @@ def pins(source: Path) -> set[tuple[str, str]]:
         name, separator, remainder = line.partition("==")
         if not separator or not name or not remainder:
             raise SystemExit(f"Unsupported requirement in {source}: {line}")
-        version = remainder.split()[0]
-        expected.add((name.lower(), version))
+        version_parts = remainder.partition(";")[0].split()
+        if not version_parts:
+            raise SystemExit(f"Missing pinned version in {source}: {line}")
+        version = version_parts[0]
+        expected.add((canonical_name(name), version))
     return expected
 
 
@@ -78,7 +97,7 @@ def verify(root: Path, result_file: Path) -> None:
         if path in scanned or entry["source"]["type"] != "lockfile":
             raise SystemExit(f"Unexpected OSV source entry: {path}")
         scanned[path] = {
-            (item["package"]["name"].lower(), item["package"]["version"])
+            (canonical_name(item["package"]["name"]), item["package"]["version"])
             for item in entry["packages"]
             if item["package"]["ecosystem"] == "PyPI"
         }
@@ -98,11 +117,23 @@ def verify(root: Path, result_file: Path) -> None:
     print(f"OSV Python coverage verified: {len(sources)} locks, {sum(map(len, expected.values()))} pins")
 
 
+def cleanup(root: Path) -> None:
+    staging = root / "osv-python-lockfiles"
+    if staging.is_symlink():
+        raise SystemExit(f"Refusing to remove symlinked OSV staging: {staging}")
+    if staging.exists():
+        shutil.rmtree(staging)
+    result = root / "osv-scan-results.json"
+    result.unlink(missing_ok=True)
+
+
 if __name__ == "__main__":
     root = Path(__file__).resolve().parent.parent
     if len(sys.argv) == 1:
         stage(root)
     elif len(sys.argv) == 3 and sys.argv[1] == "--verify":
         verify(root, Path(sys.argv[2]))
+    elif len(sys.argv) == 2 and sys.argv[1] == "--cleanup":
+        cleanup(root)
     else:
-        raise SystemExit("usage: prepare_osv_python.py [--verify results.json]")
+        raise SystemExit("usage: prepare_osv_python.py [--verify results.json | --cleanup]")

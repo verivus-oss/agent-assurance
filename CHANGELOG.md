@@ -26,7 +26,11 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   CI, including accepted and rejected inputs.
 - Expose all seven pinned Python verification locks to OSV Scanner. Update
   Go module and CI pins to the patched 1.26.10 release after the expanded
-  scan found vulnerable Go standard library pins at 1.26.6.
+  scan found vulnerable Go standard library pins at 1.26.6. Canonicalize
+  package names and compact markers, reject symlinked locks, and surface
+  scanner cleanup failures.
+- Clarify the implementation DAG error contract in specification section 9.2.
+  Report source digests and byte spans for malformed TOML and UTF-8 input.
 - Scan commit citations with explicit ASCII token parsing and report file
   identities without source line coordinates. Exclude vendored parser source
   and unit fixtures from this authored citation check.
