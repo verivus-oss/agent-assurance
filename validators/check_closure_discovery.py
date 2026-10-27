@@ -119,6 +119,23 @@ def main():
         raise AssertionError("valid profile was not discovered")
     if "valid" not in discover_descriptors(repo):
         raise AssertionError("valid profile was not discovered by descriptor validator")
+    for bad_declaration in (
+        '[meta]\ntemplate_kind = "profile-descriptor"\n[profile]\nname = 42\n',
+        '[meta]\ntemplate_kind = "profile-descriptor"\n[profile]\nname = ""\n',
+        '[meta]\ntemplate_kind = "profile-descriptor"\n[profile]\n',
+        '[meta]\ntemplate_kind = "implementation-dag"\n[profile]\nname = "wrong-kind"\n',
+    ):
+        profile.write_text(bad_declaration)
+        for operation in profile_operations:
+            try:
+                operation()
+            except ValueError as exc:
+                if str(profile) not in str(exc):
+                    raise AssertionError(f"invalid declaration lost its source: {exc}") from exc
+            else:
+                raise AssertionError(f"invalid profile was silently skipped: {profile}")
+        expect_cli_failure(repo, root, profile)
+    profile.write_text('[meta]\ntemplate_kind = "profile-descriptor"\n[profile]\nname = "valid"\n')
 
     descriptor = repo / "core" / "broken-kind.toml"
     descriptor.parent.mkdir(parents=True)
@@ -126,9 +143,27 @@ def main():
     expect_parse_failure(lambda: spec_reserved_kinds(repo), descriptor)
     expect_cli_failure(repo, root, descriptor)
     descriptor.unlink()
-    descriptor.write_text('[kind]\nname = "valid-kind"\n')
+    descriptor.write_text('[meta]\ntemplate_kind = "kind-descriptor"\ndescribes_kind = "valid-kind"\n'
+                          '[kind]\nname = "valid-kind"\n')
     if "valid-kind" not in spec_reserved_kinds(repo):
         raise AssertionError("valid kind descriptor was not discovered")
+    for bad_declaration in (
+        '[meta]\ntemplate_kind = "kind-descriptor"\n[kind]\nname = "bad"\n',
+        '[meta]\ntemplate_kind = "kind-descriptor"\ndescribes_kind = "different"\n'
+        '[kind]\nname = "bad"\n',
+        '[meta]\ntemplate_kind = "implementation-dag"\n[kind]\nname = "bad"\n',
+    ):
+        descriptor.write_text(bad_declaration)
+        try:
+            spec_reserved_kinds(repo)
+        except ValueError as exc:
+            if str(descriptor) not in str(exc):
+                raise AssertionError(f"invalid kind lost its source: {exc}") from exc
+        else:
+            raise AssertionError(f"invalid kind was silently skipped: {descriptor}")
+        expect_cli_failure(repo, root, descriptor)
+    descriptor.write_text('[meta]\ntemplate_kind = "kind-descriptor"\ndescribes_kind = "valid-kind"\n'
+                          '[kind]\nname = "valid-kind"\n')
 
     ontology = repo / "profiles" / "disclosure" / "ontology.toml"
     ontology.parent.mkdir(parents=True)

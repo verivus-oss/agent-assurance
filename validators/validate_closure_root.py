@@ -41,6 +41,7 @@ import re
 import sys
 from collections.abc import Callable
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
+from _profile_discovery import profile_name as declared_profile_name
 
 ALGO_HEX_LENGTHS = {
     "sha256": 64,
@@ -98,13 +99,7 @@ def duplicate_profile_names(repo_root: pathlib.Path) -> list[str]:
             if not candidate.exists() and not candidate.is_symlink():
                 continue
             doc = _read_discovery_toml(candidate)
-            meta = doc.get("meta") or {}
-            profile = doc.get("profile") or {}
-            name = profile.get("name")
-            if meta.get("template_kind") != "profile-descriptor" or not isinstance(
-                name, str
-            ):
-                continue
+            name = declared_profile_name(doc, candidate)
             if name in seen:
                 duplicates.append(
                     f"duplicate profile-descriptor name `{name}` "
@@ -127,13 +122,8 @@ def load_pinned_records(
             if not candidate.exists() and not candidate.is_symlink():
                 continue
             doc = _read_discovery_toml(candidate)
-            meta = doc.get("meta") or {}
-            if meta.get("template_kind") != "profile-descriptor":
-                continue
-            profile = doc.get("profile") or {}
-            name = profile.get("name")
-            if isinstance(name, str):
-                descriptors[name] = profile
+            name = declared_profile_name(doc, candidate)
+            descriptors[name] = doc["profile"]
 
     pin_map: dict[str, list[tuple[str, str, str]]] = {}
     for name in descriptors:
@@ -190,13 +180,7 @@ def _loaded_profile_names(repo_root: pathlib.Path) -> frozenset[str]:
             if not candidate.exists() and not candidate.is_symlink():
                 continue
             doc = _read_discovery_toml(candidate)
-            meta = doc.get("meta") or {}
-            profile = doc.get("profile") or {}
-            name = profile.get("name")
-            if meta.get("template_kind") == "profile-descriptor" and isinstance(
-                name, str
-            ):
-                names.add(name)
+            names.add(declared_profile_name(doc, candidate))
     return frozenset(names)
 
 
@@ -416,14 +400,18 @@ ALWAYS_SPEC_RESERVED_KINDS = frozenset({
 })
 
 
-def _kind_name_from_descriptor(path: pathlib.Path) -> str | None:
+def _kind_name_from_descriptor(path: pathlib.Path) -> str:
     data = _read_discovery_toml(path)
+    meta = data.get("meta")
     kind = data.get("kind")
-    if isinstance(kind, dict):
-        name = kind.get("name")
-        if isinstance(name, str):
-            return name
-    return None
+    if not isinstance(meta, dict) or meta.get("template_kind") != "kind-descriptor":
+        raise ValueError(f"{path}: expected a kind-descriptor declaration")
+    if not isinstance(kind, dict):
+        raise ValueError(f"{path}: missing [kind] table")
+    name = kind.get("name")
+    if not isinstance(name, str) or not name or meta.get("describes_kind") != name:
+        raise ValueError(f"{path}: kind name must match [meta].describes_kind")
+    return name
 
 
 def spec_reserved_kinds(repo_root: pathlib.Path) -> frozenset[str]:
@@ -442,15 +430,11 @@ def spec_reserved_kinds(repo_root: pathlib.Path) -> frozenset[str]:
     """
     found: set[str] = set(ALWAYS_SPEC_RESERVED_KINDS)
     for descriptor in (repo_root / "core").glob("*-kind.toml"):
-        name = _kind_name_from_descriptor(descriptor)
-        if name:
-            found.add(name)
+        found.add(_kind_name_from_descriptor(descriptor))
     profiles_dir = repo_root / "profiles"
     if profiles_dir.exists():
         for descriptor in profiles_dir.glob("*/*-kind.toml"):
-            name = _kind_name_from_descriptor(descriptor)
-            if name:
-                found.add(name)
+            found.add(_kind_name_from_descriptor(descriptor))
     return frozenset(found)
 
 

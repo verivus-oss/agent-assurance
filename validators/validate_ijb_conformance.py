@@ -52,6 +52,7 @@ import pathlib
 import re
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
+from _profile_discovery import profile_name
 
 
 IJB_PRIMITIVES = ("thing", "scope", "path", "observed", "constraint", "time")
@@ -625,12 +626,7 @@ def discover_profile_descriptors(repo_root: pathlib.Path) -> set[str]:
             doc = load_toml(candidate)
         except (OSError, tomllib.TOMLDecodeError) as exc:
             raise ValueError(f"{candidate}: cannot parse profile descriptor ({exc})") from exc
-        meta = doc.get("meta") or {}
-        if meta.get("template_kind") != "profile-descriptor":
-            continue
-        name = (doc.get("profile") or {}).get("name")
-        if isinstance(name, str) and name:
-            names.add(name)
+        names.add(profile_name(doc, candidate))
     return names
 
 

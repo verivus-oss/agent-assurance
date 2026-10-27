@@ -53,6 +53,7 @@ import pathlib
 import re
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
+from _profile_discovery import profile_name
 
 
 # \Z, not $: Python's $ also matches before a trailing newline; rs/go
@@ -118,13 +119,7 @@ def discover_descriptors(repo_root: pathlib.Path) -> dict[str, tuple[pathlib.Pat
             doc = load_toml(candidate)
         except (OSError, tomllib.TOMLDecodeError) as exc:
             raise ValueError(f"{candidate}: cannot parse profile descriptor ({exc})") from exc
-        meta = doc.get("meta") or {}
-        if meta.get("template_kind") != "profile-descriptor":
-            continue
-        profile = doc.get("profile") or {}
-        name = profile.get("name")
-        if isinstance(name, str):
-            found[name] = (candidate, doc)
+        found[profile_name(doc, candidate)] = (candidate, doc)
     return found
 
 
