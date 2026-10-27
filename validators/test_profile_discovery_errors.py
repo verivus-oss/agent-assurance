@@ -128,7 +128,8 @@ def test_closure_discovery_rejects_malformed_candidates() -> None:
         descriptor = root / "core/widget-kind.toml"
         descriptor.parent.mkdir()
         (root / "profiles").mkdir()
-        descriptor.write_text('[kind]\nname = "widget"\n')
+        descriptor.write_text('[meta]\ntemplate_kind = "kind-descriptor"\n'
+                              'describes_kind = "widget"\n[kind]\nname = "widget"\n')
         kinds = spec_reserved_kinds(root)
         require("widget" in kinds)
 
@@ -159,7 +160,7 @@ def test_closure_discovery_rejects_malformed_candidates() -> None:
         descriptor.write_text("[kind\n")
         failure = expect_raises(ValueError, lambda: spec_reserved_kinds(root),
                                 "malformed kind descriptor was ignored")
-        require("cannot inspect kind descriptor" in str(failure))
+        require("cannot parse discovery TOML" in str(failure))
         descriptor.unlink()
         descriptor.symlink_to("missing-kind.toml")
         expect_raises(OSError, lambda: spec_reserved_kinds(root),
