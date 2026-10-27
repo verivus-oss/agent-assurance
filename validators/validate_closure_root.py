@@ -38,6 +38,7 @@ from _literal_paths import glob as literal_glob, rglob as literal_rglob
 import _literal_args as argparse
 import hashlib
 import pathlib
+from collections.abc import Callable
 from _ascii_predicates import split_closure_root, valid_sha256
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
@@ -85,10 +86,7 @@ def duplicate_profile_names(repo_root: pathlib.Path) -> list[str]:
             candidate = entry / "PROFILE.toml"
             if not candidate.is_file():
                 continue
-            try:
-                doc = tomllib.loads(candidate.read_text())
-            except (OSError, tomllib.TOMLDecodeError):
-                continue
+            doc = tomllib.loads(candidate.read_text())
             meta = doc.get("meta") or {}
             profile = doc.get("profile") or {}
             name = profile.get("name")
@@ -117,10 +115,7 @@ def load_pinned_records(
             candidate = entry / "PROFILE.toml"
             if not candidate.is_file():
                 continue
-            try:
-                doc = tomllib.loads(candidate.read_text())
-            except (OSError, tomllib.TOMLDecodeError):
-                continue
+            doc = tomllib.loads(candidate.read_text())
             meta = doc.get("meta") or {}
             if meta.get("template_kind") != "profile-descriptor":
                 continue
@@ -183,10 +178,7 @@ def _loaded_profile_names(repo_root: pathlib.Path) -> frozenset[str]:
             candidate = entry / "PROFILE.toml"
             if not candidate.is_file():
                 continue
-            try:
-                doc = tomllib.loads(candidate.read_text())
-            except (OSError, tomllib.TOMLDecodeError):
-                continue
+            doc = tomllib.loads(candidate.read_text())
             meta = doc.get("meta") or {}
             profile = doc.get("profile") or {}
             name = profile.get("name")
@@ -416,8 +408,8 @@ ALWAYS_SPEC_RESERVED_KINDS = frozenset({
 def _kind_name_from_descriptor(path: pathlib.Path) -> str | None:
     try:
         data = tomllib.loads(path.read_text())
-    except (OSError, tomllib.TOMLDecodeError):
-        return None
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise ValueError(f"{path}: cannot inspect kind descriptor ({exc})") from exc
     kind = data.get("kind")
     if isinstance(kind, dict):
         name = kind.get("name")
@@ -465,8 +457,8 @@ def is_conforming_toml(path: pathlib.Path, spec_reserved: frozenset[str]) -> boo
     """
     try:
         data = tomllib.loads(path.read_text())
-    except (OSError, tomllib.TOMLDecodeError):
-        return False
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise ValueError(f"{path}: cannot inspect TOML candidate ({exc})") from exc
     meta = data.get("meta")
     if not isinstance(meta, dict):
         return False
@@ -477,6 +469,7 @@ def is_conforming_toml(path: pathlib.Path, spec_reserved: frozenset[str]) -> boo
 def discover_conforming(
     roots: list[pathlib.Path],
     spec_reserved: frozenset[str],
+    excluded: Callable[[pathlib.Path], bool] | None = None,
 ) -> list[pathlib.Path]:
     """Find every conforming DAG-TOML document under the given roots.
 
@@ -492,11 +485,13 @@ def discover_conforming(
         if not root.exists():
             continue
         if root.is_file():
-            if root.suffix == ".toml" and is_conforming_toml(root, spec_reserved):
+            if root.suffix == ".toml" and not (excluded and excluded(root)) and is_conforming_toml(root, spec_reserved):
                 out.append(root)
             continue
         for path in sorted(literal_rglob(root, "*.toml")):
             if any(part.startswith(".") or part in skip_dirs for part in path.relative_to(root).parts):
+                continue
+            if excluded and excluded(path):
                 continue
             if is_conforming_toml(path, spec_reserved):
                 out.append(path)
@@ -558,7 +553,11 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     repo_root = pathlib.Path(args.repo_root).resolve()
-    duplicates = duplicate_profile_names(repo_root)
+    try:
+        duplicates = duplicate_profile_names(repo_root)
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        print(f"FAIL profile descriptor discovery: {exc}", file=sys.stderr)
+        return 1
     if duplicates:
         for dup in duplicates:
             print(
@@ -567,14 +566,13 @@ def main(argv: list[str]) -> int:
             )
         print("\nCLOSURE-ROOT VALIDATION FAILED: duplicate profile names.", file=sys.stderr)
         return 1
-    pin_map = load_pinned_records(repo_root)
-    loaded_profiles = _loaded_profile_names(repo_root)
-
+    try:
+        pin_map = load_pinned_records(repo_root)
+        loaded_profiles = _loaded_profile_names(repo_root)
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        print(f"FAIL profile descriptor discovery: {exc}", file=sys.stderr)
+        return 1
     if args.discover:
-        spec_reserved = spec_reserved_kinds(repo_root)
-        targets = discover_conforming(
-            [pathlib.Path(r) for r in args.discover], spec_reserved
-        )
         # Conformance `invalid/` trees are asserted-negative by construction:
         # conformance/runner.py requires all three implementations to REJECT
         # every one of them. Skipping them here is therefore structural, not a
@@ -602,17 +600,25 @@ def main(argv: list[str]) -> int:
                 for i in range(len(parts) - 3)
             )
 
-        kept = []
         prefixes = [pathlib.Path(prefix).resolve() for prefix in (args.exclude or [])]
-        for target in targets:
-            if is_conformance_invalid(target):
-                print(f"EXCLUDED (conformance invalid tree): {target}")
-                continue
-            if any(target.resolve().is_relative_to(prefix) for prefix in prefixes):
-                print(f"EXCLUDED (asserted-negative path): {target}")
-                continue
-            kept.append(target)
-        targets = kept
+
+        def excluded(path: pathlib.Path) -> bool:
+            if is_conformance_invalid(path):
+                print(f"EXCLUDED (conformance invalid tree): {path}")
+                return True
+            if any(path.resolve().is_relative_to(prefix) for prefix in prefixes):
+                print(f"EXCLUDED (asserted-negative path): {path}")
+                return True
+            return False
+
+        try:
+            spec_reserved = spec_reserved_kinds(repo_root)
+            targets = discover_conforming(
+                [pathlib.Path(r) for r in args.discover], spec_reserved, excluded
+            )
+        except (OSError, tomllib.TOMLDecodeError, ValueError) as exc:
+            print(f"FAIL closure discovery: {exc}", file=sys.stderr)
+            return 1
         if not targets:
             print(
                 "CLOSURE-ROOT VALIDATION: no conforming TOMLs found "

@@ -7,7 +7,7 @@ import subprocess
 import sys
 from tempfile import TemporaryDirectory
 
-from _test_require import require
+from _test_require import expect_raises, require
 from check_secret_scan import (
     KNOWN_COMMITS, PUBLIC_HEX_FILE, PUBLIC_HEX_RULE,
     check_exact_config, check_findings, check_no_ignore_file, check_scan_population, gitleaks_command,
@@ -39,23 +39,15 @@ def test_exception() -> None:
             require("unapproved finding" in output.getvalue())
         else:
             raise AssertionError("unapproved finding was accepted")
-    try:
-        check_findings([], {commit})
-    except RuntimeError:
-        pass
-    else:
-        raise AssertionError("absent scanner control was accepted")
+    expect_raises(RuntimeError, lambda: check_findings([], {commit}),
+                  "absent scanner control was accepted")
 
 
 def test_scan_count() -> None:
     require(scanned_count("INF 12 commits scanned.\n") == 12)
     for output in ("", "INF scanned bytes", "INF 12 commits scanned.\nINF 12 commits scanned."):
-        try:
-            scanned_count(output)
-        except RuntimeError:
-            pass
-        else:
-            raise AssertionError("missing or duplicate scan count was accepted")
+        expect_raises(RuntimeError, lambda: scanned_count(output),
+                      "missing or duplicate scan count was accepted")
 
     head = {"head", "merge", "known"}
     all_commits = head | {"branch"}
@@ -71,12 +63,9 @@ def test_scan_count() -> None:
         (3, all_commits, head, {"known"}, patches | {"unknown"}),
         (0, all_commits, head, {"known"}, set()),
     ):
-        try:
-            check_scan_population(count, reachable, ancestry, expected, patch_commits)
-        except RuntimeError:
-            pass
-        else:
-            raise AssertionError("invalid scan population was accepted")
+        expect_raises(RuntimeError,
+                      lambda: check_scan_population(count, reachable, ancestry, expected, patch_commits),
+                      "invalid scan population was accepted")
 
     first, second = "a" * 40, "b" * 40
     numstat = (b"SCAN-COMMIT:" + first.encode() + b"\0\n2\t0\tfile\0"
@@ -96,32 +85,20 @@ def test_scan_count() -> None:
         b"SCAN-COMMIT:" + first.encode() + b"\0\n1\t0\t\0old-path\0",
         b"\n1\t0\tfile\0",
     ):
-        try:
-            text_change_commits(broken, {first})
-        except RuntimeError:
-            pass
-        else:
-            raise AssertionError("invalid Git numstat record was accepted")
+        expect_raises(RuntimeError, lambda: text_change_commits(broken, {first}),
+                      "invalid Git numstat record was accepted")
 
     with TemporaryDirectory(prefix="gitleaks-ignore-control-") as directory:
         root = Path(directory)
         check_no_ignore_file(root)
         ignore = root / ".gitleaksignore"
         ignore.write_text("ignored-fingerprint\n")
-        try:
-            check_no_ignore_file(root)
-        except RuntimeError:
-            pass
-        else:
-            raise AssertionError("Gitleaks ignore file was accepted")
+        expect_raises(RuntimeError, lambda: check_no_ignore_file(root),
+                      "Gitleaks ignore file was accepted")
         ignore.unlink()
         ignore.symlink_to("missing-file")
-        try:
-            check_no_ignore_file(root)
-        except RuntimeError:
-            pass
-        else:
-            raise AssertionError("Gitleaks ignore symlink was accepted")
+        expect_raises(RuntimeError, lambda: check_no_ignore_file(root),
+                      "Gitleaks ignore symlink was accepted")
     require("--ignore-gitleaks-allow" in gitleaks_command(
         Path("/usr/bin/gitleaks"), ".gitleaks.toml", Path("findings.json")))
 
@@ -164,12 +141,8 @@ def test_config_boundary() -> None:
         )
         for content in rejected_configs:
             config.write_text(content)
-            try:
-                check_exact_config(config)
-            except RuntimeError:
-                pass
-            else:
-                raise AssertionError("suppressing Gitleaks configuration was accepted")
+            expect_raises(RuntimeError, lambda: check_exact_config(config),
+                          "suppressing Gitleaks configuration was accepted")
             for command in (main_command, merge_command):
                 result = subprocess.run(command, capture_output=True, text=True, check=False)  # nosec B603  # noqa: S603
                 require(result.returncode != 0 and "default rule extension" in result.stderr)

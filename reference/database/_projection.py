@@ -95,7 +95,7 @@ def date_index(value: object) -> str | None:
         try:
             return date.fromisoformat(value).isoformat()
         except ValueError:
-            pass
+            return None
     return None
 
 

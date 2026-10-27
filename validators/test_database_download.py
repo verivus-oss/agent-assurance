@@ -5,7 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import os
 
-from _test_require import require
+from _test_require import expect_raises, require
 from database_ci import download
 
 
@@ -36,12 +36,8 @@ def main() -> None:
                 ("https://example.org/archive", "0" * 64, ValueError),
                 ("https://example.org/other", digest, RuntimeError),
             ):
-                try:
-                    download(url, checksum, root / "rejected")
-                except error:
-                    pass
-                else:
-                    raise AssertionError("unsafe or unpinned download was accepted")
+                expect_raises(error, lambda: download(url, checksum, root / "rejected"),
+                              "unsafe or unpinned download was accepted")
             require(not (root / "rejected").exists())
         finally:
             if previous is None:

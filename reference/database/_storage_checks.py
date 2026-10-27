@@ -18,6 +18,7 @@ CHECKS = frozenset({
     "native-and-quoted-date-and-local-timestamp-indexes", "semantic-json-order-unicode-escapes-and-decimal-number-equivalence",
     "audit-and-repeat-reject-array-order", "audit-and-repeat-reject-bool-versus-number", "audit-and-repeat-reject-missing-property",
     "audit-and-repeat-detect-raw-bytes-and-projection-corruption", "audit-detects-source-hash-corruption",
+    "failed-close-blocks-reconnect",
 })
 
 
@@ -25,6 +26,24 @@ def exercise_storage(store: Store) -> list[str]:
     """Use an isolated test destination. This function intentionally writes rows."""
     checks = []
     root = store.root
+
+    class FailingClose:
+        def close(self) -> None:
+            raise OSError("injected close failure")
+
+    def forbidden_reconnect():
+        raise AssertionError("reconnected after old connection close failed")
+
+    close_failure = Store(store.engine, FailingClose(), root, reconnect=forbidden_reconnect)
+    try:
+        close_failure._fresh()
+    except StorageError as exc:
+        require(exc.code == "commit-outcome-unknown")
+        require(isinstance(exc.__cause__, OSError))
+    else:
+        raise AssertionError("failed close was accepted")
+    checks.append("failed-close-blocks-reconnect")
+
     kinds = ("adapter-contract", "adapter-registry-binding", "gate-decision")
     sources = {kind: (root / f"examples/minimal-{kind}.toml").read_bytes() for kind in kinds}
     batch = [(f"check/{kind}.toml", sources[kind]) for kind in kinds]

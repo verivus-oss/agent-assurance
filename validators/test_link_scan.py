@@ -1,6 +1,6 @@
 """Accepted and rejected boundaries for the exact link scan exceptions."""
 
-from _test_require import require
+from _test_require import expect_raises, require
 from check_link_scan import check_report
 from prepare_link_scan import host_of, included_source, select_links, split_record
 from pathlib import Path
@@ -12,12 +12,8 @@ def test_records() -> None:
     require(split_record("mailto:a@example.org (./README.md) [excluded]") ==
             ("mailto:a@example.org", "./README.md"))
     for malformed in ("", "https://example.org/a", "https://example.org/a (./README.md"):
-        try:
-            split_record(malformed)
-        except ValueError:
-            pass
-        else:
-            raise AssertionError("malformed extractor record was accepted")
+        expect_raises(ValueError, lambda: split_record(malformed),
+                      "malformed extractor record was accepted")
 
 
 def test_scope() -> None:
@@ -25,24 +21,16 @@ def test_scope() -> None:
     require(included_source("./README.md", tracked))
     require(not included_source("./docs/reviews/report.md", tracked))
     for source in ("./not-tracked.md", "../README.md"):
-        try:
-            included_source(source, tracked)
-        except ValueError:
-            pass
-        else:
-            raise AssertionError("untracked source was accepted")
+        expect_raises(ValueError, lambda: included_source(source, tracked),
+                      "untracked source was accepted")
 
 
 def test_hosts() -> None:
     require(host_of("https://toml.io/en/v1.1.0") == "toml.io")
     require(host_of("https://toml.io.evil.example/path") == "toml.io.evil.example")
     for url in ("https://user@toml.io/path", "https://toml.io:port/path"):
-        try:
-            host_of(url)
-        except ValueError:
-            pass
-        else:
-            raise AssertionError("ambiguous authority was accepted")
+        expect_raises(ValueError, lambda: host_of(url),
+                      "ambiguous authority was accepted")
 
 
 def test_selection() -> None:
@@ -56,12 +44,9 @@ def test_selection() -> None:
     require(selected == sorted(urls))
     require(len(exceptions) == 2)
     for absent in ("https://toml.io/en/v1.1.0", "https://www.fco-im.nl/papers"):
-        try:
-            select_links([row for row in rows if not row.startswith(absent)], tracked)
-        except ValueError:
-            pass
-        else:
-            raise AssertionError("missing exception control was accepted")
+        expect_raises(ValueError,
+                      lambda: select_links([row for row in rows if not row.startswith(absent)], tracked),
+                      "missing exception control was accepted")
 
 
 def test_report() -> None:
@@ -73,12 +58,8 @@ def test_report() -> None:
     check_report(report, candidates, source)
     for change in ({"successful": 1}, {"excludes": 1}, {"errors": 1},
                    {"success_map": {str(source): [{"url": candidates[0]}]}}):
-        try:
-            check_report(report | change, candidates, source)
-        except RuntimeError:
-            pass
-        else:
-            raise AssertionError("incomplete link check report was accepted")
+        expect_raises(RuntimeError, lambda: check_report(report | change, candidates, source),
+                      "incomplete link check report was accepted")
 
 
 if __name__ == "__main__":

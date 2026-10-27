@@ -104,11 +104,16 @@ jobs:
           tests = sorted(path for path in Path("validators").iterdir()
                          if path.is_file() and path.name.startswith("test_")
                          and path.name.endswith(".py"))
-          required = {"test_ai_attribution.py", "test_database_download.py",
+          tracked = sorted(Path(raw.decode()) for raw in
+                           subprocess.run(["git", "ls-files", "-z", "--", "validators"],
+                                          check=True, capture_output=True).stdout.split(b"\0") if raw
+                           and Path(raw.decode()).name.startswith("test_")
+                           and Path(raw.decode()).suffix == ".py")
+          required = {"test_abstraction_class_errors.py", "test_ai_attribution.py", "test_database_download.py",
                       "test_link_scan.py", "test_ontology_prefix_types.py",
-                      "test_safe_tools.py", "test_secret_scan_filter.py",
+                      "test_profile_discovery_errors.py", "test_safe_tools.py", "test_secret_scan_filter.py",
                       "test_workflow_text.py"}
-          if len(tests) != 16 or not required <= {path.name for path in tests}:
+          if not tests or tests != tracked or not required <= {path.name for path in tests}:
               raise SystemExit("FAIL: Python boundary test population changed")
           for path in tests:
               command = [sys.executable, str(path)]
@@ -1049,9 +1054,11 @@ jobs:
           # Skip S404 (import subprocess) — same rationale as bandit:
           # pure informational, the call-site checks (S603) are what
           # matter.
+          # Include typed exception handlers in S110, including IndexError.
           "$HOME/.local/bin/ruff" check \
             --select S,F \
             --ignore S404 \
+            --config 'lint.flake8-bandit.check-typed-exception=true' \
             --line-length 120 \
             validators/ reference/database/ conformance/
 

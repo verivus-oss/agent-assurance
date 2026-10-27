@@ -200,8 +200,8 @@ def sqry_search(
             continue
         try:
             candidate = pathlib.Path(raw_path).resolve()
-        except OSError:
-            continue
+        except (OSError, TypeError) as exc:
+            return [], f"sqry returned an invalid source path: {exc}"
         if candidate == wanted:
             results.append(item)
     return results, None

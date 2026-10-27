@@ -179,8 +179,11 @@ class Store:
             raise StorageError("commit-outcome-unknown", "reconnection is unavailable; inspect the destination before retrying")
         try:
             self.connection.close()
-        except Exception:  # nosec B110 # noqa: S110
-            pass
+        except Exception as exc:
+            raise StorageError(
+                "commit-outcome-unknown",
+                "old connection could not be closed before reconnecting",
+            ) from exc
         self.connection = self.reconnect()
         self.prepare()
 

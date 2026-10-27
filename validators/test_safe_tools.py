@@ -2,7 +2,7 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from _test_require import require
+from _test_require import expect_raises, require
 from check_safe_tools import check, go_unsafe_import, rust_has_forbid, rust_unsafe_keyword
 
 def test_rust() -> None:
@@ -58,12 +58,8 @@ def test_go() -> None:
     require(go_unsafe_import('package x\nimport /* note */ (`unsafe`)'))
     require(not go_unsafe_import('package x\n/* import alias "unsafe" */\nimport "fmt"'))
     require(not go_unsafe_import('package x\nconst note = `import "unsafe"`\nimport "fmt"'))
-    try:
-        go_unsafe_import('package x\nimport "un\\u0073afe"')
-    except ValueError:
-        pass
-    else:
-        raise AssertionError('escaped Go import path was accepted without review')
+    expect_raises(ValueError, lambda: go_unsafe_import('package x\nimport "un\\u0073afe"'),
+                  'escaped Go import path was accepted without review')
 if __name__ == '__main__':
     test_rust()
     test_rust_roots()

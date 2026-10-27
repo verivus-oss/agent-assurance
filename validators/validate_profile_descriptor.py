@@ -105,10 +105,7 @@ def discover_descriptors(repo_root: pathlib.Path) -> dict[str, tuple[pathlib.Pat
         candidate = entry / "PROFILE.toml"
         if not candidate.is_file():
             continue
-        try:
-            doc = load_toml(candidate)
-        except tomllib.TOMLDecodeError:
-            continue
+        doc = load_toml(candidate)
         meta = doc.get("meta") or {}
         if meta.get("template_kind") != "profile-descriptor":
             continue
@@ -572,7 +569,8 @@ def validate_one(
                 continue
             try:
                 kd_doc = load_toml(candidate)
-            except tomllib.TOMLDecodeError:
+            except tomllib.TOMLDecodeError as exc:
+                errors.append(f"{candidate}: cannot parse kind descriptor ({exc})")
                 continue
             kd_meta = kd_doc.get("meta") or {}
             if (
@@ -627,7 +625,11 @@ def _kind_descriptor_candidates(
 def main() -> int:
     args = parse_args()
     repo_root = pathlib.Path(args.repo_root).resolve()
-    descriptors = discover_descriptors(repo_root)
+    try:
+        descriptors = discover_descriptors(repo_root)
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        print(f"PROFILE DESCRIPTOR VALIDATION FAILED: cannot inspect descriptors ({exc})")
+        return 1
 
     # Duplicate profile names would shadow each other in the name-keyed
     # map and could erase closure pins; refuse to validate anything
@@ -642,7 +644,8 @@ def main() -> int:
                 continue
             try:
                 dup_doc = load_toml(candidate)
-            except (FileNotFoundError, tomllib.TOMLDecodeError):
+            except (FileNotFoundError, tomllib.TOMLDecodeError) as exc:
+                duplicate_errors.append(f"{candidate}: cannot inspect profile descriptor ({exc})")
                 continue
             if (dup_doc.get("meta") or {}).get("template_kind") != "profile-descriptor":
                 continue

@@ -638,10 +638,7 @@ def discover_profile_descriptors(repo_root: pathlib.Path) -> set[str]:
         candidate = entry / "PROFILE.toml"
         if not candidate.is_file():
             continue
-        try:
-            doc = load_toml(candidate)
-        except tomllib.TOMLDecodeError:
-            continue
+        doc = load_toml(candidate)
         meta = doc.get("meta") or {}
         if meta.get("template_kind") != "profile-descriptor":
             continue
@@ -757,7 +754,11 @@ def validate_meta_posture(
                 f"or reverse-DNS)"
             )
         elif is_unprefixed and repo_root is not None:
-            known = discover_profile_descriptors(repo_root)
+            try:
+                known = discover_profile_descriptors(repo_root)
+            except (OSError, tomllib.TOMLDecodeError) as exc:
+                errors.append(f"{source}: cannot inspect profile descriptors ({exc})")
+                return errors
             if resolved not in known:
                 errors.append(
                     f"{source}: [meta].framework_profile = `{fp}` is an unprefixed "

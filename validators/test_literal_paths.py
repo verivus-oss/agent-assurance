@@ -1,5 +1,5 @@
 """Accepted and rejected path discovery cases."""
-from _test_require import require
+from _test_require import expect_raises, require
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from _literal_paths import glob, rglob
@@ -18,12 +18,8 @@ def test_path_shapes() -> None:
         require(set(rglob(root, '*.toml')) == {root / 'core/alpha-kind.toml', root / 'profiles/p1/ontology.toml', root / 'profiles/p1/PROFILE.toml'})
         require(list(glob(root, 'profiles/*/absent.toml')) == [])
         for pattern in ('../secret', 'core//alpha', 'core/*x*y'):
-            try:
-                list(glob(root, pattern))
-            except ValueError:
-                pass
-            else:
-                raise AssertionError('unsafe or unsupported path pattern accepted: ' + pattern)
+            expect_raises(ValueError, lambda: list(glob(root, pattern)),
+                          'unsafe or unsupported path pattern accepted: ' + pattern)
 if __name__ == '__main__':
     test_path_shapes()
     print('literal path scanner: accepted and rejected cases passed')

@@ -320,12 +320,7 @@ def validate_capability_envelope(
     return errors
 
 
-def validate(path: pathlib.Path, domains: set[str]) -> list[str]:
-    try:
-        data = tomllib.loads(path.read_text())
-    except (OSError, tomllib.TOMLDecodeError) as exc:
-        return [f"{path}: cannot parse TOML ({exc})"]
-
+def validate_document(data: dict, path: pathlib.Path, domains: set[str]) -> list[str]:
     kind = data.get("kind", {})
     if not isinstance(kind, dict):
         return []  # not a kind descriptor; silently skip
@@ -342,6 +337,14 @@ def validate(path: pathlib.Path, domains: set[str]) -> list[str]:
         )
 
     return errors
+
+
+def validate(path: pathlib.Path, domains: set[str]) -> list[str]:
+    try:
+        data = tomllib.loads(path.read_text())
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        return [f"{path}: cannot parse TOML ({exc})"]
+    return validate_document(data, path, domains)
 
 
 def main(argv: list[str]) -> int:
@@ -377,21 +380,17 @@ def main(argv: list[str]) -> int:
             failures.append(f"{p}: does not exist")
             continue
         checked += 1
-        errs = validate(p, domains)
-        # Detect whether any §13 block was actually declared so the
-        # summary line at the bottom is accurate.
         try:
             data = tomllib.loads(p.read_text())
-            kind = data.get("kind", {})
-            if isinstance(kind, dict) and (
-                "abstraction_class" in kind or "capability_envelope" in kind
-            ):
-                declared += 1
-        # Per-file kind-check failures are intentionally swallowed; the
-        # same defect is already counted in `failures` above, so re-raising
-        # would double-count.
-        except Exception:  # nosec B110  # noqa: S110
-            pass
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            failures.append(f"{p}: cannot parse TOML ({exc})")
+            continue
+        errs = validate_document(data, p, domains)
+        kind = data.get("kind", {})
+        if isinstance(kind, dict) and (
+            "abstraction_class" in kind or "capability_envelope" in kind
+        ):
+            declared += 1
         failures.extend(errs)
 
     if failures:

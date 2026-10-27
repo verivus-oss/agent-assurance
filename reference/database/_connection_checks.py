@@ -62,9 +62,10 @@ def exercise_connection(store, destination):
             except psycopg.errors.DivisionByZero:
                 # The deliberate SQL failure leaves the caller transaction
                 # aborted; the assertions below verify it remains untouched.
-                pass
-            if store.connection.info.transaction_status != TransactionStatus.INERROR:
-                raise AssertionError("aborted-transaction positive setup did not run")
+                if store.connection.info.transaction_status != TransactionStatus.INERROR:
+                    raise AssertionError("SQL failure did not abort the caller transaction")
+            else:
+                raise AssertionError("division-by-zero control unexpectedly succeeded")
             refused(store, "active-caller-transaction")
             if store.connection.info.transaction_status != TransactionStatus.INERROR:
                 raise AssertionError("helper changed the caller's aborted transaction")
