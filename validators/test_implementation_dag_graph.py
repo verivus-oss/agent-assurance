@@ -1,6 +1,7 @@
 """Hand-derived graph examples for the implementation DAG validator."""
 from _test_require import require
 import sys
+import time
 from validate_implementation_dag import detect_cycles, longest_path_loc, parse_args
 
 def test_distinct_cycles_and_acyclic_nodes() -> None:
@@ -24,6 +25,25 @@ def test_deep_chain_uses_explicit_stacks() -> None:
     require(detect_cycles(edges) == [])
     require(longest_path_loc(units, edges) == length)
 
+def test_branching_ladder_has_bounded_cycle_search() -> None:
+    edges: dict[str, set[str]] = {'A0000': set()}
+    previous = 'A0000'
+    for index in range(1, 25):
+        left = f'N{index:04d}a'
+        right = f'N{index:04d}b'
+        join = f'C{index:04d}'
+        return_node = f'R{index:04d}'
+        edges[previous].update((left, right))
+        edges[left] = {join}
+        edges[right] = {join}
+        edges[join] = {return_node}
+        edges[return_node] = {previous}
+        previous = join
+    started = time.perf_counter()
+    cycles = detect_cycles(edges)
+    require(len(cycles) == 48)
+    require(time.perf_counter() - started < 10)
+
 def test_cli_accepts_exact_options_and_rejects_unknown() -> None:
     original = sys.argv
     try:
@@ -46,5 +66,6 @@ if __name__ == '__main__':
     test_distinct_cycles_and_acyclic_nodes()
     test_longest_weighted_path_and_cycle_rejection()
     test_deep_chain_uses_explicit_stacks()
+    test_branching_ladder_has_bounded_cycle_search()
     test_cli_accepts_exact_options_and_rejects_unknown()
-    print('implementation DAG graph: 4 test groups passed')
+    print('implementation DAG graph: 5 test groups passed')

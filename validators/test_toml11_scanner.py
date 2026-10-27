@@ -2,6 +2,8 @@
 from _test_require import require
 import hashlib
 import io
+import pathlib
+import tempfile
 from datetime import date, datetime, time, timedelta, timezone
 import _toml11 as tomllib
 from _toml11_vendor._parser import skip_chars
@@ -63,6 +65,22 @@ def test_original_byte_evidence() -> None:
             raise AssertionError('invalid TOML was accepted')
     require(tomllib.loads('a = 1\r\nb = 2\r\n') == {'a': 1, 'b': 2})
 
+def test_validator_file_reads_preserve_original_bytes() -> None:
+    from validate_gate_decision import validate_one
+    from validate_closure_root import validate as validate_closure_root
+
+    raw = b'a = 1\r\nb = 2\r\nbad = @\r\n'
+    expected = raw.index(b'@')
+    with tempfile.TemporaryDirectory() as directory:
+        path = pathlib.Path(directory) / 'gate.toml'
+        path.write_bytes(raw)
+        gate_errors = validate_one(path, pathlib.Path(directory))
+        closure_errors = validate_closure_root(path)
+    for errors in (gate_errors, closure_errors):
+        require(len(errors) == 1)
+        require(hashlib.sha256(raw).hexdigest() in errors[0])
+        require(f'bytes {expected}:{expected + 1}' in errors[0])
+
 def test_caller_float_error_is_not_rewritten() -> None:
     caller_error = tomllib.TOMLDecodeError('caller rejected float', '', 0)
 
@@ -83,5 +101,6 @@ if __name__ == '__main__':
     test_invalid_token_boundaries()
     test_error_uses_digest_and_byte_span()
     test_original_byte_evidence()
+    test_validator_file_reads_preserve_original_bytes()
     test_caller_float_error_is_not_rewritten()
-    print('TOML token scanner: 6 test groups passed')
+    print('TOML token scanner: 7 test groups passed')

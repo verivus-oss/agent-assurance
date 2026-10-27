@@ -41,7 +41,7 @@ def validate_one(path: pathlib.Path, repo_root: pathlib.Path, *, doc: dict | Non
     defects: list[str] = []
     if doc is None:
         try:
-            doc = tomllib.loads(path.read_text())
+            doc = tomllib.loads(path.read_bytes().decode("utf-8"))
         except (OSError, tomllib.TOMLDecodeError) as e:
             return [f"{path}: TOML parse failed: {e}"]
 

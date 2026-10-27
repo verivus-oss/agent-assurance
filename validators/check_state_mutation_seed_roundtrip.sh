@@ -19,7 +19,7 @@ sys.path.insert(0, str(repo / "validators"))
 import _toml11 as tomllib
 
 ontology = tomllib.loads(
-    (repo / "profiles/com.verivus.runtime/ontology.toml").read_text()
+    (repo / "profiles/com.verivus.runtime/ontology.toml").read_bytes().decode("utf-8")
 )
 vocabularies = {
     vocabulary["attribute"]: vocabulary.get("values", [])

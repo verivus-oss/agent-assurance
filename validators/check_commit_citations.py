@@ -144,7 +144,7 @@ def commit_tokens(line: str) -> set[str]:
 def governed_file(path: pathlib.Path, root: pathlib.Path) -> bool:
     """Vendored parser source and unit fixtures do not make commit claims."""
     rel = path.relative_to(root)
-    if rel.parts[:2] == ("validators", "_toml11_vendor"):
+    if rel.parts[:2] == ("validators", "_toml11_vendor") and rel.name != "README.md":
         return False
     return rel.as_posix() not in {
         "validators/test_toml11_scanner.py",
@@ -167,6 +167,9 @@ def parse_args() -> SimpleNamespace:
                 raise SystemExit(2)
         elif item.startswith("--repo-root="):
             repo_root = item.partition("=")[2]
+            if not repo_root:
+                print("error: --repo-root requires a path", file=sys.stderr)
+                raise SystemExit(2)
         elif item == "--baseline":
             baseline = next(args, "")
             if not baseline or baseline.startswith("-"):
@@ -174,6 +177,9 @@ def parse_args() -> SimpleNamespace:
                 raise SystemExit(2)
         elif item.startswith("--baseline="):
             baseline = item.partition("=")[2]
+            if not baseline:
+                print("error: --baseline requires a path", file=sys.stderr)
+                raise SystemExit(2)
         else:
             print(f"error: unknown option {item}", file=sys.stderr)
             raise SystemExit(2)
@@ -265,7 +271,7 @@ def main() -> int:
     if not baseline_path.is_file():
         print(f"error: missing baseline {baseline_path}", file=sys.stderr)
         return 2
-    baseline = tomllib.loads(baseline_path.read_text())
+    baseline = tomllib.loads(baseline_path.read_bytes().decode("utf-8"))
     recorded = {
         e["sha"].lower(): set(e.get("cited", []))
         for e in baseline.get("unresolvable", [])

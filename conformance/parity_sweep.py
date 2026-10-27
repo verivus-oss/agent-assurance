@@ -73,7 +73,7 @@ def template_kind(path: pathlib.Path):
     import _toml11 as tomllib
 
     try:
-        doc = tomllib.loads(path.read_text())
+        doc = tomllib.loads(path.read_bytes().decode("utf-8"))
     except Exception:
         return None
     meta = doc.get("meta")

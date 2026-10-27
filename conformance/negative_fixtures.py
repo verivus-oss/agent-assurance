@@ -14,7 +14,7 @@ import _toml11 as toml  # noqa: E402
 
 def population(root: Path, ledger: Path):
     discovered = {path.relative_to(root).as_posix() for path in literal_rglob(root / "examples/negative", "*.toml")}
-    doc = toml.loads(ledger.read_text())
+    doc = toml.loads(ledger.read_bytes().decode("utf-8"))
     entries = doc.get("fixtures", [])
     names = [entry["path"] for entry in entries]
     if not discovered or len(names) != len(set(names)) or set(names) != discovered:

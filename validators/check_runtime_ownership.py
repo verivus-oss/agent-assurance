@@ -20,8 +20,8 @@ from _strace_calls import parsed_calls
 
 def declarations(root):
     load_mapping(root)
-    mapping = toml.loads((root / "reference/database/vocabulary-storage.toml").read_text())
-    descriptors = {path.relative_to(root).as_posix(): toml.loads(path.read_text())["kind"]
+    mapping = toml.loads((root / "reference/database/vocabulary-storage.toml").read_bytes().decode("utf-8"))
+    descriptors = {path.relative_to(root).as_posix(): toml.loads(path.read_bytes().decode("utf-8"))["kind"]
                    for pattern in ("core/*-kind.toml", "profiles/*/*-kind.toml") for path in sorted(literal_glob(root, pattern))}
     deferred, sections, scoped = {}, set(), {}
     for path, kind in descriptors.items():

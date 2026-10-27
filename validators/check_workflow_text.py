@@ -45,7 +45,7 @@ def provenance(root: Path = ROOT) -> None:
 
 def language_symbols(root: Path = ROOT) -> None:
     source = root / "examples/language-validation/traceability.toml"
-    rows = toml.loads(source.read_text()).get("code", [])
+    rows = toml.loads(source.read_bytes().decode("utf-8")).get("code", [])
     if not rows or len(rows) != len({row.get("id") for row in rows}):
         raise ValueError("language fixture code declarations are missing or duplicated")
     for row in rows:

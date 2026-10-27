@@ -158,7 +158,7 @@ def main(argv=None) -> int:
         load_mapping(root)
         ontology = derive_ontology_counts(root)
         registry = expected_counts(root)
-        manifest = tomllib.loads((root / "reference/database/MANIFEST.toml").read_text())
+        manifest = tomllib.loads((root / "reference/database/MANIFEST.toml").read_bytes().decode("utf-8"))
         if "attribute_values" in manifest["counts"]:
             failures.append("retired ambiguous counts.attribute_values must not coexist with declared/closed counts")
         for name, value in ontology.items():

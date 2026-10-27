@@ -21,6 +21,7 @@ def test_scan_population_excludes_vendor_and_unit_fixtures() -> None:
     root = pathlib.Path('/repo')
     require(governed_file(root / 'docs/issues/issue.md', root))
     require(governed_file(root / 'validators/check_commit_citations.py', root))
+    require(governed_file(root / 'validators/_toml11_vendor/README.md', root))
     require(not governed_file(root / 'validators/_toml11_vendor/_scan.py', root))
     require(not governed_file(root / 'validators/test_toml11_scanner.py', root))
 
@@ -37,6 +38,14 @@ def test_cli_accepts_exact_options_and_rejects_missing_values() -> None:
             require(exc.code == 2)
         else:
             raise AssertionError('missing option value accepted')
+        for invalid in ('--repo-root=', '--baseline='):
+            sys.argv = ['checker', invalid]
+            try:
+                parse_args()
+            except SystemExit as exc:
+                require(exc.code == 2)
+            else:
+                raise AssertionError('empty option value accepted')
     finally:
         sys.argv = original
 if __name__ == '__main__':

@@ -86,7 +86,7 @@ def duplicate_profile_names(repo_root: pathlib.Path) -> list[str]:
             candidate = entry / "PROFILE.toml"
             if not candidate_file(candidate):
                 continue
-            doc = tomllib.loads(candidate.read_text())
+            doc = tomllib.loads(candidate.read_bytes().decode("utf-8"))
             meta = doc.get("meta") or {}
             profile = doc.get("profile") or {}
             name = profile.get("name")
@@ -115,7 +115,7 @@ def load_pinned_records(
             candidate = entry / "PROFILE.toml"
             if not candidate_file(candidate):
                 continue
-            doc = tomllib.loads(candidate.read_text())
+            doc = tomllib.loads(candidate.read_bytes().decode("utf-8"))
             meta = doc.get("meta") or {}
             if meta.get("template_kind") != "profile-descriptor":
                 continue
@@ -178,7 +178,7 @@ def _loaded_profile_names(repo_root: pathlib.Path) -> frozenset[str]:
             candidate = entry / "PROFILE.toml"
             if not candidate_file(candidate):
                 continue
-            doc = tomllib.loads(candidate.read_text())
+            doc = tomllib.loads(candidate.read_bytes().decode("utf-8"))
             meta = doc.get("meta") or {}
             profile = doc.get("profile") or {}
             name = profile.get("name")
@@ -313,7 +313,7 @@ def validate(
     errors: list[str] = []
     if data is None:
         try:
-            data = tomllib.loads(path.read_text())
+            data = tomllib.loads(path.read_bytes().decode("utf-8"))
         except (OSError, tomllib.TOMLDecodeError) as exc:
             return [f"{path}: cannot parse TOML ({exc})"]
 
@@ -407,7 +407,7 @@ ALWAYS_SPEC_RESERVED_KINDS = frozenset({
 
 def _kind_name_from_descriptor(path: pathlib.Path) -> str | None:
     try:
-        data = tomllib.loads(path.read_text())
+        data = tomllib.loads(path.read_bytes().decode("utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as exc:
         raise ValueError(f"{path}: cannot inspect kind descriptor ({exc})") from exc
     kind = data.get("kind")
@@ -456,7 +456,7 @@ def is_conforming_toml(path: pathlib.Path, spec_reserved: frozenset[str]) -> boo
     values) are out of conformance scope and skipped silently.
     """
     try:
-        data = tomllib.loads(path.read_text())
+        data = tomllib.loads(path.read_bytes().decode("utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as exc:
         raise ValueError(f"{path}: cannot inspect TOML candidate ({exc})") from exc
     meta = data.get("meta")

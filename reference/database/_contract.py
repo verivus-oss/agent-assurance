@@ -21,7 +21,7 @@ REGISTRY_TABLES = ("kind_descriptor", "entity_kind_descriptor", "relation_descri
 
 def load_mapping(root: Path) -> list[dict]:
     catalog = load_catalog(root)
-    mapping = toml.loads((root / "reference/database/vocabulary-storage.toml").read_text())
+    mapping = toml.loads((root / "reference/database/vocabulary-storage.toml").read_bytes().decode("utf-8"))
     if mapping.get("meta", {}).get("projection_version") != 1:
         raise ValueError("unsupported storage mapping version")
     rows = mapping.get("vocabularies")
@@ -47,7 +47,7 @@ def load_mapping(root: Path) -> list[dict]:
             kind = row.get("template_kind")
             if kind not in {"adapter-contract", "adapter-registry-binding", "gate-decision"}:
                 raise ValueError("unsupported projection kind")
-            descriptor = toml.loads((root / f"profiles/agent-assurance/{kind}-kind.toml").read_text())["kind"]
+            descriptor = toml.loads((root / f"profiles/agent-assurance/{kind}-kind.toml").read_bytes().decode("utf-8"))["kind"]
             required = any(entry["path"] == ".".join(path) for entry in descriptor["required_fields"])
             if not isinstance(row.get("required"), bool) or row["required"] != required or declaration.extensible:
                 raise ValueError(f"mapping requiredness/closed-field mismatch: {row['attribute']}")
@@ -129,7 +129,7 @@ def artifact_hashes(root: Path) -> dict[str, str]:
 def expected_counts(root: Path) -> dict[str, int]:
     catalog = load_catalog(root)
     ontologies = [root / "core/ontology.toml", *sorted(literal_glob(root, "profiles/*/ontology.toml"))]
-    docs = [toml.loads(path.read_text()) for path in ontologies]
+    docs = [toml.loads(path.read_bytes().decode("utf-8")) for path in ontologies]
     return dict(zip(REGISTRY_TABLES, (
         1 + len(list(literal_glob(root, "core/*-kind.toml"))) + len(list(literal_glob(root, "profiles/*/*-kind.toml"))),
         sum(len(doc.get("entities", [])) for doc in docs),

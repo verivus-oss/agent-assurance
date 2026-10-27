@@ -51,7 +51,7 @@ class Specimen:
 
 def specimens(root: Path) -> list[Specimen]:
     kinds = ("adapter-contract", "adapter-registry-binding", "gate-decision")
-    base = {kind: toml.loads((root / f"examples/minimal-{kind}.toml").read_text()) for kind in kinds}
+    base = {kind: toml.loads((root / f"examples/minimal-{kind}.toml").read_bytes().decode("utf-8")) for kind in kinds}
     result = []
 
     def add(kind, name, accepted, owner, edit=lambda doc: None, needle="", root_mode=""):

@@ -90,7 +90,7 @@ def test_discovery_rejects_malformed_profile() -> None:
         )
         kind = candidate.parent / "widget-kind.toml"
         kind.write_text("[meta\n")
-        document = tomllib.loads(candidate.read_text())
+        document = tomllib.loads(candidate.read_bytes().decode("utf-8"))
         errors = validate_one(candidate, root, {"broken": (candidate, document)})
         require(any("cannot parse kind descriptor" in error for error in errors))
         kind.unlink()
