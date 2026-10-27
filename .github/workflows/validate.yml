@@ -1113,7 +1113,7 @@ jobs:
             --select S,F \
             --ignore S404 \
             --line-length 120 \
-            validators/ reference/database/ conformance/
+            validators/ reference/database/ conformance/ tools/toml-test-decode-py.py
 
       # --- Existing 5 scanners follow below ---
 
@@ -1193,7 +1193,7 @@ jobs:
           # annotated with `# nosec B603 - <reason>` where the safety
           # argument is non-obvious.
           python3 -m bandit \
-            --recursive validators/ reference/database/ conformance/ \
+            --recursive validators/ reference/database/ conformance/ tools/toml-test-decode-py.py \
             --severity-level low \
             --confidence-level low \
             --skip B404

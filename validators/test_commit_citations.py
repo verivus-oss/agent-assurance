@@ -21,6 +21,10 @@ class CitationTests(unittest.TestCase):
             commit_tokens("commit 9996826 beside 12345678-1234-abcd-5678-123456789abc"),
             {"9996826"},
         )
+        self.assertEqual(
+            commit_tokens("deadbeefcafe12345678-1234-1234-1234-123456789abc"),
+            {"deadbeefcafe"},
+        )
 
     def test_scan_population_excludes_vendor_and_unit_fixtures(self) -> None:
         root = pathlib.Path("/repo")
@@ -44,4 +48,6 @@ class CitationTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    suite = unittest.defaultTestLoader.loadTestsFromTestCase(CitationTests)
+    if not unittest.TextTestRunner().run(suite).wasSuccessful():
+        raise SystemExit(1)

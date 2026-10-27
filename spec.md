@@ -580,14 +580,11 @@ and the work plan.
 
 ### 9.2 TOML language version and 1.1 feature disposition
 
-**Parser and document syntax version: TOML 1.1.0.** The primary
-normative implementations parse TOML **1.1.0** (Rust `toml` 1.1, Go
-`BurntSushi/toml` v1.6.0, Python `tomli` >= 2.4.0). Pinning all three
-parsers to the same released TOML version is what lets them agree
-byte-for-byte on every fixture (the foundational invariant; see §9 and
-the conformance suite). The conforming DAG-TOML document syntax surface is
-therefore TOML **1.1.0**: an implementation MUST NOT reject a document
-solely because it uses TOML 1.1.0 syntax.
+**Parser and document syntax version: TOML 1.1.0.** Rust, Go, and Python
+reference validators MUST be checked against the TOML 1.1.0 conformance
+suite. The conforming DAG-TOML document syntax surface is TOML **1.1.0**:
+an implementation MUST NOT reject a document solely because it uses TOML
+1.1.0 syntax.
 
 Every syntactic feature that TOML 1.1.0 adds over 1.0.0 is enumerated
 below with an explicit disposition. All are **permitted** by the document

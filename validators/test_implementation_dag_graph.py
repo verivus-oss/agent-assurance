@@ -72,4 +72,6 @@ class GraphTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    suite = unittest.defaultTestLoader.loadTestsFromTestCase(GraphTests)
+    if not unittest.TextTestRunner().run(suite).wasSuccessful():
+        raise SystemExit(1)

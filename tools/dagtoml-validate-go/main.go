@@ -41,7 +41,8 @@ func loadDoc(path string) (rawDoc, error) {
 	}
 	// Strict TOML 1.1 pre-check (issue #38 / contract C01). BurntSushi/toml
 	// v1.6.0 is permissive on 13 dotted-key / inline-table redefinition cases
-	// that the Rust (`toml` 1.1) and Python (tomli) primaries correctly reject.
+	// that the Rust (`toml` 1.1) and Python (vendored TOML 1.1 parser)
+	// primaries correctly reject.
 	// pelletier/go-toml/v2 rejects all 13 while accepting the full TOML 1.1
 	// valid corpus, so it runs first as a strictness gate: on a pelletier
 	// parse error we REJECT here and never reach the BurntSushi decode. Every
@@ -1041,7 +1042,7 @@ func validateImplementationLayerOrdering(units map[string]map[string]any, deps m
 		for d := range ds {
 			dl, ok := int64Of(units[d]["layer"])
 			if ok && ul <= dl {
-				errs = append(errs, fmt.Sprintf("layer ordering: %s (layer=%d) depends_on %s (layer=%d) — a depender must be in a strictly higher layer", u, ul, d, dl))
+				errs = append(errs, fmt.Sprintf("layer ordering: %s (layer=%d) depends_on %s (layer=%d): a depender must be in a strictly higher layer", u, ul, d, dl))
 			}
 		}
 	}

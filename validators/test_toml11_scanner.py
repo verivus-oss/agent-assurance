@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Independent TOML 1.1 examples for the vendored token scanners."""
 
+import hashlib
+import io
 import unittest
 from datetime import date, datetime, time, timedelta, timezone
 
@@ -60,13 +62,49 @@ class ParserTests(unittest.TestCase):
         with self.assertRaises(tomllib.TOMLDecodeError) as result:
             tomllib.loads(source)
         error = result.exception
-        self.assertEqual(str(error), "Invalid value")
         self.assertEqual(error.byte_span, (8, 9))
-        self.assertEqual(len(error.source_sha256), 64)
+        self.assertEqual(error.source_sha256, hashlib.sha256(source.encode()).hexdigest())
+        self.assertIn(f"bytes {error.byte_span[0]}:{error.byte_span[1]}", str(error))
+        self.assertIn(error.source_sha256, str(error))
         self.assertFalse(hasattr(error, "lineno"))
         self.assertFalse(hasattr(error, "colno"))
         self.assertFalse(hasattr(error, "pos"))
 
+    def test_crlf_diagnostic_points_into_original_bytes(self) -> None:
+        source = "a = 1\r\nb = 2\r\nc = @\r\n"
+        raw = source.encode()
+        expected = raw.index(b"@")
+        with self.assertRaises(tomllib.TOMLDecodeError) as result:
+            tomllib.load(io.BytesIO(raw))
+        error = result.exception
+        self.assertEqual(error.source_sha256, hashlib.sha256(raw).hexdigest())
+        self.assertEqual(error.byte_span, (expected, expected + 1))
+        self.assertIn(f"bytes {expected}:{expected + 1}", str(error))
+        self.assertEqual(tomllib.loads("a = 1\r\nb = 2\r\n"), {"a": 1, "b": 2})
+
+    def test_multibyte_diagnostic_points_into_original_bytes(self) -> None:
+        source = 'name = "值"\r\nbad = @\r\n'
+        raw = source.encode()
+        expected = raw.index(b"@")
+        with self.assertRaises(tomllib.TOMLDecodeError) as result:
+            tomllib.loads(source)
+        error = result.exception
+        self.assertEqual(error.source_sha256, hashlib.sha256(raw).hexdigest())
+        self.assertEqual(error.byte_span, (expected, expected + 1))
+
+    def test_caller_float_error_is_not_rewritten(self) -> None:
+        caller_error = tomllib.TOMLDecodeError("caller rejected float", "", 0)
+
+        def reject_float(_: str) -> float:
+            raise caller_error
+
+        with self.assertRaises(tomllib.TOMLDecodeError) as result:
+            tomllib.loads("a = 1.5\r\n", parse_float=reject_float)
+        self.assertIs(result.exception, caller_error)
+        self.assertEqual(caller_error.source_sha256, hashlib.sha256(b"").hexdigest())
+
 
 if __name__ == "__main__":
-    unittest.main()
+    suite = unittest.defaultTestLoader.loadTestsFromTestCase(ParserTests)
+    if not unittest.TextTestRunner().run(suite).wasSuccessful():
+        raise SystemExit(1)
