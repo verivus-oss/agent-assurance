@@ -4,7 +4,6 @@
 from _literal_paths import glob as literal_glob
 import _literal_args as argparse
 import _literal_json as json
-from _literal_json import loads as loads_json
 import hashlib
 from copy import deepcopy
 import uuid
@@ -80,7 +79,7 @@ def declarations(root):
 
 def executed(root, path, owners):
     from check_database_vocabularies import source_identity
-    receipt = loads_json(path.read_text())
+    receipt = json.loads(path.read_text())
     if (receipt.get("status") != "passed" or receipt.get("skipped") != []
             or receipt.get("source") != source_identity(root) or receipt.get("contract_bundle_sha256") != bundle_digest(root)):
         raise ValueError("missing or stale runtime-document execution receipt")
@@ -158,7 +157,7 @@ def main(argv=None):
 
 
 def receipt_controls(root, path, owners):
-    original = loads_json(path.read_text())
+    original = json.loads(path.read_text())
     work = root / ".local/runtime-ownership-controls" / uuid.uuid4().hex
     work.mkdir(parents=True)
     controls = []

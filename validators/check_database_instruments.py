@@ -6,7 +6,6 @@ from _literal_paths import glob as literal_glob
 import _literal_args as argparse
 from copy import deepcopy
 import _literal_json as json
-from _literal_json import loads as loads_json
 import os
 from pathlib import Path
 import sqlite3
@@ -297,7 +296,7 @@ def controls(root, work):
 def receipt_controls(root, paths, work):
     from _receipts import validate_receipts
     validate_receipts(root, paths)
-    original = [loads_json(path.read_text()) for path in paths]
+    original = [json.loads(path.read_text()) for path in paths]
     observations = []
     variants = {}
     variants["missing-lane"] = original[:-1]

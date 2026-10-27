@@ -29,6 +29,8 @@ class StorageError(RuntimeError):
 def connect_postgres(destination: str, *, dbname: str | None = None):
     """Let libpq parse connection strings without Python's regex rewriter."""
     import psycopg
+    from _postgres import native_connection, require_compiled_adapters
+    require_compiled_adapters()
     encoded = destination.encode("utf-8")
     if b"\0" in encoded or dbname is not None and "\0" in dbname:
         raise psycopg.ProgrammingError("PostgreSQL connection parameters must not contain NUL bytes")
@@ -47,7 +49,7 @@ def connect_postgres(destination: str, *, dbname: str | None = None):
         connection.autocommit = True
         connection.cursor_factory = psycopg.RawCursor
         connection.prepare_threshold = None
-        return connection
+        return native_connection(connection)
     except BaseException:
         pgconn.finish()
         raise
@@ -81,11 +83,8 @@ class Store:
         if engine not in {"sqlite", "duckdb", "postgres"}:
             raise ValueError("unsupported engine")
         if engine == "postgres":
-            import psycopg
-            # The connection is dedicated to this store. RawCursor accepts
-            # native $n slots without psycopg's regex placeholder parser.
-            connection.cursor_factory = psycopg.RawCursor
-            connection.prepare_threshold = None
+            from _postgres import native_connection
+            connection = native_connection(connection)
         self.engine = engine
         self.connection = connection
         self.root = repo_root.resolve()
@@ -223,6 +222,9 @@ class Store:
                 "old connection could not be closed before reconnecting",
             ) from exc
         self.connection = self.reconnect()
+        if self.engine == "postgres":
+            from _postgres import native_connection
+            self.connection = native_connection(self.connection)
         self.prepare()
 
     def initialize(self, *, exclusive_unpublished: bool = False) -> dict:

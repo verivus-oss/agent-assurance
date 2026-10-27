@@ -45,8 +45,9 @@ def check(gitleaks: Path, config: Path) -> None:
         merge = run([git, "merge", "feature"], root, allowed=(0, 1))
         if merge.returncode != 1:
             raise RuntimeError("merge control did not create a conflict")
-        secret = "ghp_" + "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56Qr78"
-        record.write_text("token=" + secret + "\n")
+        # This public fixture is generated locally, never issued by a service.
+        planted = "ghp_" + "Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56Qr78"
+        record.write_text("token=" + planted + "\n")
         run([git, "add", "credential.txt"], root)
         run([git, "commit", "-qm", "resolve conflict"], root)
         merge_sha = run([git, "rev-parse", "HEAD"], root).stdout.strip()
@@ -70,7 +71,7 @@ def check(gitleaks: Path, config: Path) -> None:
             raise RuntimeError("merge control no longer distinguishes the scan options")
         current, _ = findings(GIT_LOG_OPTIONS, "with-merges")
         detected = [item for item in current if item.get("Commit") == merge_sha
-                    and item.get("Secret") == secret]
+                    and item.get("Secret") == planted]
         if not detected:
             raise RuntimeError("merge resolution credential was not scanned")
 
@@ -83,14 +84,14 @@ def check(gitleaks: Path, config: Path) -> None:
         if deletion_sha not in patch_commits or count != len(patch_commits):
             raise RuntimeError("deletion-only text commit was not counted")
 
-        record.write_text("token=" + secret + " # gitleaks:allow\n")
+        record.write_text("token=" + planted + " # gitleaks:allow\n")
         run([git, "commit", "-qam", "inline allow control"], root)
         inline_sha = run([git, "rev-parse", "HEAD"], root).stdout.strip()
         suppressed, _ = findings(GIT_LOG_OPTIONS, "inline-suppressed", ignore_allow=False)
         if any(item.get("Commit") == inline_sha for item in suppressed):
             raise RuntimeError("inline allow control did not suppress the finding")
         enforced, _ = findings(GIT_LOG_OPTIONS, "inline-enforced")
-        if not any(item.get("Commit") == inline_sha and item.get("Secret") == secret
+        if not any(item.get("Commit") == inline_sha and item.get("Secret") == planted
                    for item in enforced):
             raise RuntimeError("inline allow bypassed the active secret scan")
         print(f"secret scan controls: {len(detected)} merge-parent findings, deletion and inline allow enforced")

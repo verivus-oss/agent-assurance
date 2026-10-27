@@ -9,6 +9,13 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Complete the PostgreSQL failure-path repair from candidate
+  `8fc48a3d3ea4a665e3625a05f7849d997bddef66` with native libpq execution
+  and structured SQLSTATE diagnostics. Keep compiled driver adaptation, guard
+  against a pure Python fallback, and exercise SQL errors, terminated
+  connections, JSON results and buffered row consumption. Make shim exports
+  explicit, consolidate module imports, and name the public scanner fixture
+  as a planted value.
 - Continue the regex removal from candidate
   `2941bae9e42b89778559ef1f0701ebfa6a40fe87`: use libpq connection parsing,
   native PostgreSQL parameters, and disabled statement preparation for the

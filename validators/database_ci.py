@@ -4,7 +4,6 @@
 import _literal_args as argparse
 import hashlib
 import _literal_json as json
-from _literal_json import loads as loads_json
 import os
 from _text_checks import contains_table_diagnostic
 from pathlib import Path
@@ -197,7 +196,7 @@ def main(argv=None):
             command.append("--existing-seed")
         print(run(command, root, env), end="")
         if loader_record:
-            receipt = loads_json(receipt_path.read_text())
+            receipt = json.loads(receipt_path.read_text())
             receipt["loader"] = loader_record
             receipt_path.write_text(json.dumps(receipt, ensure_ascii=True, sort_keys=True, indent=2) + "\n")
     finally:

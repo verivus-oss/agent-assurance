@@ -3,7 +3,6 @@
 
 import hashlib
 import _json_decode as json
-from _json_decode import loads as loads_json
 
 from _projection import project, semantic_json, timestamp_index
 from _storage import Store, StorageError
@@ -180,8 +179,8 @@ docs_url = "extension-only"
                        ("meta", "nonfinite"), ("meta", "bad_nested"), ("meta", "bad\0key")}, omitted)
     saved = store.rows("instance_file", ("title", "created_at", "meta_extras"), "WHERE id = ?", (item["id"],))[0]
     require(saved["title"] is None)
-    require("nested.key" in loads_json(saved["meta_extras"]))
-    require(loads_json(saved["meta_extras"])["docs_url"] == "extension-only")
+    require("nested.key" in json.loads(saved["meta_extras"]))
+    require(json.loads(saved["meta_extras"])["docs_url"] == "extension-only")
     require(store.ingest([("metadata/indexes.toml", metadata)]) == result)
     checks.append("optional-metadata-portability-and-omission-report")
     for value, indexed in ((b'"2026-09-07"', "2026-09-07"), (b'2026-09-07', "2026-09-07"), (b'"invalid-date"', None)):
@@ -214,7 +213,7 @@ docs_url = "extension-only"
     checks.append("native-and-quoted-date-and-local-timestamp-indexes")
 
     original = saved["meta_extras"]
-    tree = loads_json(original)
+    tree = json.loads(original)
     equivalent = json.dumps(dict(reversed(list(tree.items()))), ensure_ascii=False).replace('"number": 1', '"number": 1.0')
     require(semantic_json(original) == semantic_json(equivalent))
     store.execute(f"UPDATE {store.table('instance_file')} SET meta_extras = ? WHERE id = ?", (equivalent, item["id"]))  # nosec B608 # noqa: S608

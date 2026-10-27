@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import _literal_args as argparse
 import _literal_json as json
-from _literal_json import InvalidJSON, loads as loads_json
 import pathlib
 import shutil
 import subprocess
@@ -189,8 +188,8 @@ def sqry_search(
         detail = proc.stderr.strip() or proc.stdout.strip() or f"exit {proc.returncode}"
         return [], detail
     try:
-        payload = loads_json(proc.stdout)
-    except InvalidJSON as exc:
+        payload = json.loads(proc.stdout)
+    except json.InvalidJSON as exc:
         return [], f"sqry returned invalid JSON: {exc}"
     wanted = (repo_root / ref.path).resolve()
     results = []

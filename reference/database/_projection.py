@@ -5,7 +5,6 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 import hashlib
 import _json_decode as json
-from _json_decode import loads as loads_json
 import math
 from pathlib import Path
 
@@ -126,7 +125,7 @@ def _unique_object(pairs: list) -> dict:
 
 def semantic_json(text: str) -> object:
     """Tagged scalars prevent Python's True == 1 from hiding index corruption."""
-    value = loads_json(text, parse_int=Decimal, parse_float=Decimal,
+    value = json.loads(text, parse_int=Decimal, parse_float=Decimal,
                        parse_constant=lambda _: (_ for _ in ()).throw(ValueError("nonfinite JSON")),
                        object_pairs_hook=_unique_object)
 
