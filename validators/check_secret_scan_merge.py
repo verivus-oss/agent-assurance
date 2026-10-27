@@ -1,8 +1,11 @@
-"""Prove that the pinned secret scan sees credentials added by merge resolution."""
+"""Prove merge, deletion, and inline-allow secret scan boundaries."""
 
 from _literal_args import ArgumentParser
 from _literal_json import loads as loads_json
-from check_secret_scan import GIT_LOG_OPTIONS
+from check_secret_scan import (
+    GIT_LOG_OPTIONS, gitleaks_command, patch_bearing_commits,
+    reachable_commits, scanned_count,
+)
 from pathlib import Path
 import shutil
 import subprocess
@@ -47,29 +50,49 @@ def check(gitleaks: Path, config: Path) -> None:
         run([git, "commit", "-qm", "resolve conflict"], root)
         merge_sha = run([git, "rev-parse", "HEAD"], root).stdout.strip()
 
-        def findings(log_options: str, name: str) -> list:
+        def findings(log_options: str, name: str, ignore_allow: bool = True) -> tuple[list, int]:
             report = root / (name + ".json")
+            command = gitleaks_command(gitleaks, str(config), report, log_options)
+            if not ignore_allow:
+                command.remove("--ignore-gitleaks-allow")
             result = run(
-                [str(gitleaks), "detect", "--source", ".", "--config", str(config),
-                 "--no-banner", "--no-color", "--log-level", "info",
-                 "--log-opts=" + log_options, "--report-format", "json",
-                 "--report-path", str(report), "--exit-code", "1"],
+                command,
                 root, allowed=(0, 1),
             )
             records = loads_json(report.read_text())
             if not isinstance(records, list) or (result.returncode == 0) != (len(records) == 0):
                 raise RuntimeError("merge control report and exit status disagree")
-            return records
+            return records, scanned_count(result.stdout + "\n" + result.stderr)
 
-        old = findings("--all", "without-merges")
+        old, _ = findings("--all", "without-merges")
         if any(item.get("Commit") == merge_sha for item in old):
             raise RuntimeError("merge control no longer distinguishes the scan options")
-        current = findings(GIT_LOG_OPTIONS, "with-merges")
+        current, _ = findings(GIT_LOG_OPTIONS, "with-merges")
         detected = [item for item in current if item.get("Commit") == merge_sha
                     and item.get("Secret") == secret]
         if not detected:
             raise RuntimeError("merge resolution credential was not scanned")
-        print(f"merge secret scan: {len(detected)} merge-parent patch finding(s), control detected")
+
+        record.write_text("")
+        run([git, "commit", "-qam", "delete credential line"], root)
+        deletion_sha = run([git, "rev-parse", "HEAD"], root).stdout.strip()
+        reachable, _ = reachable_commits(root)
+        patch_commits = patch_bearing_commits(root, reachable)
+        _, count = findings(GIT_LOG_OPTIONS, "with-deletion")
+        if deletion_sha not in patch_commits or count != len(patch_commits):
+            raise RuntimeError("deletion-only text commit was not counted")
+
+        record.write_text("token=" + secret + " # gitleaks:allow\n")
+        run([git, "commit", "-qam", "inline allow control"], root)
+        inline_sha = run([git, "rev-parse", "HEAD"], root).stdout.strip()
+        suppressed, _ = findings(GIT_LOG_OPTIONS, "inline-suppressed", ignore_allow=False)
+        if any(item.get("Commit") == inline_sha for item in suppressed):
+            raise RuntimeError("inline allow control did not suppress the finding")
+        enforced, _ = findings(GIT_LOG_OPTIONS, "inline-enforced")
+        if not any(item.get("Commit") == inline_sha and item.get("Secret") == secret
+                   for item in enforced):
+            raise RuntimeError("inline allow bypassed the active secret scan")
+        print(f"secret scan controls: {len(detected)} merge-parent findings, deletion and inline allow enforced")
 
 
 if __name__ == "__main__":

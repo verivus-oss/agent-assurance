@@ -72,13 +72,15 @@ def scanned_count(stderr: str) -> int:
     return numbers[0]
 
 
-def added_line_commits(numstat: bytes, reachable: set[str]) -> set[str]:
+def text_change_commits(numstat: bytes, reachable: set[str]) -> set[str]:
     marker = b"SCAN-COMMIT:"
     patch_commits: set[str] = set()
     current: str | None = None
     rename_paths = 0
     for record in numstat.split(b"\0"):
         if rename_paths:
+            if not record:
+                raise RuntimeError("Git numstat reported incomplete rename paths")
             rename_paths -= 1
             continue
         if record.startswith(marker):
@@ -93,35 +95,38 @@ def added_line_commits(numstat: bytes, reachable: set[str]) -> set[str]:
         if not item:
             continue
         fields = item.split(b"\t", 2)
-        if current is None or len(fields) != 3 or not (fields[0].isdigit() or fields[0] == b"-"):
+        if current is None or len(fields) != 3:
             raise RuntimeError("Git numstat reported an unreadable patch record")
-        if fields[0].isdigit() and int(fields[0]) > 0:
+        added, deleted = fields[:2]
+        if not ((added.isdigit() and deleted.isdigit()) or (added == b"-" and deleted == b"-")):
+            raise RuntimeError("Git numstat reported an unreadable patch record")
+        if added.isdigit() and (int(added) > 0 or int(deleted) > 0):
             patch_commits.add(current)
         if not fields[2]:
             rename_paths = 2
     if rename_paths or current is None or not patch_commits:
-        raise RuntimeError("Git numstat has no complete addition-bearing history")
+        raise RuntimeError("Git numstat has no complete text-change history")
     return patch_commits
 
 
 def patch_bearing_commits(root: Path, reachable: set[str]) -> set[str]:
     git = shutil.which("git")
     if git is None:
-        raise RuntimeError("git is required to enumerate addition-bearing commits")
+        raise RuntimeError("git is required to enumerate text-change commits")
     result = subprocess.run(  # nosec B603  # noqa: S603
         [git, "log", "--format=SCAN-COMMIT:%H", "--numstat", "-z", *GIT_LOG_ARGS],
         cwd=root, capture_output=True, check=False,
     )
     if result.returncode:
-        raise RuntimeError("cannot enumerate addition-bearing Git commits")
-    return added_line_commits(result.stdout, reachable)
+        raise RuntimeError("cannot enumerate text-change Git commits")
+    return text_change_commits(result.stdout, reachable)
 
 
 def check_scan_population(scanned: int, reachable: set[str], head_ancestry: set[str],
                           expected: set[str], patch_commits: set[str]) -> None:
-    # Compare Gitleaks telemetry with Git's separate numstat enumeration.
+    # Gitleaks counts commits with text fragments, including deletion-only hunks.
     if not patch_commits or not patch_commits <= reachable or scanned != len(patch_commits):
-        raise RuntimeError("Gitleaks scan count disagrees with addition-bearing Git history")
+        raise RuntimeError("Gitleaks scan count disagrees with text-change Git history")
     if not head_ancestry or not head_ancestry <= reachable or not (expected & head_ancestry):
         raise RuntimeError("known public finding control is absent from HEAD ancestry")
 
@@ -148,6 +153,22 @@ def check_findings(findings: list, expected_commits: set[str]) -> None:
         raise RuntimeError("known public finding population changed; review the scan and exception")
 
 
+def check_no_ignore_file(root: Path) -> None:
+    ignore = root / ".gitleaksignore"
+    if ignore.exists() or ignore.is_symlink():
+        raise RuntimeError("Gitleaks ignore file is not permitted")
+
+
+def gitleaks_command(binary: Path, config: str, report: Path,
+                     log_options: str = GIT_LOG_OPTIONS) -> list[str]:
+    return [
+        str(binary), "detect", "--source", ".", "--config", config,
+        "--no-banner", "--no-color", "--log-level", "info",
+        "--ignore-gitleaks-allow", "--log-opts=" + log_options,
+        "--report-format", "json", "--report-path", str(report), "--exit-code", "1",
+    ]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--gitleaks", required=True)
@@ -157,6 +178,7 @@ def main() -> None:
     binary = Path(args.gitleaks).resolve()
     if not binary.is_file() or not (root / ".gitleaks.toml").is_file():
         raise RuntimeError("Gitleaks binary and configuration are required")
+    check_no_ignore_file(root)
     reachable, head_ancestry = reachable_commits(root)
     patch_commits = patch_bearing_commits(root, reachable)
     expected = KNOWN_COMMITS & reachable
@@ -165,10 +187,7 @@ def main() -> None:
     with TemporaryDirectory(prefix="gitleaks-report-") as directory:
         report = Path(directory) / "findings.json"
         result = subprocess.run(  # nosec B603  # noqa: S603
-            [str(binary), "detect", "--source", ".", "--config", ".gitleaks.toml",
-             "--no-banner", "--no-color", "--log-level", "info",
-             "--log-opts=" + GIT_LOG_OPTIONS, "--report-format", "json",
-             "--report-path", str(report), "--exit-code", "1"],
+            gitleaks_command(binary, ".gitleaks.toml", report),
             cwd=root, capture_output=True, text=True, check=False,
         )
         if result.returncode not in (0, 1) or not report.is_file():

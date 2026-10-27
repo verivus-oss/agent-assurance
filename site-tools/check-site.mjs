@@ -1,5 +1,5 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { lstatSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { extname, join } from "node:path";
 
 const root = new URL("../site/", import.meta.url).pathname;
 const required = [
@@ -48,12 +48,18 @@ export function hasProviderTagline(content) {
     });
 }
 
-export function findPublishedExecutables(dir) {
+const publishedExtensions = new Set([
+  ".css", ".html", ".ico", ".json", ".md", ".png", ".svg", ".txt", ".xml",
+]);
+const publishedExtensionless = new Set(["_headers", "_redirects"]);
+
+export function findUnexpectedPublishedFiles(dir) {
   const found = [];
   for (const name of readdirSync(dir)) {
     const path = join(dir, name);
-    if (statSync(path).isDirectory()) found.push(...findPublishedExecutables(path));
-    else if ([".mjs", ".js", ".cjs", ".ts", ".py", ".sh", ".go", ".rs"].some((suffix) => name.endsWith(suffix))) {
+    const stat = lstatSync(path);
+    if (stat.isDirectory()) found.push(...findUnexpectedPublishedFiles(path));
+    else if (!stat.isFile() || !(publishedExtensions.has(extname(name)) || publishedExtensionless.has(name))) {
       found.push(path);
     }
   }
@@ -63,9 +69,9 @@ export function findPublishedExecutables(dir) {
 function walk(dir) {
   for (const name of readdirSync(dir)) {
     const path = join(dir, name);
-    const stat = statSync(path);
+    const stat = lstatSync(path);
     if (stat.isDirectory()) walk(path);
-    else if ([".html", ".md", ".txt", ".xml", ".json", ".css", ".svg"].some((suffix) => name.endsWith(suffix))) {
+    else if (stat.isFile() && [".html", ".md", ".txt", ".xml", ".json", ".css", ".svg"].some((suffix) => name.endsWith(suffix))) {
       const content = readFileSync(path, "utf8");
       if (hasProviderTagline(content)) {
         console.error(`provider tagline found in ${path}`);
@@ -75,10 +81,10 @@ function walk(dir) {
   }
 }
 
-walk(root);
-for (const path of findPublishedExecutables(root)) {
-  console.error(`executable source in published site: ${path}`);
+for (const path of findUnexpectedPublishedFiles(root)) {
+  console.error(`unexpected file in published site: ${path}`);
   ok = false;
 }
+walk(root);
 if (!ok) process.exit(1);
 console.log("site checks passed");

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { hasProviderTagline, findPublishedExecutables } from "./check-site.mjs";
+import { hasProviderTagline, findUnexpectedPublishedFiles } from "./check-site.mjs";
 
 const accepted = [
   "A provider-neutral assurance guide.",
@@ -21,10 +21,18 @@ const temp = mkdtempSync(join(tmpdir(), "site-source-check-"));
 try {
   mkdirSync(join(temp, "assets"));
   writeFileSync(join(temp, "assets", "readme.txt"), "public text");
-  assert.deepEqual(findPublishedExecutables(temp), []);
-  const source = join(temp, "assets", "private-test.mjs");
-  writeFileSync(source, "console.log('private helper');\n");
-  assert.deepEqual(findPublishedExecutables(temp), [source]);
+  writeFileSync(join(temp, "_headers"), "public site headers");
+  assert.deepEqual(findUnexpectedPublishedFiles(temp), []);
+  const unexpected = [
+    join(temp, "assets", "private-test.mjs"),
+    join(temp, "assets", "private-test.mts"),
+    join(temp, "assets", "private-test.rb"),
+    join(temp, "assets", "private-test"),
+    join(temp, "assets", "shortcut.md"),
+  ];
+  for (const path of unexpected.slice(0, 4)) writeFileSync(path, "private helper\n");
+  symlinkSync("readme.txt", unexpected[4]);
+  assert.deepEqual(findUnexpectedPublishedFiles(temp).sort(), unexpected.sort());
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }

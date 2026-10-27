@@ -2,11 +2,14 @@
 
 from contextlib import redirect_stderr
 from io import StringIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from _test_require import require
 from check_secret_scan import (
     KNOWN_COMMITS, PUBLIC_HEX_FILE, PUBLIC_HEX_RULE,
-    added_line_commits, check_findings, check_scan_population, known_public_literal, scanned_count,
+    check_findings, check_no_ignore_file, check_scan_population, gitleaks_command,
+    known_public_literal, scanned_count, text_change_commits,
 )
 
 
@@ -63,7 +66,8 @@ def test_scan_count() -> None:
         (2, all_commits, head, {"branch"}, patches),
         (2, all_commits, set(), {"known"}, patches),
         (2, all_commits, head | {"unknown"}, {"known"}, patches),
-        (2, all_commits, head, {"known"}, patches | {"unknown"}),
+        (3, all_commits, head, {"known"}, patches | {"unknown"}),
+        (0, all_commits, head, {"known"}, set()),
     ):
         try:
             check_scan_population(count, reachable, ancestry, expected, patch_commits)
@@ -75,22 +79,49 @@ def test_scan_count() -> None:
     first, second = "a" * 40, "b" * 40
     numstat = (b"SCAN-COMMIT:" + first.encode() + b"\0\n2\t0\tfile\0"
                + b"SCAN-COMMIT:" + second.encode() + b"\0\n0\t2\tother\0")
-    require(added_line_commits(numstat, {first, second}) == {first})
+    require(text_change_commits(numstat, {first, second}) == {first, second})
     rename = (b"SCAN-COMMIT:" + first.encode() + b"\0\n1\t1\t\0"
               + b"SCAN-COMMIT:" + second.encode() + b"\0new-name\0")
-    require(added_line_commits(rename, {first, second}) == {first})
+    require(text_change_commits(rename, {first, second}) == {first})
     for broken in (
         b"SCAN-COMMIT:short\0\n1\t0\tfile\0",
+        b"SCAN-COMMIT:" + b"g" * 40 + b"\0\n1\t0\tfile\0",
+        b"SCAN-COMMIT:" + second.encode() + b"\0\n1\t0\tfile\0",
         b"SCAN-COMMIT:" + first.encode() + b"\0\nnot-a-count\t0\tfile\0",
-        b"SCAN-COMMIT:" + first.encode() + b"\0\n0\t1\tfile\0",
+        b"SCAN-COMMIT:" + first.encode() + b"\0\n1\tbad\tfile\0",
+        b"SCAN-COMMIT:" + first.encode() + b"\0\n-\t1\tbinary\0",
+        b"SCAN-COMMIT:" + first.encode() + b"\0\n0\t0\tfile\0",
+        b"SCAN-COMMIT:" + first.encode() + b"\0\n1\t0\t\0old-path\0",
         b"\n1\t0\tfile\0",
     ):
         try:
-            added_line_commits(broken, {first})
+            text_change_commits(broken, {first})
         except RuntimeError:
             pass
         else:
             raise AssertionError("invalid Git numstat record was accepted")
+
+    with TemporaryDirectory(prefix="gitleaks-ignore-control-") as directory:
+        root = Path(directory)
+        check_no_ignore_file(root)
+        ignore = root / ".gitleaksignore"
+        ignore.write_text("ignored-fingerprint\n")
+        try:
+            check_no_ignore_file(root)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("Gitleaks ignore file was accepted")
+        ignore.unlink()
+        ignore.symlink_to("missing-file")
+        try:
+            check_no_ignore_file(root)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("Gitleaks ignore symlink was accepted")
+    require("--ignore-gitleaks-allow" in gitleaks_command(
+        Path("/usr/bin/gitleaks"), ".gitleaks.toml", Path("findings.json")))
 
 
 if __name__ == "__main__":
