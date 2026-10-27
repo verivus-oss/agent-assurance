@@ -159,10 +159,10 @@ fn nonempty(
     location: &str,
     errors: &mut Vec<String>,
 ) {
-    if !table
+    if table
         .get(field)
         .and_then(Value::as_str)
-        .is_some_and(|v| !v.trim().is_empty())
+        .is_none_or(|v| v.trim().is_empty())
     {
         errors.push(format!(
             "RDSTRUCT: {location}.{field} must be a nonempty string"

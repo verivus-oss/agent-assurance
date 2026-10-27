@@ -13,6 +13,7 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -49,14 +50,22 @@ func loadDoc(path string) (rawDoc, error) {
 	// pelletier, so the gate adds strictness without regressing acceptance.
 	var strictSink any
 	if err := pelletier.Unmarshal(bytes, &strictSink); err != nil {
-		return nil, fmt.Errorf("%s: TOML parse failed (strict): %w", path, err)
+		var decodeError *pelletier.DecodeError
+		if errors.As(err, &decodeError) {
+			return nil, fmt.Errorf("%s: TOML parse failed (strict): %s (source sha256:%x)", path, decodeError.Error(), sha256.Sum256(bytes))
+		}
+		return nil, fmt.Errorf("%s: TOML parse failed (strict; source sha256:%x)", path, sha256.Sum256(bytes))
 	}
 	// BurntSushi performs the structural decode the rest of the validator
 	// relies on (its typed array/datetime shapes are threaded through
 	// asArray/int64Of and the per-kind validators).
 	var out rawDoc
 	if _, err := toml.Decode(string(bytes), &out); err != nil {
-		return nil, fmt.Errorf("%s: TOML parse failed: %w", path, err)
+		var parseError toml.ParseError
+		if errors.As(err, &parseError) {
+			return nil, fmt.Errorf("%s: TOML parse failed: %s (source sha256:%x; byte span %d..%d)", path, parseError.Message, sha256.Sum256(bytes), parseError.Position.Start, parseError.Position.Start+parseError.Position.Len)
+		}
+		return nil, fmt.Errorf("%s: TOML parse failed (source sha256:%x)", path, sha256.Sum256(bytes))
 	}
 	return out, nil
 }
@@ -2846,20 +2855,28 @@ type descriptor struct {
 // are followed, matching the Rust and Python discovery.
 func discoverDescriptors(repoRoot string) (map[string]descriptor, []string) {
 	out := map[string]descriptor{}
-	var duplicates []string
+	var discoveryErrors []string
 	root := filepath.Join(repoRoot, "profiles")
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		return out, duplicates
+		return out, []string{fmt.Sprintf("%s: profile discovery failed: %v", root, err)}
 	}
 	for _, e := range entries {
 		candidate := filepath.Join(root, e.Name(), "PROFILE.toml")
 		info, err := os.Stat(candidate)
-		if err != nil || info.IsDir() {
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			discoveryErrors = append(discoveryErrors, fmt.Sprintf("%s: profile discovery failed: %v", candidate, err))
+			continue
+		}
+		if info.IsDir() {
 			continue
 		}
 		doc, err := loadDoc(candidate)
 		if err != nil {
+			discoveryErrors = append(discoveryErrors, err.Error())
 			continue
 		}
 		if tk, ok := stringOf(doc["meta"], "template_kind"); !ok || tk != "profile-descriptor" {
@@ -2867,7 +2884,7 @@ func discoverDescriptors(repoRoot string) (map[string]descriptor, []string) {
 		}
 		if name, ok := stringOf(doc["profile"], "name"); ok {
 			if existing, dup := out[name]; dup {
-				duplicates = append(duplicates, fmt.Sprintf(
+				discoveryErrors = append(discoveryErrors, fmt.Sprintf(
 					"duplicate profile-descriptor name `%s` (%s and %s)",
 					name, existing.path, candidate))
 				continue
@@ -2875,7 +2892,7 @@ func discoverDescriptors(repoRoot string) (map[string]descriptor, []string) {
 			out[name] = descriptor{candidate, doc}
 		}
 	}
-	return out, duplicates
+	return out, discoveryErrors
 }
 
 func checkNamespacePartition(name, namespace string) []string {
@@ -2948,22 +2965,29 @@ func checkExtendsAcyclic(name string, descriptors map[string]descriptor) []strin
 	return errs
 }
 
-func kindDescriptorCandidates(repoRoot, slug, profileName string) []string {
+func kindDescriptorCandidates(repoRoot, slug, profileName string) ([]string, error) {
 	fname := slug + "-kind.toml"
 	cands := []string{
 		filepath.Join(repoRoot, "profiles", profileName, fname),
 		filepath.Join(repoRoot, "core", fname),
 	}
-	if entries, err := os.ReadDir(filepath.Join(repoRoot, "profiles")); err == nil {
-		for _, e := range entries {
-			// Stat follows symlinked profile directories (DirEntry.IsDir
-			// does not), matching rs/py.
-			info, statErr := os.Stat(filepath.Join(repoRoot, "profiles", e.Name()))
-			if statErr != nil || !info.IsDir() {
-				continue
-			}
-			cands = append(cands, filepath.Join(repoRoot, "profiles", e.Name(), fname))
+	profileRoot := filepath.Join(repoRoot, "profiles")
+	entries, err := os.ReadDir(profileRoot)
+	if err != nil {
+		return nil, fmt.Errorf("%s: kind discovery failed: %w", profileRoot, err)
+	}
+	for _, e := range entries {
+		// Stat follows symlinked profile directories (DirEntry.IsDir
+		// does not), matching rs/py.
+		profilePath := filepath.Join(profileRoot, e.Name())
+		info, statErr := os.Stat(profilePath)
+		if statErr != nil {
+			return nil, fmt.Errorf("%s: kind discovery failed: %w", profilePath, statErr)
 		}
+		if !info.IsDir() {
+			continue
+		}
+		cands = append(cands, filepath.Join(profilePath, fname))
 	}
 	seen := map[string]bool{}
 	out := cands[:0]
@@ -2973,7 +2997,7 @@ func kindDescriptorCandidates(repoRoot, slug, profileName string) []string {
 			out = append(out, c)
 		}
 	}
-	return out
+	return out, nil
 }
 
 // effectiveProfileSets unions `contained_kinds` and `closure_records`
@@ -3403,13 +3427,27 @@ func validateProfileDescriptor(path string, doc rawDoc, repoRoot string, descrip
 					"%s: [profile].contained_kinds entries must be non-empty strings", path))
 				continue
 			}
+			candidates, err := kindDescriptorCandidates(repoRoot, slug, name)
+			if err != nil {
+				errs = append(errs, err.Error())
+				continue
+			}
 			matched := false
-			for _, c := range kindDescriptorCandidates(repoRoot, slug, name) {
-				if info, err := os.Stat(c); err != nil || info.IsDir() {
+			for _, c := range candidates {
+				info, err := os.Stat(c)
+				if os.IsNotExist(err) {
+					continue
+				}
+				if err != nil {
+					errs = append(errs, fmt.Sprintf("%s: kind descriptor stat failed: %v", c, err))
+					continue
+				}
+				if info.IsDir() {
 					continue
 				}
 				kd, err := loadDoc(c)
 				if err != nil {
+					errs = append(errs, err.Error())
 					continue
 				}
 				tk, _ := stringOf(kd["meta"], "template_kind")
@@ -3677,10 +3715,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "error: resolving repo root:", err)
 		os.Exit(2)
 	}
-	descriptors, duplicateProfiles := discoverDescriptors(root)
-	if len(duplicateProfiles) > 0 {
+	descriptors, discoveryErrors := discoverDescriptors(root)
+	if len(discoveryErrors) > 0 {
 		fmt.Fprintln(os.Stderr, "DAGTOML VALIDATION FAILED (go primary)")
-		for _, d := range duplicateProfiles {
+		for _, d := range discoveryErrors {
 			fmt.Fprintf(os.Stderr, "- %s: pin resolution refuses to proceed (SPEC 12.8.1)\n", d)
 		}
 		os.Exit(1)

@@ -161,8 +161,72 @@ fn load(path: &Path) -> Result<Value, String> {
     // parsing is `toml::from_str`, which deserializes the full table. (In
     // toml 0.8 `FromStr for Value` parsed a document; the 1.1 line split the
     // two, so this call site shifts.)
-    toml::from_str::<Value>(&raw)
-        .map_err(|e| format!("{}: TOML parse failed: {}", path.display(), e))
+    toml::from_str::<Value>(&raw).map_err(|e| {
+        let digest = digest_hex("sha256", raw.as_bytes());
+        let span = e
+            .span()
+            .map(|range| format!("; byte span {}..{}", range.start, range.end))
+            .unwrap_or_default();
+        format!(
+            "{}: TOML parse failed: {} (source sha256:{}{})",
+            path.display(),
+            e.message(),
+            digest,
+            span
+        )
+    })
+}
+
+#[cfg(test)]
+#[test]
+fn load_accepts_valid_toml_and_reports_parse_failure_without_source_coordinates() {
+    let path = std::env::temp_dir().join(format!(
+        "dagtoml-invalid-{}-{:?}.toml",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    std::fs::write(&path, b"valid = 1\n").expect("write valid TOML");
+    let valid = load(&path).expect("valid TOML must load");
+    assert_eq!(valid.get("valid").and_then(Value::as_integer), Some(1));
+    std::fs::write(&path, b"broken = [\n").expect("write malformed TOML");
+    let error = load(&path).expect_err("malformed TOML must fail");
+    std::fs::remove_file(&path).expect("remove test input");
+    assert!(error.contains("TOML parse failed"), "{error}");
+    assert!(
+        error.contains("sha256:663eb4e5c398fe1ebb16c3d167d0d00027440ff6521dab9f063cd06d476d0dc4"),
+        "{error}"
+    );
+    assert!(!error.contains("line "), "{error}");
+    assert!(!error.contains("column "), "{error}");
+}
+
+#[cfg(test)]
+#[test]
+fn profile_discovery_reports_malformed_candidates() {
+    let root = std::env::temp_dir().join(format!(
+        "dagtoml-profiles-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let valid = root.join("profiles/valid/PROFILE.toml");
+    let malformed = root.join("profiles/malformed/PROFILE.toml");
+    std::fs::create_dir_all(valid.parent().expect("valid parent")).expect("create valid dir");
+    std::fs::create_dir_all(malformed.parent().expect("malformed parent"))
+        .expect("create malformed dir");
+    std::fs::write(
+        &valid,
+        b"[meta]\ntemplate_kind = 'profile-descriptor'\n[profile]\nname = 'valid'\n",
+    )
+    .expect("write valid profile");
+    std::fs::write(&malformed, b"broken = [\n").expect("write malformed profile");
+    let (descriptors, errors) = profile::discover(&root);
+    std::fs::remove_dir_all(&root).expect("remove test profiles");
+    assert!(
+        descriptors.contains_key("valid"),
+        "valid profile was skipped"
+    );
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    assert!(errors[0].contains("TOML parse failed"), "{errors:?}");
 }
 
 fn is_semver(s: &str) -> bool {
@@ -492,8 +556,10 @@ mod ijb {
                 let colon_prefix = t.get("id_prefix").and_then(Value::as_str);
                 let decimal_prefix = t.get("id_decimal_prefix").and_then(Value::as_str);
                 if colon_present == decimal_present
-                    || (colon_present && colon_prefix.is_none_or(|value| !looks_upper_prefix(value)))
-                    || (decimal_present && decimal_prefix.is_none_or(|value| !looks_upper_prefix(value)))
+                    || (colon_present
+                        && colon_prefix.is_none_or(|value| !looks_upper_prefix(value)))
+                    || (decimal_present
+                        && decimal_prefix.is_none_or(|value| !looks_upper_prefix(value)))
                 {
                     errors.push(format!(
                         "{}:entities[{idx}]: declare exactly one uppercase ASCII id_prefix or id_decimal_prefix",
@@ -881,18 +947,12 @@ mod ijb {
         let mut errors = Vec::new();
         let mut ontologies = Vec::new();
         let core_path = repo_root.join("core/ontology.toml");
-        match std::fs::read_to_string(&core_path)
-            .ok()
-            .and_then(|raw| toml::from_str::<Value>(&raw).ok())
-        {
-            Some(core) => {
+        match super::load(&core_path) {
+            Ok(core) => {
                 errors.extend(validate_ontology(&core_path, &core));
                 ontologies.push((core_path, core));
             }
-            None => errors.push(format!(
-                "core ontology not found or unparsable at {}",
-                core_path.display()
-            )),
+            Err(error) => errors.push(error),
         }
         if let Some(fp) = table(doc, "meta")
             .and_then(|m| m.get("framework_profile"))
@@ -903,18 +963,12 @@ mod ijb {
                 .join("profiles")
                 .join(profile)
                 .join("ontology.toml");
-            match std::fs::read_to_string(&profile_path)
-                .ok()
-                .and_then(|raw| toml::from_str::<Value>(&raw).ok())
-            {
-                Some(profile_doc) => {
+            match super::load(&profile_path) {
+                Ok(profile_doc) => {
                     errors.extend(validate_ontology(&profile_path, &profile_doc));
                     ontologies.push((profile_path, profile_doc));
                 }
-                None => errors.push(format!(
-                    "framework_profile = \"{fp}\" but profile ontology not found or unparsable at {}",
-                    profile_path.display()
-                )),
+                Err(error) => errors.push(format!("framework_profile = \"{fp}\": {error}")),
             }
         }
         if !errors.is_empty() {
@@ -3293,24 +3347,47 @@ mod profile {
         errors
     }
 
-    /// Discover profile descriptors; also report duplicate profile
-    /// names. A duplicate would let one descriptor shadow another in
+    /// Discover profile descriptors; report every discovery error. A duplicate
+    /// would let one descriptor shadow another in
     /// the name-keyed map and silently erase its closure pins, so the
     /// caller MUST refuse to validate anything when duplicates exist
     /// (SPEC 12.8.1 pin resolution: no pin-free fall-through).
     pub fn discover(repo_root: &Path) -> (BTreeMap<String, (PathBuf, Value)>, Vec<String>) {
-        let mut duplicates: Vec<String> = Vec::new();
+        let mut discovery_errors: Vec<String> = Vec::new();
         let mut out: BTreeMap<String, (PathBuf, Value)> = BTreeMap::new();
         let dir = repo_root.join("profiles");
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            return (out, duplicates);
+        let entries = match std::fs::read_dir(&dir) {
+            Ok(entries) => entries,
+            Err(error) => {
+                discovery_errors.push(format!(
+                    "{}: profile discovery failed: {error}",
+                    dir.display()
+                ));
+                return (out, discovery_errors);
+            }
         };
-        for entry in entries.flatten() {
+        for entry in entries {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(error) => {
+                    discovery_errors.push(format!(
+                        "{}: profile discovery failed: {error}",
+                        dir.display()
+                    ));
+                    continue;
+                }
+            };
             let candidate = entry.path().join("PROFILE.toml");
             if !candidate.is_file() {
                 continue;
             }
-            let Ok(doc) = load(&candidate) else { continue };
+            let doc = match load(&candidate) {
+                Ok(doc) => doc,
+                Err(error) => {
+                    discovery_errors.push(error);
+                    continue;
+                }
+            };
             let tk = doc
                 .get("meta")
                 .and_then(|m| m.get("template_kind"))
@@ -3325,7 +3402,7 @@ mod profile {
                 .and_then(|x| x.as_str())
             {
                 if let Some((existing, _)) = out.get(name) {
-                    duplicates.push(format!(
+                    discovery_errors.push(format!(
                         "duplicate profile-descriptor name `{}` ({} and {})",
                         name,
                         existing.display(),
@@ -3336,7 +3413,7 @@ mod profile {
                 out.insert(name.to_string(), (candidate, doc));
             }
         }
-        (out, duplicates)
+        (out, discovery_errors)
     }
 
     fn is_unprefixed(name: &str) -> bool {
@@ -3447,19 +3524,24 @@ mod profile {
         repo_root: &Path,
         slug: &str,
         profile_name: &str,
-    ) -> Vec<PathBuf> {
+    ) -> Result<Vec<PathBuf>, String> {
         let fname = format!("{}-kind.toml", slug);
         let mut out: Vec<PathBuf> = vec![
             repo_root.join("profiles").join(profile_name).join(&fname),
             repo_root.join("core").join(&fname),
         ];
-        if let Ok(entries) = std::fs::read_dir(repo_root.join("profiles")) {
-            for entry in entries.flatten() {
-                // Path::is_dir follows symlinks (DirEntry::file_type does
-                // not), matching the Python candidate enumeration.
-                if entry.path().is_dir() {
-                    out.push(entry.path().join(&fname));
-                }
+        let profile_root = repo_root.join("profiles");
+        let entries = std::fs::read_dir(&profile_root).map_err(|error| {
+            format!("{}: kind discovery failed: {error}", profile_root.display())
+        })?;
+        for entry in entries {
+            let entry = entry.map_err(|error| {
+                format!("{}: kind discovery failed: {error}", profile_root.display())
+            })?;
+            // Path::is_dir follows symlinks (DirEntry::file_type does
+            // not), matching the Python candidate enumeration.
+            if entry.path().is_dir() {
+                out.push(entry.path().join(&fname));
             }
         }
         // dedupe preserving order
@@ -3471,7 +3553,26 @@ mod profile {
                 deduped.push(p);
             }
         }
-        deduped
+        Ok(deduped)
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn kind_discovery_requires_readable_profile_directory() {
+        let root = std::env::temp_dir().join(format!(
+            "dagtoml-kinds-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let profiles = root.join("profiles");
+        std::fs::create_dir_all(profiles.join("valid")).expect("create profile directory");
+        let candidates = kind_descriptor_candidates(&root, "foo", "valid")
+            .expect("profile directory must be readable");
+        assert!(candidates.contains(&profiles.join("valid/foo-kind.toml")));
+        std::fs::remove_dir_all(&root).expect("remove test directory");
+        let error = kind_descriptor_candidates(&root, "foo", "valid")
+            .expect_err("missing profile directory must fail");
+        assert!(error.contains("kind discovery failed"), "{error}");
     }
 
     pub fn validate_one(
@@ -3619,26 +3720,35 @@ mod profile {
                     ));
                     continue;
                 };
-                let candidates = kind_descriptor_candidates(repo_root, slug, name);
+                let candidates = match kind_descriptor_candidates(repo_root, slug, name) {
+                    Ok(candidates) => candidates,
+                    Err(error) => {
+                        errors.push(error);
+                        continue;
+                    }
+                };
                 let mut matched = false;
                 for c in &candidates {
                     if !c.is_file() {
                         continue;
                     }
-                    if let Ok(kd) = load(c) {
-                        let m = kd.get("meta").and_then(|x| x.as_table());
-                        let tk = m
-                            .and_then(|t| t.get("template_kind"))
-                            .and_then(|x| x.as_str())
-                            .unwrap_or("");
-                        let dk = m
-                            .and_then(|t| t.get("describes_kind"))
-                            .and_then(|x| x.as_str())
-                            .unwrap_or("");
-                        if tk == "kind-descriptor" && dk == slug {
-                            matched = true;
-                            break;
+                    match load(c) {
+                        Ok(kd) => {
+                            let m = kd.get("meta").and_then(|x| x.as_table());
+                            let tk = m
+                                .and_then(|t| t.get("template_kind"))
+                                .and_then(|x| x.as_str())
+                                .unwrap_or("");
+                            let dk = m
+                                .and_then(|t| t.get("describes_kind"))
+                                .and_then(|x| x.as_str())
+                                .unwrap_or("");
+                            if tk == "kind-descriptor" && dk == slug {
+                                matched = true;
+                                break;
+                            }
                         }
+                        Err(error) => errors.push(error),
                     }
                 }
                 if !matched {
@@ -5878,10 +5988,10 @@ fn main() -> ExitCode {
         .canonicalize()
         .unwrap_or(parsed.repo_root.clone());
 
-    let (descriptors, duplicate_profiles) = profile::discover(&repo_root);
-    if !duplicate_profiles.is_empty() {
+    let (descriptors, discovery_errors) = profile::discover(&repo_root);
+    if !discovery_errors.is_empty() {
         eprintln!("DAGTOML VALIDATION FAILED (rust primary)");
-        for d in &duplicate_profiles {
+        for d in &discovery_errors {
             eprintln!("- {d}: pin resolution refuses to proceed (SPEC 12.8.1)");
         }
         std::process::exit(1);

@@ -1,6 +1,90 @@
 package main
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestLoadDocAcceptsValidAndReportsInvalidWithoutSourceCoordinates(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "input.toml")
+	if err := os.WriteFile(path, []byte("valid = 1\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	valid, err := loadDoc(path)
+	if err != nil {
+		t.Fatalf("valid TOML rejected: %v", err)
+	}
+	if valid["valid"] != int64(1) {
+		t.Fatalf("valid value changed: %#v", valid["valid"])
+	}
+	if err := os.WriteFile(path, []byte("broken = [\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	_, err = loadDoc(path)
+	if err == nil {
+		t.Fatal("malformed TOML accepted")
+	}
+	message := err.Error()
+	if !strings.Contains(message, "TOML parse failed (strict)") ||
+		!strings.Contains(message, "sha256:663eb4e5c398fe1ebb16c3d167d0d00027440ff6521dab9f063cd06d476d0dc4") ||
+		strings.Contains(message, "line ") || strings.Contains(message, "column ") {
+		t.Fatalf("unexpected parse diagnostic: %s", message)
+	}
+}
+
+func TestDiscoverDescriptorsRejectsMalformedCandidate(t *testing.T) {
+	root := t.TempDir()
+	valid := filepath.Join(root, "profiles", "valid", "PROFILE.toml")
+	malformed := filepath.Join(root, "profiles", "malformed", "PROFILE.toml")
+	for _, path := range []string{valid, malformed} {
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(valid, []byte("[meta]\ntemplate_kind = 'profile-descriptor'\n[profile]\nname = 'valid'\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(malformed, []byte("broken = [\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	descriptors, errors := discoverDescriptors(root)
+	if _, ok := descriptors["valid"]; !ok {
+		t.Fatal("valid descriptor was skipped")
+	}
+	if len(errors) != 1 || !strings.Contains(errors[0], "TOML parse failed") {
+		t.Fatalf("malformed descriptor was not reported: %#v", errors)
+	}
+}
+
+func TestKindDescriptorCandidatesRequireReadableProfiles(t *testing.T) {
+	root := t.TempDir()
+	profiles := filepath.Join(root, "profiles")
+	if err := os.MkdirAll(filepath.Join(profiles, "valid"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	candidates, err := kindDescriptorCandidates(root, "foo", "valid")
+	if err != nil {
+		t.Fatalf("valid profile directory rejected: %v", err)
+	}
+	want := filepath.Join(profiles, "valid", "foo-kind.toml")
+	found := false
+	for _, candidate := range candidates {
+		if candidate == want {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("candidate %s missing from %#v", want, candidates)
+	}
+	if err := os.RemoveAll(profiles); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := kindDescriptorCandidates(root, "foo", "valid"); err == nil {
+		t.Fatal("missing profile directory accepted")
+	}
+}
 
 func TestValueShapes(t *testing.T) {
 	cases := []struct {
