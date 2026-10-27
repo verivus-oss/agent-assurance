@@ -7,10 +7,10 @@ Native tooling that produces and verifies the artifacts under
 
 This repo has an explicit ordering of acceptable implementation
 languages for spec-critical tooling. The order is **not** a matter of
-taste — CI runs the higher tiers first and treats divergence as a
+taste. CI runs the higher tiers first and treats divergence as a
 build break.
 
-### Tier 1 — default: safe Rust **or** Go
+### Tier 1: default safe Rust **or** Go
 
 New tooling MUST be written in one of these two languages. Both are
 required to be **memory-safe by construction at the level of the code
@@ -44,7 +44,7 @@ When unsure, ship both. The two reference tools (`dagtoml-rdf` and
 `dagtoml-duckdb`) have Go counterparts at `*-go/`; CI exercises both
 and fails on functional divergence.
 
-### Tier 2 — supported: Java, TypeScript, Python
+### Tier 2: supported Java, TypeScript, Python
 
 Tooling in these languages is **accepted** but never **required**. They
 exist for three legitimate reasons:
@@ -55,7 +55,7 @@ exist for three legitimate reasons:
 2. **Cross-check / fallback**: a second implementation in a different
    language is the cheapest insurance against a primary-language bug.
    The Python validators under `validators/` are first-class
-   cross-checks for the primary Rust/Go validators — CI runs both, and
+   cross-checks for the primary Rust/Go validators. CI runs both, and
    a difference between primary and secondary fails the build.
 3. **Prototype / one-shot scripts**: things you'd otherwise write as a
    notebook. These do not belong in `tools/`; they belong in
@@ -72,7 +72,7 @@ remain enforceable, but they are not described as primary until the
 safe Rust and Go validators implement the same invariant and CI runs
 both implementations against the same positive/negative evidence.
 
-### Tier 0 — forbidden defaults
+### Tier 0: forbidden defaults
 
 - **Bash / shell** for any logic beyond simple process orchestration.
   Source checks use explicit predicates in Python. The drift script
@@ -208,7 +208,7 @@ Dependencies' internal use of `unsafe` is out of scope.
 | Language    | CI version          | Pinned in              | Rationale                                                |
 |-------------|---------------------|------------------------|----------------------------------------------------------|
 | Rust        | `stable` (current)  | `Cargo.toml` rust-version = 1.85 (MSRV floor) | Tracks the language; MSRV documents the floor that consumers can rely on. |
-| Go          | `stable` (current)  | `go.mod` `go 1.26`     | Same — track the language, document the floor each module assumes. |
+| Go          | `1.26.10`          | `go.mod` `go 1.26.10`  | Use the patched Go release; update modules and CI together. |
 | Python      | 3.11                | `.github/workflows/validate.yml` | Cross-check only; not the primary path. |
 | Bash        | system (4.x+)       | n/a                    | Used only for the smallest invariant scripts.            |
 
