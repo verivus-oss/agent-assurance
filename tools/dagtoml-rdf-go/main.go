@@ -302,9 +302,10 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 	type kindRow struct{ tk, layer, path string }
 	kinds := []kindRow{{"kind-descriptor", "core", "spec.md"}}
 	gather := func(layer, base string) error {
-		entries, err := os.ReadDir(filepath.Join(repoRoot, base))
+		directory := filepath.Join(repoRoot, base)
+		entries, err := os.ReadDir(directory)
 		if err != nil {
-			return nil
+			return fmt.Errorf("cannot enumerate kind descriptors under %s: %w", directory, err)
 		}
 		var paths []string
 		for _, e := range entries {
@@ -316,22 +317,29 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 		for _, rel := range paths {
 			var kf kindFile
 			if err := loadToml(filepath.Join(repoRoot, rel), &kf); err != nil {
-				continue
+				return fmt.Errorf("cannot load kind descriptor %s: %w", rel, err)
 			}
 			tk := kf.Meta.DescribesKind
 			if tk == "" {
 				tk = kf.Kind.Name
 			}
-			if tk == "" || tk == "kind-descriptor" {
+			if tk == "" {
+				return fmt.Errorf("kind descriptor %s has no declared kind", rel)
+			}
+			if tk == "kind-descriptor" {
 				continue
 			}
 			kinds = append(kinds, kindRow{tk, layer, rel})
 		}
 		return nil
 	}
-	_ = gather("core", "core")
+	if err := gather("core", "core"); err != nil {
+		return "", 0, 0, 0, 0, err
+	}
 	for _, p := range profOnts {
-		_ = gather("profile:"+p.name, "profiles/"+p.name)
+		if err := gather("profile:"+p.name, "profiles/"+p.name); err != nil {
+			return "", 0, 0, 0, 0, err
+		}
 	}
 
 	// Entities (core + each profile, with layer attached).

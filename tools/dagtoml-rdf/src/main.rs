@@ -27,6 +27,14 @@
 use serde::Deserialize;
 use std::{collections::BTreeMap, fmt::Write as _, fs, path::PathBuf, process::ExitCode};
 
+fn toml_diagnostic(error: &toml::de::Error) -> String {
+    let span = error
+        .span()
+        .map(|range| format!("; byte span {}..{}", range.start, range.end))
+        .unwrap_or_default();
+    format!("{}{}", error.message(), span)
+}
+
 // ---------- ontology shapes ----------
 
 #[derive(Debug, Deserialize)]
@@ -547,8 +555,14 @@ fn verify(path: &PathBuf) -> ExitCode {
     for triple in oxttl::TurtleParser::new().for_slice(&bytes) {
         match triple {
             Ok(_) => count += 1,
-            Err(e) => {
-                eprintln!("parse error in {path:?}: {e}");
+            Err(error) => {
+                let span = error.location();
+                eprintln!(
+                    "parse error in {path:?}: {} (byte span {}..{})",
+                    error.message(),
+                    span.start.offset,
+                    span.end.offset
+                );
                 return ExitCode::FAILURE;
             }
         }
@@ -599,13 +613,20 @@ fn main() -> ExitCode {
     }
 
     let core_ont_path = repo_root.join("core/ontology.toml");
-    let core_ont: Ontology = match fs::read_to_string(&core_ont_path).and_then(|s| {
-        toml::from_str::<Ontology>(&s)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-    }) {
-        Ok(o) => o,
-        Err(e) => {
-            eprintln!("failed to read {core_ont_path:?}: {e}");
+    let core_raw = match fs::read_to_string(&core_ont_path) {
+        Ok(raw) => raw,
+        Err(error) => {
+            eprintln!("failed to read {core_ont_path:?}: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let core_ont: Ontology = match toml::from_str(&core_raw) {
+        Ok(ontology) => ontology,
+        Err(error) => {
+            eprintln!(
+                "failed to parse {core_ont_path:?}: {}",
+                toml_diagnostic(&error)
+            );
             return ExitCode::FAILURE;
         }
     };
@@ -684,13 +705,17 @@ fn main() -> ExitCode {
             .and_then(|s| s.to_str())
             .unwrap_or("")
             .to_string();
-        let parsed: Ontology = match fs::read_to_string(&ont_path).and_then(|s| {
-            toml::from_str::<Ontology>(&s)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-        }) {
-            Ok(o) => o,
-            Err(e) => {
-                eprintln!("failed to read {ont_path:?}: {e}");
+        let ontology_raw = match fs::read_to_string(&ont_path) {
+            Ok(raw) => raw,
+            Err(error) => {
+                eprintln!("failed to read {ont_path:?}: {error}");
+                return ExitCode::FAILURE;
+            }
+        };
+        let parsed: Ontology = match toml::from_str(&ontology_raw) {
+            Ok(ontology) => ontology,
+            Err(error) => {
+                eprintln!("failed to parse {ont_path:?}: {}", toml_diagnostic(&error));
                 return ExitCode::FAILURE;
             }
         };
@@ -711,27 +736,48 @@ fn main() -> ExitCode {
         let layer = layer.as_str();
         let base = base.as_str();
         let dir = repo_root.join(base);
-        let Ok(read) = fs::read_dir(&dir) else {
-            continue;
+        let read = match fs::read_dir(&dir) {
+            Ok(read) => read,
+            Err(error) => {
+                eprintln!("failed to enumerate kind descriptors under {dir:?}: {error}");
+                return ExitCode::FAILURE;
+            }
         };
-        let mut paths: Vec<PathBuf> = read
-            .filter_map(|e| e.ok())
-            .map(|e| e.path())
-            .filter(|p| p.extension().is_some_and(|x| x == "toml"))
-            .filter(|p| {
-                p.file_name()
-                    .and_then(|n| n.to_str())
-                    .is_some_and(|n| n.ends_with("-kind.toml"))
-            })
-            .collect();
+        let mut paths: Vec<PathBuf> = Vec::new();
+        for entry in read {
+            let path = match entry {
+                Ok(entry) => entry.path(),
+                Err(error) => {
+                    eprintln!("failed to enumerate kind descriptor under {dir:?}: {error}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            if path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.ends_with("-kind.toml"))
+            {
+                paths.push(path);
+            }
+        }
         paths.sort();
         for p in paths {
-            let Ok(s) = fs::read_to_string(&p) else {
-                continue;
+            let s = match fs::read_to_string(&p) {
+                Ok(s) => s,
+                Err(error) => {
+                    eprintln!("failed to read kind descriptor {p:?}: {error}");
+                    return ExitCode::FAILURE;
+                }
             };
             let parsed: KindFile = match toml::from_str(&s) {
                 Ok(v) => v,
-                Err(_) => continue,
+                Err(error) => {
+                    eprintln!(
+                        "failed to parse kind descriptor {p:?}: {}",
+                        toml_diagnostic(&error)
+                    );
+                    return ExitCode::FAILURE;
+                }
             };
             // *-kind.toml files all carry meta.template_kind =
             // "kind-descriptor". The kind they DESCRIBE is named in
@@ -742,19 +788,20 @@ fn main() -> ExitCode {
                 .and_then(|m| m.describes_kind.clone())
                 .or_else(|| parsed.kind.as_ref().and_then(|k| k.name.clone()))
                 .or_else(|| parsed.kind.as_ref().and_then(|k| k.template_kind.clone()));
-            if let Some(tk) = tk {
-                if tk == "kind-descriptor" {
-                    // the descriptor of descriptors - skip; we already
-                    // added the meta row above.
-                    continue;
-                }
-                let rel = p
-                    .strip_prefix(&repo_root)
-                    .unwrap_or(&p)
-                    .to_string_lossy()
-                    .replace('\\', "/");
-                kinds.push((tk, layer.to_string(), rel));
+            let Some(tk) = tk.filter(|value| !value.is_empty()) else {
+                eprintln!("kind descriptor has no declared kind: {p:?}");
+                return ExitCode::FAILURE;
+            };
+            if tk == "kind-descriptor" {
+                // The descriptor of descriptors already has the meta row.
+                continue;
             }
+            let rel = p
+                .strip_prefix(&repo_root)
+                .unwrap_or(&p)
+                .to_string_lossy()
+                .replace('\\', "/");
+            kinds.push((tk, layer.to_string(), rel));
         }
     }
 
