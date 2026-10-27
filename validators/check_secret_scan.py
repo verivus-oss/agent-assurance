@@ -3,6 +3,7 @@
 
 import _literal_args as argparse
 from _literal_json import InvalidJSON, loads as loads_json
+import _toml11 as toml
 import hashlib
 from pathlib import Path
 import shutil
@@ -159,6 +160,18 @@ def check_no_ignore_file(root: Path) -> None:
         raise RuntimeError("Gitleaks ignore file is not permitted")
 
 
+def check_exact_config(config: Path) -> None:
+    try:
+        document = toml.loads(config.read_text())
+    except (OSError, ValueError) as exc:
+        raise RuntimeError("Gitleaks configuration could not be parsed") from exc
+    if (not isinstance(document, dict) or set(document) != {"extend"}
+            or not isinstance(document["extend"], dict)
+            or set(document["extend"]) != {"useDefault"}
+            or document["extend"]["useDefault"] is not True):
+        raise RuntimeError("Gitleaks configuration must contain only the default rule extension")
+
+
 def gitleaks_command(binary: Path, config: str, report: Path,
                      log_options: str = GIT_LOG_OPTIONS) -> list[str]:
     return [
@@ -179,6 +192,7 @@ def main() -> None:
     if not binary.is_file() or not (root / ".gitleaks.toml").is_file():
         raise RuntimeError("Gitleaks binary and configuration are required")
     check_no_ignore_file(root)
+    check_exact_config(root / ".gitleaks.toml")
     reachable, head_ancestry = reachable_commits(root)
     patch_commits = patch_bearing_commits(root, reachable)
     expected = KNOWN_COMMITS & reachable

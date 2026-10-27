@@ -3,7 +3,7 @@
 from _literal_args import ArgumentParser
 from _literal_json import loads as loads_json
 from check_secret_scan import (
-    GIT_LOG_OPTIONS, gitleaks_command, patch_bearing_commits,
+    GIT_LOG_OPTIONS, check_exact_config, gitleaks_command, patch_bearing_commits,
     reachable_commits, scanned_count,
 )
 from pathlib import Path
@@ -25,6 +25,7 @@ def check(gitleaks: Path, config: Path) -> None:
     git = shutil.which("git")
     if git is None or not gitleaks.is_file() or not config.is_file():
         raise RuntimeError("git, Gitleaks, and its configuration are required")
+    check_exact_config(config)
     with TemporaryDirectory(prefix="gitleaks-merge-control-") as directory:
         root = Path(directory)
         record = root / "credential.txt"

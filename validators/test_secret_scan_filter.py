@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 from _test_require import require
 from check_secret_scan import (
     KNOWN_COMMITS, PUBLIC_HEX_FILE, PUBLIC_HEX_RULE,
-    check_findings, check_no_ignore_file, check_scan_population, gitleaks_command,
+    check_exact_config, check_findings, check_no_ignore_file, check_scan_population, gitleaks_command,
     known_public_literal, scanned_count, text_change_commits,
 )
 
@@ -131,7 +131,7 @@ def test_main_rejects_ignore_file() -> None:
         root = Path(directory)
         binary = root / "gitleaks"
         binary.write_text("")
-        (root / ".gitleaks.toml").write_text("")
+        (root / ".gitleaks.toml").write_text("[extend]\nuseDefault = true\n")
         ignore = root / ".gitleaksignore"
         ignore.write_text("ignored-fingerprint\n")
         command = [sys.executable, str(Path(__file__).with_name("check_secret_scan.py")),
@@ -143,8 +143,41 @@ def test_main_rejects_ignore_file() -> None:
         require(reached_history.returncode == 1 and "secret scan requires a full Git checkout" in reached_history.stderr)
 
 
+def test_config_boundary() -> None:
+    repository_config = Path(__file__).resolve().parents[1] / ".gitleaks.toml"
+    check_exact_config(repository_config)
+    with TemporaryDirectory(prefix="gitleaks-config-control-") as directory:
+        root = Path(directory)
+        binary = root / "gitleaks"
+        binary.write_text("")
+        config = root / ".gitleaks.toml"
+        main_command = [sys.executable, str(Path(__file__).with_name("check_secret_scan.py")),
+                        "--gitleaks", str(binary), "--repo-root", str(root)]
+        merge_command = [sys.executable, str(Path(__file__).with_name("check_secret_scan_merge.py")),
+                         "--gitleaks", str(binary), "--config", str(config)]
+        rejected_configs = (
+            "[extend]\nuseDefault = true\n[[allowlists]]\npaths = ['validators/']\n",
+            "[extend]\nuseDefault = true\n[[rules]]\nid = 'generic-api-key'\n[[rules.allowlists]]\npaths = ['validators/']\n",
+            "[extend]\nuseDefault = true\ndisabledRules = ['generic-api-key']\n",
+            "[extend]\nuseDefault = true\npath = 'other.toml'\n",
+            "[extend]\nuseDefault = 1\n",
+        )
+        for content in rejected_configs:
+            config.write_text(content)
+            try:
+                check_exact_config(config)
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError("suppressing Gitleaks configuration was accepted")
+            for command in (main_command, merge_command):
+                result = subprocess.run(command, capture_output=True, text=True, check=False)  # nosec B603  # noqa: S603
+                require(result.returncode != 0 and "default rule extension" in result.stderr)
+
+
 if __name__ == "__main__":
     test_exception()
     test_scan_count()
     test_main_rejects_ignore_file()
+    test_config_boundary()
     print("secret scan filter: exact accepted and rejected controls passed")

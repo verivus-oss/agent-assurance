@@ -112,9 +112,9 @@ expect "go kind-candidate via symlink (accept)" 0 "$GO" -repo-root "$R" -mode pr
 echo "--- GUARD 4: trailing-newline profile name rejected everywhere (round 2, R2-1) ---"
 # Round-3 correction (R3-1): the first version of this guard omitted the
 # kind descriptor, so the root failed on an unrelated INV05 resolution
-# error whether or not the regex fix was present (vacuously green under
-# mutation). The descriptor below makes the newline name the ONLY
-# defect, so reverting the backslash-Z anchor flips this guard.
+# error whether or not the name predicate worked (vacuously green under
+# mutation). The descriptor below makes the newline name the only
+# defect, so accepting a trailing newline flips this guard.
 R="$TMP/nl"
 write_common "$R"
 write_profile "$R/profiles/nl" "com.example.pin"
@@ -131,7 +131,7 @@ expect "rs newline name" 1 "$RS" --repo-root "$R" --mode profile "$R/profiles/nl
 expect "go newline name" 1 "$GO" -repo-root "$R" -mode profile "$R/profiles/nl/PROFILE.toml"
 
 # GUARD 5 is a PARITY PIN, not a mutation-detectable regression guard:
-# reverting the CLOSURE_ROOT_RE backslash-Z hardening does NOT flip it,
+# loosening the closure-root shape predicate alone does not flip it,
 # because the raw-value equality comparison downstream also rejects the
 # smuggled value. What this guard pins is the three-way REJECT verdict
 # itself (py/rs/go agree), so a future refactor that quietly starts

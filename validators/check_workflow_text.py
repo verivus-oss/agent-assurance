@@ -43,8 +43,8 @@ def provenance(root: Path = ROOT) -> None:
     print(f"provenance: {len(positives)} positive files accepted, {len(negatives)} negative files rejected")
 
 
-def language_symbols() -> None:
-    source = ROOT / "examples/language-validation/traceability.toml"
+def language_symbols(root: Path = ROOT) -> None:
+    source = root / "examples/language-validation/traceability.toml"
     rows = toml.loads(source.read_text()).get("code", [])
     if not rows or len(rows) != len({row.get("id") for row in rows}):
         raise ValueError("language fixture code declarations are missing or duplicated")
@@ -53,40 +53,40 @@ def language_symbols() -> None:
         if (not isinstance(relative, str) or not relative.startswith("examples/language-validation/src/")
                 or not isinstance(symbol, str) or not symbol):
             raise ValueError("language fixture code declaration is incomplete")
-        path = (ROOT / relative).resolve()
-        if not path.is_relative_to(ROOT / "examples/language-validation/src"):
+        path = (root / relative).resolve()
+        if not path.is_relative_to(root / "examples/language-validation/src"):
             raise ValueError("language fixture code path escapes its source tree")
         if not path.is_file() or symbol not in path.read_text():
             raise ValueError("language fixture symbol missing: " + relative + " " + symbol)
     print(f"language fixtures: {len(rows)} declared symbols found")
 
 
-def tracked_files() -> list[Path]:
+def tracked_files(root: Path = ROOT) -> list[Path]:
     git = shutil.which("git")
     if git is None:
         raise ValueError("git executable is required")
-    result = subprocess.run([git, "ls-files", "-z"], cwd=ROOT, capture_output=True, check=False)  # nosec B603  # noqa: S603
+    result = subprocess.run([git, "ls-files", "-z"], cwd=root, capture_output=True, check=False)  # nosec B603  # noqa: S603
     if result.returncode:
         raise ValueError("could not enumerate tracked files")
-    paths = [ROOT / os.fsdecode(name) for name in result.stdout.split(b"\0") if name]
-    if len(paths) < 100 or ROOT / "spec.md" not in paths or ROOT / "core/ontology.toml" not in paths:
+    paths = [root / os.fsdecode(name) for name in result.stdout.split(b"\0") if name]
+    if len(paths) < 100 or root / "spec.md" not in paths or root / "core/ontology.toml" not in paths:
         raise ValueError("tracked source population is incomplete")
     return paths
 
 
-def banned_markers() -> None:
-    examples = toml_files(ROOT / "examples")
+def banned_markers(root: Path = ROOT) -> None:
+    examples = toml_files(root / "examples")
     if not examples:
         raise ValueError("example TOML population is empty")
     for path in examples:
         for line in path.read_text().splitlines():
             field, separator, _ = line.partition("=")
             if separator and field.strip() == "kind":
-                raise ValueError("bare kind field found in " + str(path.relative_to(ROOT)))
+                raise ValueError("bare kind field found in " + str(path.relative_to(root)))
     needle = "/srv/" + "repos/internal"
     scanned = 0
-    for path in tracked_files():
-        relative = path.relative_to(ROOT)
+    for path in tracked_files(root):
+        relative = path.relative_to(root)
         if relative.parts[0] in (".github", ".git", ".local") or relative.parts[:2] == ("docs", "reviews"):
             continue
         if relative.name in ("AGENTS.md", "CHANGELOG.md"):

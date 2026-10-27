@@ -129,11 +129,13 @@ verified_by = [
 id          = "C08"
 domain      = "disclosure-cross-field-rules"
 statement   = "All three primary validators enforce (a) `disclosure_posture = \"partial\"` REQUIRES at least one covered_by entry with a `RED:` prefix; (b) `disclosure_posture = \"embargoed\"` REQUIRES `[meta].embargo_until`; (c) `redaction_reason = \"other\"` REQUIRES a non-empty `notes` field; (d) selective-disclosure-proof `bound_source` MUST match `^sha256:[0-9a-f]{64}$`."
-applies_to  = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go", "validators/validate_disclosure.py"]
+applies_to  = ["tools/dagtoml-validate-rs", "tools/dagtoml-validate-go", "validators/validate_disclosure.py", "validators/_ascii_predicates.py"]
 verified_by = [
   "tools/dagtoml-validate-rs/src/main.rs (mod disclosure::validate_attestation, ::validate_redaction, ::validate_proof, ::is_sha256_hex)",
-  "tools/dagtoml-validate-go/main.go (validateAttestation, validateRedaction, validateProof, sha256RE)",
-  "validators/validate_disclosure.py (validate_attestation, validate_redaction_manifest, validate_proof, SHA256_RE)",
+  "tools/dagtoml-validate-go/main.go (validateAttestation, validateRedaction, validateProof)",
+  "tools/dagtoml-validate-go/predicates.go (validSha256)",
+  "validators/validate_disclosure.py (validate_attestation, validate_redaction_manifest, validate_proof)",
+  "validators/_ascii_predicates.py (valid_sha256)",
 ]
 
 # ============================================================================
