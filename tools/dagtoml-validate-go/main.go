@@ -2985,6 +2985,9 @@ func discoverDescriptors(repoRoot string) (map[string]descriptor, []string) {
 			continue
 		}
 		if !isDirectory {
+			if e.Type()&os.ModeSymlink != 0 {
+				discoveryErrors = append(discoveryErrors, fmt.Sprintf("%s: profile link does not target a directory", profilePath))
+			}
 			continue
 		}
 		candidate := filepath.Join(profilePath, "PROFILE.toml")

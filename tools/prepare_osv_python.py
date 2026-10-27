@@ -10,6 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "validators"))
 from _literal_json import InvalidJSON, loads as loads_json  # noqa: E402
+from _literal_paths import rglob as literal_rglob  # noqa: E402
 
 
 def tracked_sources(root: Path) -> list[Path]:
@@ -19,19 +20,28 @@ def tracked_sources(root: Path) -> list[Path]:
         raise SystemExit("git executable is required for OSV lock discovery")
     # The executable is resolved and all arguments are fixed. No shell runs.
     tracked = subprocess.run(  # noqa: S603  # nosec B603
-        [git, "ls-files", "-z", "--", "requirements"],
+        [git, "ls-files", "-z", "--", "*.txt"],
         cwd=root,
         check=True,
         capture_output=True,
     ).stdout
     sources = sorted(
-        root / name.decode("utf-8")
+        root / path
         for name in tracked.split(b"\0")
-        if name and Path(name.decode("utf-8")).suffix == ".txt"
+        if name
+        for path in (Path(name.decode("utf-8")),)
+        if path.name == "requirements.txt" or (
+            path.parts[0] == "requirements" and path.suffix == ".txt"
+        )
     )
     if not sources:
         raise SystemExit("No tracked Python requirements locks found")
     return sources
+
+
+def staged_path(root: Path, source: Path) -> Path:
+    """Preserve the source path so distinct locks get distinct OSV aliases."""
+    return root / "osv-python-lockfiles" / source.relative_to(root).with_suffix("") / "requirements.txt"
 
 
 def stage(root: Path) -> None:
@@ -41,18 +51,20 @@ def stage(root: Path) -> None:
 
     sources = tracked_sources(root)
 
-    for source in sources:
+    destinations = [staged_path(root, source) for source in sources]
+    if len(set(destinations)) != len(sources):
+        raise SystemExit("OSV staging aliases collide")
+    for source, destination in zip(sources, destinations, strict=True):
         if source.is_symlink() or not source.is_file():
             raise SystemExit(f"Tracked requirements lock is absent or symlinked: {source}")
-        destination = staging / source.stem / "requirements.txt"
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, destination)
         if destination.read_bytes() != source.read_bytes():
             raise SystemExit(f"OSV staging copy differs from source: {source}")
 
-    staged = [child / "requirements.txt" for child in staging.iterdir() if (child / "requirements.txt").is_file()]
-    if len(staged) != len(sources):
-        raise SystemExit("OSV staging count differs from tracked lock count")
+    staged = set(literal_rglob(staging, "requirements.txt"))
+    if staged != set(destinations):
+        raise SystemExit("OSV staging files differ from tracked lock population")
     print(f"OSV Python lockfiles staged and verified: {len(sources)}")
 
 
@@ -142,13 +154,14 @@ def verify(root: Path, result_file: Path) -> None:
 
     sources = tracked_sources(root)
     expected = {
-        Path("osv-python-lockfiles") / source.stem / "requirements.txt": pins(source)
+        staged_path(root, source).relative_to(root): pins(source)
         for source in sources
     }
     if len(expected) != len(sources):
         raise SystemExit("OSV alias names collide")
-    if set(scanned) != {path for path, packages in expected.items() if packages}:
-        raise SystemExit("OSV scanner did not discover every nonempty Python lock")
+    required = {path for path, packages in expected.items() if packages}
+    if not required <= set(scanned) or not set(scanned) <= set(expected):
+        raise SystemExit("OSV scanner did not report the expected Python lock population")
     for path, packages in expected.items():
         if scanned.get(path, set()) != packages:
             raise SystemExit(f"OSV package extraction differs from source: {path}")

@@ -1067,8 +1067,8 @@ jobs:
           # --no-resolve disables network-required transitive dependency
           # resolution. We rely on lockfile-based scanning (Cargo.lock,
           # go.sum) instead, which has full transitive info baked in.
-          # The root requirements.txt has no runtime package. The staging
-          # step gives each tracked pinned Python lock a recognized filename.
+          # The staging step gives each tracked Python requirements file,
+          # including the root installer entry point, a recognized filename.
           # Scan those locks and native lockfiles without transitive resolution.
           scan-args: |-
             --recursive

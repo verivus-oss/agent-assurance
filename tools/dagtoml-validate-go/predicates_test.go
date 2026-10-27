@@ -131,6 +131,43 @@ func TestDiscoverDescriptorsRejectsMalformedCandidate(t *testing.T) {
 	}
 }
 
+func TestDiscoverDescriptorsRejectsProfileLinkToFile(t *testing.T) {
+	root := t.TempDir()
+	profiles := filepath.Join(root, "profiles")
+	if err := os.Mkdir(profiles, 0700); err != nil {
+		t.Fatal(err)
+	}
+	notes := filepath.Join(profiles, "README.md")
+	if err := os.WriteFile(notes, []byte("notes\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(profiles, "linked")
+	if err := os.Symlink("README.md", link); err != nil {
+		t.Fatal(err)
+	}
+	_, errors := discoverDescriptors(root)
+	if len(errors) != 1 || !strings.Contains(errors[0], "profile link does not target a directory") {
+		t.Fatalf("profile link to file was not rejected: %#v", errors)
+	}
+	if err := os.Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	actual := filepath.Join(root, "external")
+	if err := os.Mkdir(actual, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(actual, "PROFILE.toml"), []byte("[meta]\ntemplate_kind = 'profile-descriptor'\n[profile]\nname = 'linked'\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(actual, link); err != nil {
+		t.Fatal(err)
+	}
+	descriptors, errors := discoverDescriptors(root)
+	if len(errors) != 0 || descriptors["linked"].path != filepath.Join(link, "PROFILE.toml") {
+		t.Fatalf("live profile directory link was not discovered: %#v, %#v", descriptors, errors)
+	}
+}
+
 func TestKindDescriptorCandidatesRequireReadableProfiles(t *testing.T) {
 	root := t.TempDir()
 	profiles := filepath.Join(root, "profiles")
