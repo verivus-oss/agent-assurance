@@ -10,15 +10,24 @@ def _status(path: Path) -> os.stat_result | None:
     try:
         return path.stat()
     except (FileNotFoundError, NotADirectoryError) as exc:
-        if path.is_symlink():
-            raise OSError(f"{path}: dangling discovery candidate") from exc
-        if path.parent.is_symlink():
+        for depth, ancestor in enumerate((path, *path.parents)):
             try:
-                parent_status = path.parent.stat()
-            except (FileNotFoundError, NotADirectoryError) as parent_exc:
-                raise OSError(f"{path.parent}: dangling discovery directory") from parent_exc
-            if not stat.S_ISDIR(parent_status.st_mode):
-                raise OSError(f"{path.parent}: discovery parent is not a directory") from exc
+                entry = ancestor.lstat()
+            except (FileNotFoundError, NotADirectoryError):
+                # A missing lower segment may hide a broken link higher in the path.
+                entry = None
+            if entry is None:
+                continue
+            if stat.S_ISLNK(entry.st_mode):
+                try:
+                    entry = ancestor.stat()
+                except (FileNotFoundError, NotADirectoryError) as link_exc:
+                    kind = "candidate" if depth == 0 else "directory"
+                    raise OSError(f"{ancestor}: dangling discovery {kind}") from link_exc
+            if depth == 0:
+                raise OSError(f"{path}: discovery candidate changed during inspection") from exc
+            if not stat.S_ISDIR(entry.st_mode):
+                raise OSError(f"{ancestor}: discovery parent is not a directory") from exc
         return None
 
 
@@ -59,8 +68,7 @@ def _segment(name: str, form: str) -> bool:
 
 
 def _children(folder: Path) -> list[os.DirEntry[str]]:
-    if not discovery_root(folder):
-        return []
+    discovery_root(folder, required=True)
     try:
         with os.scandir(folder) as entries:
             return sorted(entries, key=lambda entry: entry.name)
@@ -75,13 +83,19 @@ def glob(root: Path, pattern: str) -> Iterator[Path]:
 
     def visit(folder: Path, index: int) -> Iterator[Path]:
         if index == len(parts):
-            if _status(folder) is not None:
-                yield folder
+            if _status(folder) is None:
+                raise OSError(f"{folder}: discovery candidate changed during scan")
+            yield folder
             return
         part = parts[index]
         if part == "**":
             yield from visit(folder, index + 1)
             for entry in _children(folder):
+                if entry.is_symlink():
+                    if entry.is_dir():
+                        raise OSError(f"{entry.path}: recursive discovery directory link needs an explicit root")
+                    if not entry.is_file():
+                        raise OSError(f"{entry.path}: dangling recursive discovery link")
                 if entry.is_dir(follow_symlinks=False):
                     yield from visit(Path(entry.path), index)
             return

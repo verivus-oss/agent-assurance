@@ -178,26 +178,43 @@ fn load(path: &Path) -> Result<Value, String> {
 }
 
 fn missing_candidate(path: &Path) -> Result<(), String> {
-    match std::fs::symlink_metadata(path) {
-        Ok(_) => Err(format!("{}: dangling discovery candidate", path.display())),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            if let Some(parent) = path.parent() {
-                if let Ok(meta) = std::fs::symlink_metadata(parent) {
-                    if meta.file_type().is_symlink() && std::fs::metadata(parent).is_err() {
-                        return Err(format!(
-                            "{}: dangling discovery directory",
-                            parent.display()
-                        ));
-                    }
+    for (depth, ancestor) in path.ancestors().enumerate() {
+        match std::fs::symlink_metadata(ancestor) {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                let target = std::fs::metadata(ancestor).map_err(|error| {
+                    let kind = if depth == 0 { "candidate" } else { "directory" };
+                    format!("{}: dangling discovery {kind}: {error}", ancestor.display())
+                })?;
+                if depth > 0 && !target.is_dir() {
+                    return Err(format!(
+                        "{}: discovery parent is not a directory",
+                        ancestor.display()
+                    ));
                 }
             }
-            Ok(())
+            Ok(meta) if depth > 0 && !meta.is_dir() => {
+                return Err(format!(
+                    "{}: discovery parent is not a directory",
+                    ancestor.display()
+                ));
+            }
+            Ok(_) if depth == 0 => {
+                return Err(format!(
+                    "{}: discovery candidate changed during inspection",
+                    path.display()
+                ));
+            }
+            Ok(_) => (),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+            Err(error) => {
+                return Err(format!(
+                    "{}: candidate inspection failed: {error}",
+                    ancestor.display()
+                ));
+            }
         }
-        Err(error) => Err(format!(
-            "{}: candidate inspection failed: {error}",
-            path.display()
-        )),
     }
+    Ok(())
 }
 
 fn candidate_file(path: &Path) -> Result<bool, String> {
@@ -306,6 +323,37 @@ fn profile_discovery_reports_malformed_candidates() {
         );
     }
     std::fs::remove_dir_all(&root).expect("remove test profiles");
+}
+
+#[cfg(all(test, unix))]
+#[test]
+fn candidate_predicates_reject_dangling_ancestors() {
+    let root = std::env::temp_dir().join(format!(
+        "dagtoml-ancestor-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    std::fs::create_dir_all(&root).expect("create root");
+    let bridge = root.join("bridge");
+    std::os::unix::fs::symlink("missing-directory", &bridge).expect("create dangling bridge");
+    for candidate in [bridge.join("subdir"), bridge.join("subdir/file.toml")] {
+        assert!(
+            candidate_directory(&candidate)
+                .expect_err("nested dangling directory must fail")
+                .contains("dangling discovery directory")
+        );
+        assert!(
+            candidate_file(&candidate)
+                .expect_err("nested dangling file must fail")
+                .contains("dangling discovery directory")
+        );
+    }
+    std::fs::remove_file(&bridge).expect("remove dangling bridge");
+    std::fs::create_dir(root.join("real")).expect("create real directory");
+    std::os::unix::fs::symlink("real", &bridge).expect("create live bridge");
+    assert_eq!(candidate_directory(&bridge), Ok(true));
+    assert_eq!(candidate_file(&bridge.join("missing.toml")), Ok(false));
+    std::fs::remove_dir_all(&root).expect("remove test root");
 }
 
 fn is_semver(s: &str) -> bool {

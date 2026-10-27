@@ -138,6 +138,14 @@ def test_closure_discovery_rejects_malformed_candidates() -> None:
         good.write_text('[meta]\ntemplate_kind = "widget"\n')
         bad.write_text("[meta\n")
         require(discover_conforming([examples], kinds, lambda path: path == bad) == [good])
+        expect_raises(OSError, lambda: discover_conforming([examples, root / "missing"], kinds,
+                                                            lambda path: path == bad),
+                      "missing explicit closure root was ignored")
+        bridge = root / "bridge"
+        bridge.symlink_to("missing-directory")
+        expect_raises(OSError, lambda: discover_conforming([examples, bridge / "subdir"], kinds,
+                                                            lambda path: path == bad),
+                      "dangling ancestor silently removed an explicit closure root")
         failure = expect_raises(ValueError, lambda: discover_conforming([examples], kinds),
                                 "malformed closure candidate was ignored")
         require("cannot inspect TOML candidate" in str(failure))

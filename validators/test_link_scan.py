@@ -43,6 +43,11 @@ def test_selection() -> None:
     selected, exceptions = select_links(rows, tracked)
     require(selected == sorted(urls))
     require(len(exceptions) == 2)
+    expect_raises(ValueError,
+                  lambda: select_links(rows + ["https://github.com/example/excluded (./README.md) [excluded]"], tracked),
+                  "excluded in-scope HTTP URL was accepted")
+    require(select_links(rows + ["mailto:reader@example.org (./README.md) [excluded]"], tracked) ==
+            (selected, exceptions))
     for absent in ("https://toml.io/en/v1.1.0", "https://www.fco-im.nl/papers"):
         expect_raises(ValueError,
                       lambda: select_links([row for row in rows if not row.startswith(absent)], tracked),

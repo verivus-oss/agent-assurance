@@ -2,7 +2,7 @@
 from _test_require import expect_raises, require
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from _literal_paths import glob, rglob
+from _literal_paths import candidate_directory, candidate_file, glob, rglob
 
 def test_path_shapes() -> None:
     with TemporaryDirectory() as temporary:
@@ -17,6 +17,8 @@ def test_path_shapes() -> None:
         require(list(glob(root, 'profiles/*/ontology.toml')) == [root / 'profiles/p1/ontology.toml'])
         require(set(rglob(root, '*.toml')) == {root / 'core/alpha-kind.toml', root / 'profiles/p1/ontology.toml', root / 'profiles/p1/PROFILE.toml'})
         require(list(glob(root, 'profiles/*/absent.toml')) == [])
+        expect_raises(OSError, lambda: list(glob(root / 'absent-root', '*.toml')),
+                      'missing discovery root was ignored')
         link = root / 'core/linked-kind.toml'
         link.symlink_to('alpha-kind.toml')
         require(link in list(glob(root, 'core/*-kind.toml')))
@@ -28,14 +30,34 @@ def test_path_shapes() -> None:
         directory_link = root / 'profiles/p2'
         directory_link.symlink_to('p1')
         require(root / 'profiles/p2/ontology.toml' in list(glob(root, 'profiles/*/ontology.toml')))
+        expect_raises(OSError, lambda: list(rglob(root, '*.toml')),
+                      'recursive scan silently skipped a live directory link')
         directory_link.unlink()
         directory_link.symlink_to('missing-profile')
         expect_raises(OSError, lambda: list(glob(root, 'profiles/*/ontology.toml')),
                       'dangling discovery directory was ignored')
+        expect_raises(OSError, lambda: list(rglob(root, '*.toml')),
+                      'recursive scan silently skipped a dangling directory link')
         broken_root = root / 'broken-root'
         broken_root.symlink_to('missing-root')
         expect_raises(OSError, lambda: list(glob(broken_root, '*.toml')),
                       'dangling discovery root was ignored')
+        nested = root / 'nested'
+        nested.mkdir()
+        bridge = nested / 'bridge'
+        bridge.symlink_to('missing-directory')
+        for candidate in (bridge / 'subdir', bridge / 'subdir' / 'file.toml'):
+            expect_raises(OSError, lambda candidate=candidate: candidate_directory(candidate),
+                          'dangling ancestor was ignored for a directory candidate')
+            expect_raises(OSError, lambda candidate=candidate: candidate_file(candidate),
+                          'dangling ancestor was ignored for a file candidate')
+        expect_raises(OSError, lambda: list(glob(bridge / 'subdir', '*.toml')),
+                      'dangling ancestor was ignored for a discovery root')
+        bridge.unlink()
+        (nested / 'real').mkdir()
+        bridge.symlink_to('real')
+        require(candidate_directory(bridge))
+        require(not candidate_file(bridge / 'subdir' / 'missing.toml'))
         file_root = root / 'file-root'
         file_root.write_text('not a directory')
         expect_raises(OSError, lambda: list(glob(file_root, '*.toml')),

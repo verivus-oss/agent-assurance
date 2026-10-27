@@ -59,6 +59,7 @@ def select_links(rows: list[str], tracked: set[str]) -> tuple[list[str], set[str
     exceptions: set[str] = set()
     scoped_http = 0
     for row in rows:
+        excluded = row.endswith(" [excluded]")
         target, source = split_record(row)
         if not included_source(source, tracked):
             continue
@@ -66,6 +67,8 @@ def select_links(rows: list[str], tracked: set[str]) -> tuple[list[str], set[str
             continue
         if not target.startswith(("http://", "https://")):
             raise ValueError("link extractor returned an unexpected scheme")
+        if excluded:
+            raise ValueError("link extractor excluded an in-scope HTTP URL: " + target)
         scoped_http += 1
         if host_of(target) in SKIP_HOSTS:
             exceptions.add(target)

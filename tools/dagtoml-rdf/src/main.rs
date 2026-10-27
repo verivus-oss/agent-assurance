@@ -613,35 +613,88 @@ fn main() -> ExitCode {
     // Walk every profiles/<name>/ontology.toml. The set of profiles is
     // not hardcoded - the generator picks up new profiles automatically.
     let mut profile_onts: Vec<(String, Ontology)> = Vec::new();
-    if let Ok(profiles_dir) = fs::read_dir(repo_root.join("profiles")) {
-        let mut entries: Vec<PathBuf> = profiles_dir
-            .filter_map(|e| e.ok())
-            .map(|e| e.path())
-            .filter(|p| p.is_dir())
-            .collect();
-        entries.sort();
-        for dir in entries {
-            let ont_path = dir.join("ontology.toml");
-            if !ont_path.exists() {
-                continue;
+    let profiles_dir = match fs::read_dir(repo_root.join("profiles")) {
+        Ok(entries) => entries,
+        Err(error) => {
+            eprintln!("failed to enumerate profiles: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let mut entries: Vec<PathBuf> = Vec::new();
+    for entry in profiles_dir {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(error) => {
+                eprintln!("failed to enumerate a profile: {error}");
+                return ExitCode::FAILURE;
             }
-            let prof_name = dir
-                .file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or("")
-                .to_string();
-            let parsed: Ontology = match fs::read_to_string(&ont_path).and_then(|s| {
-                toml::from_str::<Ontology>(&s)
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-            }) {
-                Ok(o) => o,
-                Err(e) => {
-                    eprintln!("failed to read {ont_path:?}: {e}");
+        };
+        let path = entry.path();
+        let kind = match entry.file_type() {
+            Ok(kind) => kind,
+            Err(error) => {
+                eprintln!("failed to inspect profile entry {path:?}: {error}");
+                return ExitCode::FAILURE;
+            }
+        };
+        if kind.is_file() {
+            continue;
+        }
+        match fs::metadata(&path) {
+            Ok(metadata) if metadata.is_dir() => entries.push(path),
+            Ok(_) => (),
+            Err(error) => {
+                eprintln!("failed to inspect profile {path:?}: {error}");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+    entries.sort();
+    for dir in entries {
+        let ont_path = dir.join("ontology.toml");
+        match fs::symlink_metadata(&ont_path) {
+            Ok(_) => match fs::metadata(&ont_path) {
+                Ok(metadata) if metadata.is_file() => (),
+                Ok(_) => {
+                    eprintln!("profile ontology is not a regular file: {ont_path:?}");
                     return ExitCode::FAILURE;
                 }
-            };
-            profile_onts.push((prof_name, parsed));
+                Err(error) => {
+                    eprintln!("failed to inspect profile ontology {ont_path:?}: {error}");
+                    return ExitCode::FAILURE;
+                }
+            },
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                match fs::metadata(&dir) {
+                    Ok(metadata) if metadata.is_dir() => continue,
+                    Ok(_) => eprintln!("profile directory changed during scan: {dir:?}"),
+                    Err(error) => {
+                        eprintln!("profile directory changed during scan {dir:?}: {error}")
+                    }
+                }
+                return ExitCode::FAILURE;
+            }
+            Err(error) => {
+                eprintln!("failed to inspect profile ontology {ont_path:?}: {error}");
+                return ExitCode::FAILURE;
+            }
         }
+        let prof_name = dir
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+        let parsed: Ontology = match fs::read_to_string(&ont_path).and_then(|s| {
+            toml::from_str::<Ontology>(&s)
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        }) {
+            Ok(o) => o,
+            Err(e) => {
+                eprintln!("failed to read {ont_path:?}: {e}");
+                return ExitCode::FAILURE;
+            }
+        };
+        profile_onts.push((prof_name, parsed));
     }
 
     // Collect kind descriptors: 1 meta + every *-kind.toml on disk.

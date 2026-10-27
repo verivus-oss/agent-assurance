@@ -484,7 +484,7 @@ def discover_conforming(
     for root in roots:
         if not candidate_directory(root):
             if not candidate_file(root):
-                continue
+                raise OSError(f"{root}: explicit closure discovery root is missing")
             if root.suffix == ".toml" and not (excluded and excluded(root)) and is_conforming_toml(root, spec_reserved):
                 out.append(root)
             continue

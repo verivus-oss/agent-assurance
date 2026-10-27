@@ -70,10 +70,8 @@ func candidateDirectory(path string) (bool, error) {
 		return info.IsDir(), nil
 	}
 	if os.IsNotExist(err) {
-		if _, linkErr := os.Lstat(path); linkErr == nil {
-			return false, fmt.Errorf("%s: dangling discovery directory", path)
-		} else if !os.IsNotExist(linkErr) {
-			return false, fmt.Errorf("%s: directory inspection failed: %w", path, linkErr)
+		if candidateErr := missingCandidate(path, "directory"); candidateErr != nil {
+			return false, candidateErr
 		}
 		return false, nil
 	}
@@ -89,17 +87,42 @@ func candidateFile(path string) (bool, error) {
 		return true, nil
 	}
 	if os.IsNotExist(err) {
-		if _, linkErr := os.Lstat(path); linkErr == nil {
-			return false, fmt.Errorf("%s: dangling discovery candidate", path)
-		} else if !os.IsNotExist(linkErr) {
-			return false, fmt.Errorf("%s: file inspection failed: %w", path, linkErr)
-		}
-		if _, parentErr := candidateDirectory(filepath.Dir(path)); parentErr != nil {
-			return false, parentErr
+		if candidateErr := missingCandidate(path, "candidate"); candidateErr != nil {
+			return false, candidateErr
 		}
 		return false, nil
 	}
 	return false, fmt.Errorf("%s: file inspection failed: %w", path, err)
+}
+
+func missingCandidate(path, kind string) error {
+	for ancestor := path; ; ancestor = filepath.Dir(ancestor) {
+		entry, err := os.Lstat(ancestor)
+		if err == nil {
+			if entry.Mode()&os.ModeSymlink != 0 {
+				target, targetErr := os.Stat(ancestor)
+				if targetErr != nil {
+					if ancestor != path {
+						kind = "directory"
+					}
+					return fmt.Errorf("%s: dangling discovery %s: %w", ancestor, kind, targetErr)
+				}
+				if ancestor != path && !target.IsDir() {
+					return fmt.Errorf("%s: discovery parent is not a directory", ancestor)
+				}
+			} else if ancestor == path {
+				return fmt.Errorf("%s: discovery candidate changed during inspection", path)
+			} else if !entry.IsDir() {
+				return fmt.Errorf("%s: discovery parent is not a directory", ancestor)
+			}
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("%s: candidate inspection failed: %w", ancestor, err)
+		}
+		parent := filepath.Dir(ancestor)
+		if parent == ancestor {
+			return nil
+		}
+	}
 }
 
 func loadDoc(path string) (rawDoc, error) {

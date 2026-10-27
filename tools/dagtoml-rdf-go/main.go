@@ -252,25 +252,50 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 		o    ontology
 	}
 	var profOnts []profOnt
-	if entries, err := os.ReadDir(filepath.Join(repoRoot, "profiles")); err == nil {
-		var names []string
-		for _, e := range entries {
-			if e.IsDir() {
-				names = append(names, e.Name())
-			}
+	entries, err := os.ReadDir(filepath.Join(repoRoot, "profiles"))
+	if err != nil {
+		return "", 0, 0, 0, 0, fmt.Errorf("cannot enumerate profiles: %w", err)
+	}
+	var names []string
+	for _, e := range entries {
+		if e.Type().IsRegular() {
+			continue
 		}
-		sort.Strings(names)
-		for _, name := range names {
-			p := filepath.Join(repoRoot, "profiles", name, "ontology.toml")
-			if _, err := os.Stat(p); err != nil {
+		path := filepath.Join(repoRoot, "profiles", e.Name())
+		info, err := os.Stat(path)
+		if err != nil {
+			return "", 0, 0, 0, 0, fmt.Errorf("cannot inspect profile %s: %w", path, err)
+		}
+		if info.IsDir() {
+			names = append(names, e.Name())
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		p := filepath.Join(repoRoot, "profiles", name, "ontology.toml")
+		if _, err := os.Lstat(p); err != nil {
+			if os.IsNotExist(err) {
+				directory := filepath.Join(repoRoot, "profiles", name)
+				info, directoryErr := os.Stat(directory)
+				if directoryErr != nil {
+					return "", 0, 0, 0, 0, fmt.Errorf("profile directory changed during scan: %s: %w", directory, directoryErr)
+				}
+				if !info.IsDir() {
+					return "", 0, 0, 0, 0, fmt.Errorf("profile directory changed during scan: %s is no longer a directory", directory)
+				}
 				continue
 			}
-			var o ontology
-			if err := loadToml(p, &o); err != nil {
-				return "", 0, 0, 0, 0, err
-			}
-			profOnts = append(profOnts, profOnt{name, o})
+			return "", 0, 0, 0, 0, fmt.Errorf("cannot inspect profile ontology %s: %w", p, err)
 		}
+		info, err := os.Stat(p)
+		if err != nil || !info.Mode().IsRegular() {
+			return "", 0, 0, 0, 0, fmt.Errorf("profile ontology is not a readable regular file: %s: %v", p, err)
+		}
+		var o ontology
+		if err := loadToml(p, &o); err != nil {
+			return "", 0, 0, 0, 0, err
+		}
+		profOnts = append(profOnts, profOnt{name, o})
 	}
 
 	// Collect kind descriptors: 1 meta + every *-kind.toml.

@@ -144,6 +144,37 @@ func TestKindDescriptorCandidatesRequireReadableProfiles(t *testing.T) {
 	}
 }
 
+func TestCandidatePredicatesRejectDanglingAncestors(t *testing.T) {
+	root := t.TempDir()
+	bridge := filepath.Join(root, "bridge")
+	if err := os.Symlink("missing-directory", bridge); err != nil {
+		t.Fatal(err)
+	}
+	for _, candidate := range []string{filepath.Join(bridge, "subdir"), filepath.Join(bridge, "subdir", "file.toml")} {
+		if _, err := candidateDirectory(candidate); err == nil || !strings.Contains(err.Error(), "dangling discovery directory") {
+			t.Fatalf("nested dangling directory accepted: %s, %v", candidate, err)
+		}
+		if _, err := candidateFile(candidate); err == nil || !strings.Contains(err.Error(), "dangling discovery directory") {
+			t.Fatalf("nested dangling file accepted: %s, %v", candidate, err)
+		}
+	}
+	if err := os.Remove(bridge); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(root, "real"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("real", bridge); err != nil {
+		t.Fatal(err)
+	}
+	if present, err := candidateDirectory(bridge); err != nil || !present {
+		t.Fatalf("live directory link rejected: %v, %v", present, err)
+	}
+	if present, err := candidateFile(filepath.Join(bridge, "missing.toml")); err != nil || present {
+		t.Fatalf("optional missing file changed: %v, %v", present, err)
+	}
+}
+
 func TestValueShapes(t *testing.T) {
 	cases := []struct {
 		name  string
