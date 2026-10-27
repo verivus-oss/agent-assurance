@@ -283,6 +283,15 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 				if !info.IsDir() {
 					return "", 0, 0, 0, 0, fmt.Errorf("profile directory changed during scan: %s is no longer a directory", directory)
 				}
+				children, readErr := os.ReadDir(directory)
+				if readErr != nil {
+					return "", 0, 0, 0, 0, fmt.Errorf("cannot enumerate profile %s: %w", directory, readErr)
+				}
+				for _, child := range children {
+					if child.Name() == "PROFILE.toml" || strings.HasSuffix(child.Name(), "-kind.toml") {
+						return "", 0, 0, 0, 0, fmt.Errorf("profile ontology is missing for declaration %s: %s", child.Name(), p)
+					}
+				}
 				continue
 			}
 			return "", 0, 0, 0, 0, fmt.Errorf("cannot inspect profile ontology %s: %w", p, err)

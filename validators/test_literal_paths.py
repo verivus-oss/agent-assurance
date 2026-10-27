@@ -2,6 +2,9 @@
 from _test_require import expect_raises, require
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
+import shutil
+import _literal_paths
 from _literal_paths import candidate_directory, candidate_file, glob, rglob
 
 def test_path_shapes() -> None:
@@ -64,6 +67,29 @@ def test_path_shapes() -> None:
         for pattern in ('../secret', 'core//alpha', 'core/*x*y'):
             expect_raises(ValueError, lambda: list(glob(root, pattern)),
                           'unsafe or unsupported path pattern accepted: ' + pattern)
+
+
+def test_observed_directory_disappearance() -> None:
+    with TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        profile = root / 'profiles/p1'
+        profile.mkdir(parents=True)
+        (profile / 'ontology.toml').write_text('')
+        (root / 'profiles/README.md').write_text('notes')
+        require(list(glob(root, 'profiles/*/ontology.toml')) == [profile / 'ontology.toml'])
+        original = _literal_paths.candidate_directory
+
+        def vanish(path: Path) -> bool:
+            if path == profile:
+                shutil.rmtree(profile)
+            return original(path)
+
+        with patch.object(_literal_paths, 'candidate_directory', side_effect=vanish):
+            expect_raises(OSError, lambda: list(glob(root, 'profiles/*/ontology.toml')),
+                          'observed profile directory disappeared without failing the scan')
+
+
 if __name__ == '__main__':
     test_path_shapes()
+    test_observed_directory_disappearance()
     print('literal path scanner: accepted and rejected cases passed')

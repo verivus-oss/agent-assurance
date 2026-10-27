@@ -687,7 +687,33 @@ fn main() -> ExitCode {
             },
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 match fs::metadata(&dir) {
-                    Ok(metadata) if metadata.is_dir() => continue,
+                    Ok(metadata) if metadata.is_dir() => {
+                        let children = match fs::read_dir(&dir) {
+                            Ok(children) => children,
+                            Err(error) => {
+                                eprintln!("failed to enumerate profile {dir:?}: {error}");
+                                return ExitCode::FAILURE;
+                            }
+                        };
+                        for child in children {
+                            let child = match child {
+                                Ok(child) => child,
+                                Err(error) => {
+                                    eprintln!("failed to enumerate profile {dir:?}: {error}");
+                                    return ExitCode::FAILURE;
+                                }
+                            };
+                            let name = child.file_name();
+                            let name = name.to_string_lossy();
+                            if name == "PROFILE.toml" || name.ends_with("-kind.toml") {
+                                eprintln!(
+                                    "profile ontology is missing for declaration {child:?}: {ont_path:?}"
+                                );
+                                return ExitCode::FAILURE;
+                            }
+                        }
+                        continue;
+                    }
                     Ok(_) => eprintln!("profile directory changed during scan: {dir:?}"),
                     Err(error) => {
                         eprintln!("profile directory changed during scan {dir:?}: {error}")

@@ -104,8 +104,20 @@ def glob(root: Path, pattern: str) -> Iterator[Path]:
             return
         for entry in _children(folder, required=observed):
             if _segment(entry.name, part):
-                if index + 1 == len(parts) or candidate_directory(Path(entry.path)):
-                    yield from visit(Path(entry.path), index + 1, True)
+                child = Path(entry.path)
+                if index + 1 == len(parts):
+                    yield from visit(child, index + 1, True)
+                    continue
+                was_directory = entry.is_dir()
+                if candidate_directory(child):
+                    yield from visit(child, index + 1, True)
+                elif was_directory:
+                    raise OSError(f"{child}: observed discovery directory changed during scan")
+                else:
+                    try:
+                        child.lstat()
+                    except (FileNotFoundError, NotADirectoryError) as exc:
+                        raise OSError(f"{child}: observed discovery candidate disappeared") from exc
 
     yield from visit(root, 0, False)
 
