@@ -313,11 +313,8 @@ class Output:
 
 
 def skip_chars(src: str, pos: Pos, chars: Iterable[str]) -> Pos:
-    try:
-        while src[pos] in chars:
-            pos += 1
-    except IndexError:
-        pass
+    while 0 <= pos < len(src) and src[pos] in chars:
+        pos += 1
     return pos
 
 

@@ -2,6 +2,7 @@
 from _test_require import require
 from datetime import date, datetime, time, timedelta, timezone
 import _toml11 as tomllib
+from _toml11_vendor._parser import skip_chars
 
 def rejected(source: str) -> tomllib.TOMLDecodeError:
     try:
@@ -9,6 +10,17 @@ def rejected(source: str) -> tomllib.TOMLDecodeError:
     except tomllib.TOMLDecodeError as exc:
         return exc
     raise AssertionError('invalid TOML was accepted')
+
+def test_skip_chars_boundaries() -> None:
+    require(skip_chars(' \tkey', 0, frozenset(' \t')) == 2)
+    require(skip_chars(' \t', 0, frozenset(' \t')) == 2)
+    require(skip_chars('', 0, frozenset(' \t')) == 0)
+    require(skip_chars('key', 0, frozenset(' \t')) == 0)
+    require(skip_chars('key', 3, frozenset(' \t')) == 3)
+    require(skip_chars('key ', -1, frozenset(' \t')) == -1)
+    for source, expected in (('', {}), (' \t', {}), ('value = 1 \t', {'value': 1})):
+        require(tomllib.loads(source) == expected)
+    rejected('value = 1 \tjunk')
 
 def test_numbers_and_times() -> None:
     document = tomllib.loads('hex = 0xF_F\nbinary = 0b1_0\noctal = 0o7_0\ndecimal = -1_000\nfraction = 1_000.25e-2\nday = 2026-10-27\nclock = 12:34\nstamp = 2026-10-27T12:34:56.123456789+10:00\n')
@@ -34,7 +46,8 @@ def test_error_uses_digest_and_byte_span() -> None:
     require(not hasattr(error, 'colno'))
     require(not hasattr(error, 'pos'))
 if __name__ == '__main__':
+    test_skip_chars_boundaries()
     test_numbers_and_times()
     test_invalid_token_boundaries()
     test_error_uses_digest_and_byte_span()
-    print('TOML token scanner: 3 test groups passed')
+    print('TOML token scanner: 4 test groups passed')
