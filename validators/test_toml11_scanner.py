@@ -5,9 +5,27 @@ import unittest
 from datetime import date, datetime, time, timedelta, timezone
 
 import _toml11 as tomllib
+from _toml11_vendor._parser import skip_chars
 
 
 class ParserTests(unittest.TestCase):
+    def test_skip_chars_stops_at_boundary_and_nonmatching_char(self) -> None:
+        self.assertEqual(skip_chars(" \tkey", 0, frozenset(" \t")), 2)
+        self.assertEqual(skip_chars(" \t", 0, frozenset(" \t")), 2)
+        self.assertEqual(skip_chars("", 0, frozenset(" \t")), 0)
+        self.assertEqual(skip_chars("key", 0, frozenset(" \t")), 0)
+        self.assertEqual(skip_chars("key", 3, frozenset(" \t")), 3)
+
+    def test_skip_chars_does_not_wrap_negative_position(self) -> None:
+        self.assertEqual(skip_chars("key ", -1, frozenset(" \t")), -1)
+
+    def test_whitespace_endings_and_trailing_junk(self) -> None:
+        for source, expected in (("", {}), (" \t", {}), ("value = 1 \t", {"value": 1})):
+            with self.subTest(source=source):
+                self.assertEqual(tomllib.loads(source), expected)
+        with self.assertRaises(tomllib.TOMLDecodeError):
+            tomllib.loads("value = 1 \tjunk")
+
     def test_numbers_and_times(self) -> None:
         document = tomllib.loads(
             "hex = 0xF_F\n"
