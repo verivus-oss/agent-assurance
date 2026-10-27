@@ -12,10 +12,11 @@
 # TOML_CONFORMANCE_SKIPS: a baseline of currently-known drift, NOT a green
 # light. If a future run newly disagrees on something not listed here,
 # treat it as a regression and fix the validator rather than extend it.
-# The verified state below is a historical snapshot. The Python reference
-# parser is bundled Tomli 2.5.0 at
-# cc506f2881add576f3ba9b9778a64cb47b9aea2a; its current conformance
-# result is measured by CI, not inferred from this snapshot.
+# The verified state below is a historical snapshot. At commit
+# 6f58c814158c3b1ba46eb49a9b0dec544140ae26, the Python reference
+# parser is bundled Tomli 2.5.0 with local scanner and diagnostic changes.
+# Its current conformance result is measured by CI, not inferred from this
+# snapshot.
 #
 # --- Verified state (issue #38, 2026-06-18) -------------------------------
 # Parsers, all TOML 1.1.0:

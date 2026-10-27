@@ -171,7 +171,7 @@ python3 -m pip install -r requirements/toml.txt
 taplo lint
 
 # Parse all checked-in TOML with the Python TOML 1.1 reference parser
-python3 -c 'import sys, pathlib; sys.path.insert(0, "validators"); import _toml11 as tomllib; from _literal_paths import rglob; [tomllib.loads(p.read_bytes().decode("utf-8")) for p in rglob(pathlib.Path("."), "*.toml") if not any(x.startswith(".") for x in p.parts)]'
+python3 -c 'import sys, pathlib; sys.path.insert(0, "validators"); import _toml11 as tomllib; from _literal_paths import rglob; [tomllib.loads_bytes(p.read_bytes()) for p in rglob(pathlib.Path("."), "*.toml") if not any(x.startswith(".") for x in p.parts)]'
 
 # Build the primary validators (one-time, ~30s)
 cd tools/dagtoml-validate-rs && cargo build --release && cd -

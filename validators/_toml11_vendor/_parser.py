@@ -133,7 +133,7 @@ class TOMLDecodeError(ValueError):
         self.byte_span = (start, end)
         ValueError.__init__(
             self,
-            f"{self.msg} (source sha256:{self.source_sha256}; bytes {start}:{end})",
+            f"{self.msg} (source sha256 {self.source_sha256}, bytes {start}:{end})",
         )
 
     @classmethod

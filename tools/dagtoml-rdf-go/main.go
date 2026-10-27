@@ -297,8 +297,11 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 			return "", 0, 0, 0, 0, fmt.Errorf("cannot inspect profile ontology %s: %w", p, err)
 		}
 		info, err := os.Stat(p)
-		if err != nil || !info.Mode().IsRegular() {
-			return "", 0, 0, 0, 0, fmt.Errorf("profile ontology is not a readable regular file: %s: %v", p, err)
+		if err != nil {
+			return "", 0, 0, 0, 0, fmt.Errorf("cannot inspect profile ontology %s: %w", p, err)
+		}
+		if !info.Mode().IsRegular() {
+			return "", 0, 0, 0, 0, fmt.Errorf("profile ontology is not a regular file: %s", p)
 		}
 		var o ontology
 		if err := loadToml(p, &o); err != nil {

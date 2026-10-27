@@ -36,7 +36,7 @@ def validate_document(doc: dict, path: Path, repo_root: Path, kind: str) -> list
         errors.append("RDMETA: reference projection version 1 supports schema major 0")
     try:
         descriptor_path = repo_root / f"profiles/agent-assurance/{kind}-kind.toml"
-        descriptor = toml.loads(descriptor_path.read_bytes().decode("utf-8"))
+        descriptor = toml.loads_bytes(descriptor_path.read_bytes())
         errors.extend(descriptors.validate(descriptor, allow_placeholders=False))
         errors.extend(ijb.validate_kind_descriptor(descriptor, str(descriptor_path)))
         declaration = descriptor["kind"]
@@ -51,7 +51,7 @@ def validate_document(doc: dict, path: Path, repo_root: Path, kind: str) -> list
         ontologies = []
         for relative in ("core/ontology.toml", "profiles/agent-assurance/ontology.toml"):
             source = repo_root / relative
-            declaration = toml.loads(source.read_bytes().decode("utf-8"))
+            declaration = toml.loads_bytes(source.read_bytes())
             errors.extend(ijb.validate_ontology(declaration, relative))
             ontologies.append((relative, declaration))
         errors.extend(ijb.validate_instance(doc, str(path), *ijb.build_resolver(ontologies)))
@@ -60,7 +60,7 @@ def validate_document(doc: dict, path: Path, repo_root: Path, kind: str) -> list
         # Parse each before calling legacy discovery, which otherwise skips a
         # malformed profile. Never let a skipped file remove a required pin.
         for profile in sorted(literal_glob(repo_root, "profiles/*/PROFILE.toml")):
-            toml.loads(profile.read_bytes().decode("utf-8"))
+            toml.loads_bytes(profile.read_bytes())
         duplicates = closure.duplicate_profile_names(repo_root)
         errors.extend(duplicates)
         errors.extend(closure.validate(path, closure.load_pinned_records(repo_root),
@@ -83,7 +83,7 @@ def cli(kind: str) -> int:
     for path in args.paths:
         try:
             captured = path.read_bytes()
-            doc = toml.loads(captured.decode("utf-8"))
+            doc = toml.loads_bytes(captured)
             errors.extend(validate_document(doc, path, args.repo_root.resolve(), kind))
         except (OSError, ValueError) as exc:
             errors.append(f"{path}: TOML input failed: {exc}")

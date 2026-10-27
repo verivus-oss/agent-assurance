@@ -145,7 +145,7 @@ def project(source: bytes, source_path: str, repo_root: Path) -> Projection:
     source_path = text_identity(source_path, "source_path")
     if not isinstance(source, bytes):
         raise ValueError("source must be captured bytes")
-    doc = toml.loads(source.decode("utf-8", errors="strict"))
+    doc = toml.loads_bytes(source)
     meta = doc.get("meta")
     kind = meta.get("template_kind") if isinstance(meta, dict) else None
     if not isinstance(kind, str) or kind not in KINDS:
