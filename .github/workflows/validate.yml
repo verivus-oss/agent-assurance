@@ -106,8 +106,9 @@ jobs:
                          and path.name.endswith(".py"))
           required = {"test_ai_attribution.py", "test_database_download.py",
                       "test_link_scan.py", "test_ontology_prefix_types.py",
-                      "test_safe_tools.py", "test_secret_scan_filter.py"}
-          if len(tests) != 15 or not required <= {path.name for path in tests}:
+                      "test_safe_tools.py", "test_secret_scan_filter.py",
+                      "test_workflow_text.py"}
+          if len(tests) != 16 or not required <= {path.name for path in tests}:
               raise SystemExit("FAIL: Python boundary test population changed")
           for path in tests:
               command = [sys.executable, str(path)]

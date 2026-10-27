@@ -1,4 +1,4 @@
-# VERIFICATION REPORT — DAG-TOML draft layering bundle
+# VERIFICATION REPORT: DAG-TOML draft layering bundle
 #
 # Format: a single `contract-declaration` (template_kind=contract-declaration)
 # carrying one contract per item in the corrective-program spec the
@@ -11,7 +11,7 @@
 # under the same Taplo + tomllib + IJB CI pipeline as the rest of the
 # spec.
 
-# Empty-closure sentinel — SHA-256("") — required by SPEC §12.1.
+# Empty-closure sentinel: SHA-256(""); required by SPEC §12.1.
 closure_root = "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
 [meta]
@@ -33,13 +33,13 @@ artifacts in `verified_by` by INSPECTING the artifacts directly
 this report's prose, the CHANGELOG entry, or the spec.md commit
 message as evidence. If the cited artifact does not match the
 contract statement, the contract MUST be flagged as a concrete
-blocker, with the literal file path and line range that contradicts
-the statement.
+blocker, with the literal file path, named source element, and text
+that contradicts the statement.
 
-If Claude (the implementer) disagrees with a finding, Claude MUST
-respond with the same shape: a file path and line range, not an
+If the implementer disagrees with a finding, the implementer MUST
+respond with the same shape: a file path and named source element, not an
 assertion. Approval MUST be based on inspected code, tests, and
-docs — NOT on intent, plan compliance claims, or "should be fixed"
+docs, not on intent, plan compliance claims, or "should be fixed"
 language.
 """
 
@@ -234,23 +234,23 @@ verified_by = [
 [[contracts]]
 id          = "C15"
 domain      = "safe-rust-only"
-statement   = "Every Rust crate under `tools/` declares `#![forbid(unsafe_code)]` at the crate root (src/main.rs or src/lib.rs). Enforced by `validators/check_safe_tools.sh` as a CI gate."
-applies_to  = ["tools/", "validators/check_safe_tools.sh", ".github/workflows/validate.yml"]
+statement   = "Every Rust crate under `tools/` declares `#![forbid(unsafe_code)]` at the crate root (src/main.rs or src/lib.rs). Enforced by `validators/check_safe_tools.py` as a CI gate."
+applies_to  = ["tools/", "validators/check_safe_tools.py", ".github/workflows/validate.yml"]
 verified_by = [
-  "tools/dagtoml-validate-rs/src/main.rs (line 1: #![forbid(unsafe_code)])",
+  "tools/dagtoml-validate-rs/src/main.rs (crate-level forbid declaration)",
   "tools/dagtoml-duckdb/src/main.rs (forbid declaration)",
   "tools/dagtoml-rdf/src/main.rs (forbid declaration)",
-  "validators/check_safe_tools.sh (Rust block)",
+  "validators/check_safe_tools.py (check and rust_has_forbid)",
   ".github/workflows/validate.yml (Safe-tools policy step)",
 ]
 
 [[contracts]]
 id          = "C16"
 domain      = "safe-go-only"
-statement   = "No Go source file under `tools/` imports the standard-library `unsafe` package. Enforced by `validators/check_safe_tools.sh`."
-applies_to  = ["tools/", "validators/check_safe_tools.sh"]
+statement   = "No Go source file under `tools/` imports the standard-library `unsafe` package. Enforced by `validators/check_safe_tools.py`."
+applies_to  = ["tools/", "validators/check_safe_tools.py"]
 verified_by = [
-  "validators/check_safe_tools.sh (Go block)",
+  "validators/check_safe_tools.py (check and go_unsafe_import)",
   "tools/dagtoml-validate-go/main.go (imports section)",
   "tools/dagtoml-duckdb-go/main.go (imports section)",
   "tools/dagtoml-rdf-go/main.go (imports section)",

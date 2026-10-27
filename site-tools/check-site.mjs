@@ -53,13 +53,13 @@ const publishedExtensions = new Set([
 ]);
 const publishedExtensionless = new Set(["_headers", "_redirects"]);
 
-export function findUnexpectedPublishedFiles(dir) {
+export function findUnexpectedPublishedFiles(dir, root = dir) {
   const found = [];
   for (const name of readdirSync(dir)) {
     const path = join(dir, name);
     const stat = lstatSync(path);
-    if (stat.isDirectory()) found.push(...findUnexpectedPublishedFiles(path));
-    else if (!stat.isFile() || !(publishedExtensions.has(extname(name)) || publishedExtensionless.has(name))) {
+    if (stat.isDirectory()) found.push(...findUnexpectedPublishedFiles(path, root));
+    else if (!stat.isFile() || !(publishedExtensions.has(extname(name)) || (dir === root && publishedExtensionless.has(name)))) {
       found.push(path);
     }
   }

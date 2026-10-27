@@ -3,6 +3,8 @@
 from contextlib import redirect_stderr
 from io import StringIO
 from pathlib import Path
+import subprocess
+import sys
 from tempfile import TemporaryDirectory
 
 from _test_require import require
@@ -124,7 +126,25 @@ def test_scan_count() -> None:
         Path("/usr/bin/gitleaks"), ".gitleaks.toml", Path("findings.json")))
 
 
+def test_main_rejects_ignore_file() -> None:
+    with TemporaryDirectory(prefix="gitleaks-main-control-") as directory:
+        root = Path(directory)
+        binary = root / "gitleaks"
+        binary.write_text("")
+        (root / ".gitleaks.toml").write_text("")
+        ignore = root / ".gitleaksignore"
+        ignore.write_text("ignored-fingerprint\n")
+        command = [sys.executable, str(Path(__file__).with_name("check_secret_scan.py")),
+                   "--gitleaks", str(binary), "--repo-root", str(root)]
+        rejected = subprocess.run(command, capture_output=True, text=True, check=False)  # nosec B603  # noqa: S603
+        require(rejected.returncode == 1 and "Gitleaks ignore file is not permitted" in rejected.stderr)
+        ignore.unlink()
+        reached_history = subprocess.run(command, capture_output=True, text=True, check=False)  # nosec B603  # noqa: S603
+        require(reached_history.returncode == 1 and "secret scan requires a full Git checkout" in reached_history.stderr)
+
+
 if __name__ == "__main__":
     test_exception()
     test_scan_count()
+    test_main_rejects_ignore_file()
     print("secret scan filter: exact accepted and rejected controls passed")

@@ -22,16 +22,19 @@ try {
   mkdirSync(join(temp, "assets"));
   writeFileSync(join(temp, "assets", "readme.txt"), "public text");
   writeFileSync(join(temp, "_headers"), "public site headers");
+  writeFileSync(join(temp, "_redirects"), "public site redirects");
   assert.deepEqual(findUnexpectedPublishedFiles(temp), []);
   const unexpected = [
+    join(temp, "assets", "_headers"),
+    join(temp, "assets", "_redirects"),
     join(temp, "assets", "private-test.mjs"),
     join(temp, "assets", "private-test.mts"),
     join(temp, "assets", "private-test.rb"),
     join(temp, "assets", "private-test"),
     join(temp, "assets", "shortcut.md"),
   ];
-  for (const path of unexpected.slice(0, 4)) writeFileSync(path, "private helper\n");
-  symlinkSync("readme.txt", unexpected[4]);
+  for (const path of unexpected.slice(0, -1)) writeFileSync(path, "private helper\n");
+  symlinkSync("readme.txt", unexpected.at(-1));
   assert.deepEqual(findUnexpectedPublishedFiles(temp).sort(), unexpected.sort());
 } finally {
   rmSync(temp, { recursive: true, force: true });

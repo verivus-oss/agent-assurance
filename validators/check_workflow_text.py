@@ -23,20 +23,20 @@ def has_provenance(path: Path) -> bool:
     return any(line.startswith("[provenance]") for line in path.read_text().splitlines())
 
 
-def provenance() -> None:
-    files = toml_files(ROOT)
-    positives = [path for path in files if "examples/negative" not in path.relative_to(ROOT).as_posix()
+def provenance(root: Path = ROOT) -> None:
+    files = toml_files(root)
+    positives = [path for path in files if path.relative_to(root).parts[:2] != ("examples", "negative")
                  and has_provenance(path)]
-    negatives = [path for path in toml_files(ROOT / "examples/negative") if has_provenance(path)]
+    negatives = [path for path in toml_files(root / "examples/negative") if has_provenance(path)]
     if not positives or not negatives:
         raise ValueError("provenance positive or negative source population is empty")
-    command = [sys.executable, str(ROOT / "validators/validate_provenance.py")]
-    accepted = subprocess.run(command + [str(path) for path in positives] + ["--repo-root", str(ROOT)],  # nosec B603  # noqa: S603
-                              cwd=ROOT, capture_output=True, text=True, check=False)
+    command = [sys.executable, str(root / "validators/validate_provenance.py")]
+    accepted = subprocess.run(command + [str(path) for path in positives] + ["--repo-root", str(root)],  # nosec B603  # noqa: S603
+                              cwd=root, capture_output=True, text=True, check=False)
     if accepted.returncode:
         raise ValueError("positive provenance sweep failed: " + accepted.stdout + accepted.stderr)
     for path in negatives:
-        rejected = subprocess.run(command + [str(path), "--repo-root", str(ROOT)], cwd=ROOT,  # nosec B603  # noqa: S603
+        rejected = subprocess.run(command + [str(path), "--repo-root", str(root)], cwd=root,  # nosec B603  # noqa: S603
                                   capture_output=True, text=True, check=False)
         if rejected.returncode != 1:
             raise ValueError("negative provenance fixture was not rejected: " + str(path))
