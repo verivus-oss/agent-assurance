@@ -67,8 +67,9 @@ def _segment(name: str, form: str) -> bool:
     return len(name) >= len(prefix) + len(suffix) and name.startswith(prefix) and name.endswith(suffix)
 
 
-def _children(folder: Path) -> list[os.DirEntry[str]]:
-    discovery_root(folder, required=True)
+def _children(folder: Path, *, required: bool) -> list[os.DirEntry[str]]:
+    if not discovery_root(folder, required=required):
+        return []
     try:
         with os.scandir(folder) as entries:
             return sorted(entries, key=lambda entry: entry.name)
@@ -81,30 +82,32 @@ def glob(root: Path, pattern: str) -> Iterator[Path]:
     if not parts or any(not part or part in (".", "..") for part in parts):
         raise ValueError("path pattern must contain safe nonempty segments")
 
-    def visit(folder: Path, index: int) -> Iterator[Path]:
+    def visit(folder: Path, index: int, observed: bool) -> Iterator[Path]:
         if index == len(parts):
             if _status(folder) is None:
-                raise OSError(f"{folder}: discovery candidate changed during scan")
+                if observed:
+                    raise OSError(f"{folder}: discovery candidate changed during scan")
+                return
             yield folder
             return
         part = parts[index]
         if part == "**":
-            yield from visit(folder, index + 1)
-            for entry in _children(folder):
+            yield from visit(folder, index + 1, observed)
+            for entry in _children(folder, required=observed):
                 if entry.is_symlink():
                     if entry.is_dir():
                         raise OSError(f"{entry.path}: recursive discovery directory link needs an explicit root")
                     if not entry.is_file():
                         raise OSError(f"{entry.path}: dangling recursive discovery link")
                 if entry.is_dir(follow_symlinks=False):
-                    yield from visit(Path(entry.path), index)
+                    yield from visit(Path(entry.path), index, True)
             return
-        for entry in _children(folder):
+        for entry in _children(folder, required=observed):
             if _segment(entry.name, part):
                 if index + 1 == len(parts) or candidate_directory(Path(entry.path)):
-                    yield from visit(Path(entry.path), index + 1)
+                    yield from visit(Path(entry.path), index + 1, True)
 
-    yield from visit(root, 0)
+    yield from visit(root, 0, False)
 
 
 def rglob(root: Path, pattern: str) -> Iterator[Path]:

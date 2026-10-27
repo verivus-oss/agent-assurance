@@ -17,8 +17,7 @@ def test_path_shapes() -> None:
         require(list(glob(root, 'profiles/*/ontology.toml')) == [root / 'profiles/p1/ontology.toml'])
         require(set(rglob(root, '*.toml')) == {root / 'core/alpha-kind.toml', root / 'profiles/p1/ontology.toml', root / 'profiles/p1/PROFILE.toml'})
         require(list(glob(root, 'profiles/*/absent.toml')) == [])
-        expect_raises(OSError, lambda: list(glob(root / 'absent-root', '*.toml')),
-                      'missing discovery root was ignored')
+        require(list(glob(root / 'absent-root', '*.toml')) == [])
         link = root / 'core/linked-kind.toml'
         link.symlink_to('alpha-kind.toml')
         require(link in list(glob(root, 'core/*-kind.toml')))
