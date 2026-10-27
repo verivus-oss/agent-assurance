@@ -8,8 +8,9 @@ replaces its number, date, and time matching with explicit character scans;
 validators through `validators/_toml11.py`.
 
 At commit `6f58c814158c3b1ba46eb49a9b0dec544140ae26`, changes from
-upstream are limited to the scanner replacement, its import and call sites in
-`_parser.py`, removal of the upstream lazy regex module declaration, an
+upstream are the scanner replacement, its import and call sites in
+`_parser.py`, removal of the upstream lazy regex module declaration and the
+upstream `doc` and `pos` exception attributes, an
 explicit bound in `skip_chars`, binary `load()` conversion of invalid UTF-8
 to `TOMLDecodeError`, and remapping of `loads()` CRLF offsets to original byte
 spans. The error carries the original source digest and byte span without

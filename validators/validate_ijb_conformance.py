@@ -639,7 +639,10 @@ def discover_profile_descriptors(repo_root: pathlib.Path) -> set[str]:
         candidate = entry / "PROFILE.toml"
         if not candidate_file(candidate):
             continue
-        doc = load_toml(candidate)
+        try:
+            doc = load_toml(candidate)
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            raise ValueError(f"{candidate}: cannot parse profile descriptor ({exc})") from exc
         meta = doc.get("meta") or {}
         if meta.get("template_kind") != "profile-descriptor":
             continue
@@ -757,7 +760,7 @@ def validate_meta_posture(
         elif is_unprefixed and repo_root is not None:
             try:
                 known = discover_profile_descriptors(repo_root)
-            except (OSError, tomllib.TOMLDecodeError) as exc:
+            except (OSError, ValueError) as exc:
                 errors.append(f"{source}: cannot inspect profile descriptors ({exc})")
                 return errors
             if resolved not in known:

@@ -257,6 +257,12 @@ jobs:
             || cargo build --release \
                  --manifest-path tools/dagtoml-rdf/Cargo.toml
 
+      - name: Check RDF descriptor discovery and parse diagnostics
+        run: |
+          set -e
+          cargo test --locked --manifest-path tools/dagtoml-rdf/Cargo.toml
+          (cd tools/dagtoml-rdf-go && go test ./...)
+
       - name: Install Taplo
         run: |
           set -e

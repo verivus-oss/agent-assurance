@@ -128,6 +128,7 @@ fn declared_kind(parsed: &KindFile) -> Option<&str> {
         .meta
         .as_ref()
         .and_then(|meta| meta.describes_kind.as_deref())
+        .filter(|name| !name.is_empty())
         .or_else(|| parsed.kind.as_ref().and_then(|kind| kind.name.as_deref()))
         .filter(|name| !name.is_empty())
 }
@@ -953,6 +954,10 @@ mod tests {
             ("[kind]\ntemplate_kind = 'sideways'\n", None),
             ("[meta]\ntemplate_kind = 'kind-descriptor'\n", None),
             ("[kind]\nname = ''\n", None),
+            (
+                "[meta]\ndescribes_kind = ''\n[kind]\nname = 'named'\n",
+                Some("named"),
+            ),
         ];
         for (source, expected) in cases {
             let parsed: KindFile = toml::from_str(source).expect("valid TOML fixture");

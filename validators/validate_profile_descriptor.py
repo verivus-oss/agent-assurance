@@ -106,7 +106,10 @@ def discover_descriptors(repo_root: pathlib.Path) -> dict[str, tuple[pathlib.Pat
         candidate = entry / "PROFILE.toml"
         if not candidate_file(candidate):
             continue
-        doc = load_toml(candidate)
+        try:
+            doc = load_toml(candidate)
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            raise ValueError(f"{candidate}: cannot parse profile descriptor ({exc})") from exc
         meta = doc.get("meta") or {}
         if meta.get("template_kind") != "profile-descriptor":
             continue
@@ -632,7 +635,7 @@ def main() -> int:
     repo_root = pathlib.Path(args.repo_root).resolve()
     try:
         descriptors = discover_descriptors(repo_root)
-    except (OSError, tomllib.TOMLDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         print(f"PROFILE DESCRIPTOR VALIDATION FAILED: cannot inspect descriptors ({exc})")
         return 1
 

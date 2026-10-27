@@ -27,6 +27,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"flag"
 	"fmt"
 	"os"
@@ -578,7 +579,7 @@ func loadToml(path string, v any) error {
 		return fmt.Errorf("read %s: %w", path, err)
 	}
 	if err := toml.Unmarshal(data, v); err != nil {
-		return fmt.Errorf("parse %s: %w", path, err)
+		return fmt.Errorf("parse %s: invalid TOML (source sha256 %x)", path, sha256.Sum256(data))
 	}
 	return nil
 }

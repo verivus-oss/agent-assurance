@@ -71,6 +71,14 @@ EMPTY_CLOSURE_SENTINELS = {
 # TOML multiline string can smuggle in; rs/go reject it, so $ would be a
 # cross-implementation verdict divergence (U10 review, fix 1).
 
+def _read_discovery_toml(path: pathlib.Path) -> dict:
+    """Read a selected declaration with its source path in the failure."""
+    try:
+        return tomllib.loads_bytes(path.read_bytes())
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise ValueError(f"{path}: cannot parse discovery TOML ({exc})") from exc
+
+
 def duplicate_profile_names(repo_root: pathlib.Path) -> list[str]:
     """Duplicate profile-descriptor names under profiles/*/PROFILE.toml.
 
@@ -86,7 +94,7 @@ def duplicate_profile_names(repo_root: pathlib.Path) -> list[str]:
             candidate = entry / "PROFILE.toml"
             if not candidate_file(candidate):
                 continue
-            doc = tomllib.loads_bytes(candidate.read_bytes())
+            doc = _read_discovery_toml(candidate)
             meta = doc.get("meta") or {}
             profile = doc.get("profile") or {}
             name = profile.get("name")
@@ -115,7 +123,7 @@ def load_pinned_records(
             candidate = entry / "PROFILE.toml"
             if not candidate_file(candidate):
                 continue
-            doc = tomllib.loads_bytes(candidate.read_bytes())
+            doc = _read_discovery_toml(candidate)
             meta = doc.get("meta") or {}
             if meta.get("template_kind") != "profile-descriptor":
                 continue
@@ -178,7 +186,7 @@ def _loaded_profile_names(repo_root: pathlib.Path) -> frozenset[str]:
             candidate = entry / "PROFILE.toml"
             if not candidate_file(candidate):
                 continue
-            doc = tomllib.loads_bytes(candidate.read_bytes())
+            doc = _read_discovery_toml(candidate)
             meta = doc.get("meta") or {}
             profile = doc.get("profile") or {}
             name = profile.get("name")
@@ -555,7 +563,7 @@ def main(argv: list[str]) -> int:
     repo_root = pathlib.Path(args.repo_root).resolve()
     try:
         duplicates = duplicate_profile_names(repo_root)
-    except (OSError, tomllib.TOMLDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         print(f"FAIL profile descriptor discovery: {exc}", file=sys.stderr)
         return 1
     if duplicates:
@@ -569,7 +577,7 @@ def main(argv: list[str]) -> int:
     try:
         pin_map = load_pinned_records(repo_root)
         loaded_profiles = _loaded_profile_names(repo_root)
-    except (OSError, tomllib.TOMLDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         print(f"FAIL profile descriptor discovery: {exc}", file=sys.stderr)
         return 1
     if args.discover:
