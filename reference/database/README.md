@@ -92,11 +92,12 @@ with duplicate keys is rejected. Indexes are not completeness/authenticity claim
 
 ## Initialize and ingest
 
-Install optional drivers separately from ordinary TOML validators:
+Install optional database drivers separately. The Python TOML 1.1 parser is
+bundled with the reference validators at commit
+`e93a1d1c6ec8502ed6aa82f6f943712666ae93a1`:
 
 ```sh
 python3 -m pip install --require-hashes -r requirements/database.txt
-python3 -m pip install --require-hashes --no-binary tomli -r requirements/toml.txt
 ```
 
 Load the engine's `schema.sql` and `seed.sql` into a fresh private destination.

@@ -10,8 +10,9 @@
 //   - The Go primary validator (tools/dagtoml-validate-go) decodes with
 //     BurntSushi/toml v1.6.0. BurntSushi is permissive on 13 toml-test 1.1
 //     invalid fixtures (all dotted-key / inline-table redefinition cases)
-//     that the Rust (`toml` 1.1) and Python (tomli) primaries correctly
-//     reject. To close that cross-implementation strictness gap (issue #38,
+//     that the Rust (`toml` 1.1) and Python (vendored TOML 1.1 parser)
+//     primaries correctly reject. To close that cross-implementation
+//     strictness gap (issue #38,
 //     contract C01) the Go side runs pelletier/go-toml/v2 as a STRICT GATE:
 //     pelletier rejects all 13, and accepts the full 189-case valid corpus.
 //

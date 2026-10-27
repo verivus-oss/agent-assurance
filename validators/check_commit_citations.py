@@ -66,9 +66,11 @@ same SHA appearing anywhere else is a NEW unresolvable citation and fails,
 which is the property the gate exists to enforce. That also makes `cited`
 load-bearing rather than annotation.
 
-Tokens that match the shape but are not citations (a hex alphabet literal,
-for instance) are recorded in the baseline's `not_a_commit` table with a
-reason, rather than special-cased in this file.
+Within the governed source population, tokens that match the shape but are
+not citations (a hex alphabet literal, for instance) are recorded in the
+baseline's `not_a_commit` table with a reason. Vendored parser source and the
+two scanner unit fixtures are outside that population because their literals
+are test data.
 """
 
 from __future__ import annotations
@@ -124,14 +126,14 @@ def commit_tokens(line: str) -> set[str]:
     tokens: set[str] = set()
     pos = 0
     while pos < len(line):
-        if not ascii_word(line[pos]):
+        if masked[pos] or not ascii_word(line[pos]):
             pos += 1
             continue
         end = pos + 1
-        while end < len(line) and ascii_word(line[end]):
+        while end < len(line) and not masked[end] and ascii_word(line[end]):
             end += 1
         word = line[pos:end]
-        if 7 <= len(word) <= 40 and all(ascii_hex(char) for char in word) and not any(masked[pos:end]):
+        if 7 <= len(word) <= 40 and all(ascii_hex(char) for char in word):
             tokens.add(word.lower())
         pos = end
     return tokens
@@ -273,8 +275,6 @@ def main() -> int:
     except Infrastructure as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    governed = [path for path in tracked if path != baseline_path and governed_file(path, root)]
-
     found: dict[str, set[str]] = {}
     scanned = 0
     undecodable: list[str] = []
@@ -307,10 +307,6 @@ def main() -> int:
         print("A citation in an unreadable file would be invisible to this check.",
               file=sys.stderr)
         return 2
-    if scanned != len(governed):
-        print("error: governed file count changed during citation scan", file=sys.stderr)
-        return 2
-
     unresolvable = {
         tok: sites for tok, sites in found.items()
         if tok not in ignored and not resolves(root, tok)

@@ -125,10 +125,26 @@ class TOMLDecodeError(ValueError):
         encoded = doc.encode("utf-8", errors="surrogatepass")
         start = len(doc[:pos].encode("utf-8", errors="surrogatepass"))
         end = start + len(doc[pos:pos + 1].encode("utf-8", errors="surrogatepass"))
-        ValueError.__init__(self, msg)
         self.msg = msg
-        self.source_sha256 = hashlib.sha256(encoded).hexdigest()
+        self._set_source_evidence(encoded, start, end)
+
+    def _set_source_evidence(self, source: bytes, start: int, end: int) -> None:
+        self.source_sha256 = hashlib.sha256(source).hexdigest()
         self.byte_span = (start, end)
+        ValueError.__init__(
+            self,
+            f"{self.msg} (source sha256:{self.source_sha256}; bytes {start}:{end})",
+        )
+
+
+def _original_byte_offset(source: bytes, normalized_offset: int) -> int:
+    """Map a parser byte offset back through CRLF normalization."""
+    original = 0
+    normalized = 0
+    while normalized < normalized_offset and original < len(source):
+        original += 2 if source[original:original + 2] == b"\r\n" else 1
+        normalized += 1
+    return original
 
 
 def load(__fp: IO[bytes], *, parse_float: ParseFloat = float) -> dict[str, Any]:
@@ -154,6 +170,27 @@ def loads(__s: str, *, parse_float: ParseFloat = float) -> dict[str, Any]:
         raise TypeError(
             f"Expected str object, not '{type(__s).__qualname__}'"
         ) from None
+    try:
+        return _parse_normalized(src, parse_float=parse_float)
+    except TOMLDecodeError as error:
+        if (
+            src != __s
+            and hasattr(error, "byte_span")
+            and error.source_sha256 == hashlib.sha256(
+                src.encode("utf-8", errors="surrogatepass")
+            ).hexdigest()
+        ):
+            original = __s.encode("utf-8", errors="surrogatepass")
+            start, end = error.byte_span
+            error._set_source_evidence(
+                original,
+                _original_byte_offset(original, start),
+                _original_byte_offset(original, end),
+            )
+        raise
+
+
+def _parse_normalized(src: str, *, parse_float: ParseFloat = float) -> dict[str, Any]:
     pos = 0
     out = Output()
     header: Key = ()

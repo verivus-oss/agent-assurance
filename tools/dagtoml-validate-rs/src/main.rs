@@ -1497,7 +1497,7 @@ mod implementation_dag {
                 };
                 if ul <= dl {
                     errors.push(format!(
-                        "layer ordering: {u} (layer={ul}) depends_on {d} (layer={dl}) — a depender must be in a strictly higher layer"
+                        "layer ordering: {u} (layer={ul}) depends_on {d} (layer={dl}): a depender must be in a strictly higher layer"
                     ));
                 }
             }

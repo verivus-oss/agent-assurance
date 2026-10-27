@@ -1,5 +1,7 @@
 """Independent TOML 1.1 examples for the vendored token scanners."""
 from _test_require import require
+import hashlib
+import io
 from datetime import date, datetime, time, timedelta, timezone
 import _toml11 as tomllib
 from _toml11_vendor._parser import skip_chars
@@ -38,16 +40,48 @@ def test_invalid_token_boundaries() -> None:
         rejected(f'value = {value}\n')
 
 def test_error_uses_digest_and_byte_span() -> None:
-    error = rejected('value = @\n')
-    require(str(error) == 'Invalid value')
+    source = 'value = @\n'
+    error = rejected(source)
     require(error.byte_span == (8, 9))
-    require(len(error.source_sha256) == 64)
+    require(error.source_sha256 == hashlib.sha256(source.encode()).hexdigest())
+    require(error.source_sha256 in str(error))
+    require('bytes 8:9' in str(error))
     require(not hasattr(error, 'lineno'))
     require(not hasattr(error, 'colno'))
     require(not hasattr(error, 'pos'))
+
+def test_original_byte_evidence() -> None:
+    for source in (b'a = 1\r\nb = 2\r\nc = @\r\n', 'name = "值"\r\nbad = @\r\n'.encode()):
+        try:
+            tomllib.load(io.BytesIO(source))
+        except tomllib.TOMLDecodeError as error:
+            expected = source.index(b'@')
+            require(error.byte_span == (expected, expected + 1))
+            require(error.source_sha256 == hashlib.sha256(source).hexdigest())
+            require(f'bytes {expected}:{expected + 1}' in str(error))
+        else:
+            raise AssertionError('invalid TOML was accepted')
+    require(tomllib.loads('a = 1\r\nb = 2\r\n') == {'a': 1, 'b': 2})
+
+def test_caller_float_error_is_not_rewritten() -> None:
+    caller_error = tomllib.TOMLDecodeError('caller rejected float', '', 0)
+
+    def reject_float(_: str) -> float:
+        raise caller_error
+
+    try:
+        tomllib.loads('a = 1.5\r\n', parse_float=reject_float)
+    except tomllib.TOMLDecodeError as error:
+        require(error is caller_error)
+        require(error.source_sha256 == hashlib.sha256(b'').hexdigest())
+    else:
+        raise AssertionError('caller float error was ignored')
+
 if __name__ == '__main__':
     test_skip_chars_boundaries()
     test_numbers_and_times()
     test_invalid_token_boundaries()
     test_error_uses_digest_and_byte_span()
-    print('TOML token scanner: 4 test groups passed')
+    test_original_byte_evidence()
+    test_caller_float_error_is_not_rewritten()
+    print('TOML token scanner: 6 test groups passed')

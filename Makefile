@@ -29,7 +29,8 @@ GO_DECODER_BIN := tools/toml-test-decode-go/toml-test-decode-go
 #
 # Historically BurntSushi/toml v1.6.0 failed to reject 13 invalid-test
 # fixtures (all dotted-key / inline-table redefinition cases) that the Rust
-# (`toml` 1.1) and Python (tomli) primaries correctly reject, and they were
+# (`toml` 1.1) and Python (vendored TOML 1.1 parser) primaries correctly
+# reject, and they were
 # tolerated here via `-skip`. That gap is now closed: the Go conformance
 # target runs the in-repo tools/toml-test-decode-go shim, which gates every
 # input through pelletier/go-toml/v2 (stricter than BurntSushi — it rejects
