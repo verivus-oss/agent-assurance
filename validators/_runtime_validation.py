@@ -55,11 +55,6 @@ def validate_document(doc: dict, path: Path, repo_root: Path, kind: str) -> list
             ontologies.append((relative, declaration))
         errors.extend(ijb.validate_instance(doc, str(path), *ijb.build_resolver(ontologies)))
         errors.extend(provenance.validate_one(path, repo_root, doc=doc))
-        # Referenced profile files are a separate trusted input population.
-        # Parse each before calling legacy discovery, which otherwise skips a
-        # malformed profile. Never let a skipped file remove a required pin.
-        for profile in sorted(repo_root.glob("profiles/*/PROFILE.toml")):
-            toml.loads_bytes(profile.read_bytes())
         duplicates = closure.duplicate_profile_names(repo_root)
         errors.extend(duplicates)
         errors.extend(closure.validate(path, closure.load_pinned_records(repo_root),

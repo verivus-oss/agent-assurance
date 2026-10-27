@@ -3298,44 +3298,97 @@ mod profile {
     /// caller MUST refuse to validate anything when duplicates exist
     /// (SPEC 12.8.1 pin resolution: no pin-free fall-through).
     pub fn discover(repo_root: &Path) -> (BTreeMap<String, (PathBuf, Value)>, Vec<String>) {
-        let mut duplicates: Vec<String> = Vec::new();
+        let mut discovery_errors: Vec<String> = Vec::new();
         let mut out: BTreeMap<String, (PathBuf, Value)> = BTreeMap::new();
         let dir = repo_root.join("profiles");
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            return (out, duplicates);
+        let entries = match std::fs::read_dir(&dir) {
+            Ok(entries) => entries,
+            Err(error) => {
+                discovery_errors.push(format!("{}: cannot enumerate profiles: {error}", dir.display()));
+                return (out, discovery_errors);
+            }
         };
-        for entry in entries.flatten() {
-            let candidate = entry.path().join("PROFILE.toml");
-            if !candidate.is_file() {
+        for entry in entries {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(error) => {
+                    discovery_errors.push(format!("{}: cannot inspect profile entry: {error}", dir.display()));
+                    continue;
+                }
+            };
+            let entry_path = entry.path();
+            let file_type = match entry.file_type() {
+                Ok(file_type) => file_type,
+                Err(error) => {
+                    discovery_errors.push(format!("{}: cannot inspect profile entry: {error}", entry_path.display()));
+                    continue;
+                }
+            };
+            if file_type.is_symlink() {
+                match std::fs::metadata(&entry_path) {
+                    Ok(metadata) if metadata.is_dir() => {}
+                    Ok(_) => {
+                        discovery_errors.push(format!("{}: profile link does not target a directory", entry_path.display()));
+                        continue;
+                    }
+                    Err(error) => {
+                        discovery_errors.push(format!("{}: cannot follow profile directory link: {error}", entry_path.display()));
+                        continue;
+                    }
+                }
+            } else if !file_type.is_dir() {
                 continue;
             }
-            let Ok(doc) = load(&candidate) else { continue };
+            let candidate = entry.path().join("PROFILE.toml");
+            match candidate.symlink_metadata() {
+                Ok(_) if candidate.is_file() => {}
+                Ok(_) => {
+                    discovery_errors.push(format!("{}: profile descriptor is not a regular file", candidate.display()));
+                    continue;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => {
+                    discovery_errors.push(format!("{}: cannot inspect profile descriptor: {error}", candidate.display()));
+                    continue;
+                }
+            }
+            let doc = match load(&candidate) {
+                Ok(doc) => doc,
+                Err(error) => {
+                    discovery_errors.push(error);
+                    continue;
+                }
+            };
             let tk = doc
                 .get("meta")
                 .and_then(|m| m.get("template_kind"))
                 .and_then(|x| x.as_str())
                 .unwrap_or("");
             if tk != "profile-descriptor" {
+                discovery_errors.push(format!("{}: expected a profile-descriptor declaration", candidate.display()));
                 continue;
             }
-            if let Some(name) = doc
+            let name = doc
                 .get("profile")
                 .and_then(|p| p.get("name"))
                 .and_then(|x| x.as_str())
-            {
-                if let Some((existing, _)) = out.get(name) {
-                    duplicates.push(format!(
-                        "duplicate profile-descriptor name `{}` ({} and {})",
-                        name,
-                        existing.display(),
-                        candidate.display()
-                    ));
-                    continue;
-                }
-                out.insert(name.to_string(), (candidate, doc));
+                .filter(|name| !name.is_empty());
+            let Some(name) = name else {
+                discovery_errors.push(format!("{}: [profile].name must be a nonempty string", candidate.display()));
+                continue;
+            };
+            if let Some((existing, _)) = out.get(name) {
+                discovery_errors.push(format!(
+                    "duplicate profile-descriptor name `{}` ({} and {})",
+                    name,
+                    existing.display(),
+                    candidate.display()
+                ));
+                continue;
             }
+            out.insert(name.to_string(), (candidate, doc));
         }
-        (out, duplicates)
+        (out, discovery_errors)
     }
 
     fn is_unprefixed(name: &str) -> bool {
@@ -5877,10 +5930,10 @@ fn main() -> ExitCode {
         .canonicalize()
         .unwrap_or(parsed.repo_root.clone());
 
-    let (descriptors, duplicate_profiles) = profile::discover(&repo_root);
-    if !duplicate_profiles.is_empty() {
+    let (descriptors, discovery_errors) = profile::discover(&repo_root);
+    if !discovery_errors.is_empty() {
         eprintln!("DAGTOML VALIDATION FAILED (rust primary)");
-        for d in &duplicate_profiles {
+        for d in &discovery_errors {
             eprintln!("- {d}: pin resolution refuses to proceed (SPEC 12.8.1)");
         }
         std::process::exit(1);

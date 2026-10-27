@@ -53,7 +53,7 @@ import pathlib
 import re
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
-from _profile_discovery import profile_name
+from _profile_discovery import profile_candidates, profile_name
 
 
 # \Z, not $: Python's $ also matches before a trailing newline; rs/go
@@ -111,10 +111,7 @@ def discover_descriptors(repo_root: pathlib.Path) -> dict[str, tuple[pathlib.Pat
     profiles_dir = repo_root / "profiles"
     if not profiles_dir.is_dir():
         return found
-    for entry in sorted(profiles_dir.iterdir()):
-        candidate = entry / "PROFILE.toml"
-        if not candidate.exists() and not candidate.is_symlink():
-            continue
+    for candidate in profile_candidates(repo_root):
         try:
             doc = load_toml(candidate)
         except (OSError, tomllib.TOMLDecodeError) as exc:
@@ -645,10 +642,7 @@ def main() -> int:
     duplicate_errors: list[str] = []
     profiles_dir = repo_root / "profiles"
     if profiles_dir.is_dir():
-        for entry in sorted(profiles_dir.iterdir()):
-            candidate = entry / "PROFILE.toml"
-            if not candidate.exists() and not candidate.is_symlink():
-                continue
+        for candidate in profile_candidates(repo_root):
             try:
                 dup_doc = load_toml(candidate)
             except (OSError, tomllib.TOMLDecodeError) as exc:

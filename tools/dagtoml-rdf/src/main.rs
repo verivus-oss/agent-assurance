@@ -106,10 +106,11 @@ struct KindFile {
 struct KindMeta {
     /// `*-kind.toml` files all carry `template_kind = "kind-descriptor"`.
     /// The kind they DESCRIBE is recorded in `describes_kind` (and again
-    /// in `kind.name`). We prefer `describes_kind` because it is the
-    /// canonical pointer per spec.md §3.
+    /// in `kind.name`). Both declarations must agree per spec.md §3.
     #[serde(default)]
     describes_kind: Option<String>,
+    #[serde(default)]
+    template_kind: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -122,13 +123,13 @@ struct KindBlock {
 }
 
 fn declared_kind(parsed: &KindFile) -> Option<&str> {
-    parsed
-        .meta
-        .as_ref()
-        .and_then(|meta| meta.describes_kind.as_deref())
-        .filter(|name| !name.is_empty())
-        .or_else(|| parsed.kind.as_ref().and_then(|kind| kind.name.as_deref()))
-        .filter(|name| !name.is_empty())
+    let meta = parsed.meta.as_ref()?;
+    if meta.template_kind.as_deref() != Some("kind-descriptor") {
+        return None;
+    }
+    let declared = meta.describes_kind.as_deref().filter(|name| !name.is_empty())?;
+    let named = parsed.kind.as_ref()?.name.as_deref()?;
+    (named == declared).then_some(declared)
 }
 
 // ---------- emission ----------
@@ -820,7 +821,7 @@ fn main() -> ExitCode {
             };
             // *-kind.toml files all carry meta.template_kind =
             // "kind-descriptor". The kind they DESCRIBE is named in
-            // meta.describes_kind (preferred) or [kind].name.
+            // meta.describes_kind and [kind].name must agree.
             let Some(tk) = declared_kind(&parsed) else {
                 eprintln!("kind descriptor has no declared kind: {p:?}");
                 return ExitCode::FAILURE;
@@ -945,14 +946,15 @@ mod tests {
     #[test]
     fn kind_name_uses_declared_fields() {
         let cases = [
-            ("[meta]\ndescribes_kind = 'declared'\n", Some("declared")),
-            ("[kind]\nname = 'named'\n", Some("named")),
+            ("[meta]\ntemplate_kind = 'kind-descriptor'\ndescribes_kind = 'named'\n[kind]\nname = 'named'\n", Some("named")),
+            ("[meta]\ndescribes_kind = 'declared'\n", None),
+            ("[kind]\nname = 'named'\n", None),
             ("[kind]\ntemplate_kind = 'sideways'\n", None),
             ("[meta]\ntemplate_kind = 'kind-descriptor'\n", None),
             ("[kind]\nname = ''\n", None),
             (
-                "[meta]\ndescribes_kind = ''\n[kind]\nname = 'named'\n",
-                Some("named"),
+                "[meta]\ntemplate_kind = 'kind-descriptor'\ndescribes_kind = 'other'\n[kind]\nname = 'named'\n",
+                None,
             ),
         ];
         for (source, expected) in cases {

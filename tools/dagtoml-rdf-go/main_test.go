@@ -37,3 +37,29 @@ func TestLoadTomlDiagnostic(t *testing.T) {
 		}
 	}
 }
+
+func TestDeclaredKindRequiresMatchingFields(t *testing.T) {
+	cases := []struct {
+		name         string
+		templateKind string
+		describes    string
+		kindName     string
+		accepted     bool
+	}{
+		{"matching", "kind-descriptor", "cost-record", "cost-record", true},
+		{"wrong type", "implementation-dag", "cost-record", "cost-record", false},
+		{"missing type", "", "cost-record", "cost-record", false},
+		{"missing declaration", "kind-descriptor", "", "cost-record", false},
+		{"mismatch", "kind-descriptor", "cost-record", "other", false},
+	}
+	for _, item := range cases {
+		var file kindFile
+		file.Meta.TemplateKind = item.templateKind
+		file.Meta.DescribesKind = item.describes
+		file.Kind.Name = item.kindName
+		_, accepted := declaredKind(file)
+		if accepted != item.accepted {
+			t.Errorf("%s: accepted=%t, want %t", item.name, accepted, item.accepted)
+		}
+	}
+}

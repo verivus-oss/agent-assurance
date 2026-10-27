@@ -50,7 +50,7 @@ func loadDoc(path string) (rawDoc, error) {
 	// pelletier, so the gate adds strictness without regressing acceptance.
 	var strictSink any
 	if err := pelletier.Unmarshal(bytes, &strictSink); err != nil {
-		return nil, fmt.Errorf("%s: TOML parse failed (strict): %w", path, err)
+		return nil, fmt.Errorf("%s: TOML parse failed (strict, source sha256 %x)", path, sha256.Sum256(bytes))
 	}
 	// BurntSushi performs the structural decode the rest of the validator
 	// relies on (its typed array/datetime shapes are threaded through
@@ -2852,36 +2852,58 @@ type descriptor struct {
 // are followed, matching the Rust and Python discovery.
 func discoverDescriptors(repoRoot string) (map[string]descriptor, []string) {
 	out := map[string]descriptor{}
-	var duplicates []string
+	var discoveryErrors []string
 	root := filepath.Join(repoRoot, "profiles")
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		return out, duplicates
+		return out, append(discoveryErrors, fmt.Sprintf("%s: cannot enumerate profiles: %v", root, err))
 	}
 	for _, e := range entries {
+		entry := filepath.Join(root, e.Name())
+		if e.Type()&os.ModeSymlink != 0 {
+			info, err := os.Stat(entry)
+			if err != nil || !info.IsDir() {
+				discoveryErrors = append(discoveryErrors, fmt.Sprintf("%s: cannot follow profile directory link", entry))
+				continue
+			}
+		} else if !e.IsDir() {
+			continue
+		}
 		candidate := filepath.Join(root, e.Name(), "PROFILE.toml")
+		if _, err := os.Lstat(candidate); os.IsNotExist(err) {
+			continue
+		} else if err != nil {
+			discoveryErrors = append(discoveryErrors, fmt.Sprintf("%s: cannot inspect profile descriptor: %v", candidate, err))
+			continue
+		}
 		info, err := os.Stat(candidate)
-		if err != nil || info.IsDir() {
+		if err != nil || !info.Mode().IsRegular() {
+			discoveryErrors = append(discoveryErrors, fmt.Sprintf("%s: profile descriptor is not a regular file", candidate))
 			continue
 		}
 		doc, err := loadDoc(candidate)
 		if err != nil {
+			discoveryErrors = append(discoveryErrors, err.Error())
 			continue
 		}
 		if tk, ok := stringOf(doc["meta"], "template_kind"); !ok || tk != "profile-descriptor" {
+			discoveryErrors = append(discoveryErrors, fmt.Sprintf("%s: expected a profile-descriptor declaration", candidate))
 			continue
 		}
-		if name, ok := stringOf(doc["profile"], "name"); ok {
-			if existing, dup := out[name]; dup {
-				duplicates = append(duplicates, fmt.Sprintf(
-					"duplicate profile-descriptor name `%s` (%s and %s)",
-					name, existing.path, candidate))
-				continue
-			}
-			out[name] = descriptor{candidate, doc}
+		name, ok := stringOf(doc["profile"], "name")
+		if !ok || name == "" {
+			discoveryErrors = append(discoveryErrors, fmt.Sprintf("%s: [profile].name must be a nonempty string", candidate))
+			continue
 		}
+		if existing, dup := out[name]; dup {
+			discoveryErrors = append(discoveryErrors, fmt.Sprintf(
+				"duplicate profile-descriptor name `%s` (%s and %s)",
+				name, existing.path, candidate))
+			continue
+		}
+		out[name] = descriptor{candidate, doc}
 	}
-	return out, duplicates
+	return out, discoveryErrors
 }
 
 func checkNamespacePartition(name, namespace string) []string {
@@ -3683,10 +3705,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "error: resolving repo root:", err)
 		os.Exit(2)
 	}
-	descriptors, duplicateProfiles := discoverDescriptors(root)
-	if len(duplicateProfiles) > 0 {
+	descriptors, discoveryErrors := discoverDescriptors(root)
+	if len(discoveryErrors) > 0 {
 		fmt.Fprintln(os.Stderr, "DAGTOML VALIDATION FAILED (go primary)")
-		for _, d := range duplicateProfiles {
+		for _, d := range discoveryErrors {
 			fmt.Fprintf(os.Stderr, "- %s: pin resolution refuses to proceed (SPEC 12.8.1)\n", d)
 		}
 		os.Exit(1)
