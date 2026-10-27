@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import shutil
 import subprocess
 import sys
@@ -71,7 +72,18 @@ def canonical_name(name: str) -> str:
 
 def pins(source: Path) -> set[tuple[str, str]]:
     expected: set[tuple[str, str]] = set()
-    for raw in source.read_bytes().decode("utf-8").splitlines():
+    try:
+        original = source.read_bytes()
+    except OSError as exc:
+        raise SystemExit(f"Cannot read tracked Python lock {source}: {exc}") from exc
+    try:
+        lines = original.decode("utf-8").splitlines()
+    except UnicodeDecodeError as exc:
+        digest = hashlib.sha256(original).hexdigest()
+        raise SystemExit(
+            f"Invalid UTF-8 in tracked Python lock {source} (source sha256 {digest}, bytes {exc.start}:{exc.end})"
+        ) from None
+    for raw in lines:
         line = raw.strip()
         if not line or line.startswith(("#", "--hash=")):
             continue
@@ -87,20 +99,44 @@ def pins(source: Path) -> set[tuple[str, str]]:
 
 
 def verify(root: Path, result_file: Path) -> None:
-    result = json.loads(result_file.read_bytes().decode("utf-8"))
+    try:
+        original = result_file.read_bytes()
+    except OSError as exc:
+        raise SystemExit(f"OSV scan result is unavailable: {result_file}: {exc}") from exc
+    try:
+        result = json.loads(original.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        digest = hashlib.sha256(original).hexdigest()
+        raise SystemExit(f"OSV scan result is not valid UTF-8 JSON (source sha256 {digest})") from None
+    if not isinstance(result, dict) or not isinstance(result.get("results"), list):
+        raise SystemExit("OSV scan result has no results list")
     scanned: dict[Path, set[tuple[str, str]]] = {}
     for entry in result["results"]:
-        parts = Path(entry["source"]["path"]).parts
+        if not isinstance(entry, dict) or not isinstance(entry.get("source"), dict):
+            raise SystemExit("OSV scan result has an invalid source entry")
+        source = entry["source"]
+        if not isinstance(source.get("path"), str):
+            raise SystemExit("OSV scan result has a source without a path")
+        parts = Path(source["path"]).parts
         if "osv-python-lockfiles" not in parts:
             continue
         path = Path(*parts[parts.index("osv-python-lockfiles") :])
-        if path in scanned or entry["source"]["type"] != "lockfile":
+        if path in scanned or source.get("type") != "lockfile":
             raise SystemExit(f"Unexpected OSV source entry: {path}")
-        scanned[path] = {
-            (canonical_name(item["package"]["name"]), item["package"]["version"])
-            for item in entry["packages"]
-            if item["package"]["ecosystem"] == "PyPI"
-        }
+        if not isinstance(entry.get("packages"), list):
+            raise SystemExit(f"OSV source has no package list: {path}")
+        packages: set[tuple[str, str]] = set()
+        for item in entry["packages"]:
+            if not isinstance(item, dict) or not isinstance(item.get("package"), dict):
+                raise SystemExit(f"OSV source has an invalid package entry: {path}")
+            package = item["package"]
+            if package.get("ecosystem") != "PyPI":
+                continue
+            name, version = package.get("name"), package.get("version")
+            if not isinstance(name, str) or not isinstance(version, str) or not version:
+                raise SystemExit(f"OSV source has an incomplete Python package: {path}")
+            packages.add((canonical_name(name), version))
+        scanned[path] = packages
 
     sources = tracked_sources(root)
     expected = {

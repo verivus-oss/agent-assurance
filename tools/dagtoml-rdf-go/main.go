@@ -46,9 +46,9 @@ const (
 // ---------- ontology shapes ----------
 
 type ontology struct {
-	Entities              []entity `toml:"entities"`
+	Entities              []entity   `toml:"entities"`
 	Relations             []relation `toml:"relations"`
-	AttributeVocabularies []vocab  `toml:"attribute_vocabularies"`
+	AttributeVocabularies []vocab    `toml:"attribute_vocabularies"`
 }
 
 type entity struct {
@@ -245,40 +245,75 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 	}
 
 	// Walk every profiles/<name>/ontology.toml. Profiles are discovered
-	// dynamically — adding profiles/<new>/ontology.toml just works.
+	// dynamically - adding profiles/<new>/ontology.toml just works.
 	type profOnt struct {
 		name string
 		o    ontology
 	}
 	var profOnts []profOnt
-	if entries, err := os.ReadDir(filepath.Join(repoRoot, "profiles")); err == nil {
-		var names []string
-		for _, e := range entries {
-			if e.IsDir() {
-				names = append(names, e.Name())
-			}
+	entries, err := os.ReadDir(filepath.Join(repoRoot, "profiles"))
+	if err != nil {
+		return "", 0, 0, 0, 0, fmt.Errorf("cannot enumerate profiles: %w", err)
+	}
+	var names []string
+	for _, e := range entries {
+		if e.Type().IsRegular() {
+			continue
 		}
-		sort.Strings(names)
-		for _, name := range names {
-			p := filepath.Join(repoRoot, "profiles", name, "ontology.toml")
-			if _, err := os.Stat(p); err != nil {
+		path := filepath.Join(repoRoot, "profiles", e.Name())
+		info, err := os.Stat(path)
+		if err != nil {
+			return "", 0, 0, 0, 0, fmt.Errorf("cannot inspect profile %s: %w", path, err)
+		}
+		if info.IsDir() {
+			names = append(names, e.Name())
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		p := filepath.Join(repoRoot, "profiles", name, "ontology.toml")
+		if _, err := os.Lstat(p); err != nil {
+			if os.IsNotExist(err) {
+				directory := filepath.Join(repoRoot, "profiles", name)
+				info, directoryErr := os.Stat(directory)
+				if directoryErr != nil {
+					return "", 0, 0, 0, 0, fmt.Errorf("profile directory changed during scan: %s: %w", directory, directoryErr)
+				}
+				if !info.IsDir() {
+					return "", 0, 0, 0, 0, fmt.Errorf("profile directory changed during scan: %s is no longer a directory", directory)
+				}
+				children, readErr := os.ReadDir(directory)
+				if readErr != nil {
+					return "", 0, 0, 0, 0, fmt.Errorf("cannot enumerate profile %s: %w", directory, readErr)
+				}
+				for _, child := range children {
+					if child.Name() == "PROFILE.toml" || strings.HasSuffix(child.Name(), "-kind.toml") {
+						return "", 0, 0, 0, 0, fmt.Errorf("profile ontology is missing for declaration %s: %s", child.Name(), p)
+					}
+				}
 				continue
 			}
-			var o ontology
-			if err := loadToml(p, &o); err != nil {
-				return "", 0, 0, 0, 0, err
-			}
-			profOnts = append(profOnts, profOnt{name, o})
+			return "", 0, 0, 0, 0, fmt.Errorf("cannot inspect profile ontology %s: %w", p, err)
 		}
+		info, err := os.Stat(p)
+		if err != nil || !info.Mode().IsRegular() {
+			return "", 0, 0, 0, 0, fmt.Errorf("profile ontology is not a readable regular file: %s: %v", p, err)
+		}
+		var o ontology
+		if err := loadToml(p, &o); err != nil {
+			return "", 0, 0, 0, 0, err
+		}
+		profOnts = append(profOnts, profOnt{name, o})
 	}
 
 	// Collect kind descriptors: 1 meta + every *-kind.toml.
 	type kindRow struct{ tk, layer, path string }
 	kinds := []kindRow{{"kind-descriptor", "core", "spec.md"}}
 	gather := func(layer, base string) error {
-		entries, err := os.ReadDir(filepath.Join(repoRoot, base))
+		directory := filepath.Join(repoRoot, base)
+		entries, err := os.ReadDir(directory)
 		if err != nil {
-			return nil
+			return fmt.Errorf("cannot enumerate kind descriptors under %s: %w", directory, err)
 		}
 		var paths []string
 		for _, e := range entries {
@@ -290,22 +325,29 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 		for _, rel := range paths {
 			var kf kindFile
 			if err := loadToml(filepath.Join(repoRoot, rel), &kf); err != nil {
-				continue
+				return fmt.Errorf("cannot load kind descriptor %s: %w", rel, err)
 			}
 			tk := kf.Meta.DescribesKind
 			if tk == "" {
 				tk = kf.Kind.Name
 			}
-			if tk == "" || tk == "kind-descriptor" {
+			if tk == "" {
+				return fmt.Errorf("kind descriptor %s has no declared kind", rel)
+			}
+			if tk == "kind-descriptor" {
 				continue
 			}
 			kinds = append(kinds, kindRow{tk, layer, rel})
 		}
 		return nil
 	}
-	_ = gather("core", "core")
+	if err := gather("core", "core"); err != nil {
+		return "", 0, 0, 0, 0, err
+	}
 	for _, p := range profOnts {
-		_ = gather("profile:"+p.name, "profiles/"+p.name)
+		if err := gather("profile:"+p.name, "profiles/"+p.name); err != nil {
+			return "", 0, 0, 0, 0, err
+		}
 	}
 
 	// Entities (core + each profile, with layer attached).
@@ -329,8 +371,8 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 
 	// Relations: namespace duplicates (only core has relations today).
 	type relRow struct {
-		r          relation
-		predicate  string
+		r         relation
+		predicate string
 	}
 	var relations []relRow
 	seen := map[string]int{}

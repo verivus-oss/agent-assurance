@@ -123,11 +123,11 @@ class GraphTests(unittest.TestCase):
     def test_invalid_utf8_has_stable_byte_evidence(self) -> None:
         with TemporaryDirectory() as directory:
             path = Path(directory) / "invalid.toml"
-            path.write_bytes(b'name = "caf\xff"\n')
+            path.write_bytes(b'name = "valid\xff"\n')
             with self.assertRaises(ValueError) as error:
                 load_toml(path)
             self.assertIn("invalid UTF-8", str(error.exception))
-            self.assertIn("bytes 11:12", str(error.exception))
+            self.assertIn("bytes 13:14", str(error.exception))
             original = sys.argv
             error_output = StringIO()
             try:

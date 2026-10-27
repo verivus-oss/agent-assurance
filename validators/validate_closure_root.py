@@ -89,7 +89,7 @@ def duplicate_profile_names(repo_root: pathlib.Path) -> list[str]:
             if not candidate.is_file():
                 continue
             try:
-                doc = tomllib.loads(candidate.read_bytes().decode("utf-8"))
+                doc = tomllib.loads_bytes(candidate.read_bytes())
             except (OSError, tomllib.TOMLDecodeError):
                 continue
             meta = doc.get("meta") or {}
@@ -121,7 +121,7 @@ def load_pinned_records(
             if not candidate.is_file():
                 continue
             try:
-                doc = tomllib.loads(candidate.read_bytes().decode("utf-8"))
+                doc = tomllib.loads_bytes(candidate.read_bytes())
             except (OSError, tomllib.TOMLDecodeError):
                 continue
             meta = doc.get("meta") or {}
@@ -187,7 +187,7 @@ def _loaded_profile_names(repo_root: pathlib.Path) -> frozenset[str]:
             if not candidate.is_file():
                 continue
             try:
-                doc = tomllib.loads(candidate.read_bytes().decode("utf-8"))
+                doc = tomllib.loads_bytes(candidate.read_bytes())
             except (OSError, tomllib.TOMLDecodeError):
                 continue
             meta = doc.get("meta") or {}
@@ -324,7 +324,7 @@ def validate(
     errors: list[str] = []
     if data is None:
         try:
-            data = tomllib.loads(path.read_bytes().decode("utf-8"))
+            data = tomllib.loads_bytes(path.read_bytes())
         except (OSError, tomllib.TOMLDecodeError) as exc:
             return [f"{path}: cannot parse TOML ({exc})"]
 
@@ -418,7 +418,7 @@ ALWAYS_SPEC_RESERVED_KINDS = frozenset({
 
 def _kind_name_from_descriptor(path: pathlib.Path) -> str | None:
     try:
-        data = tomllib.loads(path.read_bytes().decode("utf-8"))
+        data = tomllib.loads_bytes(path.read_bytes())
     except (OSError, tomllib.TOMLDecodeError):
         return None
     kind = data.get("kind")
@@ -467,7 +467,7 @@ def is_conforming_toml(path: pathlib.Path, spec_reserved: frozenset[str]) -> boo
     values) are out of conformance scope and skipped silently.
     """
     try:
-        data = tomllib.loads(path.read_bytes().decode("utf-8"))
+        data = tomllib.loads_bytes(path.read_bytes())
     except (OSError, tomllib.TOMLDecodeError):
         return False
     meta = data.get("meta")

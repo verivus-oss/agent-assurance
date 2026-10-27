@@ -112,6 +112,24 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(error.source_sha256, hashlib.sha256(raw).hexdigest())
         self.assertEqual(error.byte_span, (expected, expected + 1))
 
+    def test_invalid_utf8_uses_original_byte_evidence(self) -> None:
+        source = b'name = "valid\xff"\n'
+        with self.assertRaises(tomllib.TOMLDecodeError) as result:
+            tomllib.load(io.BytesIO(source))
+        error = result.exception
+        self.assertEqual(error.byte_span, (13, 14))
+        self.assertEqual(error.source_sha256, hashlib.sha256(source).hexdigest())
+        self.assertIn("invalid UTF-8", str(error))
+        self.assertNotIn("line", str(error))
+        self.assertNotIn("column", str(error))
+        from validate_traceability import load_toml
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "invalid.toml"
+            path.write_bytes(source)
+            with self.assertRaises(tomllib.TOMLDecodeError):
+                load_toml(path)
+
     def test_caller_float_error_is_not_rewritten(self) -> None:
         caller_error = tomllib.TOMLDecodeError("caller rejected float", "", 0)
 
