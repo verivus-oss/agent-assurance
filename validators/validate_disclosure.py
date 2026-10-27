@@ -5,22 +5,22 @@ Implements the hard invariants declared in the three disclosure
 kind-descriptors:
 
   disclosure-attestation:
-    INV01 — each attestation's `disclosure_posture` is drawn from the
+    INV01 - each attestation's `disclosure_posture` is drawn from the
             closed vocabulary in profiles/disclosure/ontology.toml.
-    INV02 — `disclosure_posture = "partial"` requires at least one
+    INV02 - `disclosure_posture = "partial"` requires at least one
             `covered_by` entry referencing a `RED:` id.
-    INV03 — `disclosure_posture = "embargoed"` requires
+    INV03 - `disclosure_posture = "embargoed"` requires
             `[meta].embargo_until` (SPEC §2.7 cross-field rule).
 
   redaction-manifest:
-    INV01 — `redaction_method` drawn from the (extensible) vocabulary.
-    INV02 — `redaction_reason` drawn from the (extensible) vocabulary.
-    INV03 — `redaction_reason = "other"` requires a non-empty `notes`.
+    INV01 - `redaction_method` drawn from the (extensible) vocabulary.
+    INV02 - `redaction_reason` drawn from the (extensible) vocabulary.
+    INV03 - `redaction_reason = "other"` requires a non-empty `notes`.
 
   selective-disclosure-proof:
-    INV01 — `bound_source` matches `^sha256:[0-9a-f]{64}$`.
-    INV02 — `proof_scheme` drawn from the (extensible) vocabulary.
-    INV03 — every `covers` entry starts with the `RED:` prefix.
+    INV01 - `bound_source` matches `^sha256:[0-9a-f]{64}$`.
+    INV02 - `proof_scheme` drawn from the (extensible) vocabulary.
+    INV03 - every `covers` entry starts with the `RED:` prefix.
 
 The validator loads `profiles/disclosure/ontology.toml` to pull the
 declared closed value sets, so any future change to the ontology is
@@ -63,11 +63,11 @@ def load_vocabularies(repo_root: pathlib.Path) -> dict[str, dict]:
     ontology_path = repo_root / "profiles" / "disclosure" / "ontology.toml"
     out: dict[str, dict] = {}
     if not ontology_path.is_file():
-        return out
+        raise ValueError(f"{ontology_path}: disclosure ontology is missing or not a file")
     try:
         doc = load_toml(ontology_path)
-    except tomllib.TOMLDecodeError:
-        return out
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise ValueError(f"{ontology_path}: cannot parse disclosure ontology ({exc})") from exc
     for entry in doc.get("attribute_vocabularies", []) or []:
         attr = entry.get("attribute")
         if not isinstance(attr, str):
@@ -96,7 +96,7 @@ def _check_vocab(
     if value in spec["values"]:
         return []
     if spec["extensible"]:
-        # extensible vocabularies accept new values silently — SPEC layer
+        # extensible vocabularies accept new values silently - SPEC layer
         # only enforces shape (string), not membership.
         return []
     return [
@@ -129,7 +129,7 @@ def validate_attestation(doc: dict, source: str, vocabs: dict[str, dict]) -> lis
             "disclosure_posture", posture, vocabs, f"{loc}.disclosure_posture"
         ))
 
-        # INV02 — partial requires covered_by RED:* entries
+        # INV02 - partial requires covered_by RED:* entries
         if posture == "partial":
             covered_by = entry.get("covered_by") or []
             if not isinstance(covered_by, list) or not any(
@@ -140,7 +140,7 @@ def validate_attestation(doc: dict, source: str, vocabs: dict[str, dict]) -> lis
                     f"least one `covered_by` entry referencing a `RED:` id"
                 )
 
-        # INV03 — embargoed requires meta.embargo_until
+        # INV03 - embargoed requires meta.embargo_until
         if posture == "embargoed":
             if not isinstance(embargo_until, str) or not embargo_until:
                 errors.append(
@@ -178,7 +178,7 @@ def validate_redaction_manifest(
             "redaction_reason", reason, vocabs, f"{loc}.redaction_reason"
         ))
 
-        # INV03 — reason="other" requires notes
+        # INV03 - reason="other" requires notes
         if reason == "other":
             notes = entry.get("notes")
             if not isinstance(notes, str) or not notes.strip():
@@ -257,7 +257,11 @@ def validate_one(path: pathlib.Path, vocabs: dict[str, dict]) -> list[str]:
 def main() -> int:
     args = parse_args()
     repo_root = pathlib.Path(args.repo_root).resolve()
-    vocabs = load_vocabularies(repo_root)
+    try:
+        vocabs = load_vocabularies(repo_root)
+    except ValueError as exc:
+        print(f"DISCLOSURE VALIDATION FAILED: {exc}")
+        return 1
 
     all_errors: list[str] = []
     for raw in args.files:

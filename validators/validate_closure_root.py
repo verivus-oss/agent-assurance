@@ -39,6 +39,7 @@ import hashlib
 import pathlib
 import re
 import sys
+from collections.abc import Callable
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
 
 ALGO_HEX_LENGTHS = {
@@ -73,6 +74,14 @@ EMPTY_CLOSURE_SENTINELS = {
 PINNED_VALUE_RE = re.compile(r"^sha256:[0-9a-f]{64}\Z")
 
 
+def _read_discovery_toml(path: pathlib.Path) -> dict:
+    """A selected declaration must be readable before it can be used."""
+    try:
+        return tomllib.loads_bytes(path.read_bytes())
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise ValueError(f"{path}: cannot parse discovery TOML ({exc})") from exc
+
+
 def duplicate_profile_names(repo_root: pathlib.Path) -> list[str]:
     """Duplicate profile-descriptor names under profiles/*/PROFILE.toml.
 
@@ -86,12 +95,9 @@ def duplicate_profile_names(repo_root: pathlib.Path) -> list[str]:
     if profiles_dir.is_dir():
         for entry in sorted(profiles_dir.iterdir()):
             candidate = entry / "PROFILE.toml"
-            if not candidate.is_file():
+            if not candidate.exists() and not candidate.is_symlink():
                 continue
-            try:
-                doc = tomllib.loads_bytes(candidate.read_bytes())
-            except (OSError, tomllib.TOMLDecodeError):
-                continue
+            doc = _read_discovery_toml(candidate)
             meta = doc.get("meta") or {}
             profile = doc.get("profile") or {}
             name = profile.get("name")
@@ -118,12 +124,9 @@ def load_pinned_records(
     if profiles_dir.is_dir():
         for entry in sorted(profiles_dir.iterdir()):
             candidate = entry / "PROFILE.toml"
-            if not candidate.is_file():
+            if not candidate.exists() and not candidate.is_symlink():
                 continue
-            try:
-                doc = tomllib.loads_bytes(candidate.read_bytes())
-            except (OSError, tomllib.TOMLDecodeError):
-                continue
+            doc = _read_discovery_toml(candidate)
             meta = doc.get("meta") or {}
             if meta.get("template_kind") != "profile-descriptor":
                 continue
@@ -184,12 +187,9 @@ def _loaded_profile_names(repo_root: pathlib.Path) -> frozenset[str]:
     if profiles_dir.is_dir():
         for entry in sorted(profiles_dir.iterdir()):
             candidate = entry / "PROFILE.toml"
-            if not candidate.is_file():
+            if not candidate.exists() and not candidate.is_symlink():
                 continue
-            try:
-                doc = tomllib.loads_bytes(candidate.read_bytes())
-            except (OSError, tomllib.TOMLDecodeError):
-                continue
+            doc = _read_discovery_toml(candidate)
             meta = doc.get("meta") or {}
             profile = doc.get("profile") or {}
             name = profile.get("name")
@@ -357,7 +357,7 @@ def validate(
     if algo in FORBIDDEN_ALGOS:
         errors.append(
             f"{path}: `closure_root` uses forbidden weak digest "
-            f"algorithm `{algo}`. SPEC §12.1 forbids MD5 and SHA-1 — "
+            f"algorithm `{algo}`. SPEC §12.1 forbids MD5 and SHA-1 - "
             f"use SHA-256 or stronger."
         )
         return errors
@@ -407,7 +407,7 @@ def validate(
 
 
 ALWAYS_SPEC_RESERVED_KINDS = frozenset({
-    # Meta kinds — the kind that describes other kinds, plus the
+    # Meta kinds - the kind that describes other kinds, plus the
     # ontology kind used by `core/ontology.toml` and friends. Both
     # are spec-layer infrastructure, not declared via a separate
     # `*-kind.toml` descriptor.
@@ -417,10 +417,7 @@ ALWAYS_SPEC_RESERVED_KINDS = frozenset({
 
 
 def _kind_name_from_descriptor(path: pathlib.Path) -> str | None:
-    try:
-        data = tomllib.loads_bytes(path.read_bytes())
-    except (OSError, tomllib.TOMLDecodeError):
-        return None
+    data = _read_discovery_toml(path)
     kind = data.get("kind")
     if isinstance(kind, dict):
         name = kind.get("name")
@@ -466,10 +463,7 @@ def is_conforming_toml(path: pathlib.Path, spec_reserved: frozenset[str]) -> boo
     ad-hoc local-tool documents using non-spec-reserved `template_kind`
     values) are out of conformance scope and skipped silently.
     """
-    try:
-        data = tomllib.loads_bytes(path.read_bytes())
-    except (OSError, tomllib.TOMLDecodeError):
-        return False
+    data = _read_discovery_toml(path)
     meta = data.get("meta")
     if not isinstance(meta, dict):
         return False
@@ -480,6 +474,7 @@ def is_conforming_toml(path: pathlib.Path, spec_reserved: frozenset[str]) -> boo
 def discover_conforming(
     roots: list[pathlib.Path],
     spec_reserved: frozenset[str],
+    skip: Callable[[pathlib.Path], bool] | None = None,
 ) -> list[pathlib.Path]:
     """Find every conforming DAG-TOML document under the given roots.
 
@@ -495,11 +490,13 @@ def discover_conforming(
         if not root.exists():
             continue
         if root.is_file():
-            if root.suffix == ".toml" and is_conforming_toml(root, spec_reserved):
+            if root.suffix == ".toml" and not (skip and skip(root)) and is_conforming_toml(root, spec_reserved):
                 out.append(root)
             continue
         for path in sorted(root.rglob("*.toml")):
             if any(part.startswith(".") or part in skip_dirs for part in path.relative_to(root).parts):
+                continue
+            if skip and skip(path):
                 continue
             if is_conforming_toml(path, spec_reserved):
                 out.append(path)
@@ -561,6 +558,16 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
 
     repo_root = pathlib.Path(args.repo_root).resolve()
+    try:
+        return _validate_selected(args, repo_root, parser)
+    except ValueError as exc:
+        print(f"CLOSURE-ROOT VALIDATION FAILED: {exc}", file=sys.stderr)
+        return 1
+
+
+def _validate_selected(
+    args: argparse.Namespace, repo_root: pathlib.Path, parser: argparse.ArgumentParser
+) -> int:
     duplicates = duplicate_profile_names(repo_root)
     if duplicates:
         for dup in duplicates:
@@ -575,9 +582,6 @@ def main(argv: list[str]) -> int:
 
     if args.discover:
         spec_reserved = spec_reserved_kinds(repo_root)
-        targets = discover_conforming(
-            [pathlib.Path(r) for r in args.discover], spec_reserved
-        )
         # Conformance `invalid/` trees are asserted-negative by construction:
         # conformance/runner.py requires all three implementations to REJECT
         # every one of them. Skipping them here is therefore structural, not a
@@ -605,17 +609,23 @@ def main(argv: list[str]) -> int:
                 for i in range(len(parts) - 3)
             )
 
-        kept = []
         prefixes = [pathlib.Path(prefix).resolve() for prefix in (args.exclude or [])]
-        for target in targets:
-            if is_conformance_invalid(target):
-                print(f"EXCLUDED (conformance invalid tree): {target}")
-                continue
-            if any(target.resolve().is_relative_to(prefix) for prefix in prefixes):
-                print(f"EXCLUDED (asserted-negative path): {target}")
-                continue
-            kept.append(target)
-        targets = kept
+        excluded: list[tuple[pathlib.Path, str]] = []
+
+        def skip_asserted_negative(path: pathlib.Path) -> bool:
+            if is_conformance_invalid(path):
+                excluded.append((path, "conformance invalid tree"))
+                return True
+            if any(path.resolve().is_relative_to(prefix) for prefix in prefixes):
+                excluded.append((path, "asserted-negative path"))
+                return True
+            return False
+
+        targets = discover_conforming(
+            [pathlib.Path(r) for r in args.discover], spec_reserved, skip_asserted_negative
+        )
+        for path, reason in excluded:
+            print(f"EXCLUDED ({reason}): {path}")
         if not targets:
             print(
                 "CLOSURE-ROOT VALIDATION: no conforming TOMLs found "

@@ -2442,7 +2442,7 @@ func validateProvenanceEncryption(path string, doc rawDoc) []string {
 			path))
 	case !sealed:
 		errs = append(errs, fmt.Sprintf(
-			"%s: [provenance.encryption] is present but sealed=false — SPEC §11.1 forbids the sub-table in that case",
+			"%s: [provenance.encryption] is present but sealed=false - SPEC §11.1 forbids the sub-table in that case",
 			path))
 	}
 	v, vOK := enc["hash_is_over"].(string)
@@ -3807,7 +3807,7 @@ func main() {
 		// stable order is helpful for diff-based investigation
 		stable := make([]string, len(allErrors))
 		copy(stable, allErrors)
-		// (preserve original ordering — only sort for non-grouped sets)
+		// (preserve original ordering - only sort for non-grouped sets)
 		_ = sort.SliceStable
 		for _, line := range stable {
 			fmt.Fprintln(os.Stderr, "-", line)
@@ -3844,7 +3844,7 @@ var (
 // INV02/INV03 can report a non-table entry as a violation. A previous
 // table-only normaliser silently discarded scalar elements, which let a
 // `verdict = "pass"` document carrying `failed_constraint_refs = ["A-1"]`
-// (an array of strings) pass INV01 in Go while Rust rejected it — a
+// (an array of strings) pass INV01 in Go while Rust rejected it - a
 // cross-implementation divergence on the separation-of-duty gate. Keep the
 // element type intact; the INV loops decide table-vs-not per element.
 func gdRawArray(v any) []any {

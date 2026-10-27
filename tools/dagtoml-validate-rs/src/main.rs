@@ -8,8 +8,8 @@
 //!
 //! Safety posture: this crate sets `#![forbid(unsafe_code)]` and has no
 //! FFI (enforced by `validators/check_safe_tools.sh`). Transitive parser
-//! dependencies — the widely-vetted `toml`/`toml_parser`/`winnow` and
-//! `serde` crates — may use `unsafe` internally; that is out of scope of
+//! dependencies - the widely-vetted `toml`/`toml_parser`/`winnow` and
+//! `serde` crates - may use `unsafe` internally; that is out of scope of
 //! the safe-tools policy, which governs the code WE write, not our deps.
 
 #![forbid(unsafe_code)]
@@ -988,7 +988,7 @@ fn validate_provenance_binding(path: &Path, doc: &Value, repo_root: &Path) -> Ve
     };
     // SPEC §11: source_path MUST be relative and resolve to a file under
     // repo root. Reject absolute paths and any path that escapes via `..`
-    // or a symlink — otherwise an attestation could bind its provenance
+    // or a symlink - otherwise an attestation could bind its provenance
     // digest to a file outside the repo (e.g. "../../etc/passwd") and the
     // binding would be meaningless. The Python reference
     // (validators/validate_provenance.py) enforces this; a *primary*
@@ -5222,7 +5222,7 @@ mod gate_decision {
 }
 
 // ------------------------------------------------------------
-// Meta-field checks (§2.2 + §2.6 + §2.7) — applied to every doc with [meta]
+// Meta-field checks (§2.2 + §2.6 + §2.7) - applied to every doc with [meta]
 // ------------------------------------------------------------
 
 const CONFIDENTIALITY: &[&str] = &[
@@ -5258,7 +5258,7 @@ fn validate_meta_fields(path: &Path, doc: &Value) -> Vec<String> {
     }
 
     if let Some(docs_url) = meta.get("docs").and_then(|x| x.as_str()) {
-        // §2.6 — https only, no query string
+        // §2.6 - https only, no query string
         if !docs_url.starts_with("https://") {
             errors.push(format!(
                 "{}: [meta].docs must start with `https://` (SPEC §2.6)",
@@ -5336,7 +5336,7 @@ fn validate_meta_fields(path: &Path, doc: &Value) -> Vec<String> {
     errors
 }
 
-// SPEC §2.7 — accept either:
+// SPEC §2.7 - accept either:
 //   YYYY-MM-DD                                (full-date)
 //   YYYY-MM-DDTHH:MM:SS[.fff][Z|±HH:MM]       (full date-time)
 // The check is syntactic only; the validator does NOT compare against
@@ -5423,7 +5423,7 @@ fn validate_provenance_encryption(path: &Path, doc: &Value) -> Vec<String> {
     match enc.get("sealed").and_then(|x| x.as_bool()) {
         Some(true) => {}
         Some(false) => errors.push(format!(
-            "{}: [provenance.encryption] is present but `sealed = false` — SPEC §11.1 requires the sub-table to be absent in that case",
+            "{}: [provenance.encryption] is present but `sealed = false` - SPEC §11.1 requires the sub-table to be absent in that case",
             path.display()
         )),
         None => errors.push(format!(
@@ -5444,7 +5444,7 @@ fn validate_provenance_encryption(path: &Path, doc: &Value) -> Vec<String> {
             path.display()
         )),
     }
-    // SPEC §11.1 — `scheme_hint` is OPTIONAL but, when present, MUST
+    // SPEC §11.1 - `scheme_hint` is OPTIONAL but, when present, MUST
     // be a string (free-form label).
     if let Some(v) = enc.get("scheme_hint") {
         if v.as_str().is_none() {
@@ -5822,7 +5822,7 @@ fn validate_framework_profile(
         name
     };
 
-    // 1. Shape check — must match one of the two patterns in §2.5.
+    // 1. Shape check - must match one of the two patterns in §2.5.
     let is_unprefixed = !resolved.is_empty()
         && resolved
             .chars()
@@ -5846,7 +5846,7 @@ fn validate_framework_profile(
         ));
         return errors;
     }
-    // 2. Resolution check — unprefixed names MUST be in the loaded
+    // 2. Resolution check - unprefixed names MUST be in the loaded
     //    profile-descriptor set; reverse-DNS names MAY be locally
     //    declared and SHOULD also resolve but absence is downgraded
     //    to a structural lint (the spec doesn't require third-party
