@@ -584,11 +584,19 @@ fn main() -> ExitCode {
             }
             "--repo-root" => {
                 i += 1;
-                repo_root = PathBuf::from(&args[i]);
+                let Some(value) = args.get(i).filter(|value| !value.is_empty()) else {
+                    eprintln!("--repo-root requires a path");
+                    return ExitCode::from(2);
+                };
+                repo_root = PathBuf::from(value);
             }
             "-o" | "--output" => {
                 i += 1;
-                output = Some(PathBuf::from(&args[i]));
+                let Some(value) = args.get(i).filter(|value| !value.is_empty()) else {
+                    eprintln!("--output requires a path");
+                    return ExitCode::from(2);
+                };
+                output = Some(PathBuf::from(value));
             }
             "-h" | "--help" => {
                 eprintln!(
