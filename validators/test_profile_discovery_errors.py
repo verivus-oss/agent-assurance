@@ -40,8 +40,9 @@ def test_discovery_rejects_malformed_profile() -> None:
             lambda: discover_profile_descriptors(root),
             lambda: discover_descriptors(root),
         ):
-            expect_raises(tomllib.TOMLDecodeError, action,
-                          "malformed profile descriptor was ignored")
+            failure = expect_raises(ValueError, action,
+                                    "malformed profile descriptor was ignored")
+            require(str(candidate) in str(failure))
 
         errors = validate_meta_posture({"meta": {"framework_profile": "broken"}},
                                        str(candidate), root)
