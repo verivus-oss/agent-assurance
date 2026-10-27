@@ -51,6 +51,15 @@ def exercise_connection(store, destination):
         PostgresQuery.convert = forbidden_placeholder_conversion
         psycopg.conninfo._param_escape = forbidden_placeholder_conversion
         try:
+            for bad_destination, bad_name in ((destination + "\0ignored", None), (destination, "bad\0name")):
+                try:
+                    unexpected = connect_postgres(bad_destination, dbname=bad_name)
+                except psycopg.ProgrammingError as exc:
+                    if "NUL bytes" not in str(exc):
+                        raise AssertionError("invalid connection failed for an unrelated reason") from exc
+                else:
+                    unexpected.close()
+                    raise AssertionError("NUL connection parameter was truncated instead of rejected")
             with connect_postgres(destination) as fresh:
                 if fresh.execute("SELECT 7").fetchone() != (7,):
                     raise AssertionError("native PostgreSQL connection changed its result")
@@ -83,7 +92,7 @@ def exercise_connection(store, destination):
         checks.append("non-utf8-client-refused")
         # The runner owns a private server. A distinct encoding needs a
         # distinct database, not a mocked SHOW response.
-        name = "dagtoml_encoding_" + uuid.uuid4().hex
+        name = "dagtoml_encoding_" + uuid.uuid4().hex + "'\\ space"
         store.connection.execute(psycopg.sql.SQL("CREATE DATABASE {} ENCODING 'SQL_ASCII' TEMPLATE template0").format(psycopg.sql.Identifier(name)))
         try:
             connection = connect_postgres(destination, dbname=name)

@@ -30,6 +30,8 @@ def connect_postgres(destination: str, *, dbname: str | None = None):
     """Let libpq parse connection strings without Python's regex rewriter."""
     import psycopg
     encoded = destination.encode("utf-8")
+    if b"\0" in encoded or dbname is not None and "\0" in dbname:
+        raise psycopg.ProgrammingError("PostgreSQL connection parameters must not contain NUL bytes")
     if dbname is not None:
         options = {option.keyword: option.val for option in psycopg.pq.Conninfo.parse(encoded)
                    if option.val is not None}
