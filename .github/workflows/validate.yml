@@ -1135,6 +1135,8 @@ jobs:
           fi
           python3 validators/check_secret_scan.py \
             --gitleaks /tmp/gitleaks-bin/gitleaks --repo-root .
+          python3 validators/check_secret_scan_merge.py \
+            --gitleaks /tmp/gitleaks-bin/gitleaks --config .gitleaks.toml
 
       - name: Python static security analysis (bandit)
         continue-on-error: false

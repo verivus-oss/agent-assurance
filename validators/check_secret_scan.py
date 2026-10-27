@@ -15,10 +15,12 @@ PUBLIC_HEX_SHA256 = "9f9f5111f7b27a781f1f1ddde5ebc2dd2b796bfc7365c9c28b548e56417
 PUBLIC_HEX_FILE = "validators/unresolvable-commit-citations.toml"
 PUBLIC_HEX_RULE = "generic-api-key"
 KNOWN_COMMITS = frozenset({
+    "6c0b27b19d2cbaf32ddaaff2638175f18d683974",
     "f64bfa0500802eee910e27f40c6d4152474c2252",
     "8e52e9bab66d4e2bc1b52b427f69ef0c562096ff",
     "ffac3a202344f42f7608795866065971a08d42ed",
 })
+GIT_LOG_OPTIONS = "--full-history --all -m --diff-filter=tuxdb"
 
 
 def known_public_literal(finding: dict) -> bool:
@@ -118,7 +120,7 @@ def main() -> None:
         result = subprocess.run(  # nosec B603  # noqa: S603
             [str(binary), "detect", "--source", ".", "--config", ".gitleaks.toml",
              "--no-banner", "--no-color", "--log-level", "info",
-             "--log-opts=--all", "--report-format", "json",
+             "--log-opts=" + GIT_LOG_OPTIONS, "--report-format", "json",
              "--report-path", str(report), "--exit-code", "1"],
             cwd=root, capture_output=True, text=True, check=False,
         )
