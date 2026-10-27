@@ -19,6 +19,21 @@ import zipfile
 import _toml11 as toml
 
 
+class _SourceTarInfo(tarfile.TarInfo):
+    """Pinned source archives use tar members without PAX metadata."""
+
+    def _proc_member(self, archive):
+        if self.type in (tarfile.XHDTYPE, tarfile.XGLTYPE, tarfile.SOLARIS_XHDTYPE):
+            raise ValueError("PAX extended headers are unsupported in pinned source archives")
+        return super()._proc_member(archive)
+
+
+def extract_source(archive, source):
+    """Reject extended headers before tarfile's PAX regex parser is reachable."""
+    with tarfile.open(archive, tarinfo=_SourceTarInfo) as contents:
+        contents.extractall(source, filter="data")
+
+
 def run(command, root, env):
     # Commands are fixed build/test tools with list arguments, never a shell.
     result = subprocess.run(command, cwd=root, env=env, capture_output=True, text=True)  # nosec B603 # noqa: S603
@@ -90,8 +105,7 @@ def build_sqlite(lane, work, env):
     download(lane["source_url"], lane["source_sha256"], archive)
     source = work / "sqlite-source"
     source.mkdir()
-    with tarfile.open(archive) as contents:
-        contents.extractall(source, filter="data")
+    extract_source(archive, source)
     roots = list(source.iterdir())
     if len(roots) != 1 or not roots[0].is_dir():
         raise ValueError("unexpected pinned SQLite source layout")
@@ -141,9 +155,11 @@ def main(argv=None):
                 raise ValueError("container database is not bound to a single loopback port")
             destination = "host=127.0.0.1 port=" + address.split(":")[1] + " user=postgres password=dagtoml-ci dbname=postgres"
             import psycopg
+            sys.path.insert(0, str(root / "reference/database"))
+            from _storage import connect_postgres
             for attempt in range(120):
                 try:
-                    with psycopg.connect(destination, autocommit=True):
+                    with connect_postgres(destination):
                         break
                 except psycopg.OperationalError:
                     if attempt == 119:

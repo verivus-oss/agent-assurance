@@ -26,6 +26,31 @@ class StorageError(RuntimeError):
         super().__init__(f"{code}: {detail}")
 
 
+def connect_postgres(destination: str, *, dbname: str | None = None):
+    """Let libpq parse connection strings without Python's regex rewriter."""
+    import psycopg
+    encoded = destination.encode("utf-8")
+    if dbname is not None:
+        options = {option.keyword: option.val for option in psycopg.pq.Conninfo.parse(encoded)
+                   if option.val is not None}
+        options[b"dbname"] = dbname.encode("utf-8")
+        encoded = b" ".join(key + b"='" + value.replace(b"\\", b"\\\\").replace(b"'", b"\\'") + b"'"
+                            for key, value in options.items())
+    pgconn = psycopg.pq.PGconn.connect(encoded)
+    try:
+        if pgconn.status != psycopg.pq.ConnStatus.OK:
+            raise psycopg.OperationalError(pgconn.error_message.decode("utf-8", "replace"))
+        pgconn.nonblocking = 1
+        connection = psycopg.Connection(pgconn)
+        connection.autocommit = True
+        connection.cursor_factory = psycopg.RawCursor
+        connection.prepare_threshold = None
+        return connection
+    except BaseException:
+        pgconn.finish()
+        raise
+
+
 def connect(engine: str, destination: str):
     if engine == "sqlite":
         return sqlite3.connect(destination, isolation_level=None, timeout=0.25)
@@ -37,8 +62,7 @@ def connect(engine: str, destination: str):
             code = "busy/unsupported-writer" if "lock" in str(exc).lower() else "setup"
             raise StorageError(code, str(exc)) from exc
     if engine == "postgres":
-        import psycopg
-        return psycopg.connect(destination, autocommit=True)
+        return connect_postgres(destination)
     raise ValueError(f"unsupported database engine: {engine!r}")
 
 
@@ -54,6 +78,12 @@ class Store:
     def __init__(self, engine: str, connection, repo_root: Path, *, reconnect=None):
         if engine not in {"sqlite", "duckdb", "postgres"}:
             raise ValueError("unsupported engine")
+        if engine == "postgres":
+            import psycopg
+            # The connection is dedicated to this store. RawCursor accepts
+            # native $n slots without psycopg's regex placeholder parser.
+            connection.cursor_factory = psycopg.RawCursor
+            connection.prepare_threshold = None
         self.engine = engine
         self.connection = connection
         self.root = repo_root.resolve()
@@ -66,7 +96,13 @@ class Store:
     def execute(self, sql: str, parameters=()):
         # SQL identifiers originate in this module or the validated mapping.
         # Every document-authored value uses driver parameters.
-        return self.connection.execute(sql.replace("?", "%s") if self.engine == "postgres" else sql, parameters)
+        if self.engine == "postgres":
+            parts = sql.split("?")
+            if len(parts) - 1 != len(parameters):
+                raise StorageError("sql-parameters", "SQL marker count differs from parameter count")
+            query = parts[0] + "".join(f"${index}{part}" for index, part in enumerate(parts[1:], 1))
+            return self.connection.execute(query, parameters if parameters else None)
+        return self.connection.execute(sql, parameters)
 
     def rows(self, table: str, columns: tuple, where: str = "", parameters=()) -> list[dict]:
         expressions = [f"CAST({column} AS TEXT) AS {column}" if column in {"meta_extras", "extras"}

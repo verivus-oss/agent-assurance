@@ -75,6 +75,13 @@ def test_coverage_and_cleanup_fail_closed() -> None:
             verify(root, result)
         finally:
             json.JSONDecoder.decode = decoder
+        unknown = {
+            "source": {"path": str(root / "osv-python-lockfiles" / "unknown" / "requirements.txt"),
+                       "type": "lockfile"},
+            "packages": [],
+        }
+        result.write_text(dumps_json({"results": [entry, root_entry, unknown]}))
+        expect_rejection(lambda: verify(root, result), "unknown scanner alias accepted")
         result.write_text(dumps_json({"results": [entry]}))
         expect_rejection(lambda: verify(root, result), "missing root package scan accepted")
         result.write_bytes(b"{")

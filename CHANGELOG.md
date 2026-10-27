@@ -9,6 +9,11 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Continue the regex removal from candidate
+  `2941bae9e42b89778559ef1f0701ebfa6a40fe87`: use libpq connection parsing,
+  native PostgreSQL parameters, and disabled statement preparation for the
+  reference store. Reject PAX headers before the standard tar metadata parser
+  in both source build paths, and test unexpected OSV scanner aliases.
 - Replace active regex checks in the Python validators, conformance tools,
   database mirrors, RDF shapes, website check, and CI text gates with explicit
   predicates and scanners.

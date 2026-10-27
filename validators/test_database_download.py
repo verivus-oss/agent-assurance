@@ -3,10 +3,62 @@
 from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import io
 import os
+import tarfile
 
 from _test_require import expect_raises, require
-from database_ci import download
+from database_ci import download, extract_source
+
+
+def extraction_boundaries(root):
+    archive = root / "source.tar"
+    source = root / "source"
+    source.mkdir()
+    content = b"source bytes"
+    with tarfile.open(archive, "w", format=tarfile.GNU_FORMAT) as contents:
+        for name in ("short.txt", "nested/" + "a" * 110):
+            member = tarfile.TarInfo(name)
+            member.size = len(content)
+            contents.addfile(member, io.BytesIO(content))
+        link = tarfile.TarInfo("hardlink")
+        link.type, link.linkname = tarfile.LNKTYPE, "short.txt"
+        contents.addfile(link)
+    extract_source(archive, source)
+    require((source / "short.txt").read_bytes() == content)
+    require((source / "nested" / ("a" * 110)).read_bytes() == content)
+    require((source / "hardlink").read_bytes() == content)
+
+    # An extended header must fail before the standard PAX parser runs.
+    parser = tarfile.TarInfo._proc_pax
+    def forbidden_pax(*_args):
+        raise AssertionError("standard PAX parser was reached")
+    tarfile.TarInfo._proc_pax = forbidden_pax
+    try:
+        for kind in (tarfile.XHDTYPE, tarfile.XGLTYPE, tarfile.SOLARIS_XHDTYPE):
+            with tarfile.open(archive, "w") as contents:
+                member = tarfile.TarInfo("extended")
+                member.type = kind
+                contents.addfile(member)
+            error = expect_raises(ValueError, lambda: extract_source(archive, source),
+                                  "extended tar header was accepted")
+            require("PAX extended headers" in str(error))
+    finally:
+        tarfile.TarInfo._proc_pax = parser
+
+    for name in ("../escaped", str(root / "absolute")):
+        with tarfile.open(archive, "w") as contents:
+            member = tarfile.TarInfo(name)
+            member.size = len(content)
+            contents.addfile(member, io.BytesIO(content))
+        if name.startswith("/"):
+            # The data filter strips the leading slash and confines the member.
+            extract_source(archive, source)
+            require(not (root / "absolute").exists())
+        else:
+            expect_raises(tarfile.FilterError, lambda: extract_source(archive, source),
+                          "escaping tar member was accepted")
+            require(not (root / "escaped").exists())
 
 
 def main() -> None:
@@ -44,7 +96,8 @@ def main() -> None:
                 os.environ.pop("PATH", None)
             else:
                 os.environ["PATH"] = previous
-    print("database download: HTTPS, digest, and redirect controls passed")
+        extraction_boundaries(root)
+    print("database download: HTTPS, digest, redirect, and source extraction controls passed")
 
 
 if __name__ == "__main__":

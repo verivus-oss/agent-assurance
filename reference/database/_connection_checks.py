@@ -2,10 +2,11 @@
 
 import uuid
 
-from _storage import Store, StorageError
+from _storage import Store, StorageError, connect_postgres
 
 CHECKS = {"sqlite": {"foreign-keys-enabled-and-read-back", "disabled-checks-refused"},
-          "postgres": {"non-utf8-client-refused", "non-utf8-server-refused", "aborted-caller-transaction-preserved"},
+          "postgres": {"native-parameters-without-placeholder-parser", "non-utf8-client-refused",
+                       "non-utf8-server-refused", "aborted-caller-transaction-preserved"},
           "duckdb": {"idle-connection-precondition"}}
 
 
@@ -35,7 +36,45 @@ def exercise_connection(store, destination):
         checks.append("disabled-checks-refused")
     elif store.engine == "postgres":
         import psycopg
+        from psycopg._queries import PostgresQuery
         from psycopg.pq import TransactionStatus
+        if store.connection.cursor_factory is not psycopg.RawCursor:
+            raise AssertionError("PostgreSQL store did not select the raw cursor")
+        if store.connection.prepare_threshold is not None:
+            raise AssertionError("PostgreSQL statement preparation was not disabled")
+        old_convert = PostgresQuery.convert
+        old_escape = psycopg.conninfo._param_escape
+
+        def forbidden_placeholder_conversion(*_args, **_kwargs):
+            raise AssertionError("PostgreSQL standard placeholder parser was reached")
+
+        PostgresQuery.convert = forbidden_placeholder_conversion
+        psycopg.conninfo._param_escape = forbidden_placeholder_conversion
+        try:
+            with connect_postgres(destination) as fresh:
+                if fresh.execute("SELECT 7").fetchone() != (7,):
+                    raise AssertionError("native PostgreSQL connection changed its result")
+            # Cross the driver's default automatic-preparation threshold.
+            for _ in range(8):
+                if store.execute("SELECT 7").fetchone() != (7,):
+                    raise AssertionError("fixed PostgreSQL query changed its result")
+            if store.execute("SELECT ?::integer + ?::integer", (3, 4)).fetchone() != (7,):
+                raise AssertionError("native PostgreSQL parameters changed their result")
+            value = "Unicode ü, quote ', slash \\, and SQL ? %s $1"
+            if store.execute("SELECT ?::text", (value,)).fetchone() != (value,):
+                raise AssertionError("document-authored PostgreSQL value was not preserved")
+        finally:
+            PostgresQuery.convert = old_convert
+            psycopg.conninfo._param_escape = old_escape
+        for query, parameters in (("SELECT ?::integer", ()), ("SELECT 7", (7,))):
+            try:
+                store.execute(query, parameters)
+            except StorageError as exc:
+                if exc.code != "sql-parameters":
+                    raise AssertionError("marker mismatch failed for an unrelated reason") from exc
+            else:
+                raise AssertionError("PostgreSQL marker mismatch was accepted")
+        checks.append("native-parameters-without-placeholder-parser")
         store.execute("SET client_encoding = 'SQL_ASCII'")
         try:
             refused(store, "setup")
@@ -47,7 +86,7 @@ def exercise_connection(store, destination):
         name = "dagtoml_encoding_" + uuid.uuid4().hex
         store.connection.execute(psycopg.sql.SQL("CREATE DATABASE {} ENCODING 'SQL_ASCII' TEMPLATE template0").format(psycopg.sql.Identifier(name)))
         try:
-            connection = psycopg.connect(destination, dbname=name, autocommit=True)
+            connection = connect_postgres(destination, dbname=name)
             try:
                 refused(Store("postgres", connection, store.root), "setup")
             finally:
