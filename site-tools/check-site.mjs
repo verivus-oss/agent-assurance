@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const root = new URL(".", import.meta.url).pathname;
+const root = new URL("../site/", import.meta.url).pathname;
 const required = [
   "index.html",
   "spec/index.html",
@@ -48,6 +48,18 @@ export function hasProviderTagline(content) {
     });
 }
 
+export function findPublishedExecutables(dir) {
+  const found = [];
+  for (const name of readdirSync(dir)) {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) found.push(...findPublishedExecutables(path));
+    else if ([".mjs", ".js", ".cjs", ".ts", ".py", ".sh", ".go", ".rs"].some((suffix) => name.endsWith(suffix))) {
+      found.push(path);
+    }
+  }
+  return found;
+}
+
 function walk(dir) {
   for (const name of readdirSync(dir)) {
     const path = join(dir, name);
@@ -64,5 +76,9 @@ function walk(dir) {
 }
 
 walk(root);
+for (const path of findPublishedExecutables(root)) {
+  console.error(`executable source in published site: ${path}`);
+  ok = false;
+}
 if (!ok) process.exit(1);
 console.log("site checks passed");

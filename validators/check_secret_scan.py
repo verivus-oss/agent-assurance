@@ -69,6 +69,15 @@ def scanned_count(stderr: str) -> int:
     return numbers[0]
 
 
+def check_scan_population(scanned: int, reachable: set[str], head_ancestry: set[str],
+                          expected: set[str]) -> None:
+    # Gitleaks counts commits with diff fragments, not merge or empty commits.
+    if scanned < 1 or scanned > len(reachable):
+        raise RuntimeError("Gitleaks scan count is outside the Git history bounds")
+    if not head_ancestry or not head_ancestry <= reachable or not (expected & head_ancestry):
+        raise RuntimeError("known public finding control is absent from HEAD ancestry")
+
+
 def check_findings(findings: list, expected_commits: set[str]) -> None:
     seen: set[str] = set()
     unexpected = []
@@ -126,8 +135,7 @@ def main() -> None:
                 f"stdout_present={bool(result.stdout)}, stderr_present={bool(result.stderr)}, "
                 f"markers={marker_state})"
             ) from exc
-        if scanned < len(head_ancestry) or scanned > len(reachable):
-            raise RuntimeError("Gitleaks scan count is outside the Git history bounds")
+        check_scan_population(scanned, reachable, head_ancestry, expected)
         findings = loads_json(report.read_text())
         if not isinstance(findings, list) or (result.returncode == 0) != (len(findings) == 0):
             raise RuntimeError("Gitleaks exit status disagrees with its report")

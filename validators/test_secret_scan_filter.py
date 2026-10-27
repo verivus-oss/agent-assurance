@@ -6,7 +6,7 @@ from io import StringIO
 from _test_require import require
 from check_secret_scan import (
     KNOWN_COMMITS, PUBLIC_HEX_FILE, PUBLIC_HEX_RULE,
-    check_findings, known_public_literal, scanned_count,
+    check_findings, check_scan_population, known_public_literal, scanned_count,
 )
 
 
@@ -51,6 +51,23 @@ def test_scan_count() -> None:
             pass
         else:
             raise AssertionError("missing or duplicate scan count was accepted")
+
+    head = {"head", "merge", "known"}
+    all_commits = head | {"branch"}
+    check_scan_population(2, all_commits, head, {"known"})
+    for count, reachable, ancestry, expected in (
+        (0, all_commits, head, {"known"}),
+        (5, all_commits, head, {"known"}),
+        (2, all_commits, head, {"branch"}),
+        (2, all_commits, set(), {"known"}),
+        (2, all_commits, head | {"unknown"}, {"known"}),
+    ):
+        try:
+            check_scan_population(count, reachable, ancestry, expected)
+        except RuntimeError:
+            pass
+        else:
+            raise AssertionError("invalid scan population was accepted")
 
 
 if __name__ == "__main__":

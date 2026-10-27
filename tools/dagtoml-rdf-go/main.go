@@ -1,4 +1,4 @@
-// dagtoml-rdf-go — Go counterpart of tools/dagtoml-rdf. Generates the
+// dagtoml-rdf-go - Go counterpart of tools/dagtoml-rdf. Generates the
 // DAG-TOML ontology as RDF/Turtle by reading every <repo-root>/core/
 // and <repo-root>/profiles/<name>/ ontology.toml plus *-kind.toml.
 //
@@ -21,7 +21,7 @@
 //
 //	dagtoml-rdf-go [--repo-root <path>] [-o <output>]
 //
-// Default output: stdout. Equivalent to the Rust binary — produces the
+// Default output: stdout. Equivalent to the Rust binary - produces the
 // same Turtle artifact and the same `### Counts at generation:` footer
 // that validators/check_manifest_drift.sh checks as a fixed string.
 package main
@@ -246,7 +246,7 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 	}
 
 	// Walk every profiles/<name>/ontology.toml. Profiles are discovered
-	// dynamically — adding profiles/<new>/ontology.toml just works.
+	// dynamically - adding profiles/<new>/ontology.toml just works.
 	type profOnt struct {
 		name string
 		o    ontology
@@ -527,6 +527,7 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 }
 
 func loadToml(path string, v any) error {
+	// #nosec G304 -- The caller intentionally reads a descriptor under the selected repository root.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", path, err)
@@ -544,6 +545,7 @@ func loadToml(path string, v any) error {
 // require pulling in a heavier dependency. We deliberately keep this
 // counterpart lightweight and use fixed-string assertions.
 func verifyTurtle(path string) error {
+	// #nosec G304 -- The operator selects the Turtle artifact to verify.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -566,14 +568,14 @@ func verifyTurtle(path string) error {
 	if len(missing) > 0 {
 		return fmt.Errorf("missing tokens: %v", missing)
 	}
-	// Walk the file as a TOML-adjacent text — light sanity that braces /
+	// Walk the file as a TOML-adjacent text - light sanity that braces /
 	// parens balance enough to flag truncation.
 	open := strings.Count(src, "[")
 	closed := strings.Count(src, "]")
 	if open != closed {
 		return fmt.Errorf("unbalanced brackets: %d open vs %d closed", open, closed)
 	}
-	fmt.Fprintf(os.Stderr, "verify %q: OK — %d lines, balanced brackets\n",
+	fmt.Fprintf(os.Stderr, "verify %q: OK - %d lines, balanced brackets\n",
 		path, strings.Count(src, "\n"))
 	return nil
 }

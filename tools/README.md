@@ -28,7 +28,7 @@ we write**:
   release. Update both when a newer supported security release is needed.
 
 Both are enforced by `validators/check_safe_tools.py`, which runs in
-`.github/workflows/validate.yml` right after the manifest-drift step.
+`.github/workflows/validate.yml` as part of the validation workflow.
 
 The choice between Rust and Go is judgment-call:
 
@@ -243,7 +243,8 @@ implementation-detail formatting), the build fails.
    Mirror the naming if you ship both.
 4. Add a row to the **Current tools** table above.
 5. Pin toolchain versions in `Cargo.toml` (`rust-version`) or `go.mod`
-   (`go x.y`) at a value that is `<=` what CI currently tracks.
+   (`go x.y.z`) at a value that matches the tested version in CI. Update
+   the workflow setup pins and the Go modules together.
 6. Wire the tool's runtime invocation into
    `.github/workflows/validate.yml` if it produces a CI-checked
    artifact. If it produces a checked-in artifact (like the .ttl),

@@ -1,10 +1,10 @@
 // Safe Rust only: deny any `unsafe` block in this crate. The crate's
-// dependencies (serde, toml, oxttl) use unsafe internally — that is
+// dependencies (serde, toml, oxttl) use unsafe internally - that is
 // out of scope for this lint; what we enforce is that nothing WE write
 // in this binary reaches for unsafe.
 #![forbid(unsafe_code)]
 
-//! dagtoml-rdf — generate the DAG-TOML ontology as RDF/Turtle.
+//! dagtoml-rdf - generate the DAG-TOML ontology as RDF/Turtle.
 //!
 //! Reads:
 //!   - <repo-root>/core/ontology.toml
@@ -158,7 +158,7 @@ fn ttl_lit(s: &str) -> String {
     out
 }
 
-/// Map an ontology source/target token (entity name, "units" alias, regex
+/// Map an ontology source/target token (entity name, "units" alias, fixed
 /// id-pattern) to a CURIE referencing dagtoml: / dagprof: namespace.
 /// Returns None for free-form ranges (e.g. "unconstrained_label") so the
 /// emitter can omit rdfs:range and add a marker instead.
@@ -176,7 +176,7 @@ fn token_to_class(token: &str) -> Option<String> {
         "artifact_classes" => Some(format!("dagtoml:{}", pascal("artifact_class"))),
         // free-form
         "unconstrained_label" | "" => None,
-        // upper-case ID prefixes (INT, FEAT, REQ, …) — convert to the
+        // upper-case ID prefixes (INT, FEAT, REQ, …) - convert to the
         // entity class name. We rely on a small lookup so prefixes that
         // don't map cleanly (decimal-ID entities) raise no panic.
         prefix => {
@@ -553,7 +553,7 @@ fn verify(path: &PathBuf) -> ExitCode {
             }
         }
     }
-    eprintln!("verify {path:?}: OK — parsed {count} triples");
+    eprintln!("verify {path:?}: OK - parsed {count} triples");
     ExitCode::SUCCESS
 }
 
@@ -578,7 +578,7 @@ fn main() -> ExitCode {
             }
             "-h" | "--help" => {
                 eprintln!(
-                    "dagtoml-rdf — DAG-TOML ontology Turtle generator.\n\nUsage:\n    dagtoml-rdf [--repo-root <path>] [-o <path>]    # generate\n    dagtoml-rdf verify -o <path>                    # re-parse the .ttl"
+                    "dagtoml-rdf - DAG-TOML ontology Turtle generator.\n\nUsage:\n    dagtoml-rdf [--repo-root <path>] [-o <path>]    # generate\n    dagtoml-rdf verify -o <path>                    # re-parse the .ttl"
                 );
                 return ExitCode::SUCCESS;
             }
@@ -611,7 +611,7 @@ fn main() -> ExitCode {
     };
 
     // Walk every profiles/<name>/ontology.toml. The set of profiles is
-    // not hardcoded — the generator picks up new profiles automatically.
+    // not hardcoded - the generator picks up new profiles automatically.
     let mut profile_onts: Vec<(String, Ontology)> = Vec::new();
     if let Ok(profiles_dir) = fs::read_dir(repo_root.join("profiles")) {
         let mut entries: Vec<PathBuf> = profiles_dir
@@ -691,7 +691,7 @@ fn main() -> ExitCode {
                 .or_else(|| parsed.kind.as_ref().and_then(|k| k.template_kind.clone()));
             if let Some(tk) = tk {
                 if tk == "kind-descriptor" {
-                    // the descriptor of descriptors — skip; we already
+                    // the descriptor of descriptors - skip; we already
                     // added the meta row above.
                     continue;
                 }
@@ -740,7 +740,7 @@ fn main() -> ExitCode {
         let ns = namespaced_predicate(&r, &mut seen);
         relations.push((r, ns));
     }
-    // profile.relations is intentionally not yet enumerated — the profile
+    // profile.relations is intentionally not yet enumerated - the profile
     // declares no namespaced predicates today (per ontology.md). When it
     // does, append here.
 

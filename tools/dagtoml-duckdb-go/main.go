@@ -1,4 +1,4 @@
-// dagtoml-duckdb-go — Go counterpart of tools/dagtoml-duckdb. Builds a
+// dagtoml-duckdb-go - Go counterpart of tools/dagtoml-duckdb. Builds a
 // .duckdb artifact from the checked-in reference/database/duckdb/{schema,
 // seed}.sql by orchestrating the duckdb CLI and verifies the resulting
 // row counts.
@@ -77,7 +77,7 @@ func run() error {
 	}
 
 	if output == "" {
-		// Stem must NOT be "dagtoml" — DuckDB derives the catalog name
+		// Stem must NOT be "dagtoml" - DuckDB derives the catalog name
 		// from the file stem and would collide with the schema name.
 		output = filepath.Join(repoRoot, "reference/database/duckdb/agent_assurance.duckdb")
 	}
@@ -95,7 +95,7 @@ func run() error {
 		return fmt.Errorf("seed: %w", err)
 	}
 
-	// Always start from a fresh file — artifact is reproducible & binary.
+	// Always start from a fresh file - artifact is reproducible & binary.
 	_ = os.Remove(output)
 
 	fmt.Fprintln(os.Stderr, "loading schema.sql ...")
@@ -111,10 +111,12 @@ func run() error {
 }
 
 func runSQLFile(cli, db, sqlPath string) error {
+	// #nosec G304 -- The caller constructs this path from its repository root and a fixed SQL filename.
 	sql, err := os.ReadFile(sqlPath)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", sqlPath, err)
 	}
+	// #nosec G204 -- The operator selects the DuckDB executable and database; no shell parses these arguments.
 	cmd := exec.Command(cli, db)
 	cmd.Stdin = bytes.NewReader(sql)
 	var stderr bytes.Buffer
@@ -127,6 +129,7 @@ func runSQLFile(cli, db, sqlPath string) error {
 }
 
 func countTable(cli, db, table string) (int64, error) {
+	// #nosec G204 -- The executable and database are operator-selected; table names come from fixed expected counts.
 	cmd := exec.Command(cli, db, "-noheader", "-list", "-c",
 		fmt.Sprintf("SELECT count(*) FROM dagtoml.%s;", table))
 	var out, stderr bytes.Buffer
@@ -166,6 +169,6 @@ func verify(cli, db string) error {
 	for _, ec := range expectedCounts {
 		wants = append(wants, strconv.FormatInt(ec.want, 10))
 	}
-	fmt.Printf("\nOK — counts match expected (%s)\n", strings.Join(wants, " / "))
+	fmt.Printf("\nOK - counts match expected (%s)\n", strings.Join(wants, " / "))
 	return nil
 }
