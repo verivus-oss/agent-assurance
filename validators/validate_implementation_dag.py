@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import pathlib
+import hashlib
 import sys
 from types import SimpleNamespace
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
@@ -44,7 +45,7 @@ def parse_args() -> SimpleNamespace:
             positional_only = True
         elif item == "--repo-root" and not positional_only:
             repo_root = next(args, None)
-            if repo_root is None or repo_root.startswith("-"):
+            if not repo_root or repo_root.startswith("-"):
                 print("error: --repo-root requires a path", file=sys.stderr)
                 raise SystemExit(2)
         elif item.startswith("--repo-root=") and not positional_only:
@@ -76,8 +77,15 @@ def parse_args() -> SimpleNamespace:
 
 
 def load_toml(path: pathlib.Path) -> dict:
-    with path.open("rb") as handle:
-        return tomllib.load(handle)
+    raw = path.read_bytes()
+    try:
+        source = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        digest = hashlib.sha256(raw).hexdigest()
+        raise ValueError(
+            f"invalid UTF-8 (source sha256 {digest}, bytes {exc.start}:{exc.end})"
+        ) from exc
+    return tomllib.loads(source)
 
 
 def has_placeholder(value: str) -> bool:
@@ -549,6 +557,9 @@ def main() -> int:
         return 2
     except tomllib.TOMLDecodeError as exc:
         print(f"error: invalid TOML: {exc}", file=sys.stderr)
+        return 2
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 2
 
     errors: list[str] = []

@@ -68,7 +68,7 @@ jobs:
           python-version: "3.11"
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.6"
+          go-version: "1.26.10"
           cache-dependency-path: tools/dagtoml-duckdb-go/go.sum
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
@@ -102,7 +102,7 @@ jobs:
           python-version: "3.11"
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.6"
+          go-version: "1.26.10"
           cache-dependency-path: tools/dagtoml-validate-go/go.sum
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:

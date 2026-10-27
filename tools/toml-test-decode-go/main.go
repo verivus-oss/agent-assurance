@@ -32,6 +32,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -69,7 +70,7 @@ func main() {
 	// a rejection.
 	var decoded any
 	if err := burntsushi.Unmarshal(input, &decoded); err != nil {
-		log.Fatalf("toml-test-decode-go: structural decode error (BurntSushi/toml): %s", err)
+		log.Fatalf("toml-test-decode-go: structural decode failed after strict parse (source sha256 %x)", sha256.Sum256(input))
 	}
 
 	enc := json.NewEncoder(os.Stdout)

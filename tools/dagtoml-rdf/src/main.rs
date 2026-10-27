@@ -597,8 +597,9 @@ fn main() -> ExitCode {
 
     let core_ont_path = repo_root.join("core/ontology.toml");
     let core_ont: Ontology = match fs::read_to_string(&core_ont_path).and_then(|s| {
-        toml::from_str::<Ontology>(&s)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+        toml::from_str::<Ontology>(&s).map_err(|e| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, e.message().to_string())
+        })
     }) {
         Ok(o) => o,
         Err(e) => {
@@ -628,8 +629,9 @@ fn main() -> ExitCode {
                 .unwrap_or("")
                 .to_string();
             let parsed: Ontology = match fs::read_to_string(&ont_path).and_then(|s| {
-                toml::from_str::<Ontology>(&s)
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+                toml::from_str::<Ontology>(&s).map_err(|e| {
+                    std::io::Error::new(std::io::ErrorKind::InvalidData, e.message().to_string())
+                })
             }) {
                 Ok(o) => o,
                 Err(e) => {
@@ -670,12 +672,19 @@ fn main() -> ExitCode {
             .collect();
         paths.sort();
         for p in paths {
-            let Ok(s) = fs::read_to_string(&p) else {
-                continue;
+            let s = match fs::read_to_string(&p) {
+                Ok(source) => source,
+                Err(error) => {
+                    eprintln!("failed to read {p:?}: {error}");
+                    return ExitCode::FAILURE;
+                }
             };
             let parsed: KindFile = match toml::from_str(&s) {
                 Ok(v) => v,
-                Err(_) => continue,
+                Err(error) => {
+                    eprintln!("failed to parse {p:?}: {}", error.message());
+                    return ExitCode::FAILURE;
+                }
             };
             // *-kind.toml files all carry meta.template_kind =
             // "kind-descriptor". The kind they DESCRIBE is named in

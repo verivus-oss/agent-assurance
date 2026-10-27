@@ -4,8 +4,12 @@
 import unittest
 import sys
 import time
+from contextlib import redirect_stderr
+from io import StringIO
 
-from validate_implementation_dag import detect_cycles, longest_path_loc, parse_args
+from validate_implementation_dag import detect_cycles, load_toml, longest_path_loc, main, parse_args
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 
 class GraphTests(unittest.TestCase):
@@ -43,6 +47,14 @@ class GraphTests(unittest.TestCase):
         self.assertEqual(longest_path_loc({}, {}), 0)
         edges["D"].add("A")
         self.assertIsNone(longest_path_loc(units, edges))
+
+    def test_cycle_unblocks_waiting_predecessors(self) -> None:
+        edges = {"Z": {"D", "Z"}, "D": {"Z", "U10", "D", "B"},
+                 "U10": {"Z", "U10", "D", "B"}, "B": {"U10"}}
+        self.assertIn(
+            "cycle in depends_on: B -> U10 -> Z -> D -> B",
+            detect_cycles(edges),
+        )
 
     def test_deep_chain_uses_explicit_stacks(self) -> None:
         length = 2000
@@ -101,8 +113,30 @@ class GraphTests(unittest.TestCase):
             with self.assertRaises(SystemExit) as error:
                 parse_args()
             self.assertEqual(error.exception.code, 2)
+            sys.argv = ["validator", "--repo-root", "", "file.toml"]
+            with self.assertRaises(SystemExit) as error:
+                parse_args()
+            self.assertEqual(error.exception.code, 2)
         finally:
             sys.argv = original
+
+    def test_invalid_utf8_has_stable_byte_evidence(self) -> None:
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "invalid.toml"
+            path.write_bytes(b'name = "caf\xff"\n')
+            with self.assertRaises(ValueError) as error:
+                load_toml(path)
+            self.assertIn("invalid UTF-8", str(error.exception))
+            self.assertIn("bytes 11:12", str(error.exception))
+            original = sys.argv
+            error_output = StringIO()
+            try:
+                sys.argv = ["validator", str(path)]
+                with redirect_stderr(error_output):
+                    self.assertEqual(main(), 2)
+            finally:
+                sys.argv = original
+            self.assertIn("invalid UTF-8", error_output.getvalue())
 
 
 if __name__ == "__main__":

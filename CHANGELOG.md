@@ -9,6 +9,10 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Clarify the implementation DAG error contract in specification section 9.2.
+  Report source digests and byte spans for malformed TOML and UTF-8 input.
+- Require the OSV scan to discover and verify every tracked Python lockfile.
+  Surface cleanup failures, and update Go toolchain pins to 1.26.10.
 - Scan commit citations with explicit ASCII token parsing and report file
   identities without source line coordinates. Exclude vendored parser source
   and unit fixtures from this authored citation check.
