@@ -47,6 +47,46 @@ func TestByteOffsetAtRejectsInvalidPositions(t *testing.T) {
 	}
 }
 
+func TestErrorByteSpanCoversSourceBytes(t *testing.T) {
+	for _, test := range []struct {
+		document []byte
+		offset   int
+		width    int
+		start    int
+		end      int
+		ok       bool
+	}{
+		{[]byte("abc"), 1, 0, 1, 2, true},
+		{[]byte("abc"), 1, 9, 1, 3, true},
+		{[]byte("abc"), 3, 0, 2, 3, true},
+		{[]byte("abc"), 4, 1, 0, 0, false},
+		{[]byte{}, 0, 0, 0, 0, false},
+	} {
+		start, end, ok := errorByteSpan(test.document, test.offset, test.width)
+		if start != test.start || end != test.end || ok != test.ok {
+			t.Fatalf("errorByteSpan(%q, %d, %d) = (%d, %d, %v)", test.document, test.offset, test.width, start, end, ok)
+		}
+		if ok && (end <= start || end > len(test.document)) {
+			t.Fatalf("reported empty or out-of-bounds span: %d..%d", start, end)
+		}
+	}
+}
+
+func TestLoadDocInvalidByteHasNonemptySpan(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "invalid.toml")
+	document := append([]byte("value = 1\n"), 0xff)
+	if err := os.WriteFile(path, document, 0600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := loadDoc(path)
+	if err == nil {
+		t.Fatal("invalid UTF-8 accepted")
+	}
+	if !strings.Contains(err.Error(), "byte span 10..11") {
+		t.Fatalf("invalid byte was not captured by diagnostic: %v", err)
+	}
+}
+
 func TestDiscoverDescriptorsRejectsMalformedCandidate(t *testing.T) {
 	root := t.TempDir()
 	valid := filepath.Join(root, "profiles", "valid", "PROFILE.toml")

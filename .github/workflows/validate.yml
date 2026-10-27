@@ -540,7 +540,7 @@ jobs:
           import sys, pathlib
           # Vendored TOML 1.1 parser; stdlib tomllib is 1.0-only.
           sys.path.insert(0, "validators")
-          from validate_closure_root import spec_reserved_kinds, _read_discovery_toml
+          from validate_closure_root import spec_reserved_kinds, is_conforming_toml
           from _literal_paths import rglob
 
           root = pathlib.Path(".")
@@ -564,9 +564,7 @@ jobs:
               # closure-invalid, e.g. the api-snapshot witness-strip case).
               if path.as_posix().startswith("conformance/cases/") and "/invalid/" in path.as_posix():
                   continue
-              data = _read_discovery_toml(path)
-              meta = data.get("meta")
-              if isinstance(meta, dict) and meta.get("template_kind") in spec_reserved:
+              if is_conforming_toml(path, spec_reserved):
                   print(path)
           PY
           mapfile -t closure_targets < "${RUNNER_TEMP}/conforming-dagtoml-files.txt"

@@ -67,6 +67,18 @@ def main():
     expect_parse_failure(lambda: discover_conforming([root], kinds), malformed)
     expect_cli_failure(work, root, malformed)
     malformed.unlink()
+    wrong_type = root / "wrong-type.toml"
+    for value in ("1", "true", "[\"implementation-dag\"]"):
+        wrong_type.write_text(f"[meta]\ntemplate_kind = {value}\n")
+        try:
+            discover_conforming([root], kinds)
+        except ValueError as exc:
+            if str(wrong_type) not in str(exc) or "not a string" not in str(exc):
+                raise AssertionError(f"wrong-type kind lost its source: {exc}") from exc
+        else:
+            raise AssertionError(f"wrong-type kind was silently skipped: {value}")
+        expect_cli_failure(work, root, wrong_type)
+    wrong_type.unlink()
 
     sweep = work / "sweep"
     sweep.mkdir()

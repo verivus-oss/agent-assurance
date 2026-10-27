@@ -64,6 +64,23 @@ func byteOffsetAt(document []byte, row, column int) (int, bool) {
 	return offset, true
 }
 
+func errorByteSpan(document []byte, offset, width int) (int, int, bool) {
+	if len(document) == 0 || offset < 0 || offset > len(document) || width < 0 {
+		return 0, 0, false
+	}
+	if offset == len(document) {
+		return offset - 1, offset, true
+	}
+	remaining := len(document) - offset
+	if width < 1 {
+		width = 1
+	}
+	if width > remaining {
+		width = remaining
+	}
+	return offset, offset + width, true
+}
+
 func candidateDirectory(path string) (bool, error) {
 	info, err := os.Stat(path)
 	if err == nil {
@@ -146,7 +163,9 @@ func loadDoc(path string) (rawDoc, error) {
 		if errors.As(err, &decodeError) {
 			row, column := decodeError.Position()
 			if offset, ok := byteOffsetAt(bytes, row, column); ok {
-				return nil, fmt.Errorf("%s: TOML parse failed (strict) (source sha256:%x; byte span %d..%d)", path, sha256.Sum256(bytes), offset, offset)
+				if start, end, ok := errorByteSpan(bytes, offset, 1); ok {
+					return nil, fmt.Errorf("%s: TOML parse failed (strict) (source sha256:%x; byte span %d..%d)", path, sha256.Sum256(bytes), start, end)
+				}
 			}
 		}
 		return nil, fmt.Errorf("%s: TOML parse failed (strict) (source sha256:%x)", path, sha256.Sum256(bytes))
@@ -158,7 +177,9 @@ func loadDoc(path string) (rawDoc, error) {
 	if _, err := toml.Decode(string(bytes), &out); err != nil {
 		var parseError toml.ParseError
 		if errors.As(err, &parseError) {
-			return nil, fmt.Errorf("%s: TOML parse failed: %s (source sha256:%x; byte span %d..%d)", path, parseError.Message, sha256.Sum256(bytes), parseError.Position.Start, parseError.Position.Start+parseError.Position.Len)
+			if start, end, ok := errorByteSpan(bytes, parseError.Position.Start, parseError.Position.Len); ok {
+				return nil, fmt.Errorf("%s: TOML parse failed: %s (source sha256:%x; byte span %d..%d)", path, parseError.Message, sha256.Sum256(bytes), start, end)
+			}
 		}
 		return nil, fmt.Errorf("%s: TOML parse failed (source sha256:%x)", path, sha256.Sum256(bytes))
 	}

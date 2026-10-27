@@ -443,7 +443,9 @@ def is_conforming_toml(path: pathlib.Path, spec_reserved: frozenset[str]) -> boo
     if not isinstance(meta, dict):
         return False
     tk = meta.get("template_kind")
-    return isinstance(tk, str) and tk in spec_reserved
+    if "template_kind" in meta and not isinstance(tk, str):
+        raise ValueError(f"{path}: meta.template_kind is present but is not a string")
+    return tk in spec_reserved
 
 
 def discover_conforming(
