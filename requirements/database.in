@@ -2,4 +2,4 @@
 duckdb==1.5.3
 psycopg[binary]==3.3.5
 # DuckDB's Python conversion of TIMESTAMPTZ imports pytz.
-pytz==2026.3.post1
+pytz==2026.5

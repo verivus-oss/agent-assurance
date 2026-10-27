@@ -37,11 +37,11 @@ duckdb==1.5.3 \
     --hash=sha256:fe8d0c1f6a120aa03fa6e0d03897c71a1842e6cf7afd31d181348391f7108fe1 \
     --hash=sha256:ff11a457258148337ef9a392148a8cdbd1069b6c27c21958816c7b67fe6c542d
     # via -r requirements/database.in
-psycopg==3.3.5 \
+psycopg[binary]==3.3.5 \
     --hash=sha256:ce5aa5cdb4f9379f00f487590e5890bfa7df9a164648c969ffa628505e21af4e \
     --hash=sha256:d0a3d9ccf5788af054cbd745278cb02401b5c312aeaafbf2c6144460aec47da4
     # via -r requirements/database.in
-psycopg-binary==3.3.5 ; implementation_name != 'pypy' \
+psycopg-binary==3.3.5 \
     --hash=sha256:0249c3e960cdee686000eb77169fb6590105c05bacc37e057ccdffdcd8e6ebde \
     --hash=sha256:04f64b39830887c2c737b522cbfd6ad215d65e67ebfff674aa4cf21c02af487b \
     --hash=sha256:06de14ac978a2d53e864069fb5487075c6e3cfb0740f1bfd7017bc8b9942067f \
@@ -98,15 +98,7 @@ psycopg-binary==3.3.5 ; implementation_name != 'pypy' \
     --hash=sha256:fd5b047c9fd887b767d063845413e405f5de8ce1dc7a9d0da0637b77b836b469 \
     --hash=sha256:fdbeb38c9b7ca8fa57a7bda3802bedb62f4494ad3dd46c7dd36dc3f77fd5093f
     # via psycopg
-pytz==2026.3.post1 \
-    --hash=sha256:2211d3fcf9a797d3405cac96ac7f61d80e6a644f72a3309607282fe8a2010c5d \
-    --hash=sha256:dd95840dd199baea12d9cc096a1d452caa6596a1c1e4b5f3dbd1541855d5e815
+pytz==2026.5 \
+    --hash=sha256:e658af3757f9e26a9d25dd2aff38335acd92bc9104f890a894b2c1ba28311b03 \
+    --hash=sha256:fa23724b9c486543b9ff54a327ee7569ac83ade54bb9afd0fc18676620401c86
     # via -r requirements/database.in
-typing-extensions==4.16.0 ; python_full_version < '3.13' \
-    --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8 \
-    --hash=sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5
-    # via psycopg
-tzdata==2026.3 ; sys_platform == 'win32' \
-    --hash=sha256:4a1518b8993086a7982523e071643f3c0e5f213e75b21318e78bcabfff9d1415 \
-    --hash=sha256:dc096730c87af6cab1b171c9d532be840741ff5d459015e7f6947bd7d7e54931
-    # via psycopg
