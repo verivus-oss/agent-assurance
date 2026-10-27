@@ -162,9 +162,11 @@ def check_no_ignore_file(root: Path) -> None:
 
 def check_exact_config(config: Path) -> None:
     try:
-        document = toml.loads(config.read_bytes().decode("utf-8"))
-    except (OSError, ValueError) as exc:
-        raise RuntimeError("Gitleaks configuration could not be parsed") from exc
+        document = toml.loads_bytes(config.read_bytes())
+    except toml.TOMLDecodeError as exc:
+        raise RuntimeError(f"Gitleaks configuration could not be parsed: {exc}") from exc
+    except OSError as exc:
+        raise RuntimeError(f"Gitleaks configuration could not be read: {exc}") from exc
     if (not isinstance(document, dict) or set(document) != {"extend"}
             or not isinstance(document["extend"], dict)
             or set(document["extend"]) != {"useDefault"}

@@ -1,6 +1,7 @@
 """Exercise provenance source selection through the CI entry point."""
 
 from contextlib import redirect_stdout
+import hashlib
 from io import StringIO
 from pathlib import Path
 import shutil
@@ -95,6 +96,17 @@ def test_language_symbols() -> None:
             require("fixture symbol missing" in str(exc))
         else:
             raise AssertionError("missing declared language symbol was accepted")
+        invalid = b"[[code]]\n\xff"
+        declaration.write_bytes(invalid)
+        try:
+            language_symbols(root)
+        except ValueError as exc:
+            message = str(exc)
+            require(hashlib.sha256(invalid).hexdigest() in message)
+            require(f"bytes {len(invalid) - 1}:{len(invalid)}" in message)
+            require("line" not in message and "column" not in message)
+        else:
+            raise AssertionError("invalid UTF-8 language fixture was accepted")
 
 
 def test_banned_markers() -> None:

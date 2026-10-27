@@ -1,6 +1,7 @@
 """Keep the historical public literal exception exact and fail closed."""
 
 from contextlib import redirect_stderr
+import hashlib
 from io import StringIO
 from pathlib import Path
 import subprocess
@@ -146,6 +147,20 @@ def test_config_boundary() -> None:
             for command in (main_command, merge_command):
                 result = subprocess.run(command, capture_output=True, text=True, check=False)  # nosec B603  # noqa: S603
                 require(result.returncode != 0 and "default rule extension" in result.stderr)
+        invalid = b"[extend]\nuseDefault = true\n\xff"
+        config.write_bytes(invalid)
+        try:
+            check_exact_config(config)
+        except RuntimeError as exc:
+            message = str(exc)
+            require(hashlib.sha256(invalid).hexdigest() in message)
+            require(f"bytes {len(invalid) - 1}:{len(invalid)}" in message)
+            require("line" not in message and "column" not in message)
+        else:
+            raise AssertionError("invalid UTF-8 Gitleaks configuration was accepted")
+        for command in (main_command, merge_command):
+            result = subprocess.run(command, capture_output=True, text=True, check=False)  # nosec B603  # noqa: S603
+            require(result.returncode != 0 and hashlib.sha256(invalid).hexdigest() in result.stderr)
 
 
 if __name__ == "__main__":
