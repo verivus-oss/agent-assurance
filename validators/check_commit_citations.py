@@ -60,6 +60,8 @@ inside a UUID rather than relying on the population staying clean. This is
 also what would have to hold before `docs/reviews/` could be scanned: it
 carries several hundred gateway job ids, and most of what a naive run flags
 there is a UUID segment rather than a citation.
+The exclusion must not create a new word boundary: hex text joined directly
+to a UUID is one word in the original source, not a separate commit citation.
 
 A recorded entry permits a SHA only at the sites its `cited` list names. The
 same SHA appearing anywhere else is a NEW unresolvable citation and fails,
@@ -126,14 +128,14 @@ def commit_tokens(line: str) -> set[str]:
     tokens: set[str] = set()
     pos = 0
     while pos < len(line):
-        if masked[pos] or not ascii_word(line[pos]):
+        if not ascii_word(line[pos]):
             pos += 1
             continue
         end = pos + 1
-        while end < len(line) and not masked[end] and ascii_word(line[end]):
+        while end < len(line) and ascii_word(line[end]):
             end += 1
         word = line[pos:end]
-        if 7 <= len(word) <= 40 and all(ascii_hex(char) for char in word):
+        if 7 <= len(word) <= 40 and all(ascii_hex(char) for char in word) and not any(masked[pos:end]):
             tokens.add(word.lower())
         pos = end
     return tokens

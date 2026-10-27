@@ -13,7 +13,9 @@ def test_commit_words_and_noncommit_words() -> None:
 def test_uuid_segments_are_not_citations() -> None:
     require(commit_tokens('job 12345678-1234-abcd-5678-123456789abc') == set())
     require(commit_tokens('commit 9996826 beside 12345678-1234-abcd-5678-123456789abc') == {'9996826'})
-    require(commit_tokens('deadbeefcafe12345678-1234-1234-1234-123456789abc') == {'deadbeefcafe'})
+    require(commit_tokens('deadbeefcafe 12345678-1234-1234-1234-123456789abc') == {'deadbeefcafe'})
+    require(commit_tokens('deadbeefcafe12345678-1234-1234-1234-123456789abc') == set())
+    require(commit_tokens('12345678-1234-1234-1234-123456789abcdeadbeefcafe') == set())
 
 def test_scan_population_excludes_vendor_and_unit_fixtures() -> None:
     root = pathlib.Path('/repo')
