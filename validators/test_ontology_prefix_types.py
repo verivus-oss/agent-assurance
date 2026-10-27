@@ -57,7 +57,7 @@ def main() -> None:
         for name, replacement, accepted in controls:
             path = Path(work) / (name + ".toml")
             path.write_text(source.replace(MARKER, replacement))
-            errors = validate_ontology(tomllib.loads(path.read_bytes().decode("utf-8")), str(path))
+            errors = validate_ontology(tomllib.loads_bytes(path.read_bytes()), str(path))
             prefix_errors = [error for error in errors if ERROR in error]
             if accepted and prefix_errors or not accepted and not prefix_errors:
                 raise AssertionError("Python reference prefix verdict differs from expected: " + name)

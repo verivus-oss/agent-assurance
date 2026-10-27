@@ -136,6 +136,14 @@ class TOMLDecodeError(ValueError):
             f"{self.msg} (source sha256:{self.source_sha256}; bytes {start}:{end})",
         )
 
+    @classmethod
+    def from_bytes(cls, msg: str, source: bytes, start: int, end: int) -> TOMLDecodeError:
+        """Report a byte decoding failure against the original source bytes."""
+        error = cls.__new__(cls)
+        error.msg = msg
+        error._set_source_evidence(source, start, end)
+        return error
+
 
 def _original_byte_offset(source: bytes, normalized_offset: int) -> int:
     """Map a parser byte offset back through CRLF normalization."""
@@ -152,6 +160,8 @@ def load(__fp: IO[bytes], *, parse_float: ParseFloat = float) -> dict[str, Any]:
     b = __fp.read()
     try:
         s = b.decode()
+    except UnicodeDecodeError as exc:
+        raise TOMLDecodeError.from_bytes("invalid UTF-8", b, exc.start, exc.end) from None
     except AttributeError:
         raise TypeError(
             "File must be opened in binary mode, e.g. use `open('foo.toml', 'rb')`"

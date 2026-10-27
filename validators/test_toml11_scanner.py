@@ -65,6 +65,28 @@ def test_original_byte_evidence() -> None:
             raise AssertionError('invalid TOML was accepted')
     require(tomllib.loads('a = 1\r\nb = 2\r\n') == {'a': 1, 'b': 2})
 
+def test_invalid_utf8_uses_original_byte_evidence() -> None:
+    source = b'name = "valid\xff"\n'
+    try:
+        tomllib.load(io.BytesIO(source))
+    except tomllib.TOMLDecodeError as error:
+        require(error.byte_span == (13, 14))
+        require(error.source_sha256 == hashlib.sha256(source).hexdigest())
+        require('invalid UTF-8' in str(error))
+        require('line' not in str(error) and 'column' not in str(error))
+    else:
+        raise AssertionError('invalid UTF-8 was accepted')
+    from validate_traceability import load_toml
+    with tempfile.TemporaryDirectory() as directory:
+        path = pathlib.Path(directory) / 'invalid.toml'
+        path.write_bytes(source)
+        try:
+            load_toml(path)
+        except tomllib.TOMLDecodeError as error:
+            require(error.byte_span == (13, 14))
+        else:
+            raise AssertionError('traceability validator accepted invalid UTF-8')
+
 def test_validator_file_reads_preserve_original_bytes() -> None:
     from validate_gate_decision import validate_one
     from validate_closure_root import validate as validate_closure_root
@@ -101,6 +123,7 @@ if __name__ == '__main__':
     test_invalid_token_boundaries()
     test_error_uses_digest_and_byte_span()
     test_original_byte_evidence()
+    test_invalid_utf8_uses_original_byte_evidence()
     test_validator_file_reads_preserve_original_bytes()
     test_caller_float_error_is_not_rewritten()
-    print('TOML token scanner: 7 test groups passed')
+    print('TOML token scanner: 8 test groups passed')

@@ -15,12 +15,12 @@ def require(condition: object, message: str) -> None:
         raise AssertionError(message)
 
 
-def expect_rejection(action, message: str) -> None:
+def expect_rejection(action, message: str) -> SystemExit:
     try:
         action()
     except SystemExit as error:
         require(str(error), f"{message}: missing diagnostic")
-        return
+        return error
     raise AssertionError(message)
 
 
@@ -32,6 +32,9 @@ def test_name_and_compact_marker() -> None:
         require(pins(lock) == {("foo-bar", "1.0")}, "compact marker was not parsed")
         lock.write_text('Foo==;python_version<"3.13"\n')
         expect_rejection(lambda: pins(lock), "empty pinned version accepted")
+        lock.write_bytes(b"Foo==1.0\xff\n")
+        error = expect_rejection(lambda: pins(lock), "invalid UTF-8 lock accepted")
+        require("bytes 8:9" in str(error), "invalid lock byte span is missing")
 
 
 def test_coverage_and_cleanup_fail_closed() -> None:
@@ -55,6 +58,12 @@ def test_coverage_and_cleanup_fail_closed() -> None:
         }
         result.write_text(json.dumps({"results": [entry]}))
         verify(root, result)
+        result.write_bytes(b"{")
+        error = expect_rejection(lambda: verify(root, result), "malformed scanner JSON accepted")
+        require("source sha256" in str(error), "malformed JSON digest is missing")
+        require("line" not in str(error) and "column" not in str(error), "JSON parser coordinates escaped")
+        result.unlink()
+        expect_rejection(lambda: verify(root, result), "missing scanner result accepted")
         entry["packages"] = []
         result.write_text(json.dumps({"results": [entry]}))
         expect_rejection(lambda: verify(root, result), "missing scanner package accepted")

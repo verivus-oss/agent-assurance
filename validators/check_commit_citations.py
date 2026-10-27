@@ -271,7 +271,7 @@ def main() -> int:
     if not baseline_path.is_file():
         print(f"error: missing baseline {baseline_path}", file=sys.stderr)
         return 2
-    baseline = tomllib.loads(baseline_path.read_bytes().decode("utf-8"))
+    baseline = tomllib.loads_bytes(baseline_path.read_bytes())
     recorded = {
         e["sha"].lower(): set(e.get("cited", []))
         for e in baseline.get("unresolvable", [])
