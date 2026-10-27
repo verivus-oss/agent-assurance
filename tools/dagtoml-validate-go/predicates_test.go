@@ -29,8 +29,21 @@ func TestLoadDocAcceptsValidAndReportsInvalidWithoutSourceCoordinates(t *testing
 	message := err.Error()
 	if !strings.Contains(message, "TOML parse failed (strict)") ||
 		!strings.Contains(message, "sha256:663eb4e5c398fe1ebb16c3d167d0d00027440ff6521dab9f063cd06d476d0dc4") ||
+		!strings.Contains(message, "byte span ") ||
 		strings.Contains(message, "line ") || strings.Contains(message, "column ") {
 		t.Fatalf("unexpected parse diagnostic: %s", message)
+	}
+}
+
+func TestByteOffsetAtRejectsInvalidPositions(t *testing.T) {
+	document := []byte("α = 1\nbad = [")
+	if offset, ok := byteOffsetAt(document, 2, 1); !ok || offset != len([]byte("α = 1\n")) {
+		t.Fatalf("wrong byte offset for second row: %d, %v", offset, ok)
+	}
+	for _, position := range [][2]int{{0, 1}, {1, 0}, {3, 1}, {1, 100}, {2, int(^uint(0) >> 1)}} {
+		if offset, ok := byteOffsetAt(document, position[0], position[1]); ok {
+			t.Fatalf("invalid position accepted at byte %d: %#v", offset, position)
+		}
 	}
 }
 
@@ -56,6 +69,26 @@ func TestDiscoverDescriptorsRejectsMalformedCandidate(t *testing.T) {
 	if len(errors) != 1 || !strings.Contains(errors[0], "TOML parse failed") {
 		t.Fatalf("malformed descriptor was not reported: %#v", errors)
 	}
+	if err := os.Remove(malformed); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("missing-profile.toml", malformed); err != nil {
+		t.Fatal(err)
+	}
+	_, errors = discoverDescriptors(root)
+	if len(errors) != 1 || !strings.Contains(errors[0], "dangling discovery candidate") {
+		t.Fatalf("dangling descriptor was not reported: %#v", errors)
+	}
+	if err := os.WriteFile(filepath.Join(root, "profiles", "README.md"), []byte("notes\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("missing-directory", filepath.Join(root, "profiles", "ghost")); err != nil {
+		t.Fatal(err)
+	}
+	_, errors = discoverDescriptors(root)
+	if len(errors) != 2 {
+		t.Fatalf("dangling directory was not reported: %#v", errors)
+	}
 }
 
 func TestKindDescriptorCandidatesRequireReadableProfiles(t *testing.T) {
@@ -78,11 +111,36 @@ func TestKindDescriptorCandidatesRequireReadableProfiles(t *testing.T) {
 	if !found {
 		t.Fatalf("candidate %s missing from %#v", want, candidates)
 	}
+	actual := filepath.Join(profiles, "valid", "real.toml")
+	if err := os.WriteFile(actual, []byte("valid = 1\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("real.toml", want); err != nil {
+		t.Fatal(err)
+	}
+	if present, err := candidateFile(want); err != nil || !present {
+		t.Fatalf("live kind link rejected: %v, %v", present, err)
+	}
+	if err := os.Remove(want); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("missing-kind.toml", want); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := candidateFile(want); err == nil || !strings.Contains(err.Error(), "dangling") {
+		t.Fatalf("dangling kind link accepted: %v", err)
+	}
 	if err := os.RemoveAll(profiles); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := kindDescriptorCandidates(root, "foo", "valid"); err == nil {
 		t.Fatal("missing profile directory accepted")
+	}
+	if err := os.Symlink("missing-profiles", profiles); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := kindDescriptorCandidates(root, "foo", "valid"); err == nil || !strings.Contains(err.Error(), "dangling") {
+		t.Fatalf("dangling profile directory accepted: %v", err)
 	}
 }
 

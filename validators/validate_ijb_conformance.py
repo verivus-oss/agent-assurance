@@ -50,6 +50,7 @@ import _literal_args as argparse
 import pathlib
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
+from _literal_paths import candidate_file, discovery_root
 from _ascii_predicates import (
     matches_decimal_id,
     valid_date,
@@ -632,11 +633,11 @@ def discover_profile_descriptors(repo_root: pathlib.Path) -> set[str]:
     value MUST resolve to a loaded descriptor."""
     names: set[str] = set()
     profiles_dir = repo_root / "profiles"
-    if not profiles_dir.is_dir():
+    if not discovery_root(profiles_dir, required=True):
         return names
     for entry in sorted(profiles_dir.iterdir()):
         candidate = entry / "PROFILE.toml"
-        if not candidate.is_file():
+        if not candidate_file(candidate):
             continue
         doc = load_toml(candidate)
         meta = doc.get("meta") or {}

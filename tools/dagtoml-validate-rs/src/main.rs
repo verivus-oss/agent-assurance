@@ -177,6 +177,61 @@ fn load(path: &Path) -> Result<Value, String> {
     })
 }
 
+fn missing_candidate(path: &Path) -> Result<(), String> {
+    match std::fs::symlink_metadata(path) {
+        Ok(_) => Err(format!("{}: dangling discovery candidate", path.display())),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            if let Some(parent) = path.parent() {
+                if let Ok(meta) = std::fs::symlink_metadata(parent) {
+                    if meta.file_type().is_symlink() && std::fs::metadata(parent).is_err() {
+                        return Err(format!(
+                            "{}: dangling discovery directory",
+                            parent.display()
+                        ));
+                    }
+                }
+            }
+            Ok(())
+        }
+        Err(error) => Err(format!(
+            "{}: candidate inspection failed: {error}",
+            path.display()
+        )),
+    }
+}
+
+fn candidate_file(path: &Path) -> Result<bool, String> {
+    match std::fs::metadata(path) {
+        Ok(meta) if meta.is_file() => Ok(true),
+        Ok(_) => Err(format!(
+            "{}: discovery candidate is not a regular file",
+            path.display()
+        )),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            missing_candidate(path)?;
+            Ok(false)
+        }
+        Err(error) => Err(format!(
+            "{}: candidate inspection failed: {error}",
+            path.display()
+        )),
+    }
+}
+
+fn candidate_directory(path: &Path) -> Result<bool, String> {
+    match std::fs::metadata(path) {
+        Ok(meta) => Ok(meta.is_dir()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            missing_candidate(path)?;
+            Ok(false)
+        }
+        Err(error) => Err(format!(
+            "{}: directory inspection failed: {error}",
+            path.display()
+        )),
+    }
+}
+
 #[cfg(test)]
 #[test]
 fn load_accepts_valid_toml_and_reports_parse_failure_without_source_coordinates() {
@@ -220,13 +275,37 @@ fn profile_discovery_reports_malformed_candidates() {
     .expect("write valid profile");
     std::fs::write(&malformed, b"broken = [\n").expect("write malformed profile");
     let (descriptors, errors) = profile::discover(&root);
-    std::fs::remove_dir_all(&root).expect("remove test profiles");
     assert!(
         descriptors.contains_key("valid"),
         "valid profile was skipped"
     );
     assert_eq!(errors.len(), 1, "{errors:?}");
     assert!(errors[0].contains("TOML parse failed"), "{errors:?}");
+    #[cfg(unix)]
+    {
+        std::fs::remove_file(&malformed).expect("remove malformed profile");
+        std::os::unix::fs::symlink("missing-profile.toml", &malformed)
+            .expect("create dangling profile");
+        let (_, errors) = profile::discover(&root);
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert!(
+            errors[0].contains("dangling discovery candidate"),
+            "{errors:?}"
+        );
+        std::fs::write(root.join("profiles/README.md"), b"notes\n")
+            .expect("write unrelated profile file");
+        std::os::unix::fs::symlink("missing-directory", root.join("profiles/ghost"))
+            .expect("create dangling profile directory");
+        let (descriptors, errors) = profile::discover(&root);
+        assert!(descriptors.contains_key("valid"));
+        assert_eq!(errors.len(), 2, "{errors:?}");
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("dangling discovery candidate"))
+        );
+    }
+    std::fs::remove_dir_all(&root).expect("remove test profiles");
 }
 
 fn is_semver(s: &str) -> bool {
@@ -3377,9 +3456,22 @@ mod profile {
                     continue;
                 }
             };
+            match candidate_directory(&entry.path()) {
+                Ok(true) => {}
+                Ok(false) => continue,
+                Err(error) => {
+                    discovery_errors.push(error);
+                    continue;
+                }
+            }
             let candidate = entry.path().join("PROFILE.toml");
-            if !candidate.is_file() {
-                continue;
+            match candidate_file(&candidate) {
+                Ok(true) => {}
+                Ok(false) => continue,
+                Err(error) => {
+                    discovery_errors.push(error);
+                    continue;
+                }
             }
             let doc = match load(&candidate) {
                 Ok(doc) => doc,
@@ -3531,6 +3623,12 @@ mod profile {
             repo_root.join("core").join(&fname),
         ];
         let profile_root = repo_root.join("profiles");
+        if !candidate_directory(&profile_root)? {
+            return Err(format!(
+                "{}: kind discovery directory is missing",
+                profile_root.display()
+            ));
+        }
         let entries = std::fs::read_dir(&profile_root).map_err(|error| {
             format!("{}: kind discovery failed: {error}", profile_root.display())
         })?;
@@ -3540,7 +3638,7 @@ mod profile {
             })?;
             // Path::is_dir follows symlinks (DirEntry::file_type does
             // not), matching the Python candidate enumeration.
-            if entry.path().is_dir() {
+            if candidate_directory(&entry.path())? {
                 out.push(entry.path().join(&fname));
             }
         }
@@ -3569,10 +3667,34 @@ mod profile {
         let candidates = kind_descriptor_candidates(&root, "foo", "valid")
             .expect("profile directory must be readable");
         assert!(candidates.contains(&profiles.join("valid/foo-kind.toml")));
+        #[cfg(unix)]
+        {
+            let real = profiles.join("valid/real.toml");
+            let candidate = profiles.join("valid/foo-kind.toml");
+            std::fs::write(&real, b"valid = 1\n").expect("write real kind file");
+            std::os::unix::fs::symlink("real.toml", &candidate).expect("create live kind link");
+            assert_eq!(candidate_file(&candidate), Ok(true));
+            std::fs::remove_file(&candidate).expect("remove live kind link");
+            std::os::unix::fs::symlink("missing-kind.toml", &candidate)
+                .expect("create dangling kind link");
+            let error = candidate_file(&candidate).expect_err("dangling kind must fail");
+            assert!(error.contains("dangling discovery candidate"), "{error}");
+        }
         std::fs::remove_dir_all(&root).expect("remove test directory");
         let error = kind_descriptor_candidates(&root, "foo", "valid")
             .expect_err("missing profile directory must fail");
-        assert!(error.contains("kind discovery failed"), "{error}");
+        assert!(error.contains("kind discovery"), "{error}");
+        std::fs::create_dir_all(&root).expect("recreate test root");
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink("missing-profiles", &profiles)
+                .expect("create dangling profile directory");
+            let error = kind_descriptor_candidates(&root, "foo", "valid")
+                .expect_err("dangling profile directory must fail");
+            assert!(error.contains("dangling discovery candidate"), "{error}");
+            std::fs::remove_file(&profiles).expect("remove dangling directory");
+        }
+        std::fs::remove_dir_all(&root).expect("remove test root");
     }
 
     pub fn validate_one(
@@ -3729,8 +3851,13 @@ mod profile {
                 };
                 let mut matched = false;
                 for c in &candidates {
-                    if !c.is_file() {
-                        continue;
+                    match candidate_file(c) {
+                        Ok(true) => {}
+                        Ok(false) => continue,
+                        Err(error) => {
+                            errors.push(error);
+                            continue;
+                        }
                     }
                     match load(c) {
                         Ok(kd) => {

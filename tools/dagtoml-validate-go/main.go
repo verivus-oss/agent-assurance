@@ -34,6 +34,74 @@ import (
 
 type rawDoc = map[string]any
 
+func byteOffsetAt(document []byte, row, column int) (int, bool) {
+	if row < 1 || column < 1 {
+		return 0, false
+	}
+	lineStart := 0
+	for currentRow := 1; currentRow < row; currentRow++ {
+		found := false
+		for index := lineStart; index < len(document); index++ {
+			if document[index] == '\n' {
+				lineStart = index + 1
+				found = true
+				break
+			}
+		}
+		if !found {
+			return 0, false
+		}
+	}
+	if column-1 > len(document)-lineStart {
+		return 0, false
+	}
+	offset := lineStart + column - 1
+	for index := lineStart; index < offset; index++ {
+		if document[index] == '\n' {
+			return 0, false
+		}
+	}
+	return offset, true
+}
+
+func candidateDirectory(path string) (bool, error) {
+	info, err := os.Stat(path)
+	if err == nil {
+		return info.IsDir(), nil
+	}
+	if os.IsNotExist(err) {
+		if _, linkErr := os.Lstat(path); linkErr == nil {
+			return false, fmt.Errorf("%s: dangling discovery directory", path)
+		} else if !os.IsNotExist(linkErr) {
+			return false, fmt.Errorf("%s: directory inspection failed: %w", path, linkErr)
+		}
+		return false, nil
+	}
+	return false, fmt.Errorf("%s: directory inspection failed: %w", path, err)
+}
+
+func candidateFile(path string) (bool, error) {
+	info, err := os.Stat(path)
+	if err == nil {
+		if !info.Mode().IsRegular() {
+			return false, fmt.Errorf("%s: discovery candidate is not a regular file", path)
+		}
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		if _, linkErr := os.Lstat(path); linkErr == nil {
+			return false, fmt.Errorf("%s: dangling discovery candidate", path)
+		} else if !os.IsNotExist(linkErr) {
+			return false, fmt.Errorf("%s: file inspection failed: %w", path, linkErr)
+		}
+		if _, parentErr := candidateDirectory(filepath.Dir(path)); parentErr != nil {
+			return false, parentErr
+		}
+		return false, nil
+	}
+	return false, fmt.Errorf("%s: file inspection failed: %w", path, err)
+}
+
 func loadDoc(path string) (rawDoc, error) {
 	// #nosec G304 -- This validator intentionally reads the document selected by its operator.
 	bytes, err := os.ReadFile(path)
@@ -52,6 +120,10 @@ func loadDoc(path string) (rawDoc, error) {
 	if err := pelletier.Unmarshal(bytes, &strictSink); err != nil {
 		var decodeError *pelletier.DecodeError
 		if errors.As(err, &decodeError) {
+			row, column := decodeError.Position()
+			if offset, ok := byteOffsetAt(bytes, row, column); ok {
+				return nil, fmt.Errorf("%s: TOML parse failed (strict): %s (source sha256:%x; byte span %d..%d)", path, decodeError.Error(), sha256.Sum256(bytes), offset, offset)
+			}
 			return nil, fmt.Errorf("%s: TOML parse failed (strict): %s (source sha256:%x)", path, decodeError.Error(), sha256.Sum256(bytes))
 		}
 		return nil, fmt.Errorf("%s: TOML parse failed (strict; source sha256:%x)", path, sha256.Sum256(bytes))
@@ -2862,16 +2934,22 @@ func discoverDescriptors(repoRoot string) (map[string]descriptor, []string) {
 		return out, []string{fmt.Sprintf("%s: profile discovery failed: %v", root, err)}
 	}
 	for _, e := range entries {
-		candidate := filepath.Join(root, e.Name(), "PROFILE.toml")
-		info, err := os.Stat(candidate)
-		if os.IsNotExist(err) {
-			continue
-		}
+		profilePath := filepath.Join(root, e.Name())
+		isDirectory, err := candidateDirectory(profilePath)
 		if err != nil {
-			discoveryErrors = append(discoveryErrors, fmt.Sprintf("%s: profile discovery failed: %v", candidate, err))
+			discoveryErrors = append(discoveryErrors, err.Error())
 			continue
 		}
-		if info.IsDir() {
+		if !isDirectory {
+			continue
+		}
+		candidate := filepath.Join(profilePath, "PROFILE.toml")
+		isFile, err := candidateFile(candidate)
+		if err != nil {
+			discoveryErrors = append(discoveryErrors, err.Error())
+			continue
+		}
+		if !isFile {
 			continue
 		}
 		doc, err := loadDoc(candidate)
@@ -2972,6 +3050,13 @@ func kindDescriptorCandidates(repoRoot, slug, profileName string) ([]string, err
 		filepath.Join(repoRoot, "core", fname),
 	}
 	profileRoot := filepath.Join(repoRoot, "profiles")
+	isDirectory, rootErr := candidateDirectory(profileRoot)
+	if rootErr != nil {
+		return nil, rootErr
+	}
+	if !isDirectory {
+		return nil, fmt.Errorf("%s: kind discovery directory is missing", profileRoot)
+	}
 	entries, err := os.ReadDir(profileRoot)
 	if err != nil {
 		return nil, fmt.Errorf("%s: kind discovery failed: %w", profileRoot, err)
@@ -2980,11 +3065,11 @@ func kindDescriptorCandidates(repoRoot, slug, profileName string) ([]string, err
 		// Stat follows symlinked profile directories (DirEntry.IsDir
 		// does not), matching rs/py.
 		profilePath := filepath.Join(profileRoot, e.Name())
-		info, statErr := os.Stat(profilePath)
+		isDirectory, statErr := candidateDirectory(profilePath)
 		if statErr != nil {
-			return nil, fmt.Errorf("%s: kind discovery failed: %w", profilePath, statErr)
+			return nil, statErr
 		}
-		if !info.IsDir() {
+		if !isDirectory {
 			continue
 		}
 		cands = append(cands, filepath.Join(profilePath, fname))
@@ -3434,15 +3519,12 @@ func validateProfileDescriptor(path string, doc rawDoc, repoRoot string, descrip
 			}
 			matched := false
 			for _, c := range candidates {
-				info, err := os.Stat(c)
-				if os.IsNotExist(err) {
-					continue
-				}
+				isFile, err := candidateFile(c)
 				if err != nil {
-					errs = append(errs, fmt.Sprintf("%s: kind descriptor stat failed: %v", c, err))
+					errs = append(errs, err.Error())
 					continue
 				}
-				if info.IsDir() {
+				if !isFile {
 					continue
 				}
 				kd, err := loadDoc(c)

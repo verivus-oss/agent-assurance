@@ -34,7 +34,7 @@ Exit code 0 on pass; 1 on any violation.
 
 from __future__ import annotations
 
-from _literal_paths import glob as literal_glob, rglob as literal_rglob
+from _literal_paths import candidate_directory, candidate_file, discovery_root, glob as literal_glob, rglob as literal_rglob
 import _literal_args as argparse
 import hashlib
 import pathlib
@@ -81,10 +81,10 @@ def duplicate_profile_names(repo_root: pathlib.Path) -> list[str]:
     seen: dict[str, pathlib.Path] = {}
     duplicates: list[str] = []
     profiles_dir = repo_root / "profiles"
-    if profiles_dir.is_dir():
+    if discovery_root(profiles_dir, required=True):
         for entry in sorted(profiles_dir.iterdir()):
             candidate = entry / "PROFILE.toml"
-            if not candidate.is_file():
+            if not candidate_file(candidate):
                 continue
             doc = tomllib.loads(candidate.read_text())
             meta = doc.get("meta") or {}
@@ -110,10 +110,10 @@ def load_pinned_records(
     """Return {template_kind: [(field, presence, profile_name), ...]}."""
     descriptors: dict[str, dict] = {}
     profiles_dir = repo_root / "profiles"
-    if profiles_dir.is_dir():
+    if discovery_root(profiles_dir, required=True):
         for entry in sorted(profiles_dir.iterdir()):
             candidate = entry / "PROFILE.toml"
-            if not candidate.is_file():
+            if not candidate_file(candidate):
                 continue
             doc = tomllib.loads(candidate.read_text())
             meta = doc.get("meta") or {}
@@ -173,10 +173,10 @@ def _loaded_profile_names(repo_root: pathlib.Path) -> frozenset[str]:
     to one of these)."""
     names: set[str] = set()
     profiles_dir = repo_root / "profiles"
-    if profiles_dir.is_dir():
+    if discovery_root(profiles_dir, required=True):
         for entry in sorted(profiles_dir.iterdir()):
             candidate = entry / "PROFILE.toml"
-            if not candidate.is_file():
+            if not candidate_file(candidate):
                 continue
             doc = tomllib.loads(candidate.read_text())
             meta = doc.get("meta") or {}
@@ -438,7 +438,7 @@ def spec_reserved_kinds(repo_root: pathlib.Path) -> frozenset[str]:
         if name:
             found.add(name)
     profiles_dir = repo_root / "profiles"
-    if profiles_dir.exists():
+    if discovery_root(profiles_dir, required=True):
         for descriptor in literal_glob(profiles_dir, "*/*-kind.toml"):
             name = _kind_name_from_descriptor(descriptor)
             if name:
@@ -482,9 +482,9 @@ def discover_conforming(
     out: list[pathlib.Path] = []
     skip_dirs = {"target", "node_modules", "__pycache__"}
     for root in roots:
-        if not root.exists():
-            continue
-        if root.is_file():
+        if not candidate_directory(root):
+            if not candidate_file(root):
+                continue
             if root.suffix == ".toml" and not (excluded and excluded(root)) and is_conforming_toml(root, spec_reserved):
                 out.append(root)
             continue

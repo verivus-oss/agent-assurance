@@ -53,6 +53,7 @@ import pathlib
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
 from _ascii_predicates import valid_closure_field, valid_reverse_dns, valid_unprefixed_name
+from _literal_paths import candidate_directory, candidate_file, discovery_root
 
 
 REQUIRED_PROFILE_FIELDS = (
@@ -99,11 +100,11 @@ def discover_descriptors(repo_root: pathlib.Path) -> dict[str, tuple[pathlib.Pat
     """Discover every profile-descriptor under `profiles/*/PROFILE.toml`."""
     found: dict[str, tuple[pathlib.Path, dict]] = {}
     profiles_dir = repo_root / "profiles"
-    if not profiles_dir.is_dir():
+    if not discovery_root(profiles_dir, required=True):
         return found
     for entry in sorted(profiles_dir.iterdir()):
         candidate = entry / "PROFILE.toml"
-        if not candidate.is_file():
+        if not candidate_file(candidate):
             continue
         doc = load_toml(candidate)
         meta = doc.get("meta") or {}
@@ -562,14 +563,18 @@ def validate_one(
                 f"non-empty strings"
             )
             continue
-        candidates = _kind_descriptor_candidates(repo_root, slug, profile_name=name)
+        try:
+            candidates = _kind_descriptor_candidates(repo_root, slug, profile_name=name)
+        except OSError as exc:
+            errors.append(f"{descriptor_path}: kind discovery failed ({exc})")
+            continue
         matched = None
         for candidate in candidates:
-            if not candidate.exists():
-                continue
             try:
+                if not candidate_file(candidate):
+                    continue
                 kd_doc = load_toml(candidate)
-            except tomllib.TOMLDecodeError as exc:
+            except (OSError, tomllib.TOMLDecodeError) as exc:
                 errors.append(f"{candidate}: cannot parse kind descriptor ({exc})")
                 continue
             kd_meta = kd_doc.get("meta") or {}
@@ -605,9 +610,9 @@ def _kind_descriptor_candidates(
         repo_root / "core" / f"{slug}-kind.toml",
     ]
     profiles_dir = repo_root / "profiles"
-    if profiles_dir.is_dir():
+    if discovery_root(profiles_dir, required=True):
         for entry in sorted(profiles_dir.iterdir()):
-            if not entry.is_dir():
+            if not candidate_directory(entry):
                 continue
             candidates.append(entry / f"{slug}-kind.toml")
     # dedupe while preserving order
@@ -637,14 +642,14 @@ def main() -> int:
     seen_names: dict[str, pathlib.Path] = {}
     duplicate_errors: list[str] = []
     profiles_dir = repo_root / "profiles"
-    if profiles_dir.is_dir():
+    if discovery_root(profiles_dir, required=True):
         for entry in sorted(profiles_dir.iterdir()):
             candidate = entry / "PROFILE.toml"
-            if not candidate.is_file():
-                continue
             try:
+                if not candidate_file(candidate):
+                    continue
                 dup_doc = load_toml(candidate)
-            except (FileNotFoundError, tomllib.TOMLDecodeError) as exc:
+            except (OSError, tomllib.TOMLDecodeError) as exc:
                 duplicate_errors.append(f"{candidate}: cannot inspect profile descriptor ({exc})")
                 continue
             if (dup_doc.get("meta") or {}).get("template_kind") != "profile-descriptor":
