@@ -20,7 +20,8 @@ KNOWN_COMMITS = frozenset({
     "8e52e9bab66d4e2bc1b52b427f69ef0c562096ff",
     "ffac3a202344f42f7608795866065971a08d42ed",
 })
-GIT_LOG_OPTIONS = "--full-history --all -m --diff-filter=tuxdb"
+GIT_LOG_ARGS = ("--full-history", "--all", "-m", "--diff-filter=tuxdb")
+GIT_LOG_OPTIONS = " ".join(GIT_LOG_ARGS)
 
 
 def known_public_literal(finding: dict) -> bool:
@@ -71,11 +72,56 @@ def scanned_count(stderr: str) -> int:
     return numbers[0]
 
 
+def added_line_commits(numstat: bytes, reachable: set[str]) -> set[str]:
+    marker = b"SCAN-COMMIT:"
+    patch_commits: set[str] = set()
+    current: str | None = None
+    rename_paths = 0
+    for record in numstat.split(b"\0"):
+        if rename_paths:
+            rename_paths -= 1
+            continue
+        if record.startswith(marker):
+            sha = record[len(marker):]
+            if len(sha) != 40 or any(byte not in b"0123456789abcdef" for byte in sha):
+                raise RuntimeError("Git numstat reported an invalid commit marker")
+            current = sha.decode("ascii")
+            if current not in reachable:
+                raise RuntimeError("Git numstat reported an unreachable commit")
+            continue
+        item = record.lstrip(b"\n")
+        if not item:
+            continue
+        fields = item.split(b"\t", 2)
+        if current is None or len(fields) != 3 or not (fields[0].isdigit() or fields[0] == b"-"):
+            raise RuntimeError("Git numstat reported an unreadable patch record")
+        if fields[0].isdigit() and int(fields[0]) > 0:
+            patch_commits.add(current)
+        if not fields[2]:
+            rename_paths = 2
+    if rename_paths or current is None or not patch_commits:
+        raise RuntimeError("Git numstat has no complete addition-bearing history")
+    return patch_commits
+
+
+def patch_bearing_commits(root: Path, reachable: set[str]) -> set[str]:
+    git = shutil.which("git")
+    if git is None:
+        raise RuntimeError("git is required to enumerate addition-bearing commits")
+    result = subprocess.run(  # nosec B603  # noqa: S603
+        [git, "log", "--format=SCAN-COMMIT:%H", "--numstat", "-z", *GIT_LOG_ARGS],
+        cwd=root, capture_output=True, check=False,
+    )
+    if result.returncode:
+        raise RuntimeError("cannot enumerate addition-bearing Git commits")
+    return added_line_commits(result.stdout, reachable)
+
+
 def check_scan_population(scanned: int, reachable: set[str], head_ancestry: set[str],
-                          expected: set[str]) -> None:
-    # Gitleaks counts commits with diff fragments, not merge or empty commits.
-    if scanned < 1 or scanned > len(reachable):
-        raise RuntimeError("Gitleaks scan count is outside the Git history bounds")
+                          expected: set[str], patch_commits: set[str]) -> None:
+    # Compare Gitleaks telemetry with Git's separate numstat enumeration.
+    if not patch_commits or not patch_commits <= reachable or scanned != len(patch_commits):
+        raise RuntimeError("Gitleaks scan count disagrees with addition-bearing Git history")
     if not head_ancestry or not head_ancestry <= reachable or not (expected & head_ancestry):
         raise RuntimeError("known public finding control is absent from HEAD ancestry")
 
@@ -112,6 +158,7 @@ def main() -> None:
     if not binary.is_file() or not (root / ".gitleaks.toml").is_file():
         raise RuntimeError("Gitleaks binary and configuration are required")
     reachable, head_ancestry = reachable_commits(root)
+    patch_commits = patch_bearing_commits(root, reachable)
     expected = KNOWN_COMMITS & reachable
     if not expected:
         raise RuntimeError("known public finding control is absent from this history")
@@ -137,7 +184,7 @@ def main() -> None:
                 f"stdout_present={bool(result.stdout)}, stderr_present={bool(result.stderr)}, "
                 f"markers={marker_state})"
             ) from exc
-        check_scan_population(scanned, reachable, head_ancestry, expected)
+        check_scan_population(scanned, reachable, head_ancestry, expected, patch_commits)
         findings = loads_json(report.read_text())
         if not isinstance(findings, list) or (result.returncode == 0) != (len(findings) == 0):
             raise RuntimeError("Gitleaks exit status disagrees with its report")
