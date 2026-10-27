@@ -1,10 +1,10 @@
 // Safe Rust only: deny any `unsafe` block in this crate. The crate's
-// dependencies (serde, toml, oxttl) use unsafe internally — that is
+// dependencies (serde, toml, oxttl) use unsafe internally. That is
 // out of scope for this lint; what we enforce is that nothing WE write
 // in this binary reaches for unsafe.
 #![forbid(unsafe_code)]
 
-//! dagtoml-rdf — generate the DAG-TOML ontology as RDF/Turtle.
+//! dagtoml-rdf: generate the DAG-TOML ontology as RDF/Turtle.
 //!
 //! Reads:
 //!   - <repo-root>/core/ontology.toml
@@ -118,9 +118,16 @@ struct KindBlock {
     #[serde(default)]
     name: Option<String>,
     #[serde(default)]
-    template_kind: Option<String>,
-    #[serde(default)]
     summary: Option<String>,
+}
+
+fn declared_kind(parsed: &KindFile) -> Option<&str> {
+    parsed
+        .meta
+        .as_ref()
+        .and_then(|meta| meta.describes_kind.as_deref())
+        .or_else(|| parsed.kind.as_ref().and_then(|kind| kind.name.as_deref()))
+        .filter(|name| !name.is_empty())
 }
 
 // ---------- emission ----------
@@ -182,7 +189,7 @@ fn token_to_class(token: &str) -> Option<String> {
         "artifact_classes" => Some(format!("dagtoml:{}", pascal("artifact_class"))),
         // free-form
         "unconstrained_label" | "" => None,
-        // upper-case ID prefixes (INT, FEAT, REQ, …) — convert to the
+        // upper-case ID prefixes (INT, FEAT, REQ, …) convert to the
         // entity class name. We rely on a small lookup so prefixes that
         // don't map cleanly (regex-keyed entities) raise no panic.
         prefix => {
@@ -597,7 +604,7 @@ fn main() -> ExitCode {
             }
             "-h" | "--help" => {
                 eprintln!(
-                    "dagtoml-rdf — DAG-TOML ontology Turtle generator.\n\nUsage:\n    dagtoml-rdf [--repo-root <path>] [-o <path>]    # generate\n    dagtoml-rdf verify -o <path>                    # re-parse the .ttl"
+                    "dagtoml-rdf: DAG-TOML ontology Turtle generator.\n\nUsage:\n    dagtoml-rdf [--repo-root <path>] [-o <path>]    # generate\n    dagtoml-rdf verify -o <path>                    # re-parse the .ttl"
                 );
                 return ExitCode::SUCCESS;
             }
@@ -813,13 +820,7 @@ fn main() -> ExitCode {
             // *-kind.toml files all carry meta.template_kind =
             // "kind-descriptor". The kind they DESCRIBE is named in
             // meta.describes_kind (preferred) or [kind].name.
-            let tk = parsed
-                .meta
-                .as_ref()
-                .and_then(|m| m.describes_kind.clone())
-                .or_else(|| parsed.kind.as_ref().and_then(|k| k.name.clone()))
-                .or_else(|| parsed.kind.as_ref().and_then(|k| k.template_kind.clone()));
-            let Some(tk) = tk.filter(|value| !value.is_empty()) else {
+            let Some(tk) = declared_kind(&parsed) else {
                 eprintln!("kind descriptor has no declared kind: {p:?}");
                 return ExitCode::FAILURE;
             };
@@ -832,7 +833,7 @@ fn main() -> ExitCode {
                 .unwrap_or(&p)
                 .to_string_lossy()
                 .replace('\\', "/");
-            kinds.push((tk, layer.to_string(), rel));
+            kinds.push((tk.to_string(), layer.to_string(), rel));
         }
     }
 
@@ -870,7 +871,7 @@ fn main() -> ExitCode {
         let ns = namespaced_predicate(&r, &mut seen);
         relations.push((r, ns));
     }
-    // profile.relations is intentionally not yet enumerated — the profile
+    // profile.relations is intentionally not yet enumerated. The profile
     // declares no namespaced predicates today (per ontology.md). When it
     // does, append here.
 
@@ -934,4 +935,24 @@ fn main() -> ExitCode {
         }
     }
     ExitCode::SUCCESS
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{KindFile, declared_kind};
+
+    #[test]
+    fn kind_name_uses_declared_fields() {
+        let cases = [
+            ("[meta]\ndescribes_kind = 'declared'\n", Some("declared")),
+            ("[kind]\nname = 'named'\n", Some("named")),
+            ("[kind]\ntemplate_kind = 'sideways'\n", None),
+            ("[meta]\ntemplate_kind = 'kind-descriptor'\n", None),
+            ("[kind]\nname = ''\n", None),
+        ];
+        for (source, expected) in cases {
+            let parsed: KindFile = toml::from_str(source).expect("valid TOML fixture");
+            assert_eq!(declared_kind(&parsed), expected, "source: {source}");
+        }
+    }
 }

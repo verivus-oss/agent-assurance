@@ -20,7 +20,7 @@ import _toml11 as toml
 def validate_receipts(root: Path, paths: list[Path], *, require_clean=True, include_loaders=True) -> list[dict]:
     sys.path.insert(0, str(root / "validators"))
     from check_database_vocabularies import source_identity
-    lock = toml.loads((root / "reference/database/engine-lock.toml").read_bytes().decode("utf-8"))
+    lock = toml.loads_bytes((root / "reference/database/engine-lock.toml").read_bytes())
     lanes = lock.get("lanes", [])
     expected_lane_names = {f"{engine}-{level}" for engine in ("postgres", "sqlite", "duckdb") for level in ("floor", "maintained")}
     if len(lanes) != len(expected_lane_names) or {lane["id"] for lane in lanes} != expected_lane_names:

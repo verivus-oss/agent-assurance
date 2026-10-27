@@ -22,7 +22,7 @@ def load_catalog(repo_root: Path) -> dict[str, Vocabulary]:
         raise ValueError("missing agent-assurance ontology")
     catalog = {}
     for path in paths:
-        doc = toml.loads(path.read_bytes().decode("utf-8"))
+        doc = toml.loads_bytes(path.read_bytes())
         declarations = doc.get("attribute_vocabularies")
         if not isinstance(declarations, list) or not declarations:
             raise ValueError(f"{path}: attribute_vocabularies must be a nonempty array")

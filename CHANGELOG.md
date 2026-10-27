@@ -9,6 +9,10 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- At commit `6f58c814158c3b1ba46eb49a9b0dec544140ae26`, section 9.2
+  requires the reference validators to pass the TOML 1.1.0 suite. It no
+  longer names particular parser implementations or relies on byte-for-byte
+  source equivalence as the reason for conformance.
 - Report implementation DAG and shared Python TOML byte-decoding failures
   with source digests and byte spans. Keep parser coordinates out of output.
 - Require the OSV scan to discover and verify every tracked Python lockfile.

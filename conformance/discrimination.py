@@ -125,7 +125,7 @@ def main() -> int:
         side = case.with_suffix(".expected.toml")
         if not side.exists():
             raise AssertionError("discovered sidecar disappeared")
-        doc = tomllib.loads(side.read_bytes().decode("utf-8"))
+        doc = tomllib.loads_bytes(side.read_bytes())
         sidecars[case] = (
             doc.get("error_contains", []),
             doc.get("error_not_contains", []),

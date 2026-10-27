@@ -102,7 +102,7 @@ def main(argv=None):
     parser.add_argument("--container-runtime", choices=("docker", "podman"), default="docker")
     args = parser.parse_args(argv)
     root = args.repo_root.resolve()
-    lock = toml.loads((root / "reference/database/engine-lock.toml").read_bytes().decode("utf-8"))
+    lock = toml.loads_bytes((root / "reference/database/engine-lock.toml").read_bytes())
     name = args.lane or "duckdb-loader-" + args.loader
     lanes = {lane["id"]: lane for lane in lock["lanes"]}
     lane = lanes[args.lane or "duckdb-maintained"]

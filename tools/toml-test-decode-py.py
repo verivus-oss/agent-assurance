@@ -44,8 +44,8 @@ def tagged(value: object) -> object:
 
 def main() -> int:
     try:
-        data = tomllib.loads(sys.stdin.buffer.read().decode("utf-8"))
-    except (UnicodeError, tomllib.TOMLDecodeError) as exc:
+        data = tomllib.loads_bytes(sys.stdin.buffer.read())
+    except tomllib.TOMLDecodeError as exc:
         print(f"TOML parse error: {exc}", file=sys.stderr)
         return 1
     json.dump(tagged(data), sys.stdout, ensure_ascii=False)
