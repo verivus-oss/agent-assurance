@@ -44,6 +44,16 @@ def test_branching_ladder_has_bounded_cycle_search() -> None:
     require(len(cycles) == 48)
     require(time.perf_counter() - started < 10)
 
+def test_large_single_ring_does_not_rescan_each_node() -> None:
+    size = 8000
+    nodes = [f'U{index:05d}' for index in range(size)]
+    edges = {nodes[index]: {nodes[(index + 1) % size]} for index in range(size)}
+    started = time.perf_counter()
+    cycles = detect_cycles(edges)
+    require(len(cycles) == 1)
+    require(cycles[0].count(' -> ') == size)
+    require(time.perf_counter() - started < 5)
+
 def test_cli_accepts_exact_options_and_rejects_unknown() -> None:
     original = sys.argv
     try:
@@ -52,7 +62,7 @@ def test_cli_accepts_exact_options_and_rejects_unknown() -> None:
         require(parsed.dag_file == 'file.toml')
         require(parsed.repo_root == 'repo')
         require(parsed.check_paths_exist)
-        for rejected in (['validator', '--unknown', 'file.toml'], ['validator', '--repo-root', '--check-paths-exist', 'file.toml']):
+        for rejected in (['validator', '--unknown', 'file.toml'], ['validator', '--repo-root', '--check-paths-exist', 'file.toml'], ['validator', '--repo-root=', 'file.toml']):
             sys.argv = rejected
             try:
                 parse_args()
@@ -67,5 +77,6 @@ if __name__ == '__main__':
     test_longest_weighted_path_and_cycle_rejection()
     test_deep_chain_uses_explicit_stacks()
     test_branching_ladder_has_bounded_cycle_search()
+    test_large_single_ring_does_not_rescan_each_node()
     test_cli_accepts_exact_options_and_rejects_unknown()
-    print('implementation DAG graph: 5 test groups passed')
+    print('implementation DAG graph: 6 test groups passed')

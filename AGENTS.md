@@ -57,7 +57,7 @@ taplo lint
 
 # Parse every TOML in the repo with the TOML 1.1 reference parser
 # (validators/_toml11.py wraps the vendored TOML 1.1 parser; stdlib tomllib is 1.0-only).
-python3 -c 'import sys, pathlib; sys.path.insert(0, "validators"); import _toml11 as tomllib; from _literal_paths import rglob; [tomllib.loads(p.read_text()) for p in rglob(pathlib.Path("."), "*.toml") if not any(x.startswith(".") for x in p.parts)]'
+python3 -c 'import sys, pathlib; sys.path.insert(0, "validators"); import _toml11 as tomllib; from _literal_paths import rglob; [tomllib.loads(p.read_bytes().decode("utf-8")) for p in rglob(pathlib.Path("."), "*.toml") if not any(x.startswith(".") for x in p.parts)]'
 
 # Validate every kind descriptor (the *-kind.toml files)
 for f in core/*-kind.toml profiles/agent-assurance/*-kind.toml; do
