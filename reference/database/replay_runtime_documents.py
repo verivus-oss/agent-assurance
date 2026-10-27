@@ -5,7 +5,7 @@ import _argument_parser as argparse
 import hashlib
 import _json_decode as json
 from pathlib import Path
-from contextlib import suppress
+import sys
 
 from _projection import project, text_identity
 from _storage import Store, StorageError, connect
@@ -70,9 +70,12 @@ def main(argv=None):
     except Exception as exc:
         result = {"status": "failed", "code": "database-operation-failed", "exception": type(exc).__name__}
     finally:
-        with suppress(Exception):
+        try:
             if store is not None:
                 store.connection.close()
+        except Exception as exc:
+            print(json.dumps({"status": "warning", "code": "connection-close-failed",
+                              "exception": type(exc).__name__}), file=sys.stderr)
     args.report.parent.mkdir(parents=True, exist_ok=True)
     args.report.write_text(json.dumps(result, ensure_ascii=True, indent=2) + "\n")
     print(json.dumps(result, ensure_ascii=True))

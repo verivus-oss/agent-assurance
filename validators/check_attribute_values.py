@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import _literal_args as argparse
 import ast
-import contextlib
 import pathlib
 import sys
 
@@ -28,9 +27,8 @@ def derive_ontology_counts(repo_root: pathlib.Path) -> dict[str, int]:
         "attribute_values_closed": sum(len(item.values) for item in catalog.values() if not item.extensible),
     }
 
-def derive_rdf_counts(repo_root: pathlib.Path) -> dict[str, int | None]:
-    """Return RDF triple counts via the dagtoml-rdf tool. Falls back to
-    None if the tool isn't built; caller decides how to handle."""
+def derive_rdf_counts(repo_root: pathlib.Path) -> dict[str, int]:
+    """Return RDF triple counts, failing when execution cannot be measured."""
     import subprocess
 
     rdf_bin = (
@@ -43,13 +41,11 @@ def derive_rdf_counts(repo_root: pathlib.Path) -> dict[str, int | None]:
     )
     schema = repo_root / "reference" / "database" / "rdf" / "schema.ttl"
     shapes = repo_root / "reference" / "database" / "rdf" / "shapes.ttl"
-    out: dict[str, int | None] = {"schema": None, "shapes": None}
-    if not rdf_bin.exists():
-        return out
+    out: dict[str, int] = {}
+    if not rdf_bin.is_file():
+        raise ValueError(f"RDF verification binary is unavailable: {rdf_bin}")
     for label, path in [("schema", schema), ("shapes", shapes)]:
-        # Best-effort triple count: a missing/old binary or a timeout leaves
-        # this label unset rather than failing the gate (py/empty-except).
-        with contextlib.suppress(OSError, subprocess.TimeoutExpired):
+        try:
             # Safe: fixed local binary path, list-args invocation, no
             # shell, no user-controlled input.
             res = subprocess.run(  # nosec B603  # noqa: S603
@@ -58,13 +54,16 @@ def derive_rdf_counts(repo_root: pathlib.Path) -> dict[str, int | None]:
                 text=True,
                 timeout=30,
             )
-            tokens = (res.stdout + res.stderr).split()
-            counts = [int(tokens[index + 1])
-                      for index in range(len(tokens) - 2)
-                      if tokens[index] == "parsed" and tokens[index + 1].isascii()
-                      and tokens[index + 1].isdigit() and tokens[index + 2] == "triples"]
-            if res.returncode == 0 and len(counts) == 1:
-                out[label] = counts[0]
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ValueError(f"RDF verification failed for {label}: {type(exc).__name__}") from exc
+        tokens = (res.stdout + res.stderr).split()
+        counts = [int(tokens[index + 1])
+                  for index in range(len(tokens) - 2)
+                  if tokens[index] == "parsed" and tokens[index + 1].isascii()
+                  and tokens[index + 1].isdigit() and tokens[index + 2] == "triples"]
+        if res.returncode != 0 or len(counts) != 1:
+            raise ValueError(f"RDF verification returned no single count for {label} (exit {res.returncode})")
+        out[label] = counts[0]
     return out
 
 

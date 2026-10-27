@@ -50,7 +50,6 @@ Usage:
 from __future__ import annotations
 
 import _literal_args as argparse
-import contextlib
 import hashlib
 import pathlib
 import sys
@@ -172,14 +171,13 @@ def verify_subparts(doc: dict, repo_root: pathlib.Path, toml_path, errors: list[
             )
 
 
-def validate_one(toml_path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
-    try:
-        with toml_path.open("rb") as handle:
-            doc = tomllib.load(handle)
-    except FileNotFoundError:
-        return [f"{toml_path}: file not found"]
-    except tomllib.TOMLDecodeError as exc:
-        return [f"{toml_path}: invalid TOML: {exc}"]
+def validate_one(toml_path: pathlib.Path, repo_root: pathlib.Path, document: dict | None = None) -> list[str]:
+    if document is None:
+        try:
+            document = tomllib.loads_bytes(toml_path.read_bytes())
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            return [f"{toml_path}: cannot parse TOML: {exc}"]
+    doc = document
 
     meta = doc.get("meta")
     if not isinstance(meta, dict) or meta.get("template_kind") != "api-snapshot":
@@ -311,12 +309,14 @@ def main(argv: list[str]) -> int:
     for raw in args.files:
         path = pathlib.Path(raw)
         checked += 1
-        with contextlib.suppress(Exception):
-            with path.open("rb") as h:
-                d = tomllib.load(h)
-            if isinstance(d.get("meta"), dict) and d["meta"].get("template_kind") == "api-snapshot":
-                snapshots += 1
-        all_errors.extend(validate_one(path, repo_root))
+        try:
+            document = tomllib.loads_bytes(path.read_bytes())
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            all_errors.append(f"{path}: cannot parse TOML: {exc}")
+            continue
+        if isinstance(document.get("meta"), dict) and document["meta"].get("template_kind") == "api-snapshot":
+            snapshots += 1
+        all_errors.extend(validate_one(path, repo_root, document))
 
     if all_errors:
         print("API-SNAPSHOT VALIDATION FAILED")
