@@ -7,7 +7,7 @@ mapping. The gate separately compares this field population with that mapping.
 
 from copy import deepcopy
 from dataclasses import dataclass
-import json
+import _json_decode as json
 from pathlib import Path
 import sys
 

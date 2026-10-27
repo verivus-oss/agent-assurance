@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Replace one fixture source path with a quoted absolute path."""
 
-import json
+import _literal_json as json
 from pathlib import Path
 import sys
 

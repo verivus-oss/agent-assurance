@@ -3,7 +3,7 @@
 
 import _literal_args as argparse
 import hashlib
-import json
+import _literal_json as json
 from pathlib import Path
 import subprocess
 import shutil

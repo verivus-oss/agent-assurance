@@ -3,7 +3,7 @@
 
 import _argument_parser as argparse
 import hashlib
-import json
+import _json_decode as json
 from pathlib import Path
 from contextlib import suppress
 

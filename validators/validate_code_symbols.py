@@ -10,7 +10,7 @@ the intended reference engine: Rust, Go, TypeScript, and Java.
 from __future__ import annotations
 
 import _literal_args as argparse
-import json
+import _literal_json as json
 from _literal_json import InvalidJSON, loads as loads_json
 import pathlib
 import shutil

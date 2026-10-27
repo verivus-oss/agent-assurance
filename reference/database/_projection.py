@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
 import hashlib
-import json
+import _json_decode as json
 from _json_decode import loads as loads_json
 import math
 from pathlib import Path

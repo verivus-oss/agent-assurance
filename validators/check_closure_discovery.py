@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Assert discovery exclusions apply below each explicitly selected root."""
 
-import json
+import _literal_json as json
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path

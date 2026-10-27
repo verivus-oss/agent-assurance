@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import json
 import math
 import pathlib
 import sys
@@ -11,6 +10,7 @@ from datetime import date, datetime, time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "validators"))
 import _toml11 as tomllib  # noqa: E402
+import _literal_json as json  # noqa: E402
 
 
 def tagged(value: object) -> object:

@@ -233,7 +233,7 @@ def main():
     work = root / ".local/coverage-audit" / uuid.uuid4().hex
     source = work / "source"
     population = copy_source(root, source)
-    import json
+    import _json_decode as json
     (work / "copy.json").write_text(json.dumps(population, indent=2))
     audit(source, work / "runtime-mutations.json")
     if args.runtime_only:

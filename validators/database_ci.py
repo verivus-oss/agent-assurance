@@ -3,7 +3,7 @@
 
 import _literal_args as argparse
 import hashlib
-import json
+import _literal_json as json
 from _literal_json import loads as loads_json
 import os
 from _text_checks import contains_table_diagnostic

@@ -5,7 +5,7 @@
 from _literal_paths import glob as literal_glob
 import _literal_args as argparse
 from copy import deepcopy
-import json
+import _literal_json as json
 from _literal_json import loads as loads_json
 import os
 from pathlib import Path

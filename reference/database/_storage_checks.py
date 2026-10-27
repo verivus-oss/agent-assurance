@@ -2,7 +2,7 @@
 
 
 import hashlib
-import json
+import _json_decode as json
 from _json_decode import loads as loads_json
 
 from _projection import project, semantic_json, timestamp_index

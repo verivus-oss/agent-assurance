@@ -1,7 +1,7 @@
 """Mapping-derived diagnostic and wrapper mutations, without new exemptions."""
 
 import ast
-import json
+import _json_decode as json
 from _json_decode import loads as loads_json
 from pathlib import Path
 import subprocess

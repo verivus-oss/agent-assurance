@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any
+from typing import Any, TextIO
 
 
 WHITESPACE = " \t\n\r"
@@ -52,3 +52,25 @@ def loads(source: str | bytes, **options: Any) -> Any:
     if end != len(source):
         raise InvalidJSON(source, end)
     return value
+
+
+def _require_c_encoder() -> None:
+    text_encoder = getattr(json.encoder, "c_encode_basestring", None)
+    ascii_encoder = getattr(json.encoder, "c_encode_basestring_ascii", None)
+    if (
+        text_encoder is None
+        or ascii_encoder is None
+        or json.encoder.encode_basestring is not text_encoder
+        or json.encoder.encode_basestring_ascii is not ascii_encoder
+    ):
+        raise RuntimeError("regex-free JSON string encoder is unavailable")
+
+
+def dumps(value: Any, **options: Any) -> str:
+    _require_c_encoder()
+    return json.dumps(value, **options)
+
+
+def dump(value: Any, output: TextIO, **options: Any) -> None:
+    _require_c_encoder()
+    json.dump(value, output, **options)

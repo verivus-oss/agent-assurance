@@ -4,7 +4,7 @@
 import _literal_args as argparse
 from copy import deepcopy
 import hashlib
-import json
+import _literal_json as json
 import os
 from pathlib import Path
 import shutil

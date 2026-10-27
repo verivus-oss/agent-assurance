@@ -2,7 +2,7 @@
 """Initialize, ingest, or audit runtime documents in a reference SQL mirror."""
 
 import _argument_parser as argparse
-import json
+import _json_decode as json
 from pathlib import Path
 import sys
 from contextlib import suppress

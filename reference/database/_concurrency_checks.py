@@ -169,13 +169,14 @@ def writer_checks(store: Store, destination: str) -> list[dict]:
             raise AssertionError("busy writer left a partial document")
         checks.append({"check": "sqlite-writer-lock-exhaustion", "outcome": outcome})
     elif store.engine == "duckdb":
-        code = '''import json,sys
+        code = '''import sys
 sys.path.insert(0,sys.argv[1])
+from _json_decode import dumps
 from _storage import connect,StorageError
 try:
     connection=connect("duckdb",sys.argv[2])
 except StorageError as exc:
-    print(json.dumps({"status":exc.code}))
+    print(dumps({"status":exc.code}))
     sys.exit(0 if exc.code=="busy/unsupported-writer" else 1)
 connection.close()
 sys.exit(1)

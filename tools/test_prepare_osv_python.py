@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 
 from prepare_osv_python import canonical_name, cleanup, pins, stage, verify
+from _literal_json import dumps as dumps_json
 
 
 def require(condition: object, message: str) -> None:
@@ -56,7 +57,7 @@ def test_coverage_and_cleanup_fail_closed() -> None:
             "source": {"path": str(alias), "type": "lockfile"},
             "packages": [{"package": {"name": "foo-bar", "version": "1.0", "ecosystem": "PyPI"}}],
         }
-        result.write_text(json.dumps({"results": [entry]}))
+        result.write_text(dumps_json({"results": [entry]}))
         decoder = json.JSONDecoder.decode
         def forbidden_decode(self, source):
             raise AssertionError("regex JSON whitespace matcher was used")
@@ -72,7 +73,7 @@ def test_coverage_and_cleanup_fail_closed() -> None:
         result.unlink()
         expect_rejection(lambda: verify(root, result), "missing scanner result accepted")
         entry["packages"] = []
-        result.write_text(json.dumps({"results": [entry]}))
+        result.write_text(dumps_json({"results": [entry]}))
         expect_rejection(lambda: verify(root, result), "missing scanner package accepted")
         cleanup(root)
         require(not alias.exists() and not result.exists(), "cleanup left scan output")
