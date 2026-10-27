@@ -129,7 +129,10 @@ fn declared_kind(parsed: &KindFile) -> Option<&str> {
     if meta.template_kind.as_deref() != Some("kind-descriptor") {
         return None;
     }
-    let declared = meta.describes_kind.as_deref().filter(|name| !name.is_empty())?;
+    let declared = meta
+        .describes_kind
+        .as_deref()
+        .filter(|name| !name.is_empty())?;
     let named = parsed.kind.as_ref()?.name.as_deref()?;
     (named == declared).then_some(declared)
 }
@@ -580,6 +583,8 @@ fn verify(path: &PathBuf) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+mod prefix_shapes;
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
     let mut repo_root = PathBuf::from(".");
@@ -588,8 +593,12 @@ fn main() -> ExitCode {
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
-            "verify" => {
-                subcommand = Some("verify".into());
+            command @ ("verify" | "check-prefix-shapes") => {
+                if subcommand.is_some() {
+                    eprintln!("supply one subcommand");
+                    return ExitCode::from(2);
+                }
+                subcommand = Some(command.into());
             }
             "--repo-root" => {
                 i += 1;
@@ -609,7 +618,7 @@ fn main() -> ExitCode {
             }
             "-h" | "--help" => {
                 eprintln!(
-                    "dagtoml-rdf - DAG-TOML ontology Turtle generator.\n\nUsage:\n    dagtoml-rdf [--repo-root <path>] [-o <path>]    # generate\n    dagtoml-rdf verify -o <path>                    # re-parse the .ttl"
+                    "dagtoml-rdf - DAG-TOML ontology Turtle generator.\n\nUsage:\n    dagtoml-rdf [--repo-root <path>] [-o <path>]    # generate\n    dagtoml-rdf verify -o <path>                    # re-parse the .ttl\n    dagtoml-rdf check-prefix-shapes [--repo-root <path>] # prefix query controls"
                 );
                 return ExitCode::SUCCESS;
             }
@@ -627,6 +636,24 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         };
         return verify(&path);
+    }
+    if subcommand.as_deref() == Some("check-prefix-shapes") {
+        if output.is_some() {
+            eprintln!("check-prefix-shapes reads the declared shapes under --repo-root");
+            return ExitCode::from(2);
+        }
+        return match prefix_shapes::check(&repo_root) {
+            Ok(()) => {
+                eprintln!(
+                    "identifier prefix shapes: declared queries and accepted/rejected graph controls passed"
+                );
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("identifier prefix shapes: {error}");
+                ExitCode::FAILURE
+            }
+        };
     }
 
     let core_ont_path = repo_root.join("core/ontology.toml");
@@ -950,7 +977,10 @@ mod tests {
     #[test]
     fn kind_name_uses_declared_fields() {
         let cases = [
-            ("[meta]\ntemplate_kind = 'kind-descriptor'\ndescribes_kind = 'named'\n[kind]\nname = 'named'\n", Some("named")),
+            (
+                "[meta]\ntemplate_kind = 'kind-descriptor'\ndescribes_kind = 'named'\n[kind]\nname = 'named'\n",
+                Some("named"),
+            ),
             ("[meta]\ndescribes_kind = 'declared'\n", None),
             ("[kind]\nname = 'named'\n", None),
             ("[kind]\ntemplate_kind = 'sideways'\n", None),

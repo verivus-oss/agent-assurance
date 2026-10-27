@@ -6,8 +6,10 @@
 # per artifact, depends_on/blocks symmetry, cardinality 1 on matrix
 # claim/evidence edges, contract-free-form vs typed verified_by, etc.).
 #
-# Apply with any SHACL processor (Apache Jena `shacl validate`, pySHACL,
-# rdflib + pyshacl, TopBraid SHACL API). The shapes assume the data
+# This is a SHACL interoperability artifact. Repository CI exercises the
+# identifier-prefix query subset with the native check-prefix-shapes gate;
+# general SHACL processing belongs to the consuming implementation.
+# The shapes assume the data
 # graph follows the schema.ttl predicate convention (lowercase predicate
 # names, namespaced contract:* for the contract-scoped variants).
 #

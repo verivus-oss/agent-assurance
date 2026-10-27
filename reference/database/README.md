@@ -265,6 +265,16 @@ incomplete kind/entity population is recorded in
 Complete SQL catalogs and this ingestion path do not imply universal kind
 validation or complete graph ingestion.
 
+The native RDF tool's `check-prefix-shapes --repo-root .` gate reads
+`rdf/shapes.ttl`, parses Turtle with the same parser as `verify`, and
+evaluates the identifier-prefix query subset used by the three declared
+prefix shapes. It exercises targeted label graphs with accepted and
+rejected prefixes, absent labels, and unrelated classes. Unsupported
+query forms or selected-shape properties fail the gate. This replaces
+the Python SHACL processor previously used by that specific CI check;
+it does not provide general SHACL conformance or validate the other
+hand-authored graph invariants.
+
 Native enum hints in `vocabulary-storage.toml` describe PostgreSQL and DuckDB
 types, including retained compatibility types. Every engine compares its complete
 backing-hint metadata with the mapping. These hints do not assert column

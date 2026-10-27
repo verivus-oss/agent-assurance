@@ -106,10 +106,11 @@ comment block in `validate.yml`:
 Workflow actions are SHA-pinned. Python verification packages use version
 and hash pins; Rust builds use checked-in Cargo.lock files.
 
-Third-party verification tools may use regex internally. This allowance
-covers scanner engines and the SHACL processor, while repository-authored
-validation logic and scanner exception rules use explicit predicates. The
-link checker receives URLs selected by exact path and host comparisons.
+The estate no-regex rule also covers dependencies, build and test tools,
+and security scanners. The active scanner engines still require a consumer
+audit and replacement; a successful scan is not evidence of compliance
+with that rule. The link checker receives URLs selected by exact path and
+host comparisons.
 
 ## Disclosure
 

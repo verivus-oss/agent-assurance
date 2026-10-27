@@ -9,6 +9,14 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Replace the prefix-shape gate observed at
+  `f445e17dcb281d2a95026928e730f645a13b20ae` with native Turtle parsing
+  and a bounded evaluator for the declared identifier-prefix queries.
+  Retire the Python SHACL gate and its dependency lock. Reject unsupported
+  selected-shape properties, query forms, targets and prefix declarations;
+  retain accepted and rejected graph controls. Withdraw the unsupported
+  scanner/SHACL regex allowance; active scanner dependencies remain a
+  policy blocker until independently evaluated replacements are complete.
 - Complete the PostgreSQL failure-path repair from candidate
   `8fc48a3d3ea4a665e3625a05f7849d997bddef66` with native libpq execution
   and structured SQLSTATE diagnostics. Keep compiled driver adaptation, guard
@@ -25,10 +33,9 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   database mirrors, RDF shapes, website check, and CI text gates with explicit
   predicates and scanners.
   Declare ontology decimal ID shapes as typed fields and carry them through
-  the SQL, graph, and RDF mirrors. Keep Gitleaks, Bandit, Ruff, typos, lychee,
-  and SHACL verification as third-party tools under the explicit verification
-  allowance. Their internal regex use does not make authored product logic
-  depend on regex matching.
+  the SQL, graph, and RDF mirrors. Third-party verification dependencies
+  remain inside the estate no-regex scope; authored matcher removal alone
+  does not establish compliance.
 - Remove authored regex exemptions from Gitleaks, typos, and lychee
   configuration. Prepare the link scan from Lychee's extracted URLs with
   exact path and host comparisons.
