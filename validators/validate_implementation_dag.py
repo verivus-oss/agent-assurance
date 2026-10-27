@@ -49,6 +49,9 @@ def parse_args() -> SimpleNamespace:
                 raise SystemExit(2)
         elif item.startswith("--repo-root=") and not positional_only:
             repo_root = item.partition("=")[2]
+            if not repo_root:
+                print("error: --repo-root requires a path", file=sys.stderr)
+                raise SystemExit(2)
         elif item == "--check-paths-exist" and not positional_only:
             check_paths_exist = True
         elif item == "--allow-placeholders" and not positional_only:
@@ -155,90 +158,96 @@ def detect_cycles(dep_sets: dict[str, set[str]]) -> list[str]:
     """Report each simple directed cycle once, starting at its smallest unit ID."""
     known = set(dep_sets)
     adjacent = {u: sorted(v for v in deps if v in known) for u, deps in dep_sets.items()}
-    reverse: dict[str, list[str]] = {u: [] for u in known}
-    for u, deps in adjacent.items():
-        for v in deps:
-            reverse[v].append(u)
+    def cyclic_components(nodes: set[str]) -> list[set[str]]:
+        """Find cyclic components of the induced subgraph with explicit stacks."""
+        local = {u: [v for v in adjacent[u] if v in nodes] for u in nodes}
+        reverse: dict[str, list[str]] = {u: [] for u in nodes}
+        for u, deps in local.items():
+            for v in deps:
+                reverse[v].append(u)
 
-    # Kosaraju's two passes discard acyclic regions before cycle enumeration.
-    # Both passes use explicit stacks so deeply nested DAGs do not depend on
-    # Python's recursion limit.
-    visited: set[str] = set()
-    finished: list[str] = []
-    for start in sorted(known):
-        if start in visited:
-            continue
-        visited.add(start)
-        frames = [(start, iter(adjacent[start]))]
-        while frames:
-            u, neighbors = frames[-1]
-            try:
-                v = next(neighbors)
-            except StopIteration:
-                finished.append(u)
-                frames.pop()
+        visited: set[str] = set()
+        finished: list[str] = []
+        for seed in sorted(nodes):
+            if seed in visited:
                 continue
-            if v not in visited:
-                visited.add(v)
-                frames.append((v, iter(adjacent[v])))
-
-    assigned: set[str] = set()
-    cycles: set[tuple[str, ...]] = set()
-    for seed in reversed(finished):
-        if seed in assigned:
-            continue
-        component: set[str] = set()
-        pending = [seed]
-        assigned.add(seed)
-        while pending:
-            u = pending.pop()
-            component.add(u)
-            for v in reverse[u]:
-                if v not in assigned:
-                    assigned.add(v)
-                    pending.append(v)
-        if len(component) == 1 and seed not in adjacent[seed]:
-            continue
-
-        for start in sorted(component):
-            # Johnson's blocked sets stop repeated walks down paths that
-            # cannot close a cycle. A simple-path walk alone can be
-            # exponential even when the graph has only a few cycles.
-            eligible = {u for u in component if u >= start}
-            neighbors = {u: [v for v in adjacent[u] if v in eligible] for u in eligible}
-            blocked = {start}
-            waiting: dict[str, set[str]] = {u: set() for u in eligible}
-            path = [start]
-            frames: list[list] = [[start, iter(neighbors[start]), False]]
+            visited.add(seed)
+            frames = [(seed, iter(local[seed]))]
             while frames:
-                node, edges, found = frames[-1]
+                u, edges = frames[-1]
                 try:
-                    next_node = next(edges)
+                    v = next(edges)
                 except StopIteration:
-                    if found:
-                        pending = [node]
-                        while pending:
-                            released = pending.pop()
-                            if released not in blocked:
-                                continue
-                            blocked.remove(released)
-                            pending.extend(waiting[released])
-                            waiting[released].clear()
-                    else:
-                        for successor in neighbors[node]:
-                            waiting[successor].add(node)
+                    finished.append(u)
                     frames.pop()
-                    path.pop()
-                    if found and frames:
-                        frames[-1][2] = True
                     continue
-                if next_node == start:
-                    cycles.add(tuple(path))
+                if v not in visited:
+                    visited.add(v)
+                    frames.append((v, iter(local[v])))
+
+        assigned: set[str] = set()
+        result: list[set[str]] = []
+        for seed in reversed(finished):
+            if seed in assigned:
+                continue
+            component: set[str] = set()
+            pending = [seed]
+            assigned.add(seed)
+            while pending:
+                u = pending.pop()
+                component.add(u)
+                for v in reverse[u]:
+                    if v not in assigned:
+                        assigned.add(v)
+                        pending.append(v)
+            if len(component) > 1 or seed in local[seed]:
+                result.append(component)
+        return result
+
+    cycles: set[tuple[str, ...]] = set()
+    components = cyclic_components(known)
+    while components:
+        component = components.pop()
+        start = min(component)
+        neighbors = {u: [v for v in adjacent[u] if v in component] for u in component}
+        blocked = {start}
+        waiting: dict[str, set[str]] = {u: set() for u in component}
+        path = [start]
+        frames: list[list] = [[start, iter(neighbors[start]), False]]
+        while frames:
+            node, edges, found = frames[-1]
+            try:
+                next_node = next(edges)
+            except StopIteration:
+                if found:
+                    pending = [node]
+                    while pending:
+                        released = pending.pop()
+                        if released not in blocked:
+                            continue
+                        blocked.remove(released)
+                        pending.extend(waiting[released])
+                        waiting[released].clear()
+                else:
+                    for successor in neighbors[node]:
+                        waiting[successor].add(node)
+                frames.pop()
+                path.pop()
+                if found and frames:
                     frames[-1][2] = True
-                elif next_node not in blocked:
-                    blocked.add(next_node)
-                    path.append(next_node)
-                    frames.append([next_node, iter(neighbors[next_node]), False])
+                continue
+            if next_node == start:
+                cycles.add(tuple(path))
+                frames[-1][2] = True
+            elif next_node not in blocked:
+                blocked.add(next_node)
+                path.append(next_node)
+                frames.append([next_node, iter(neighbors[next_node]), False])
+
+        # Removing the least node may split the remainder into many small
+        # components. Search each one separately instead of rescanning the
+        # whole original component for every possible starting node.
+        components.extend(cyclic_components(component - {start}))
 
     return [
         f"cycle in depends_on: {' -> '.join((*cycle, cycle[0]))}"

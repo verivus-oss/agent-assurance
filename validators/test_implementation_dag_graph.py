@@ -71,6 +71,16 @@ class GraphTests(unittest.TestCase):
         self.assertEqual(len(cycles), 48)
         self.assertLess(time.perf_counter() - started, 10)
 
+    def test_large_single_ring_does_not_rescan_each_node(self) -> None:
+        size = 8000
+        nodes = [f"U{index:05d}" for index in range(size)]
+        edges = {nodes[index]: {nodes[(index + 1) % size]} for index in range(size)}
+        started = time.perf_counter()
+        cycles = detect_cycles(edges)
+        self.assertEqual(len(cycles), 1)
+        self.assertEqual(cycles[0].count(" -> "), size)
+        self.assertLess(time.perf_counter() - started, 5)
+
     def test_cli_accepts_exact_options_and_rejects_unknown(self) -> None:
         original = sys.argv
         try:
@@ -84,6 +94,10 @@ class GraphTests(unittest.TestCase):
                 parse_args()
             self.assertEqual(error.exception.code, 2)
             sys.argv = ["validator", "--repo-root", "--check-paths-exist", "file.toml"]
+            with self.assertRaises(SystemExit) as error:
+                parse_args()
+            self.assertEqual(error.exception.code, 2)
+            sys.argv = ["validator", "--repo-root=", "file.toml"]
             with self.assertRaises(SystemExit) as error:
                 parse_args()
             self.assertEqual(error.exception.code, 2)

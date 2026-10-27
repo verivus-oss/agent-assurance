@@ -57,7 +57,10 @@ func loadDoc(path string) (rawDoc, error) {
 	// asArray/int64Of and the per-kind validators).
 	var out rawDoc
 	if _, err := toml.Decode(string(bytes), &out); err != nil {
-		return nil, fmt.Errorf("%s: TOML parse failed: %w", path, err)
+		// BurntSushi's error string includes source coordinates. The strict
+		// parser already accepted this input, so report the disagreement by
+		// source digest without returning that coordinate.
+		return nil, fmt.Errorf("%s: TOML parser disagreement after strict acceptance (source sha256 %x)", path, sha256.Sum256(bytes))
 	}
 	return out, nil
 }

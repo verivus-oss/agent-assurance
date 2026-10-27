@@ -1024,7 +1024,7 @@ jobs:
       #                     correctness, dead-code); defense-in-depth
       #                     above bandit
       #   bandit          — Python static security analysis of validators/
-      #   osv-scanner     — CVEs in requirements.txt + Cargo.lock + go.sum
+      #   osv-scanner     - CVEs in pinned Python locks + Cargo.lock + go.sum
       #                     (complements Dependabot: catches transitive
       #                     and advisory-DB-only entries Dependabot misses)
       #   gitleaks        — secret leak detection in commits + working
@@ -1113,9 +1113,12 @@ jobs:
             --select S,F \
             --ignore S404 \
             --line-length 120 \
-            validators/ reference/database/ conformance/ tools/toml-test-decode-py.py
+            validators/ reference/database/ conformance/ tools/toml-test-decode-py.py tools/prepare_osv_python.py
 
       # --- Existing 5 scanners follow below ---
+
+      - name: Stage pinned Python locks for OSV
+        run: python3 tools/prepare_osv_python.py
 
       - name: Lock-file CVE scan (osv-scanner)
         continue-on-error: false
@@ -1128,14 +1131,27 @@ jobs:
           # --no-resolve disables network-required transitive dependency
           # resolution. We rely on lockfile-based scanning (Cargo.lock,
           # go.sum) instead, which has full transitive info baked in.
-          # requirements.txt has no runtime package. The transitive-resolution
-          # gRPC service is flaky, so scan the pinned Python requirements and
-          # native lockfiles without contacting it. An outage is not a CVE
-          # finding.
+          # The root requirements.txt has no runtime package. The staging
+          # step gives each tracked pinned Python lock a recognized filename.
+          # Scan those locks and native lockfiles without transitive resolution.
           scan-args: |-
             --recursive
             --no-resolve
+            --format
+            json
+            --all-packages
+            --output-file
+            ./osv-scan-results.json
             ./
+            ./osv-python-lockfiles
+
+      - name: Verify Python CVE scan coverage
+        if: always()
+        run: python3 tools/prepare_osv_python.py --verify osv-scan-results.json
+
+      - name: Remove staged Python locks
+        if: always()
+        run: python3 -c 'import pathlib, shutil; shutil.rmtree(pathlib.Path("osv-python-lockfiles"), ignore_errors=True); pathlib.Path("osv-scan-results.json").unlink(missing_ok=True)'
 
       - name: Secret scan (gitleaks)
         continue-on-error: false
@@ -1173,8 +1189,7 @@ jobs:
         continue-on-error: false
         # bandit catches subprocess shell=True, eval, pickle, weak crypto,
         # hardcoded credentials, path traversal patterns. Scan the
-        # validators/ tree (the only Python surface we ship); examples/
-        # and docs/ are TOML/Markdown only.
+        # validators/, database, conformance, and Python tool entry points.
         run: |
           set -euo pipefail
           python3 -m pip install --user --require-hashes -r requirements/bandit.txt
@@ -1193,7 +1208,7 @@ jobs:
           # annotated with `# nosec B603 - <reason>` where the safety
           # argument is non-obvious.
           python3 -m bandit \
-            --recursive validators/ reference/database/ conformance/ tools/toml-test-decode-py.py \
+            --recursive validators/ reference/database/ conformance/ tools/toml-test-decode-py.py tools/prepare_osv_python.py \
             --severity-level low \
             --confidence-level low \
             --skip B404

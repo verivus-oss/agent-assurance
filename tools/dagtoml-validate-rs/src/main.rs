@@ -154,15 +154,65 @@ mod cli {
 // ------------------------------------------------------------
 
 fn load(path: &Path) -> Result<Value, String> {
-    let raw = std::fs::read_to_string(path)
-        .map_err(|e| format!("{}: read failed: {}", path.display(), e))?;
+    let raw = std::fs::read(path).map_err(|e| format!("{}: read failed: {}", path.display(), e))?;
+    let source = std::str::from_utf8(&raw).map_err(|e| {
+        let start = e.valid_up_to();
+        let end = start + e.error_len().unwrap_or(raw.len() - start);
+        format!(
+            "{}: TOML parse failed: {}",
+            path.display(),
+            toml_error_details(&raw, "invalid UTF-8", Some(start..end))
+        )
+    })?;
     // toml 1.1: `str::parse::<Value>()` parses a single *value* expression,
     // not a whole document (it routes through `ValueDeserializer`). Document
     // parsing is `toml::from_str`, which deserializes the full table. (In
     // toml 0.8 `FromStr for Value` parsed a document; the 1.1 line split the
     // two, so this call site shifts.)
-    toml::from_str::<Value>(&raw)
-        .map_err(|e| format!("{}: TOML parse failed: {}", path.display(), e))
+    toml::from_str::<Value>(source).map_err(|e| {
+        format!(
+            "{}: TOML parse failed: {}",
+            path.display(),
+            toml_error_details(&raw, e.message(), e.span())
+        )
+    })
+}
+
+fn toml_error_details(raw: &[u8], message: &str, span: Option<std::ops::Range<usize>>) -> String {
+    let location = match span {
+        Some(range) if range.start <= range.end && range.end <= raw.len() => {
+            format!("bytes {}:{}", range.start, range.end)
+        }
+        _ => "byte span unavailable".to_string(),
+    };
+    format!(
+        "{} (source sha256 {}, {})",
+        message,
+        digest_hex("sha256", raw),
+        location
+    )
+}
+
+#[cfg(test)]
+mod toml_error_tests {
+    use super::{Value, digest_hex, toml_error_details};
+
+    #[test]
+    fn reports_original_bytes_without_source_coordinates() {
+        let valid = "name = \"café\"\r\n";
+        assert!(toml::from_str::<Value>(valid).is_ok());
+
+        let invalid = "name = \"café\"\r\ncount = @\r\n";
+        let error = toml::from_str::<Value>(invalid).unwrap_err();
+        let invalid_byte = invalid.find('@').unwrap();
+        assert_eq!(error.span(), Some(invalid_byte..invalid_byte + 1));
+        let details = toml_error_details(invalid.as_bytes(), error.message(), error.span());
+        assert!(details.contains(&digest_hex("sha256", invalid.as_bytes())));
+        assert!(details.contains("bytes "));
+        assert!(!details.contains("line "));
+        assert!(!details.contains("column "));
+        assert!(!details.contains("count = @"));
+    }
 }
 
 fn is_semver(s: &str) -> bool {
