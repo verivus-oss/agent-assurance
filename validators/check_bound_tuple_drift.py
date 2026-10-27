@@ -108,7 +108,7 @@ def declared_tuples(root: pathlib.Path) -> dict[str, dict]:
     for path in profile_descriptors(root):
         rel = path.relative_to(root).as_posix()
         try:
-            doc = tomllib.loads(path.read_text())
+            doc = tomllib.loads_bytes(path.read_bytes())
         except Exception as exc:  # noqa: BLE001
             raise Infrastructure(f"{rel}: could not parse: {exc}") from exc
         for index, entry in enumerate(doc.get("profile", {}).get("bound_tuples", [])):

@@ -8,8 +8,8 @@
 //!
 //! Safety posture: this crate sets `#![forbid(unsafe_code)]` and has no
 //! FFI (enforced by `validators/check_safe_tools.sh`). Transitive parser
-//! dependencies — the widely-vetted `toml`/`toml_parser`/`winnow` and
-//! `serde` crates — may use `unsafe` internally; that is out of scope of
+//! dependencies - the widely-vetted `toml`/`toml_parser`/`winnow` and
+//! `serde` crates - may use `unsafe` internally; that is out of scope of
 //! the safe-tools policy, which governs the code WE write, not our deps.
 
 #![forbid(unsafe_code)]
@@ -154,15 +154,65 @@ mod cli {
 // ------------------------------------------------------------
 
 fn load(path: &Path) -> Result<Value, String> {
-    let raw = std::fs::read_to_string(path)
-        .map_err(|e| format!("{}: read failed: {}", path.display(), e))?;
+    let raw = std::fs::read(path).map_err(|e| format!("{}: read failed: {}", path.display(), e))?;
+    let source = std::str::from_utf8(&raw).map_err(|e| {
+        let start = e.valid_up_to();
+        let end = start + e.error_len().unwrap_or(raw.len() - start);
+        format!(
+            "{}: TOML parse failed: {}",
+            path.display(),
+            toml_error_details(&raw, "invalid UTF-8", Some(start..end))
+        )
+    })?;
     // toml 1.1: `str::parse::<Value>()` parses a single *value* expression,
     // not a whole document (it routes through `ValueDeserializer`). Document
     // parsing is `toml::from_str`, which deserializes the full table. (In
     // toml 0.8 `FromStr for Value` parsed a document; the 1.1 line split the
     // two, so this call site shifts.)
-    toml::from_str::<Value>(&raw)
-        .map_err(|e| format!("{}: TOML parse failed: {}", path.display(), e))
+    toml::from_str::<Value>(source).map_err(|e| {
+        format!(
+            "{}: TOML parse failed: {}",
+            path.display(),
+            toml_error_details(&raw, e.message(), e.span())
+        )
+    })
+}
+
+fn toml_error_details(raw: &[u8], message: &str, span: Option<std::ops::Range<usize>>) -> String {
+    let location = match span {
+        Some(range) if range.start <= range.end && range.end <= raw.len() => {
+            format!("bytes {}:{}", range.start, range.end)
+        }
+        _ => "byte span unavailable".to_string(),
+    };
+    format!(
+        "{} (source sha256 {}, {})",
+        message,
+        digest_hex("sha256", raw),
+        location
+    )
+}
+
+#[cfg(test)]
+mod toml_error_tests {
+    use super::{Value, digest_hex, toml_error_details};
+
+    #[test]
+    fn reports_original_bytes_without_source_coordinates() {
+        let valid = "name = \"café\"\r\n";
+        assert!(toml::from_str::<Value>(valid).is_ok());
+
+        let invalid = "name = \"café\"\r\ncount = @\r\n";
+        let error = toml::from_str::<Value>(invalid).unwrap_err();
+        let invalid_byte = invalid.find('@').unwrap();
+        assert_eq!(error.span(), Some(invalid_byte..invalid_byte + 1));
+        let details = toml_error_details(invalid.as_bytes(), error.message(), error.span());
+        assert!(details.contains(&digest_hex("sha256", invalid.as_bytes())));
+        assert!(details.contains("bytes "));
+        assert!(!details.contains("line "));
+        assert!(!details.contains("column "));
+        assert!(!details.contains("count = @"));
+    }
 }
 
 fn is_semver(s: &str) -> bool {
@@ -938,7 +988,7 @@ fn validate_provenance_binding(path: &Path, doc: &Value, repo_root: &Path) -> Ve
     };
     // SPEC §11: source_path MUST be relative and resolve to a file under
     // repo root. Reject absolute paths and any path that escapes via `..`
-    // or a symlink — otherwise an attestation could bind its provenance
+    // or a symlink - otherwise an attestation could bind its provenance
     // digest to a file outside the repo (e.g. "../../etc/passwd") and the
     // binding would be meaningless. The Python reference
     // (validators/validate_provenance.py) enforces this; a *primary*
@@ -1265,7 +1315,7 @@ mod implementation_dag {
                 };
                 if ul <= dl {
                     errors.push(format!(
-                        "layer ordering: {u} (layer={ul}) depends_on {d} (layer={dl}) — a depender must be in a strictly higher layer"
+                        "layer ordering: {u} (layer={ul}) depends_on {d} (layer={dl}): a depender must be in a strictly higher layer"
                     ));
                 }
             }
@@ -3248,44 +3298,97 @@ mod profile {
     /// caller MUST refuse to validate anything when duplicates exist
     /// (SPEC 12.8.1 pin resolution: no pin-free fall-through).
     pub fn discover(repo_root: &Path) -> (BTreeMap<String, (PathBuf, Value)>, Vec<String>) {
-        let mut duplicates: Vec<String> = Vec::new();
+        let mut discovery_errors: Vec<String> = Vec::new();
         let mut out: BTreeMap<String, (PathBuf, Value)> = BTreeMap::new();
         let dir = repo_root.join("profiles");
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            return (out, duplicates);
+        let entries = match std::fs::read_dir(&dir) {
+            Ok(entries) => entries,
+            Err(error) => {
+                discovery_errors.push(format!("{}: cannot enumerate profiles: {error}", dir.display()));
+                return (out, discovery_errors);
+            }
         };
-        for entry in entries.flatten() {
-            let candidate = entry.path().join("PROFILE.toml");
-            if !candidate.is_file() {
+        for entry in entries {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(error) => {
+                    discovery_errors.push(format!("{}: cannot inspect profile entry: {error}", dir.display()));
+                    continue;
+                }
+            };
+            let entry_path = entry.path();
+            let file_type = match entry.file_type() {
+                Ok(file_type) => file_type,
+                Err(error) => {
+                    discovery_errors.push(format!("{}: cannot inspect profile entry: {error}", entry_path.display()));
+                    continue;
+                }
+            };
+            if file_type.is_symlink() {
+                match std::fs::metadata(&entry_path) {
+                    Ok(metadata) if metadata.is_dir() => {}
+                    Ok(_) => {
+                        discovery_errors.push(format!("{}: profile link does not target a directory", entry_path.display()));
+                        continue;
+                    }
+                    Err(error) => {
+                        discovery_errors.push(format!("{}: cannot follow profile directory link: {error}", entry_path.display()));
+                        continue;
+                    }
+                }
+            } else if !file_type.is_dir() {
                 continue;
             }
-            let Ok(doc) = load(&candidate) else { continue };
+            let candidate = entry.path().join("PROFILE.toml");
+            match candidate.symlink_metadata() {
+                Ok(_) if candidate.is_file() => {}
+                Ok(_) => {
+                    discovery_errors.push(format!("{}: profile descriptor is not a regular file", candidate.display()));
+                    continue;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => {
+                    discovery_errors.push(format!("{}: cannot inspect profile descriptor: {error}", candidate.display()));
+                    continue;
+                }
+            }
+            let doc = match load(&candidate) {
+                Ok(doc) => doc,
+                Err(error) => {
+                    discovery_errors.push(error);
+                    continue;
+                }
+            };
             let tk = doc
                 .get("meta")
                 .and_then(|m| m.get("template_kind"))
                 .and_then(|x| x.as_str())
                 .unwrap_or("");
             if tk != "profile-descriptor" {
+                discovery_errors.push(format!("{}: expected a profile-descriptor declaration", candidate.display()));
                 continue;
             }
-            if let Some(name) = doc
+            let name = doc
                 .get("profile")
                 .and_then(|p| p.get("name"))
                 .and_then(|x| x.as_str())
-            {
-                if let Some((existing, _)) = out.get(name) {
-                    duplicates.push(format!(
-                        "duplicate profile-descriptor name `{}` ({} and {})",
-                        name,
-                        existing.display(),
-                        candidate.display()
-                    ));
-                    continue;
-                }
-                out.insert(name.to_string(), (candidate, doc));
+                .filter(|name| !name.is_empty());
+            let Some(name) = name else {
+                discovery_errors.push(format!("{}: [profile].name must be a nonempty string", candidate.display()));
+                continue;
+            };
+            if let Some((existing, _)) = out.get(name) {
+                discovery_errors.push(format!(
+                    "duplicate profile-descriptor name `{}` ({} and {})",
+                    name,
+                    existing.display(),
+                    candidate.display()
+                ));
+                continue;
             }
+            out.insert(name.to_string(), (candidate, doc));
         }
-        (out, duplicates)
+        (out, discovery_errors)
     }
 
     fn is_unprefixed(name: &str) -> bool {
@@ -5172,7 +5275,7 @@ mod gate_decision {
 }
 
 // ------------------------------------------------------------
-// Meta-field checks (§2.2 + §2.6 + §2.7) — applied to every doc with [meta]
+// Meta-field checks (§2.2 + §2.6 + §2.7) - applied to every doc with [meta]
 // ------------------------------------------------------------
 
 const CONFIDENTIALITY: &[&str] = &[
@@ -5208,7 +5311,7 @@ fn validate_meta_fields(path: &Path, doc: &Value) -> Vec<String> {
     }
 
     if let Some(docs_url) = meta.get("docs").and_then(|x| x.as_str()) {
-        // §2.6 — https only, no query string
+        // §2.6 - https only, no query string
         if !docs_url.starts_with("https://") {
             errors.push(format!(
                 "{}: [meta].docs must start with `https://` (SPEC §2.6)",
@@ -5286,7 +5389,7 @@ fn validate_meta_fields(path: &Path, doc: &Value) -> Vec<String> {
     errors
 }
 
-// SPEC §2.7 — accept either:
+// SPEC §2.7 - accept either:
 //   YYYY-MM-DD                                (full-date)
 //   YYYY-MM-DDTHH:MM:SS[.fff][Z|±HH:MM]       (full date-time)
 // The check is syntactic only; the validator does NOT compare against
@@ -5373,7 +5476,7 @@ fn validate_provenance_encryption(path: &Path, doc: &Value) -> Vec<String> {
     match enc.get("sealed").and_then(|x| x.as_bool()) {
         Some(true) => {}
         Some(false) => errors.push(format!(
-            "{}: [provenance.encryption] is present but `sealed = false` — SPEC §11.1 requires the sub-table to be absent in that case",
+            "{}: [provenance.encryption] is present but `sealed = false` - SPEC §11.1 requires the sub-table to be absent in that case",
             path.display()
         )),
         None => errors.push(format!(
@@ -5394,7 +5497,7 @@ fn validate_provenance_encryption(path: &Path, doc: &Value) -> Vec<String> {
             path.display()
         )),
     }
-    // SPEC §11.1 — `scheme_hint` is OPTIONAL but, when present, MUST
+    // SPEC §11.1 - `scheme_hint` is OPTIONAL but, when present, MUST
     // be a string (free-form label).
     if let Some(v) = enc.get("scheme_hint") {
         if v.as_str().is_none() {
@@ -5772,7 +5875,7 @@ fn validate_framework_profile(
         name
     };
 
-    // 1. Shape check — must match one of the two patterns in §2.5.
+    // 1. Shape check - must match one of the two patterns in §2.5.
     let is_unprefixed = !resolved.is_empty()
         && resolved
             .chars()
@@ -5796,7 +5899,7 @@ fn validate_framework_profile(
         ));
         return errors;
     }
-    // 2. Resolution check — unprefixed names MUST be in the loaded
+    // 2. Resolution check - unprefixed names MUST be in the loaded
     //    profile-descriptor set; reverse-DNS names MAY be locally
     //    declared and SHOULD also resolve but absence is downgraded
     //    to a structural lint (the spec doesn't require third-party
@@ -5827,10 +5930,10 @@ fn main() -> ExitCode {
         .canonicalize()
         .unwrap_or(parsed.repo_root.clone());
 
-    let (descriptors, duplicate_profiles) = profile::discover(&repo_root);
-    if !duplicate_profiles.is_empty() {
+    let (descriptors, discovery_errors) = profile::discover(&repo_root);
+    if !discovery_errors.is_empty() {
         eprintln!("DAGTOML VALIDATION FAILED (rust primary)");
-        for d in &duplicate_profiles {
+        for d in &discovery_errors {
             eprintln!("- {d}: pin resolution refuses to proceed (SPEC 12.8.1)");
         }
         std::process::exit(1);

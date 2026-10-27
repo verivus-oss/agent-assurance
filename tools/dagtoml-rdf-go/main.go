@@ -1,4 +1,4 @@
-// dagtoml-rdf-go — Go counterpart of tools/dagtoml-rdf. Generates the
+// dagtoml-rdf-go: Go counterpart of tools/dagtoml-rdf. Generates the
 // DAG-TOML ontology as RDF/Turtle by reading every <repo-root>/core/
 // and <repo-root>/profiles/<name>/ ontology.toml plus *-kind.toml.
 //
@@ -21,12 +21,13 @@
 //
 //	dagtoml-rdf-go [--repo-root <path>] [-o <output>]
 //
-// Default output: stdout. Equivalent to the Rust binary — produces the
+// Default output: stdout. Equivalent to the Rust binary, produces the
 // same Turtle artifact and the same `### Counts at generation:` footer
 // that validators/check_manifest_drift.sh greps.
 package main
 
 import (
+	"crypto/sha256"
 	"flag"
 	"fmt"
 	"os"
@@ -46,9 +47,9 @@ const (
 // ---------- ontology shapes ----------
 
 type ontology struct {
-	Entities              []entity `toml:"entities"`
+	Entities              []entity   `toml:"entities"`
 	Relations             []relation `toml:"relations"`
-	AttributeVocabularies []vocab  `toml:"attribute_vocabularies"`
+	AttributeVocabularies []vocab    `toml:"attribute_vocabularies"`
 }
 
 type entity struct {
@@ -84,6 +85,11 @@ type kindFile struct {
 	Kind struct {
 		Name string `toml:"name"`
 	} `toml:"kind"`
+}
+
+func declaredKind(file kindFile) (string, bool) {
+	name := file.Meta.DescribesKind
+	return name, file.Meta.TemplateKind == "kind-descriptor" && name != "" && file.Kind.Name == name
 }
 
 // ---------- utilities ----------
@@ -245,44 +251,82 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 	}
 
 	// Walk every profiles/<name>/ontology.toml. Profiles are discovered
-	// dynamically — adding profiles/<new>/ontology.toml just works.
+	// dynamically - adding profiles/<new>/ontology.toml just works.
 	type profOnt struct {
 		name string
 		o    ontology
 	}
 	var profOnts []profOnt
-	if entries, err := os.ReadDir(filepath.Join(repoRoot, "profiles")); err == nil {
-		var names []string
-		for _, e := range entries {
-			if e.IsDir() {
-				names = append(names, e.Name())
-			}
+	entries, err := os.ReadDir(filepath.Join(repoRoot, "profiles"))
+	if err != nil {
+		return "", 0, 0, 0, 0, fmt.Errorf("cannot enumerate profiles: %w", err)
+	}
+	var names []string
+	for _, e := range entries {
+		if e.Type().IsRegular() {
+			continue
 		}
-		sort.Strings(names)
-		for _, name := range names {
-			p := filepath.Join(repoRoot, "profiles", name, "ontology.toml")
-			if _, err := os.Stat(p); err != nil {
+		path := filepath.Join(repoRoot, "profiles", e.Name())
+		info, err := os.Stat(path)
+		if err != nil {
+			return "", 0, 0, 0, 0, fmt.Errorf("cannot inspect profile %s: %w", path, err)
+		}
+		if info.IsDir() {
+			names = append(names, e.Name())
+		}
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		p := filepath.Join(repoRoot, "profiles", name, "ontology.toml")
+		if _, err := os.Lstat(p); err != nil {
+			if os.IsNotExist(err) {
+				directory := filepath.Join(repoRoot, "profiles", name)
+				info, directoryErr := os.Stat(directory)
+				if directoryErr != nil {
+					return "", 0, 0, 0, 0, fmt.Errorf("profile directory changed during scan: %s: %w", directory, directoryErr)
+				}
+				if !info.IsDir() {
+					return "", 0, 0, 0, 0, fmt.Errorf("profile directory changed during scan: %s is no longer a directory", directory)
+				}
+				children, readErr := os.ReadDir(directory)
+				if readErr != nil {
+					return "", 0, 0, 0, 0, fmt.Errorf("cannot enumerate profile %s: %w", directory, readErr)
+				}
+				for _, child := range children {
+					if child.Name() == "PROFILE.toml" || strings.HasSuffix(child.Name(), "-kind.toml") {
+						return "", 0, 0, 0, 0, fmt.Errorf("profile ontology is missing for declaration %s: %s", child.Name(), p)
+					}
+				}
 				continue
 			}
-			var o ontology
-			if err := loadToml(p, &o); err != nil {
-				return "", 0, 0, 0, 0, err
-			}
-			profOnts = append(profOnts, profOnt{name, o})
+			return "", 0, 0, 0, 0, fmt.Errorf("cannot inspect profile ontology %s: %w", p, err)
 		}
+		info, err := os.Stat(p)
+		if err != nil {
+			return "", 0, 0, 0, 0, fmt.Errorf("cannot inspect profile ontology %s: %w", p, err)
+		}
+		if !info.Mode().IsRegular() {
+			return "", 0, 0, 0, 0, fmt.Errorf("profile ontology is not a regular file: %s", p)
+		}
+		var o ontology
+		if err := loadToml(p, &o); err != nil {
+			return "", 0, 0, 0, 0, err
+		}
+		profOnts = append(profOnts, profOnt{name, o})
 	}
 
 	// Collect kind descriptors: 1 meta + every *-kind.toml.
 	type kindRow struct{ tk, layer, path string }
 	kinds := []kindRow{{"kind-descriptor", "core", "spec.md"}}
 	gather := func(layer, base string) error {
-		entries, err := os.ReadDir(filepath.Join(repoRoot, base))
+		directory := filepath.Join(repoRoot, base)
+		entries, err := os.ReadDir(directory)
 		if err != nil {
-			return nil
+			return fmt.Errorf("cannot enumerate kind descriptors under %s: %w", directory, err)
 		}
 		var paths []string
 		for _, e := range entries {
-			if !e.IsDir() && strings.HasSuffix(e.Name(), "-kind.toml") {
+			if strings.HasSuffix(e.Name(), "-kind.toml") {
 				paths = append(paths, filepath.Join(base, e.Name()))
 			}
 		}
@@ -290,22 +334,26 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 		for _, rel := range paths {
 			var kf kindFile
 			if err := loadToml(filepath.Join(repoRoot, rel), &kf); err != nil {
-				continue
+				return fmt.Errorf("cannot load kind descriptor %s: %w", rel, err)
 			}
-			tk := kf.Meta.DescribesKind
-			if tk == "" {
-				tk = kf.Kind.Name
+			tk, valid := declaredKind(kf)
+			if !valid {
+				return fmt.Errorf("kind descriptor %s must declare matching kind fields", rel)
 			}
-			if tk == "" || tk == "kind-descriptor" {
+			if tk == "kind-descriptor" {
 				continue
 			}
 			kinds = append(kinds, kindRow{tk, layer, rel})
 		}
 		return nil
 	}
-	_ = gather("core", "core")
+	if err := gather("core", "core"); err != nil {
+		return "", 0, 0, 0, 0, err
+	}
 	for _, p := range profOnts {
-		_ = gather("profile:"+p.name, "profiles/"+p.name)
+		if err := gather("profile:"+p.name, "profiles/"+p.name); err != nil {
+			return "", 0, 0, 0, 0, err
+		}
 	}
 
 	// Entities (core + each profile, with layer attached).
@@ -329,8 +377,8 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 
 	// Relations: namespace duplicates (only core has relations today).
 	type relRow struct {
-		r          relation
-		predicate  string
+		r         relation
+		predicate string
 	}
 	var relations []relRow
 	seen := map[string]int{}
@@ -512,7 +560,7 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 		b.WriteString(".\n\n")
 	}
 
-	// Footer counts — the drift script greps this line.
+	// Footer counts: the drift script greps this line.
 	b.WriteString("###\n")
 	fmt.Fprintf(&b,
 		"### Counts at generation: %d template kinds, %d entity kinds, %d relation predicates, %d attribute vocabularies.\n",
@@ -528,7 +576,7 @@ func loadToml(path string, v any) error {
 		return fmt.Errorf("read %s: %w", path, err)
 	}
 	if err := toml.Unmarshal(data, v); err != nil {
-		return fmt.Errorf("parse %s: %w", path, err)
+		return fmt.Errorf("parse %s: invalid TOML (source sha256 %x)", path, sha256.Sum256(data))
 	}
 	return nil
 }
@@ -562,14 +610,14 @@ func verifyTurtle(path string) error {
 	if len(missing) > 0 {
 		return fmt.Errorf("missing tokens: %v", missing)
 	}
-	// Walk the file as a TOML-adjacent text — light sanity that braces /
+	// Walk the file as a TOML-adjacent text, light sanity that braces /
 	// parens balance enough to flag truncation.
 	open := strings.Count(src, "[")
 	closed := strings.Count(src, "]")
 	if open != closed {
 		return fmt.Errorf("unbalanced brackets: %d open vs %d closed", open, closed)
 	}
-	fmt.Fprintf(os.Stderr, "verify %q: OK — %d lines, balanced brackets\n",
+	fmt.Fprintf(os.Stderr, "verify %q: OK, %d lines, balanced brackets\n",
 		path, strings.Count(src, "\n"))
 	return nil
 }

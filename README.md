@@ -146,7 +146,7 @@ build break.
 | Layer | Implementation | Role |
 | --- | --- | --- |
 | Syntax | [Taplo](https://taplo.tamasfe.dev/) | Repository TOML lint, duplicate-key detection |
-| Parser conformance | `toml-lang/toml-test` suite | Verifies the TOML 1.1 parser stack: `toml` 1.1 for Rust, `BurntSushi/toml` v1.6.0 for Go, and `tomli` >= 2.4.0 for the Python reference validators |
+| Parser conformance | `toml-lang/toml-test` suite | Verifies the TOML 1.1 parser stack: `toml` 1.1 for Rust, `BurntSushi/toml` v1.6.0 for Go, and the vendored Tomli 2.5.0 parser with explicit token scanning for the Python reference validators |
 | Semantics — **primary** | `tools/dagtoml-validate-rs/` (safe Rust, `#![forbid(unsafe_code)]`) | Authoritative for profile descriptors; ontologies and IJB conformance; kind-descriptor structure and §13 abstraction/capability envelopes; implementation-dag; traceability; review-readiness; disclosure-profile kinds; cost-record; rollback-plan trigger closure; gate-decision; §2.2 and §2.5–§2.7 meta surface; §11.1 `[provenance.encryption]`; and §12.8 `[provenance].source_sha256` closure roots |
 | Semantics — **primary** | `tools/dagtoml-validate-go/` (safe Go, no `unsafe` import) | Same surface as Rust; CI runs both against ontologies, every kind descriptor, every canonical example, every tier file, and every profile descriptor on each push, and both must exit 0 |
 | Semantics — reference / cross-check | `validators/*.py` | Historical reference implementation. CI keeps these validators as independent cross-checks on the primary Rust/Go surface and uses negative fixtures to prove all three reject malformed examples consistently. |
@@ -163,15 +163,15 @@ the change is explicitly documented as experimental tooling.
 ## Local Validation
 
 ```sh
-# Python deps for the reference validators
+# Stable Python requirements entry points; no external runtime packages
 python3 -m pip install -r requirements.txt
-python3 -m pip install --no-binary tomli -r requirements/toml.txt
+python3 -m pip install -r requirements/toml.txt
 
 # Install Taplo per https://taplo.tamasfe.dev/cli/installation/
 taplo lint
 
 # Parse all checked-in TOML with the Python TOML 1.1 reference parser
-python3 -c 'import sys, pathlib; sys.path.insert(0, "validators"); import _toml11 as tomllib; [tomllib.loads(p.read_text()) for p in pathlib.Path(".").rglob("*.toml") if not any(x.startswith(".") for x in p.parts)]'
+python3 -c 'import sys, pathlib; sys.path.insert(0, "validators"); import _toml11 as tomllib; [tomllib.loads_bytes(p.read_bytes()) for p in pathlib.Path(".").rglob("*.toml") if not any(x.startswith(".") for x in p.parts)]'
 
 # Build the primary validators (one-time, ~30s)
 cd tools/dagtoml-validate-rs && cargo build --release && cd -

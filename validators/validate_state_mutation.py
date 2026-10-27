@@ -153,7 +153,7 @@ def load_vocabulary(repo_root: pathlib.Path, attribute: str) -> set[str]:
     ontology the way a hard-coded list would.
     """
     ont = repo_root / "profiles" / "com.verivus.runtime" / "ontology.toml"
-    data = tomllib.loads(ont.read_text())
+    data = tomllib.loads_bytes(ont.read_bytes())
     for entry in data.get("attribute_vocabularies", []):
         if entry.get("attribute") == attribute:
             return {str(v) for v in entry.get("values", []) if isinstance(v, str)}
@@ -299,7 +299,7 @@ def _validate_mutation_table(doc: dict, path: pathlib.Path) -> list[str]:
 
 def validate_one(path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
     errors: list[str] = []
-    doc = tomllib.loads(path.read_text())
+    doc = tomllib.loads_bytes(path.read_bytes())
 
     kind = doc.get("meta", {}).get("template_kind")
     if kind not in ("state-mutation", "mutation-claim"):
@@ -442,7 +442,7 @@ def main(argv: list[str]) -> int:
         path = pathlib.Path(name)
         inspected += 1
         try:
-            doc = tomllib.loads(path.read_text())
+            doc = tomllib.loads_bytes(path.read_bytes())
         except Exception as exc:  # noqa: BLE001 - report, do not crash the sweep
             errors.append(f"{path}: could not parse: {exc}")
             continue

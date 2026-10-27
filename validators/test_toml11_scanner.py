@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+"""Independent TOML 1.1 examples for the vendored token scanners."""
+
+import hashlib
+import io
+import pathlib
+import tempfile
+import unittest
+from datetime import date, datetime, time, timedelta, timezone
+
+import _toml11 as tomllib
+from _toml11_vendor._parser import skip_chars
+
+
+class ParserTests(unittest.TestCase):
+    def test_skip_chars_stops_at_boundary_and_nonmatching_char(self) -> None:
+        self.assertEqual(skip_chars(" \tkey", 0, frozenset(" \t")), 2)
+        self.assertEqual(skip_chars(" \t", 0, frozenset(" \t")), 2)
+        self.assertEqual(skip_chars("", 0, frozenset(" \t")), 0)
+        self.assertEqual(skip_chars("key", 0, frozenset(" \t")), 0)
+        self.assertEqual(skip_chars("key", 3, frozenset(" \t")), 3)
+
+    def test_skip_chars_does_not_wrap_negative_position(self) -> None:
+        self.assertEqual(skip_chars("key ", -1, frozenset(" \t")), -1)
+
+    def test_whitespace_endings_and_trailing_junk(self) -> None:
+        for source, expected in (("", {}), (" \t", {}), ("value = 1 \t", {"value": 1})):
+            with self.subTest(source=source):
+                self.assertEqual(tomllib.loads(source), expected)
+        with self.assertRaises(tomllib.TOMLDecodeError):
+            tomllib.loads("value = 1 \tjunk")
+
+    def test_numbers_and_times(self) -> None:
+        document = tomllib.loads(
+            "hex = 0xF_F\n"
+            "binary = 0b1_0\n"
+            "octal = 0o7_0\n"
+            "decimal = -1_000\n"
+            "fraction = 1_000.25e-2\n"
+            "day = 2026-10-27\n"
+            "clock = 12:34\n"
+            "stamp = 2026-10-27T12:34:56.123456789+10:00\n"
+        )
+        self.assertEqual(document["hex"], 255)
+        self.assertEqual(document["binary"], 2)
+        self.assertEqual(document["octal"], 56)
+        self.assertEqual(document["decimal"], -1000)
+        self.assertEqual(document["fraction"], 10.0025)
+        self.assertEqual(document["day"], date(2026, 10, 27))
+        self.assertEqual(document["clock"], time(12, 34))
+        self.assertEqual(
+            document["stamp"],
+            datetime(2026, 10, 27, 12, 34, 56, 123456,
+                     tzinfo=timezone(timedelta(hours=10))),
+        )
+
+    def test_invalid_token_boundaries(self) -> None:
+        for value in ("0x", "1_", "1e+", "24:00", "2026-13-27", "2026-10-27T12:34+24:00"):
+            with self.subTest(value=value), self.assertRaises(tomllib.TOMLDecodeError):
+                tomllib.loads(f"value = {value}\n")
+
+    def test_error_uses_digest_and_byte_span(self) -> None:
+        source = "value = @\n"
+        with self.assertRaises(tomllib.TOMLDecodeError) as result:
+            tomllib.loads(source)
+        error = result.exception
+        self.assertEqual(error.byte_span, (8, 9))
+        self.assertEqual(error.source_sha256, hashlib.sha256(source.encode()).hexdigest())
+        self.assertIn(f"bytes {error.byte_span[0]}:{error.byte_span[1]}", str(error))
+        self.assertIn(error.source_sha256, str(error))
+        self.assertFalse(hasattr(error, "lineno"))
+        self.assertFalse(hasattr(error, "colno"))
+        self.assertFalse(hasattr(error, "pos"))
+
+    def test_crlf_diagnostic_points_into_original_bytes(self) -> None:
+        source = "a = 1\r\nb = 2\r\nc = @\r\n"
+        raw = source.encode()
+        expected = raw.index(b"@")
+        with self.assertRaises(tomllib.TOMLDecodeError) as result:
+            tomllib.load(io.BytesIO(raw))
+        error = result.exception
+        self.assertEqual(error.source_sha256, hashlib.sha256(raw).hexdigest())
+        self.assertEqual(error.byte_span, (expected, expected + 1))
+        self.assertIn(f"bytes {expected}:{expected + 1}", str(error))
+        self.assertEqual(tomllib.loads("a = 1\r\nb = 2\r\n"), {"a": 1, "b": 2})
+
+    def test_gate_validator_reports_original_file_bytes(self) -> None:
+        from validate_gate_decision import validate_one
+        from validate_closure_root import validate as validate_closure_root
+
+        raw = b"a = 1\r\nb = 2\r\nbad = @\r\n"
+        expected = raw.index(b"@")
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "gate.toml"
+            path.write_bytes(raw)
+            errors = validate_one(path, pathlib.Path(directory))
+            closure_errors = validate_closure_root(path)
+        self.assertEqual(len(errors), 1)
+        self.assertIn(hashlib.sha256(raw).hexdigest(), errors[0])
+        self.assertIn(f"bytes {expected}:{expected + 1}", errors[0])
+        self.assertEqual(len(closure_errors), 1)
+        self.assertIn(hashlib.sha256(raw).hexdigest(), closure_errors[0])
+        self.assertIn(f"bytes {expected}:{expected + 1}", closure_errors[0])
+
+    def test_multibyte_diagnostic_points_into_original_bytes(self) -> None:
+        source = 'name = "值"\r\nbad = @\r\n'
+        raw = source.encode()
+        expected = raw.index(b"@")
+        with self.assertRaises(tomllib.TOMLDecodeError) as result:
+            tomllib.loads(source)
+        error = result.exception
+        self.assertEqual(error.source_sha256, hashlib.sha256(raw).hexdigest())
+        self.assertEqual(error.byte_span, (expected, expected + 1))
+
+    def test_invalid_utf8_uses_original_byte_evidence(self) -> None:
+        source = b'name = "valid\xff"\n'
+        with self.assertRaises(tomllib.TOMLDecodeError) as result:
+            tomllib.load(io.BytesIO(source))
+        error = result.exception
+        self.assertEqual(error.byte_span, (13, 14))
+        self.assertEqual(error.source_sha256, hashlib.sha256(source).hexdigest())
+        self.assertIn("invalid UTF-8", str(error))
+        self.assertNotIn("line", str(error))
+        self.assertNotIn("column", str(error))
+        from validate_traceability import load_toml
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "invalid.toml"
+            path.write_bytes(source)
+            with self.assertRaises(tomllib.TOMLDecodeError):
+                load_toml(path)
+
+    def test_caller_float_error_is_not_rewritten(self) -> None:
+        caller_error = tomllib.TOMLDecodeError("caller rejected float", "", 0)
+
+        def reject_float(_: str) -> float:
+            raise caller_error
+
+        with self.assertRaises(tomllib.TOMLDecodeError) as result:
+            tomllib.loads("a = 1.5\r\n", parse_float=reject_float)
+        self.assertIs(result.exception, caller_error)
+        self.assertEqual(caller_error.source_sha256, hashlib.sha256(b"").hexdigest())
+
+
+if __name__ == "__main__":
+    suite = unittest.defaultTestLoader.loadTestsFromTestCase(ParserTests)
+    if not unittest.TextTestRunner().run(suite).wasSuccessful():
+        raise SystemExit(1)

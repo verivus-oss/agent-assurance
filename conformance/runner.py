@@ -29,7 +29,7 @@ import subprocess
 import sys
 
 # Parse TOML with the same TOML 1.1 reference shim the validators use
-# (validators/_toml11.py wraps `tomli` >= 2.4.0; stdlib tomllib is 1.0-only).
+# (validators/_toml11.py wraps the vendored parser; stdlib tomllib is 1.0-only).
 # The runner lives outside validators/, so put that directory on the path.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "validators"))
 import _toml11 as tomllib  # noqa: E402  (path set up immediately above)
@@ -89,7 +89,7 @@ def run_validator(cmd: list[str]) -> tuple[int, str]:
 def load_known_divergences(path: pathlib.Path) -> dict[tuple[str, str], str]:
     if not path.exists():
         return {}
-    doc = tomllib.loads(path.read_text())
+    doc = tomllib.loads_bytes(path.read_bytes())
     known: dict[tuple[str, str], str] = {}
     for entry in doc.get("divergence", []):
         for impl in entry["implementations"]:
@@ -124,7 +124,7 @@ def main() -> int:
                 expected_substrings: list[str] = []
                 forbidden_substrings: list[str] = []
                 if sidecar.exists():
-                    sidecar_doc = tomllib.loads(sidecar.read_text())
+                    sidecar_doc = tomllib.loads_bytes(sidecar.read_bytes())
                     expected_substrings = sidecar_doc.get("error_contains", [])
                     forbidden_substrings = sidecar_doc.get("error_not_contains", [])
 

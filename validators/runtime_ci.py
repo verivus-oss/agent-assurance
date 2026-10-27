@@ -18,7 +18,7 @@ def main():
     (work / "scratch").mkdir()
     env = {**os.environ, "TMPDIR": str(work / "scratch"), "GOCACHE": str(work / "go-cache"),
            "PYTHONDONTWRITEBYTECODE": "1"}
-    lock = toml.loads((root / "reference/database/engine-lock.toml").read_text())["syscall_instrument"]
+    lock = toml.loads_bytes((root / "reference/database/engine-lock.toml").read_bytes())["syscall_instrument"]
     archive = work / "strace.tar.xz"
     download(lock["source_url"], lock["source_sha256"], archive)
     source = work / "strace-source"

@@ -35,7 +35,7 @@ fn main() -> ExitCode {
     let parsed: TomlValue = match toml::from_str(&input) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("toml-test-decode-rs: parse error: {e}");
+            eprintln!("toml-test-decode-rs: parse error: {}", e.message());
             return ExitCode::from(1);
         }
     };

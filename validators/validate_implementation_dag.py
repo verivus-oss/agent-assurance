@@ -3,13 +3,13 @@
 
 from __future__ import annotations
 
-import argparse
 import pathlib
+import hashlib
 import sys
+from types import SimpleNamespace
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
 from collections import Counter, defaultdict
-
-import networkx as nx
+from heapq import heapify, heappop, heappush
 
 
 VALID_STATUS = {"pending", "in_progress", "done", "blocked", "deferred"}
@@ -28,29 +28,64 @@ ARTIFACT_PREFIXES = ("ART:", "OUT:")
 PLACEHOLDER_MARKERS = ("<", ">")
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Validate an implementation DAG TOML file.")
-    parser.add_argument("dag_file", help="Path to the TOML file to validate.")
-    parser.add_argument(
-        "--repo-root",
-        help="Repository root used for optional files_modify path existence checks.",
+def parse_args() -> SimpleNamespace:
+    """Parse the four documented CLI inputs with exact option names."""
+    dag_file: str | None = None
+    repo_root: str | None = None
+    check_paths_exist = False
+    allow_placeholders = False
+    positional_only = False
+    args = iter(sys.argv[1:])
+    for item in args:
+        if item in ("-h", "--help") and not positional_only:
+            print("usage: validate_implementation_dag.py [--repo-root PATH] "
+                  "[--check-paths-exist] [--allow-placeholders] dag_file")
+            raise SystemExit(0)
+        if item == "--" and not positional_only:
+            positional_only = True
+        elif item == "--repo-root" and not positional_only:
+            repo_root = next(args, None)
+            if not repo_root or repo_root.startswith("-"):
+                print("error: --repo-root requires a path", file=sys.stderr)
+                raise SystemExit(2)
+        elif item.startswith("--repo-root=") and not positional_only:
+            repo_root = item.partition("=")[2]
+            if not repo_root:
+                print("error: --repo-root requires a path", file=sys.stderr)
+                raise SystemExit(2)
+        elif item == "--check-paths-exist" and not positional_only:
+            check_paths_exist = True
+        elif item == "--allow-placeholders" and not positional_only:
+            allow_placeholders = True
+        elif item.startswith("-") and not positional_only:
+            print(f"error: unknown option {item}", file=sys.stderr)
+            raise SystemExit(2)
+        elif dag_file is None:
+            dag_file = item
+        else:
+            print(f"error: unexpected argument {item}", file=sys.stderr)
+            raise SystemExit(2)
+    if dag_file is None:
+        print("error: dag_file is required", file=sys.stderr)
+        raise SystemExit(2)
+    return SimpleNamespace(
+        dag_file=dag_file,
+        repo_root=repo_root,
+        check_paths_exist=check_paths_exist,
+        allow_placeholders=allow_placeholders,
     )
-    parser.add_argument(
-        "--check-paths-exist",
-        action="store_true",
-        help="Verify files_modify paths exist relative to --repo-root.",
-    )
-    parser.add_argument(
-        "--allow-placeholders",
-        action="store_true",
-        help="Allow placeholder strings like <files-from-triage> in file paths.",
-    )
-    return parser.parse_args()
 
 
 def load_toml(path: pathlib.Path) -> dict:
-    with path.open("rb") as handle:
-        return tomllib.load(handle)
+    raw = path.read_bytes()
+    try:
+        source = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        digest = hashlib.sha256(raw).hexdigest()
+        raise ValueError(
+            f"invalid UTF-8 (source sha256 {digest}, bytes {exc.start}:{exc.end})"
+        ) from exc
+    return tomllib.loads(source)
 
 
 def has_placeholder(value: str) -> bool:
@@ -127,32 +162,105 @@ def validate_edges(units: dict[str, dict]) -> tuple[list[str], dict[str, set[str
     return errors, dep_sets, blk_sets
 
 
-def _build_dep_graph(dep_sets: dict[str, set[str]]) -> nx.DiGraph:
-    G = nx.DiGraph()
-    G.add_nodes_from(dep_sets)
-    for u, deps in dep_sets.items():
-        for v in deps:
-            G.add_edge(u, v)
-    return G
-
-
 def detect_cycles(dep_sets: dict[str, set[str]]) -> list[str]:
-    G = _build_dep_graph(dep_sets)
-    errors: list[str] = []
-    seen: set[tuple[str, ...]] = set()
-    for cycle in nx.simple_cycles(G):
-        # nx.simple_cycles yields each cycle as a list of nodes (no repeat of
-        # the first node at the end). Normalise to the canonical rotation so
-        # the same cycle reported from a different entry point dedupes, and
-        # close the loop in the printed form to match the historical output.
-        rot = min(range(len(cycle)), key=lambda i: cycle[i:] + cycle[:i])
-        canonical = tuple(cycle[rot:] + cycle[:rot])
-        if canonical in seen:
-            continue
-        seen.add(canonical)
-        path = list(canonical) + [canonical[0]]
-        errors.append(f"cycle in depends_on: {' -> '.join(path)}")
-    return errors
+    """Report each simple directed cycle once, starting at its smallest unit ID."""
+    known = set(dep_sets)
+    adjacent = {u: sorted(v for v in deps if v in known) for u, deps in dep_sets.items()}
+    def cyclic_components(nodes: set[str]) -> list[set[str]]:
+        """Find cyclic components of the induced subgraph with explicit stacks."""
+        local = {u: [v for v in adjacent[u] if v in nodes] for u in nodes}
+        reverse: dict[str, list[str]] = {u: [] for u in nodes}
+        for u, deps in local.items():
+            for v in deps:
+                reverse[v].append(u)
+
+        visited: set[str] = set()
+        finished: list[str] = []
+        for seed in sorted(nodes):
+            if seed in visited:
+                continue
+            visited.add(seed)
+            frames = [(seed, iter(local[seed]))]
+            while frames:
+                u, edges = frames[-1]
+                try:
+                    v = next(edges)
+                except StopIteration:
+                    finished.append(u)
+                    frames.pop()
+                    continue
+                if v not in visited:
+                    visited.add(v)
+                    frames.append((v, iter(local[v])))
+
+        assigned: set[str] = set()
+        result: list[set[str]] = []
+        for seed in reversed(finished):
+            if seed in assigned:
+                continue
+            component: set[str] = set()
+            pending = [seed]
+            assigned.add(seed)
+            while pending:
+                u = pending.pop()
+                component.add(u)
+                for v in reverse[u]:
+                    if v not in assigned:
+                        assigned.add(v)
+                        pending.append(v)
+            if len(component) > 1 or seed in local[seed]:
+                result.append(component)
+        return result
+
+    cycles: set[tuple[str, ...]] = set()
+    components = cyclic_components(known)
+    while components:
+        component = components.pop()
+        start = min(component)
+        neighbors = {u: [v for v in adjacent[u] if v in component] for u in component}
+        blocked = {start}
+        waiting: dict[str, set[str]] = {u: set() for u in component}
+        path = [start]
+        frames: list[list] = [[start, iter(neighbors[start]), False]]
+        while frames:
+            node, edges, found = frames[-1]
+            try:
+                next_node = next(edges)
+            except StopIteration:
+                if found:
+                    pending = [node]
+                    while pending:
+                        released = pending.pop()
+                        if released not in blocked:
+                            continue
+                        blocked.remove(released)
+                        pending.extend(waiting[released])
+                        waiting[released].clear()
+                else:
+                    for successor in neighbors[node]:
+                        waiting[successor].add(node)
+                frames.pop()
+                path.pop()
+                if found and frames:
+                    frames[-1][2] = True
+                continue
+            if next_node == start:
+                cycles.add(tuple(path))
+                frames[-1][2] = True
+            elif next_node not in blocked:
+                blocked.add(next_node)
+                path.append(next_node)
+                frames.append([next_node, iter(neighbors[next_node]), False])
+
+        # Removing the least node may split the remainder into many small
+        # components. Search each one separately instead of rescanning the
+        # whole original component for every possible starting node.
+        components.extend(cyclic_components(component - {start}))
+
+    return [
+        f"cycle in depends_on: {' -> '.join((*cycle, cycle[0]))}"
+        for cycle in sorted(cycles)
+    ]
 
 
 def validate_artifacts(units: dict[str, dict]) -> list[str]:
@@ -199,7 +307,7 @@ def validate_layer_ordering(
                 continue
             if ul <= dl:
                 errors.append(
-                    f"layer ordering: {u} (layer={ul}) depends_on {d} (layer={dl}) — "
+                    f"layer ordering: {u} (layer={ul}) depends_on {d} (layer={dl}): "
                     f"a depender must be in a strictly higher layer"
                 )
     return errors
@@ -240,20 +348,29 @@ def longest_path_loc(units: dict[str, dict], blk_sets: dict[str, set[str]]) -> i
     """
     if not units:
         return 0
-    G = nx.DiGraph()
-    G.add_nodes_from(units)
-    for u, blocked in blk_sets.items():
+    successors = {
+        u: sorted(v for v in blk_sets.get(u, set()) if v in units) for u in units
+    }
+    indegree = {u: 0 for u in units}
+    for blocked in successors.values():
         for v in blocked:
-            if v in units:
-                G.add_edge(u, v)
-    if not nx.is_directed_acyclic_graph(G):
-        return None
-    best: dict[str, int] = {u: units[u].get("estimated_loc", 0) for u in G.nodes}
-    for u in nx.topological_sort(G):
-        for v in G.successors(u):
+            indegree[v] += 1
+    ready = [u for u, degree in indegree.items() if degree == 0]
+    heapify(ready)
+    best: dict[str, int] = {u: units[u].get("estimated_loc", 0) for u in units}
+    visited = 0
+    while ready:
+        u = heappop(ready)
+        visited += 1
+        for v in successors[u]:
             cand = best[u] + units[v].get("estimated_loc", 0)
             if cand > best[v]:
                 best[v] = cand
+            indegree[v] -= 1
+            if indegree[v] == 0:
+                heappush(ready, v)
+    if visited != len(units):
+        return None
     return max(best.values())
 
 
@@ -440,6 +557,9 @@ def main() -> int:
         return 2
     except tomllib.TOMLDecodeError as exc:
         print(f"error: invalid TOML: {exc}", file=sys.stderr)
+        return 2
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 2
 
     errors: list[str] = []

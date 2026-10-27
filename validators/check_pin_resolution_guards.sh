@@ -21,6 +21,7 @@ RS="$1"
 GO="$2"
 PY="${PYTHON:-python3}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
+REPO="$(cd "$HERE/.." && pwd)"
 SENTINEL="sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
 TMP="$(mktemp -d)" || { echo "check_pin_resolution_guards.sh: mktemp failed (TMPDIR unwritable?)" >&2; exit 2; }
@@ -151,6 +152,52 @@ printf 'closure_root = "%s"\n[meta]\nschema_version = "0.1.0"\ntemplate_kind = "
 expect "py newline closure_root" 1 "$PY" "$HERE/validate_closure_root.py" "$R/doc.toml" --repo-root "$R"
 expect "rs newline closure_root" 1 "$RS" --repo-root "$R" --mode provenance "$R/doc.toml"
 expect "go newline closure_root" 1 "$GO" -repo-root "$R" -mode provenance "$R/doc.toml"
+
+echo "--- GUARD 6: malformed selected profiles cannot erase pin resolution ---"
+R="$TMP/profile-discovery"
+mkdir -p "$R/examples"
+cp -a "$REPO/core" "$REPO/profiles" "$R/"
+cp "$REPO/examples/minimal-implementation-dag.toml" "$R/examples/doc.toml"
+DOC="$R/examples/doc.toml"
+PROFILE="$R/profiles/cost/PROFILE.toml"
+expect "py intact profile set" 0 "$PY" "$HERE/validate_closure_root.py" "$DOC" --repo-root "$R"
+expect "rs intact profile set" 0 "$RS" --repo-root "$R" --mode provenance "$DOC"
+expect "go intact profile set" 0 "$GO" -repo-root "$R" -mode provenance "$DOC"
+for defect in invalid-utf8 wrong-kind non-string-name dangling-descriptor; do
+  cp "$REPO/profiles/cost/PROFILE.toml" "$PROFILE"
+  case "$defect" in
+    invalid-utf8) printf '\377' >> "$PROFILE" ;;
+    wrong-kind) "$PY" - "$PROFILE" <<'PYEOF'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+source = path.read_text()
+old = 'template_kind     = "profile-descriptor"'
+assert source.count(old) == 1
+path.write_text(source.replace(old, 'template_kind     = "implementation-dag"'))
+PYEOF
+      ;;
+    non-string-name) "$PY" - "$PROFILE" <<'PYEOF'
+import pathlib, sys
+path = pathlib.Path(sys.argv[1])
+source = path.read_text()
+old = 'name              = "cost"'
+assert source.count(old) == 1
+path.write_text(source.replace(old, 'name              = 42'))
+PYEOF
+      ;;
+    dangling-descriptor) mv "$PROFILE" "$PROFILE.saved"; ln -s missing-profile.toml "$PROFILE" ;;
+  esac
+  expect "py rejects $defect" 1 "$PY" "$HERE/validate_closure_root.py" "$DOC" --repo-root "$R"
+  expect "rs rejects $defect" 1 "$RS" --repo-root "$R" --mode provenance "$DOC"
+  expect "go rejects $defect" 1 "$GO" -repo-root "$R" -mode provenance "$DOC"
+done
+unlink "$PROFILE"
+mv "$PROFILE.saved" "$PROFILE"
+mv "$R/profiles/cost" "$R/profiles/cost.saved"
+ln -s missing-directory "$R/profiles/cost"
+expect "py rejects dangling profile directory" 1 "$PY" "$HERE/validate_closure_root.py" "$DOC" --repo-root "$R"
+expect "rs rejects dangling profile directory" 1 "$RS" --repo-root "$R" --mode provenance "$DOC"
+expect "go rejects dangling profile directory" 1 "$GO" -repo-root "$R" -mode provenance "$DOC"
 
 if [ "$fail" -ne 0 ]; then
   echo "PIN-RESOLUTION GUARDS FAILED"

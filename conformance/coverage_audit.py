@@ -145,7 +145,7 @@ def legacy_main() -> int:
     args = ap.parse_args()
     root = pathlib.Path(args.repo_root).resolve()
 
-    baseline_doc = tomllib.loads((root / args.baseline).read_text())
+    baseline_doc = tomllib.loads_bytes((root / args.baseline).read_bytes())
     allowed = int(baseline_doc["coverage"]["max_unprotected_checks"])
 
     base_rejects = {v: rejected(v, p, root) for v, p in AUDITED.items()}

@@ -1,10 +1,10 @@
 // Safe Rust only: deny any `unsafe` block in this crate. The crate's
-// dependencies (serde, toml, oxttl) use unsafe internally — that is
+// dependencies (serde, toml, oxttl) use unsafe internally. That is
 // out of scope for this lint; what we enforce is that nothing WE write
 // in this binary reaches for unsafe.
 #![forbid(unsafe_code)]
 
-//! dagtoml-rdf — generate the DAG-TOML ontology as RDF/Turtle.
+//! dagtoml-rdf: generate the DAG-TOML ontology as RDF/Turtle.
 //!
 //! Reads:
 //!   - <repo-root>/core/ontology.toml
@@ -26,6 +26,14 @@
 
 use serde::Deserialize;
 use std::{collections::BTreeMap, fmt::Write as _, fs, path::PathBuf, process::ExitCode};
+
+fn toml_diagnostic(error: &toml::de::Error) -> String {
+    let span = error
+        .span()
+        .map(|range| format!("; byte span {}..{}", range.start, range.end))
+        .unwrap_or_default();
+    format!("{}{}", error.message(), span)
+}
 
 // ---------- ontology shapes ----------
 
@@ -98,10 +106,11 @@ struct KindFile {
 struct KindMeta {
     /// `*-kind.toml` files all carry `template_kind = "kind-descriptor"`.
     /// The kind they DESCRIBE is recorded in `describes_kind` (and again
-    /// in `kind.name`). We prefer `describes_kind` because it is the
-    /// canonical pointer per spec.md §3.
+    /// in `kind.name`). Both declarations must agree per spec.md §3.
     #[serde(default)]
     describes_kind: Option<String>,
+    #[serde(default)]
+    template_kind: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -110,9 +119,17 @@ struct KindBlock {
     #[serde(default)]
     name: Option<String>,
     #[serde(default)]
-    template_kind: Option<String>,
-    #[serde(default)]
     summary: Option<String>,
+}
+
+fn declared_kind(parsed: &KindFile) -> Option<&str> {
+    let meta = parsed.meta.as_ref()?;
+    if meta.template_kind.as_deref() != Some("kind-descriptor") {
+        return None;
+    }
+    let declared = meta.describes_kind.as_deref().filter(|name| !name.is_empty())?;
+    let named = parsed.kind.as_ref()?.name.as_deref()?;
+    (named == declared).then_some(declared)
 }
 
 // ---------- emission ----------
@@ -174,7 +191,7 @@ fn token_to_class(token: &str) -> Option<String> {
         "artifact_classes" => Some(format!("dagtoml:{}", pascal("artifact_class"))),
         // free-form
         "unconstrained_label" | "" => None,
-        // upper-case ID prefixes (INT, FEAT, REQ, …) — convert to the
+        // upper-case ID prefixes (INT, FEAT, REQ, …) convert to the
         // entity class name. We rely on a small lookup so prefixes that
         // don't map cleanly (regex-keyed entities) raise no panic.
         prefix => {
@@ -544,13 +561,19 @@ fn verify(path: &PathBuf) -> ExitCode {
     for triple in oxttl::TurtleParser::new().for_slice(&bytes) {
         match triple {
             Ok(_) => count += 1,
-            Err(e) => {
-                eprintln!("parse error in {path:?}: {e}");
+            Err(error) => {
+                let span = error.location();
+                eprintln!(
+                    "parse error in {path:?}: {} (byte span {}..{})",
+                    error.message(),
+                    span.start.offset,
+                    span.end.offset
+                );
                 return ExitCode::FAILURE;
             }
         }
     }
-    eprintln!("verify {path:?}: OK — parsed {count} triples");
+    eprintln!("verify {path:?}: OK - parsed {count} triples");
     ExitCode::SUCCESS
 }
 
@@ -567,15 +590,23 @@ fn main() -> ExitCode {
             }
             "--repo-root" => {
                 i += 1;
-                repo_root = PathBuf::from(&args[i]);
+                let Some(value) = args.get(i) else {
+                    eprintln!("--repo-root requires a path");
+                    return ExitCode::from(2);
+                };
+                repo_root = PathBuf::from(value);
             }
             "-o" | "--output" => {
                 i += 1;
-                output = Some(PathBuf::from(&args[i]));
+                let Some(value) = args.get(i) else {
+                    eprintln!("--output requires a path");
+                    return ExitCode::from(2);
+                };
+                output = Some(PathBuf::from(value));
             }
             "-h" | "--help" => {
                 eprintln!(
-                    "dagtoml-rdf — DAG-TOML ontology Turtle generator.\n\nUsage:\n    dagtoml-rdf [--repo-root <path>] [-o <path>]    # generate\n    dagtoml-rdf verify -o <path>                    # re-parse the .ttl"
+                    "dagtoml-rdf: DAG-TOML ontology Turtle generator.\n\nUsage:\n    dagtoml-rdf [--repo-root <path>] [-o <path>]    # generate\n    dagtoml-rdf verify -o <path>                    # re-parse the .ttl"
                 );
                 return ExitCode::SUCCESS;
             }
@@ -596,49 +627,139 @@ fn main() -> ExitCode {
     }
 
     let core_ont_path = repo_root.join("core/ontology.toml");
-    let core_ont: Ontology = match fs::read_to_string(&core_ont_path).and_then(|s| {
-        toml::from_str::<Ontology>(&s)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-    }) {
-        Ok(o) => o,
-        Err(e) => {
-            eprintln!("failed to read {core_ont_path:?}: {e}");
+    let core_raw = match fs::read_to_string(&core_ont_path) {
+        Ok(raw) => raw,
+        Err(error) => {
+            eprintln!("failed to read {core_ont_path:?}: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let core_ont: Ontology = match toml::from_str(&core_raw) {
+        Ok(ontology) => ontology,
+        Err(error) => {
+            eprintln!(
+                "failed to parse {core_ont_path:?}: {}",
+                toml_diagnostic(&error)
+            );
             return ExitCode::FAILURE;
         }
     };
 
     // Walk every profiles/<name>/ontology.toml. The set of profiles is
-    // not hardcoded — the generator picks up new profiles automatically.
+    // not hardcoded - the generator picks up new profiles automatically.
     let mut profile_onts: Vec<(String, Ontology)> = Vec::new();
-    if let Ok(profiles_dir) = fs::read_dir(repo_root.join("profiles")) {
-        let mut entries: Vec<PathBuf> = profiles_dir
-            .filter_map(|e| e.ok())
-            .map(|e| e.path())
-            .filter(|p| p.is_dir())
-            .collect();
-        entries.sort();
-        for dir in entries {
-            let ont_path = dir.join("ontology.toml");
-            if !ont_path.exists() {
-                continue;
+    let profiles_dir = match fs::read_dir(repo_root.join("profiles")) {
+        Ok(entries) => entries,
+        Err(error) => {
+            eprintln!("failed to enumerate profiles: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let mut entries: Vec<PathBuf> = Vec::new();
+    for entry in profiles_dir {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(error) => {
+                eprintln!("failed to enumerate a profile: {error}");
+                return ExitCode::FAILURE;
             }
-            let prof_name = dir
-                .file_name()
-                .and_then(|s| s.to_str())
-                .unwrap_or("")
-                .to_string();
-            let parsed: Ontology = match fs::read_to_string(&ont_path).and_then(|s| {
-                toml::from_str::<Ontology>(&s)
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-            }) {
-                Ok(o) => o,
-                Err(e) => {
-                    eprintln!("failed to read {ont_path:?}: {e}");
+        };
+        let path = entry.path();
+        let kind = match entry.file_type() {
+            Ok(kind) => kind,
+            Err(error) => {
+                eprintln!("failed to inspect profile entry {path:?}: {error}");
+                return ExitCode::FAILURE;
+            }
+        };
+        if kind.is_file() {
+            continue;
+        }
+        match fs::metadata(&path) {
+            Ok(metadata) if metadata.is_dir() => entries.push(path),
+            Ok(_) => (),
+            Err(error) => {
+                eprintln!("failed to inspect profile {path:?}: {error}");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+    entries.sort();
+    for dir in entries {
+        let ont_path = dir.join("ontology.toml");
+        match fs::symlink_metadata(&ont_path) {
+            Ok(_) => match fs::metadata(&ont_path) {
+                Ok(metadata) if metadata.is_file() => (),
+                Ok(_) => {
+                    eprintln!("profile ontology is not a regular file: {ont_path:?}");
                     return ExitCode::FAILURE;
                 }
-            };
-            profile_onts.push((prof_name, parsed));
+                Err(error) => {
+                    eprintln!("failed to inspect profile ontology {ont_path:?}: {error}");
+                    return ExitCode::FAILURE;
+                }
+            },
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                match fs::metadata(&dir) {
+                    Ok(metadata) if metadata.is_dir() => {
+                        let children = match fs::read_dir(&dir) {
+                            Ok(children) => children,
+                            Err(error) => {
+                                eprintln!("failed to enumerate profile {dir:?}: {error}");
+                                return ExitCode::FAILURE;
+                            }
+                        };
+                        for child in children {
+                            let child = match child {
+                                Ok(child) => child,
+                                Err(error) => {
+                                    eprintln!("failed to enumerate profile {dir:?}: {error}");
+                                    return ExitCode::FAILURE;
+                                }
+                            };
+                            let name = child.file_name();
+                            let name = name.to_string_lossy();
+                            if name == "PROFILE.toml" || name.ends_with("-kind.toml") {
+                                eprintln!(
+                                    "profile ontology is missing for declaration {child:?}: {ont_path:?}"
+                                );
+                                return ExitCode::FAILURE;
+                            }
+                        }
+                        continue;
+                    }
+                    Ok(_) => eprintln!("profile directory changed during scan: {dir:?}"),
+                    Err(error) => {
+                        eprintln!("profile directory changed during scan {dir:?}: {error}")
+                    }
+                }
+                return ExitCode::FAILURE;
+            }
+            Err(error) => {
+                eprintln!("failed to inspect profile ontology {ont_path:?}: {error}");
+                return ExitCode::FAILURE;
+            }
         }
+        let prof_name = dir
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
+        let ontology_raw = match fs::read_to_string(&ont_path) {
+            Ok(raw) => raw,
+            Err(error) => {
+                eprintln!("failed to read {ont_path:?}: {error}");
+                return ExitCode::FAILURE;
+            }
+        };
+        let parsed: Ontology = match toml::from_str(&ontology_raw) {
+            Ok(ontology) => ontology,
+            Err(error) => {
+                eprintln!("failed to parse {ont_path:?}: {}", toml_diagnostic(&error));
+                return ExitCode::FAILURE;
+            }
+        };
+        profile_onts.push((prof_name, parsed));
     }
 
     // Collect kind descriptors: 1 meta + every *-kind.toml on disk.
@@ -655,50 +776,66 @@ fn main() -> ExitCode {
         let layer = layer.as_str();
         let base = base.as_str();
         let dir = repo_root.join(base);
-        let Ok(read) = fs::read_dir(&dir) else {
-            continue;
+        let read = match fs::read_dir(&dir) {
+            Ok(read) => read,
+            Err(error) => {
+                eprintln!("failed to enumerate kind descriptors under {dir:?}: {error}");
+                return ExitCode::FAILURE;
+            }
         };
-        let mut paths: Vec<PathBuf> = read
-            .filter_map(|e| e.ok())
-            .map(|e| e.path())
-            .filter(|p| p.extension().is_some_and(|x| x == "toml"))
-            .filter(|p| {
-                p.file_name()
-                    .and_then(|n| n.to_str())
-                    .is_some_and(|n| n.ends_with("-kind.toml"))
-            })
-            .collect();
+        let mut paths: Vec<PathBuf> = Vec::new();
+        for entry in read {
+            let path = match entry {
+                Ok(entry) => entry.path(),
+                Err(error) => {
+                    eprintln!("failed to enumerate kind descriptor under {dir:?}: {error}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            if path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.ends_with("-kind.toml"))
+            {
+                paths.push(path);
+            }
+        }
         paths.sort();
         for p in paths {
-            let Ok(s) = fs::read_to_string(&p) else {
-                continue;
+            let s = match fs::read_to_string(&p) {
+                Ok(s) => s,
+                Err(error) => {
+                    eprintln!("failed to read kind descriptor {p:?}: {error}");
+                    return ExitCode::FAILURE;
+                }
             };
             let parsed: KindFile = match toml::from_str(&s) {
                 Ok(v) => v,
-                Err(_) => continue,
+                Err(error) => {
+                    eprintln!(
+                        "failed to parse kind descriptor {p:?}: {}",
+                        toml_diagnostic(&error)
+                    );
+                    return ExitCode::FAILURE;
+                }
             };
             // *-kind.toml files all carry meta.template_kind =
             // "kind-descriptor". The kind they DESCRIBE is named in
-            // meta.describes_kind (preferred) or [kind].name.
-            let tk = parsed
-                .meta
-                .as_ref()
-                .and_then(|m| m.describes_kind.clone())
-                .or_else(|| parsed.kind.as_ref().and_then(|k| k.name.clone()))
-                .or_else(|| parsed.kind.as_ref().and_then(|k| k.template_kind.clone()));
-            if let Some(tk) = tk {
-                if tk == "kind-descriptor" {
-                    // the descriptor of descriptors — skip; we already
-                    // added the meta row above.
-                    continue;
-                }
-                let rel = p
-                    .strip_prefix(&repo_root)
-                    .unwrap_or(&p)
-                    .to_string_lossy()
-                    .replace('\\', "/");
-                kinds.push((tk, layer.to_string(), rel));
+            // meta.describes_kind and [kind].name must agree.
+            let Some(tk) = declared_kind(&parsed) else {
+                eprintln!("kind descriptor has no declared kind: {p:?}");
+                return ExitCode::FAILURE;
+            };
+            if tk == "kind-descriptor" {
+                // The descriptor of descriptors already has the meta row.
+                continue;
             }
+            let rel = p
+                .strip_prefix(&repo_root)
+                .unwrap_or(&p)
+                .to_string_lossy()
+                .replace('\\', "/");
+            kinds.push((tk.to_string(), layer.to_string(), rel));
         }
     }
 
@@ -736,7 +873,7 @@ fn main() -> ExitCode {
         let ns = namespaced_predicate(&r, &mut seen);
         relations.push((r, ns));
     }
-    // profile.relations is intentionally not yet enumerated — the profile
+    // profile.relations is intentionally not yet enumerated. The profile
     // declares no namespaced predicates today (per ontology.md). When it
     // does, append here.
 
@@ -800,4 +937,29 @@ fn main() -> ExitCode {
         }
     }
     ExitCode::SUCCESS
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{KindFile, declared_kind};
+
+    #[test]
+    fn kind_name_uses_declared_fields() {
+        let cases = [
+            ("[meta]\ntemplate_kind = 'kind-descriptor'\ndescribes_kind = 'named'\n[kind]\nname = 'named'\n", Some("named")),
+            ("[meta]\ndescribes_kind = 'declared'\n", None),
+            ("[kind]\nname = 'named'\n", None),
+            ("[kind]\ntemplate_kind = 'sideways'\n", None),
+            ("[meta]\ntemplate_kind = 'kind-descriptor'\n", None),
+            ("[kind]\nname = ''\n", None),
+            (
+                "[meta]\ntemplate_kind = 'kind-descriptor'\ndescribes_kind = 'other'\n[kind]\nname = 'named'\n",
+                None,
+            ),
+        ];
+        for (source, expected) in cases {
+            let parsed: KindFile = toml::from_str(source).expect("valid TOML fixture");
+            assert_eq!(declared_kind(&parsed), expected, "source: {source}");
+        }
+    }
 }

@@ -9,6 +9,28 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- At commit `6f58c814158c3b1ba46eb49a9b0dec544140ae26`, section 9.2
+  requires the reference validators to be checked against the TOML 1.1.0
+  suite. It no longer names particular parser implementations or relies on
+  byte-for-byte source equivalence as the reason for conformance.
+- Report implementation DAG and shared Python TOML byte-decoding failures
+  with source digests and byte spans. Keep parser coordinates out of output.
+- Require the OSV scan to discover and verify tracked Python requirements
+  locks under `requirements/`.
+  Surface cleanup and malformed-result failures, and update Go toolchain pins
+  to 1.26.10.
+- Scan commit citations with explicit ASCII token parsing and report file
+  identities without source line coordinates. Exclude vendored parser source
+  and unit fixtures from this authored citation check.
+- Remove NetworkX from the Python reference validator. Use explicit graph
+  traversal for cycle detection and longest weighted paths. Vendor the TOML
+  1.1 parser with explicit token scanning and remove the upstream parser pin.
+  Parse the implementation DAG CLI options with exact comparisons so its
+  validation path does not execute regex matching. Report TOML parser errors
+  with a source digest and byte span instead of line or column coordinates.
+  Reject malformed profile declarations across all three validators so a
+  skipped descriptor cannot remove a closure pin. Require the RDF generators
+  and CI discovery to reject malformed kind declarations.
 - Pin the Rust toolchain action to a commit reachable from its maintained
   branch and pass its required `toolchain` input explicitly.
 - Address the issue #74 vocabulary gap with complete declared catalogs in all

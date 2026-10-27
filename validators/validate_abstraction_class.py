@@ -60,7 +60,7 @@ def _load_domains(repo_root: pathlib.Path) -> set[str]:
     ontology. Single source of truth — the validator does not
     duplicate the list."""
     ont = repo_root / "core" / "ontology.toml"
-    data = tomllib.loads(ont.read_text())
+    data = tomllib.loads_bytes(ont.read_bytes())
     for entry in data.get("attribute_vocabularies", []):
         if entry.get("attribute") == "capability_envelope.domain":
             values = entry.get("values", [])
@@ -324,7 +324,7 @@ def validate_capability_envelope(
 
 def validate(path: pathlib.Path, domains: set[str]) -> list[str]:
     try:
-        data = tomllib.loads(path.read_text())
+        data = tomllib.loads_bytes(path.read_bytes())
     except (OSError, tomllib.TOMLDecodeError) as exc:
         return [f"{path}: cannot parse TOML ({exc})"]
 
@@ -383,7 +383,7 @@ def main(argv: list[str]) -> int:
         # Detect whether any §13 block was actually declared so the
         # summary line at the bottom is accurate.
         try:
-            data = tomllib.loads(p.read_text())
+            data = tomllib.loads_bytes(p.read_bytes())
             kind = data.get("kind", {})
             if isinstance(kind, dict) and (
                 "abstraction_class" in kind or "capability_envelope" in kind

@@ -35,7 +35,7 @@ jobs:
         run: |
           dependency_lock=requirements/database.txt
           if [ "$DATABASE_LANE" = duckdb-floor ]; then dependency_lock=requirements/database-floor.txt; fi
-          python3 -m pip install --require-hashes --no-binary tomli -r requirements.txt -r requirements/toml.txt -r "$dependency_lock"
+          python3 -m pip install --require-hashes -r requirements.txt -r requirements/toml.txt -r "$dependency_lock"
       - name: Execute the pinned engine lane
         env:
           DATABASE_LANE: ${{ matrix.lane }}
@@ -68,12 +68,12 @@ jobs:
           python-version: "3.11"
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.6"
+          go-version: "1.26.10"
           cache-dependency-path: tools/dagtoml-duckdb-go/go.sum
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
           toolchain: stable
-      - run: python3 -m pip install --require-hashes --no-binary tomli -r requirements.txt -r requirements/toml.txt -r requirements/database.txt
+      - run: python3 -m pip install --require-hashes -r requirements.txt -r requirements/toml.txt -r requirements/database.txt
       - name: Build and execute the loader, then probe its database
         env:
           LOADER_LANGUAGE: ${{ matrix.language }}
@@ -102,12 +102,12 @@ jobs:
           python-version: "3.11"
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: "1.26.6"
+          go-version: "1.26.10"
           cache-dependency-path: tools/dagtoml-validate-go/go.sum
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
           toolchain: stable
-      - run: python3 -m pip install --require-hashes --no-binary tomli -r requirements.txt -r requirements/toml.txt -r requirements/database.txt
+      - run: python3 -m pip install --require-hashes -r requirements.txt -r requirements/toml.txt -r requirements/database.txt
       - run: python3 validators/runtime_ci.py
 
   aggregate:
@@ -131,7 +131,7 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
-      - run: python3 -m pip install --require-hashes --no-binary tomli -r requirements.txt -r requirements/toml.txt
+      - run: python3 -m pip install --require-hashes -r requirements.txt -r requirements/toml.txt
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: database-*

@@ -48,21 +48,14 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Python dependencies
-        # --require-hashes refuses to install anything not pinned by
-        # sha256 in requirements.txt (Pinned-Dependencies / Scorecard
-        # compliance). The ubuntu-24.04 runner ships pip 24.x which is
-        # new enough; we deliberately do NOT --upgrade pip here because
-        # `pip install --upgrade pip` is itself an unpinned install.
-        #
-        # requirements/toml.txt pins `tomli` >= 2.4.0 — the TOML 1.1 parser
-        # the Python reference validators use (stdlib tomllib is 1.0-only);
-        # see validators/_toml11.py. `--no-binary tomli` forces the pure-Python
-        # build (not the optional mypyc wheels) so the reference stays
-        # auditable; the flag is scoped to tomli, so networkx still uses its
-        # wheel.
+      - name: Check Python requirements entry points
+        # Keep the established install command in CI so future runtime
+        # packages must be hash pinned. Both files are currently empty.
+        # The Python reference uses the vendored TOML 1.1 parser under
+        # validators/_toml11_vendor. These requirements files remain as stable
+        # entry points and currently install no third-party runtime package.
         run: >-
-          python3 -m pip install --require-hashes --no-binary tomli
+          python3 -m pip install --require-hashes
           -r requirements.txt -r requirements/toml.txt
 
       - name: Set up Go (primary validator toolchain)
@@ -72,7 +65,7 @@ jobs:
         # with the stdlib version declared by the reference Go modules.
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
-          go-version: "1.26.6"
+          go-version: "1.26.10"
           cache-dependency-path: tools/dagtoml-validate-go/go.sum
 
       - name: Set up Rust (primary validator toolchain)
@@ -221,6 +214,16 @@ jobs:
             || cargo build --release \
                  --manifest-path tools/dagtoml-rdf/Cargo.toml
 
+      - name: Check RDF descriptor discovery and parse diagnostics
+        run: |
+          set -e
+          cargo test --locked --manifest-path tools/dagtoml-rdf/Cargo.toml
+          (cd tools/dagtoml-rdf-go && go test ./...)
+          (cd tools/dagtoml-rdf-go && go build -o "${RUNNER_TEMP}/dagtoml-rdf-go" .)
+          bash validators/check_rdf_descriptor_guards.sh \
+            tools/dagtoml-rdf/target/release/dagtoml-rdf \
+            "${RUNNER_TEMP}/dagtoml-rdf-go"
+
       - name: Install Taplo
         run: |
           set -e
@@ -263,6 +266,15 @@ jobs:
           set -e
           make toml-conformance-rs
 
+      - name: TOML 1.1 spec conformance (vendored Python parser)
+        # The same pinned toml-test executable used for Go and Rust exercises
+        # all 189 accepted and 362 rejected TOML 1.1 cases through the Python
+        # reference parser. No case is skipped.
+        run: |
+          set -e
+          "$(go env GOPATH)/bin/toml-test" -toml 1.1.0 -color never \
+            python3 tools/toml-test-decode-py.py
+
       - name: Manifest drift (reference/database/MANIFEST.toml vs ontology)
         run: bash validators/check_manifest_drift.sh --declarations-only
 
@@ -304,7 +316,8 @@ jobs:
         # Issue prose and validator messages cite commits as evidence. The
         # repository's own rule is that a claim naming a commit must name one a
         # reader can resolve, and nothing checked that until now. This fails on
-        # any commit-shaped token in docs/issues/ or validators/ that git cannot
+        # any commit-shaped token in docs/issues/ or authored validator prose
+        # and messages that git cannot
         # resolve and that is not recorded, with a reason, in
         # validators/unresolvable-commit-citations.toml.
         #
@@ -317,7 +330,9 @@ jobs:
         # `cited` list names, so the same SHA appearing anywhere new is a new
         # unresolvable citation and fails. The baseline ratchets down: an
         # entry that starts resolving, or stops being cited, is also a failure.
-        run: python3 validators/check_commit_citations.py --repo-root .
+        run: |
+          python3 validators/test_commit_citations.py
+          python3 validators/check_commit_citations.py --repo-root .
 
       - name: Safe-tools policy (no unsafe Rust or Go under tools/)
         # Rust crates under tools/ MUST carry #![forbid(unsafe_code)];
@@ -329,9 +344,9 @@ jobs:
         run: |
           python3 - <<'PY'
           import sys, pathlib
-          # Parse with the TOML 1.1 reference shim (validators/_toml11.py wraps
-          # tomli >= 2.4.0) — stdlib tomllib is 1.0-only and would reject valid
-          # 1.1 content, reintroducing a cross-implementation split (C01).
+          # Parse with the vendored TOML 1.1 reference parser; stdlib tomllib
+          # is 1.0-only and would reject valid 1.1 content, reintroducing a
+          # cross-implementation split (C01).
           sys.path.insert(0, "validators")
           import _toml11 as tomllib
           fails, parsed, skipped = [], [], []
@@ -340,7 +355,7 @@ jobs:
                   skipped.append(str(p))
                   continue
               try:
-                  tomllib.loads(p.read_text())
+                  tomllib.loads_bytes(p.read_bytes())
                   parsed.append(str(p))
               except Exception as e:
                   fails.append((str(p), str(e)))
@@ -479,29 +494,12 @@ jobs:
           set -e
           python3 - <<'PY' > "${RUNNER_TEMP}/conforming-dagtoml-files.txt"
           import sys, pathlib
-          # TOML 1.1 reference shim (tomli >= 2.4.0); stdlib tomllib is 1.0-only.
+          # Vendored TOML 1.1 parser; stdlib tomllib is 1.0-only.
           sys.path.insert(0, "validators")
-          import _toml11 as tomllib
+          from validate_closure_root import spec_reserved_kinds, _read_discovery_toml
 
           root = pathlib.Path(".")
-          spec_reserved = {"kind-descriptor", "ontology"}
-
-          def kind_name(path):
-              try:
-                  data = tomllib.loads(path.read_text())
-              except Exception:
-                  return None
-              kind = data.get("kind")
-              if isinstance(kind, dict) and isinstance(kind.get("name"), str):
-                  return kind["name"]
-              return None
-
-          for descriptor in root.glob("core/*-kind.toml"):
-              if name := kind_name(descriptor):
-                  spec_reserved.add(name)
-          for descriptor in root.glob("profiles/*/*-kind.toml"):
-              if name := kind_name(descriptor):
-                  spec_reserved.add(name)
+          spec_reserved = spec_reserved_kinds(root)
 
           skip_dirs = {"target", "node_modules", "__pycache__"}
           for path in sorted(root.rglob("*.toml")):
@@ -521,10 +519,7 @@ jobs:
               # closure-invalid, e.g. the api-snapshot witness-strip case).
               if path.as_posix().startswith("conformance/cases/") and "/invalid/" in path.as_posix():
                   continue
-              try:
-                  data = tomllib.loads(path.read_text())
-              except Exception:
-                  continue
+              data = _read_discovery_toml(path)
               meta = data.get("meta")
               if isinstance(meta, dict) and meta.get("template_kind") in spec_reserved:
                   print(path)
@@ -568,6 +563,9 @@ jobs:
       - name: Validate canonical examples (strict, no --allow-placeholders)
         run: |
           set -e
+          python3 validators/test_implementation_dag_graph.py
+          python3 tools/test_prepare_osv_python.py
+          python3 validators/test_toml11_scanner.py
           python3 validators/validate_implementation_dag.py \
             examples/minimal-implementation-dag.toml
           python3 validators/validate_traceability.py \
@@ -655,7 +653,7 @@ jobs:
               "minimal-assertion-log-record.toml",
               "minimal-adapter-registry-binding.toml",
           ]:
-              tomllib.loads(pathlib.Path(f"examples/{name}").read_text())
+              tomllib.loads_bytes(pathlib.Path(f"examples/{name}").read_bytes())
               print(f"parsed OK: examples/{name}")
           '
 
@@ -1017,7 +1015,7 @@ jobs:
       #                     correctness, dead-code); defense-in-depth
       #                     above bandit
       #   bandit          — Python static security analysis of validators/
-      #   osv-scanner     — CVEs in requirements.txt + Cargo.lock + go.sum
+      #   osv-scanner     - CVEs in pinned Python locks + Cargo.lock + go.sum
       #                     (complements Dependabot: catches transitive
       #                     and advisory-DB-only entries Dependabot misses)
       #   gitleaks        — secret leak detection in commits + working
@@ -1106,9 +1104,12 @@ jobs:
             --select S,F \
             --ignore S404 \
             --line-length 120 \
-            validators/ reference/database/ conformance/
+            validators/ reference/database/ conformance/ tools/toml-test-decode-py.py tools/prepare_osv_python.py tools/test_prepare_osv_python.py
 
       # --- Existing 5 scanners follow below ---
+
+      - name: Stage pinned Python locks for OSV
+        run: python3 tools/prepare_osv_python.py
 
       - name: Lock-file CVE scan (osv-scanner)
         continue-on-error: false
@@ -1121,17 +1122,27 @@ jobs:
           # --no-resolve disables network-required transitive dependency
           # resolution. We rely on lockfile-based scanning (Cargo.lock,
           # go.sum) instead, which has full transitive info baked in.
-          # The only manifest that lacks a lockfile (requirements.txt
-          # — 1 Python package, networkx) gets direct-dep-only coverage
-          # rather than transitive. Acceptable trade-off: the
-          # transitive-resolution gRPC service is flaky and treating
-          # its outages as build failures is wrong (a clean dep tree
-          # isn't a CVE finding). When we add a requirements.lock file
-          # we can re-enable transitive resolution.
+          # The root requirements.txt has no runtime package. The staging
+          # step gives each tracked pinned Python lock a recognized filename.
+          # Scan those locks and native lockfiles without transitive resolution.
           scan-args: |-
             --recursive
             --no-resolve
+            --format
+            json
+            --all-packages
+            --output-file
+            ./osv-scan-results.json
             ./
+            ./osv-python-lockfiles
+
+      - name: Verify Python CVE scan coverage
+        if: always()
+        run: python3 tools/prepare_osv_python.py --verify osv-scan-results.json
+
+      - name: Remove staged Python locks
+        if: always()
+        run: python3 tools/prepare_osv_python.py --cleanup
 
       - name: Secret scan (gitleaks)
         continue-on-error: false
@@ -1169,8 +1180,7 @@ jobs:
         continue-on-error: false
         # bandit catches subprocess shell=True, eval, pickle, weak crypto,
         # hardcoded credentials, path traversal patterns. Scan the
-        # validators/ tree (the only Python surface we ship); examples/
-        # and docs/ are TOML/Markdown only.
+        # validators/, database, conformance, and Python tool entry points.
         run: |
           set -euo pipefail
           python3 -m pip install --user --require-hashes -r requirements/bandit.txt
@@ -1189,7 +1199,7 @@ jobs:
           # annotated with `# nosec B603 - <reason>` where the safety
           # argument is non-obvious.
           python3 -m bandit \
-            --recursive validators/ reference/database/ conformance/ \
+            --recursive validators/ reference/database/ conformance/ tools/toml-test-decode-py.py tools/prepare_osv_python.py tools/test_prepare_osv_python.py \
             --severity-level low \
             --confidence-level low \
             --skip B404

@@ -10,16 +10,16 @@ and is the only artifact that declares profile inheritance
 This validator enforces the hard invariants INV01..INV05 listed in
 `core/profile-descriptor-kind.toml`:
 
-  INV01 — namespace partition consistency:
+  INV01 - namespace partition consistency:
           namespace == "spec.reserved"   iff   name matches ^[a-z][a-z0-9-]*$
           (unprefixed kebab-case)
           otherwise namespace MUST be a strict reverse-DNS prefix of name
           (matches ^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)+$).
-  INV02 — `extends` is acyclic.
-  INV03 — every entry of `extends` resolves to a loaded profile-descriptor.
-  INV04 — `ontology` points at an existing file with
+  INV02 - `extends` is acyclic.
+  INV03 - every entry of `extends` resolves to a loaded profile-descriptor.
+  INV04 - `ontology` points at an existing file with
           `[meta].template_kind = "ontology"`.
-  INV05 — every entry of `contained_kinds` resolves to a `*-kind.toml`
+  INV05 - every entry of `contained_kinds` resolves to a `*-kind.toml`
           under repo root whose `[meta].describes_kind` matches the entry.
 
   INV08: `bound_tuples` entries (spec.md §12.8.2) are well-formed:
@@ -53,6 +53,7 @@ import pathlib
 import re
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
+from _profile_discovery import profile_candidates, profile_name
 
 
 # \Z, not $: Python's $ also matches before a trailing newline; rs/go
@@ -110,21 +111,12 @@ def discover_descriptors(repo_root: pathlib.Path) -> dict[str, tuple[pathlib.Pat
     profiles_dir = repo_root / "profiles"
     if not profiles_dir.is_dir():
         return found
-    for entry in sorted(profiles_dir.iterdir()):
-        candidate = entry / "PROFILE.toml"
-        if not candidate.is_file():
-            continue
+    for candidate in profile_candidates(repo_root):
         try:
             doc = load_toml(candidate)
-        except tomllib.TOMLDecodeError:
-            continue
-        meta = doc.get("meta") or {}
-        if meta.get("template_kind") != "profile-descriptor":
-            continue
-        profile = doc.get("profile") or {}
-        name = profile.get("name")
-        if isinstance(name, str):
-            found[name] = (candidate, doc)
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            raise ValueError(f"{candidate}: cannot parse profile descriptor ({exc})") from exc
+        found[profile_name(doc, candidate)] = (candidate, doc)
     return found
 
 
@@ -526,13 +518,13 @@ def validate_one(
     if errors:
         return errors
 
-    # INV01 — namespace partition consistency
+    # INV01 - namespace partition consistency
     errors.extend(check_namespace_partition(name, namespace))
 
-    # INV02 — extends is acyclic
+    # INV02 - extends is acyclic
     errors.extend(check_extends_acyclic(name, descriptors))
 
-    # INV03 — every extends entry resolves to a loaded descriptor
+    # INV03 - every extends entry resolves to a loaded descriptor
     for entry in extends:
         if not isinstance(entry, str):
             errors.append(
@@ -546,7 +538,7 @@ def validate_one(
                 f"`profiles/*/PROFILE.toml` and the file under validation)"
             )
 
-    # INV04 — ontology path exists and is an ontology
+    # INV04 - ontology path exists and is an ontology
     ontology_path = (repo_root / ontology).resolve()
     if not ontology_path.exists() or not ontology_path.is_file():
         errors.append(
@@ -566,7 +558,7 @@ def validate_one(
                     f"not declare `template_kind = \"ontology\"`"
                 )
 
-    # INV05 — every contained_kinds entry resolves to a *-kind.toml
+    # INV05 - every contained_kinds entry resolves to a *-kind.toml
     for slug in contained_kinds:
         if not isinstance(slug, str) or not slug:
             errors.append(
@@ -581,7 +573,8 @@ def validate_one(
                 continue
             try:
                 kd_doc = load_toml(candidate)
-            except tomllib.TOMLDecodeError:
+            except (OSError, tomllib.TOMLDecodeError) as exc:
+                errors.append(f"{candidate}: cannot parse kind descriptor ({exc})")
                 continue
             kd_meta = kd_doc.get("meta") or {}
             if (
@@ -636,7 +629,11 @@ def _kind_descriptor_candidates(
 def main() -> int:
     args = parse_args()
     repo_root = pathlib.Path(args.repo_root).resolve()
-    descriptors = discover_descriptors(repo_root)
+    try:
+        descriptors = discover_descriptors(repo_root)
+    except ValueError as exc:
+        print(f"PROFILE DESCRIPTOR VALIDATION FAILED: {exc}")
+        return 1
 
     # Duplicate profile names would shadow each other in the name-keyed
     # map and could erase closure pins; refuse to validate anything
@@ -645,14 +642,12 @@ def main() -> int:
     duplicate_errors: list[str] = []
     profiles_dir = repo_root / "profiles"
     if profiles_dir.is_dir():
-        for entry in sorted(profiles_dir.iterdir()):
-            candidate = entry / "PROFILE.toml"
-            if not candidate.is_file():
-                continue
+        for candidate in profile_candidates(repo_root):
             try:
                 dup_doc = load_toml(candidate)
-            except (FileNotFoundError, tomllib.TOMLDecodeError):
-                continue
+            except (OSError, tomllib.TOMLDecodeError) as exc:
+                print(f"PROFILE DESCRIPTOR VALIDATION FAILED: {candidate}: {exc}")
+                return 1
             if (dup_doc.get("meta") or {}).get("template_kind") != "profile-descriptor":
                 continue
             dup_name = (dup_doc.get("profile") or {}).get("name")

@@ -52,6 +52,7 @@ import pathlib
 import re
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
+from _profile_discovery import profile_candidates, profile_name
 
 
 IJB_PRIMITIVES = ("thing", "scope", "path", "observed", "constraint", "time")
@@ -137,7 +138,7 @@ def _block_label(block: dict, kind: str) -> str:
     return "?"
 
 
-# SPEC §10.2 "Structural ontology declarations" table — the full row
+# SPEC §10.2 "Structural ontology declarations" table - the full row
 # set the validator enforces, including the meta and extension-rules
 # rows that lie outside the array-of-tables blocks. Per SPEC §2.7,
 # the disclosure-posture fields (`confidentiality`, `license`,
@@ -293,7 +294,7 @@ def validate_ontology(doc: dict, source: str) -> list[str]:
                 )
             )
 
-        # Reject unknown annotation keys — every entry in
+        # Reject unknown annotation keys - every entry in
         # [meta.ijb_field_primitives] must correspond to a known
         # SPEC §10.2 meta-field row.
         for fname in field_prims:
@@ -316,7 +317,7 @@ def _check_primitive_class(
 ) -> list[str]:
     """Helper: check a kind-descriptor block carries the expected
     IJB annotations. `expected_class` and `expected_constraint_type`
-    are mutually exclusive — `observed` blocks have neither."""
+    are mutually exclusive - `observed` blocks have neither."""
     errors: list[str] = []
     prim = block.get("ijb_primitive")
     if prim is None:
@@ -471,7 +472,7 @@ def validate_profile_descriptor(doc: dict, source: str) -> list[str]:
     """Enforce profile-descriptor IJB annotations per SPEC §6.1 / §10.2.
 
     The `[profile]` table is the singleton declaration about the named
-    profile and is `(thing, structural)` — mirroring the `[kind]` block
+    profile and is `(thing, structural)` - mirroring the `[kind]` block
     in a kind-descriptor (KD1).
     """
     errors: list[str] = []
@@ -617,20 +618,12 @@ def discover_profile_descriptors(repo_root: pathlib.Path) -> set[str]:
     profiles_dir = repo_root / "profiles"
     if not profiles_dir.is_dir():
         return names
-    for entry in sorted(profiles_dir.iterdir()):
-        candidate = entry / "PROFILE.toml"
-        if not candidate.is_file():
-            continue
+    for candidate in profile_candidates(repo_root):
         try:
             doc = load_toml(candidate)
-        except tomllib.TOMLDecodeError:
-            continue
-        meta = doc.get("meta") or {}
-        if meta.get("template_kind") != "profile-descriptor":
-            continue
-        name = (doc.get("profile") or {}).get("name")
-        if isinstance(name, str) and name:
-            names.add(name)
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            raise ValueError(f"{candidate}: cannot parse profile descriptor ({exc})") from exc
+        names.add(profile_name(doc, candidate))
     return names
 
 
@@ -647,7 +640,7 @@ def validate_meta_posture(
     if not isinstance(meta, dict):
         return errors
 
-    # §2.2 / §8 — version pin shapes.
+    # §2.2 / §8 - version pin shapes.
     schema_version = meta.get("schema_version")
     if not isinstance(schema_version, str) or not SEMVER_RE.match(schema_version):
         errors.append(
@@ -667,7 +660,7 @@ def validate_meta_posture(
                 f"snapshot (got {ontology_version!r})"
             )
 
-    # §2.6 — docs URL shape (https://, no query string).
+    # §2.6 - docs URL shape (https://, no query string).
     docs_url = meta.get("docs")
     if isinstance(docs_url, str):
         if not docs_url.startswith("https://"):
@@ -680,7 +673,7 @@ def validate_meta_posture(
                 f"{source}: [meta].docs must not contain a query string (SPEC §2.6)"
             )
 
-    # §2.7 — confidentiality closed set + embargo_until cross-field.
+    # §2.7 - confidentiality closed set + embargo_until cross-field.
     if "confidentiality" in meta:
         conf = meta["confidentiality"]
         if not isinstance(conf, str):
@@ -714,7 +707,7 @@ def validate_meta_posture(
                     f"match RFC 3339 date or date-time syntax (SPEC §2.7)"
                 )
 
-    # §2.7 — license, when present, MUST be a non-empty string.
+    # §2.7 - license, when present, MUST be a non-empty string.
     if "license" in meta:
         lic = meta["license"]
         if not isinstance(lic, str):
@@ -727,7 +720,7 @@ def validate_meta_posture(
                 f"{source}: [meta].license, when present, must be a non-empty string"
             )
 
-    # §2.5 — framework_profile partition + descriptor resolution.
+    # §2.5 - framework_profile partition + descriptor resolution.
     fp = meta.get("framework_profile")
     if isinstance(fp, str) and fp:
         resolved = resolve_profile_name(fp)
@@ -740,15 +733,19 @@ def validate_meta_posture(
                 f"or reverse-DNS)"
             )
         elif is_unprefixed and repo_root is not None:
-            known = discover_profile_descriptors(repo_root)
-            if resolved not in known:
-                errors.append(
-                    f"{source}: [meta].framework_profile = `{fp}` is an unprefixed "
-                    f"(spec-reserved) name but no loaded profile-descriptor declares it "
-                    f"(SPEC §2.5)"
-                )
+            try:
+                known = discover_profile_descriptors(repo_root)
+            except ValueError as exc:
+                errors.append(f"{source}: profile discovery failed: {exc}")
+            else:
+                if resolved not in known:
+                    errors.append(
+                        f"{source}: [meta].framework_profile = `{fp}` is an unprefixed "
+                        f"(spec-reserved) name but no loaded profile-descriptor declares it "
+                        f"(SPEC §2.5)"
+                    )
 
-    # §11.1 — provenance.encryption sub-table shape (when present).
+    # §11.1 - provenance.encryption sub-table shape (when present).
     prov = doc.get("provenance")
     if isinstance(prov, dict):
         enc = prov.get("encryption")
@@ -762,7 +759,7 @@ def validate_meta_posture(
             elif sealed is False:
                 errors.append(
                     f"{source}: [provenance.encryption] is present but "
-                    f"`sealed = false` — SPEC §11.1 forbids the sub-table in "
+                    f"`sealed = false` - SPEC §11.1 forbids the sub-table in "
                     f"that case"
                 )
             elif sealed is not True:
@@ -813,8 +810,8 @@ def main() -> int:
     errors: list[str] = []
 
     # SPEC §2.5 + §2.6 + §2.7 + §11.1 cross-field semantics apply to
-    # every file with a `[meta]` table — including ontology /
-    # kind-descriptor / profile-descriptor — so the IJB validator
+    # every file with a `[meta]` table - including ontology /
+    # kind-descriptor / profile-descriptor - so the IJB validator
     # agrees with the Rust + Go primaries on the meta surface.
     repo_root_for_posture = None
     if args.repo_root:

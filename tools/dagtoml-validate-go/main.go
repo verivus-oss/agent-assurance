@@ -41,7 +41,8 @@ func loadDoc(path string) (rawDoc, error) {
 	}
 	// Strict TOML 1.1 pre-check (issue #38 / contract C01). BurntSushi/toml
 	// v1.6.0 is permissive on 13 dotted-key / inline-table redefinition cases
-	// that the Rust (`toml` 1.1) and Python (tomli) primaries correctly reject.
+	// that the Rust (`toml` 1.1) and Python (vendored TOML 1.1 parser)
+	// primaries correctly reject.
 	// pelletier/go-toml/v2 rejects all 13 while accepting the full TOML 1.1
 	// valid corpus, so it runs first as a strictness gate: on a pelletier
 	// parse error we REJECT here and never reach the BurntSushi decode. Every
@@ -49,14 +50,17 @@ func loadDoc(path string) (rawDoc, error) {
 	// pelletier, so the gate adds strictness without regressing acceptance.
 	var strictSink any
 	if err := pelletier.Unmarshal(bytes, &strictSink); err != nil {
-		return nil, fmt.Errorf("%s: TOML parse failed (strict): %w", path, err)
+		return nil, fmt.Errorf("%s: TOML parse failed (strict, source sha256 %x)", path, sha256.Sum256(bytes))
 	}
 	// BurntSushi performs the structural decode the rest of the validator
 	// relies on (its typed array/datetime shapes are threaded through
 	// asArray/int64Of and the per-kind validators).
 	var out rawDoc
 	if _, err := toml.Decode(string(bytes), &out); err != nil {
-		return nil, fmt.Errorf("%s: TOML parse failed: %w", path, err)
+		// BurntSushi's error string includes source coordinates. The strict
+		// parser already accepted this input, so report the disagreement by
+		// source digest without returning that coordinate.
+		return nil, fmt.Errorf("%s: TOML parser disagreement after strict acceptance (source sha256 %x)", path, sha256.Sum256(bytes))
 	}
 	return out, nil
 }
@@ -1041,7 +1045,7 @@ func validateImplementationLayerOrdering(units map[string]map[string]any, deps m
 		for d := range ds {
 			dl, ok := int64Of(units[d]["layer"])
 			if ok && ul <= dl {
-				errs = append(errs, fmt.Sprintf("layer ordering: %s (layer=%d) depends_on %s (layer=%d) — a depender must be in a strictly higher layer", u, ul, d, dl))
+				errs = append(errs, fmt.Sprintf("layer ordering: %s (layer=%d) depends_on %s (layer=%d): a depender must be in a strictly higher layer", u, ul, d, dl))
 			}
 		}
 	}
@@ -2438,7 +2442,7 @@ func validateProvenanceEncryption(path string, doc rawDoc) []string {
 			path))
 	case !sealed:
 		errs = append(errs, fmt.Sprintf(
-			"%s: [provenance.encryption] is present but sealed=false — SPEC §11.1 forbids the sub-table in that case",
+			"%s: [provenance.encryption] is present but sealed=false - SPEC §11.1 forbids the sub-table in that case",
 			path))
 	}
 	v, vOK := enc["hash_is_over"].(string)
@@ -2848,36 +2852,58 @@ type descriptor struct {
 // are followed, matching the Rust and Python discovery.
 func discoverDescriptors(repoRoot string) (map[string]descriptor, []string) {
 	out := map[string]descriptor{}
-	var duplicates []string
+	var discoveryErrors []string
 	root := filepath.Join(repoRoot, "profiles")
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		return out, duplicates
+		return out, append(discoveryErrors, fmt.Sprintf("%s: cannot enumerate profiles: %v", root, err))
 	}
 	for _, e := range entries {
+		entry := filepath.Join(root, e.Name())
+		if e.Type()&os.ModeSymlink != 0 {
+			info, err := os.Stat(entry)
+			if err != nil || !info.IsDir() {
+				discoveryErrors = append(discoveryErrors, fmt.Sprintf("%s: cannot follow profile directory link", entry))
+				continue
+			}
+		} else if !e.IsDir() {
+			continue
+		}
 		candidate := filepath.Join(root, e.Name(), "PROFILE.toml")
+		if _, err := os.Lstat(candidate); os.IsNotExist(err) {
+			continue
+		} else if err != nil {
+			discoveryErrors = append(discoveryErrors, fmt.Sprintf("%s: cannot inspect profile descriptor: %v", candidate, err))
+			continue
+		}
 		info, err := os.Stat(candidate)
-		if err != nil || info.IsDir() {
+		if err != nil || !info.Mode().IsRegular() {
+			discoveryErrors = append(discoveryErrors, fmt.Sprintf("%s: profile descriptor is not a regular file", candidate))
 			continue
 		}
 		doc, err := loadDoc(candidate)
 		if err != nil {
+			discoveryErrors = append(discoveryErrors, err.Error())
 			continue
 		}
 		if tk, ok := stringOf(doc["meta"], "template_kind"); !ok || tk != "profile-descriptor" {
+			discoveryErrors = append(discoveryErrors, fmt.Sprintf("%s: expected a profile-descriptor declaration", candidate))
 			continue
 		}
-		if name, ok := stringOf(doc["profile"], "name"); ok {
-			if existing, dup := out[name]; dup {
-				duplicates = append(duplicates, fmt.Sprintf(
-					"duplicate profile-descriptor name `%s` (%s and %s)",
-					name, existing.path, candidate))
-				continue
-			}
-			out[name] = descriptor{candidate, doc}
+		name, ok := stringOf(doc["profile"], "name")
+		if !ok || name == "" {
+			discoveryErrors = append(discoveryErrors, fmt.Sprintf("%s: [profile].name must be a nonempty string", candidate))
+			continue
 		}
+		if existing, dup := out[name]; dup {
+			discoveryErrors = append(discoveryErrors, fmt.Sprintf(
+				"duplicate profile-descriptor name `%s` (%s and %s)",
+				name, existing.path, candidate))
+			continue
+		}
+		out[name] = descriptor{candidate, doc}
 	}
-	return out, duplicates
+	return out, discoveryErrors
 }
 
 func checkNamespacePartition(name, namespace string) []string {
@@ -3679,10 +3705,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "error: resolving repo root:", err)
 		os.Exit(2)
 	}
-	descriptors, duplicateProfiles := discoverDescriptors(root)
-	if len(duplicateProfiles) > 0 {
+	descriptors, discoveryErrors := discoverDescriptors(root)
+	if len(discoveryErrors) > 0 {
 		fmt.Fprintln(os.Stderr, "DAGTOML VALIDATION FAILED (go primary)")
-		for _, d := range duplicateProfiles {
+		for _, d := range discoveryErrors {
 			fmt.Fprintf(os.Stderr, "- %s: pin resolution refuses to proceed (SPEC 12.8.1)\n", d)
 		}
 		os.Exit(1)
@@ -3803,7 +3829,7 @@ func main() {
 		// stable order is helpful for diff-based investigation
 		stable := make([]string, len(allErrors))
 		copy(stable, allErrors)
-		// (preserve original ordering — only sort for non-grouped sets)
+		// (preserve original ordering - only sort for non-grouped sets)
 		_ = sort.SliceStable
 		for _, line := range stable {
 			fmt.Fprintln(os.Stderr, "-", line)
@@ -3840,7 +3866,7 @@ var (
 // INV02/INV03 can report a non-table entry as a violation. A previous
 // table-only normaliser silently discarded scalar elements, which let a
 // `verdict = "pass"` document carrying `failed_constraint_refs = ["A-1"]`
-// (an array of strings) pass INV01 in Go while Rust rejected it — a
+// (an array of strings) pass INV01 in Go while Rust rejected it - a
 // cross-implementation divergence on the separation-of-duty gate. Keep the
 // element type intact; the INV loops decide table-vs-not per element.
 func gdRawArray(v any) []any {
