@@ -23,10 +23,15 @@ class InvalidJSON(ValueError):
         end = min(len(raw), start + len(source[position:position + 1].encode("utf-8", errors="surrogatepass")))
         self.source_sha256 = hashlib.sha256(raw).hexdigest()
         self.byte_span = (start, end)
-        super().__init__("invalid JSON at source sha256:" + self.source_sha256 + " byte span " + str(self.byte_span))
+        super().__init__(f"invalid JSON (source sha256 {self.source_sha256}, bytes {start}:{end})")
 
 
 def loads(source: str | bytes, **options: Any) -> Any:
+    value_scanner = getattr(json.scanner, "c_make_scanner", None)
+    string_scanner = getattr(json.decoder, "c_scanstring", None)
+    if (value_scanner is None or json.scanner.make_scanner is not value_scanner
+            or string_scanner is None or json.decoder.scanstring is not string_scanner):
+        raise RuntimeError("regex-free JSON scanner is unavailable")
     if isinstance(source, bytes):
         source = source.decode("utf-8")
     if not isinstance(source, str):

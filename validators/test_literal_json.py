@@ -1,4 +1,5 @@
 """Accepted and rejected JSON boundaries for the explicit decoder."""
+import json
 from _test_require import require
 from decimal import Decimal
 from _literal_json import InvalidJSON, loads
@@ -19,7 +20,32 @@ def test_rejections() -> None:
             require(exc.__context__ is None)
             continue
         raise AssertionError('invalid JSON accepted')
+
+def test_scanner_boundary() -> None:
+    original_value = json.scanner.make_scanner
+    original_string = json.decoder.scanstring
+    try:
+        json.scanner.make_scanner = json.scanner.py_make_scanner
+        try:
+            loads('{}')
+        except RuntimeError as exc:
+            require('regex-free JSON scanner is unavailable' in str(exc))
+        else:
+            raise AssertionError('Python value scanner was accepted')
+    finally:
+        json.scanner.make_scanner = original_value
+    try:
+        json.decoder.scanstring = json.decoder.py_scanstring
+        try:
+            loads('{}')
+        except RuntimeError as exc:
+            require('regex-free JSON scanner is unavailable' in str(exc))
+        else:
+            raise AssertionError('Python string scanner was accepted')
+    finally:
+        json.decoder.scanstring = original_string
 if __name__ == '__main__':
     test_values()
     test_rejections()
+    test_scanner_boundary()
     print('literal JSON decoder: accepted and rejected cases passed')

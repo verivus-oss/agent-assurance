@@ -57,7 +57,14 @@ def test_coverage_and_cleanup_fail_closed() -> None:
             "packages": [{"package": {"name": "foo-bar", "version": "1.0", "ecosystem": "PyPI"}}],
         }
         result.write_text(json.dumps({"results": [entry]}))
-        verify(root, result)
+        decoder = json.JSONDecoder.decode
+        def forbidden_decode(self, source):
+            raise AssertionError("regex JSON whitespace matcher was used")
+        json.JSONDecoder.decode = forbidden_decode
+        try:
+            verify(root, result)
+        finally:
+            json.JSONDecoder.decode = decoder
         result.write_bytes(b"{")
         error = expect_rejection(lambda: verify(root, result), "malformed scanner JSON accepted")
         require("source sha256" in str(error), "malformed JSON digest is missing")

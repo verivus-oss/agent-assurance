@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import hashlib
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "validators"))
+from _literal_json import InvalidJSON, loads as loads_json  # noqa: E402
 
 
 def tracked_sources(root: Path) -> list[Path]:
@@ -104,8 +106,8 @@ def verify(root: Path, result_file: Path) -> None:
     except OSError as exc:
         raise SystemExit(f"OSV scan result is unavailable: {result_file}: {exc}") from exc
     try:
-        result = json.loads(original.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError):
+        result = loads_json(original)
+    except (UnicodeDecodeError, InvalidJSON):
         digest = hashlib.sha256(original).hexdigest()
         raise SystemExit(f"OSV scan result is not valid UTF-8 JSON (source sha256 {digest})") from None
     if not isinstance(result, dict) or not isinstance(result.get("results"), list):
