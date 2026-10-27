@@ -1,6 +1,7 @@
 """Accepted and rejected JSON boundaries for the guarded codec."""
 import ast
 import json
+import shutil
 import subprocess
 from io import StringIO
 from pathlib import Path
@@ -91,8 +92,10 @@ def test_encoder_boundary() -> None:
 
 def test_stdlib_json_import_boundary() -> None:
     root = Path(__file__).resolve().parents[1]
+    git = shutil.which("git")
+    require(git is not None, "git is required to enumerate tracked Python files")
     tracked = subprocess.run(  # nosec B603 # noqa: S603
-        ["git", "ls-files", "-z", "--", "*.py"],
+        [git, "ls-files", "-z", "--", "*.py"],
         cwd=root,
         check=True,
         capture_output=True,
