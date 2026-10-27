@@ -42,7 +42,7 @@ from collections.abc import Callable
 from _ascii_predicates import split_closure_root, valid_sha256
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
-from _profile_discovery import profile_name as declared_profile_name
+from _profile_discovery import profile_candidates, profile_name as declared_profile_name
 
 ALGO_HEX_LENGTHS = {
     "sha256": 64,
@@ -91,10 +91,7 @@ def duplicate_profile_names(repo_root: pathlib.Path) -> list[str]:
     duplicates: list[str] = []
     profiles_dir = repo_root / "profiles"
     if discovery_root(profiles_dir, required=True):
-        for entry in sorted(profiles_dir.iterdir()):
-            candidate = entry / "PROFILE.toml"
-            if not candidate_file(candidate):
-                continue
+        for candidate in profile_candidates(repo_root):
             doc = _read_discovery_toml(candidate)
             name = declared_profile_name(doc, candidate)
             if name in seen:
@@ -114,10 +111,7 @@ def load_pinned_records(
     descriptors: dict[str, dict] = {}
     profiles_dir = repo_root / "profiles"
     if discovery_root(profiles_dir, required=True):
-        for entry in sorted(profiles_dir.iterdir()):
-            candidate = entry / "PROFILE.toml"
-            if not candidate_file(candidate):
-                continue
+        for candidate in profile_candidates(repo_root):
             doc = _read_discovery_toml(candidate)
             name = declared_profile_name(doc, candidate)
             descriptors[name] = doc["profile"]
@@ -172,10 +166,7 @@ def _loaded_profile_names(repo_root: pathlib.Path) -> frozenset[str]:
     names: set[str] = set()
     profiles_dir = repo_root / "profiles"
     if discovery_root(profiles_dir, required=True):
-        for entry in sorted(profiles_dir.iterdir()):
-            candidate = entry / "PROFILE.toml"
-            if not candidate_file(candidate):
-                continue
+        for candidate in profile_candidates(repo_root):
             doc = _read_discovery_toml(candidate)
             names.add(declared_profile_name(doc, candidate))
     return frozenset(names)

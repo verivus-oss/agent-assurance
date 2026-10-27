@@ -88,6 +88,11 @@ type kindFile struct {
 	} `toml:"kind"`
 }
 
+func declaredKind(file kindFile) (string, bool) {
+	name := file.Meta.DescribesKind
+	return name, file.Meta.TemplateKind == "kind-descriptor" && name != "" && file.Kind.Name == name
+}
+
 // ---------- utilities ----------
 
 func pascal(name string) string {
@@ -322,7 +327,7 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 		}
 		var paths []string
 		for _, e := range entries {
-			if !e.IsDir() && strings.HasSuffix(e.Name(), "-kind.toml") {
+			if strings.HasSuffix(e.Name(), "-kind.toml") {
 				paths = append(paths, filepath.Join(base, e.Name()))
 			}
 		}
@@ -332,12 +337,9 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 			if err := loadToml(filepath.Join(repoRoot, rel), &kf); err != nil {
 				return fmt.Errorf("cannot load kind descriptor %s: %w", rel, err)
 			}
-			tk := kf.Meta.DescribesKind
-			if tk == "" {
-				tk = kf.Kind.Name
-			}
-			if tk == "" {
-				return fmt.Errorf("kind descriptor %s has no declared kind", rel)
+			tk, valid := declaredKind(kf)
+			if !valid {
+				return fmt.Errorf("kind descriptor %s must declare matching kind fields", rel)
 			}
 			if tk == "kind-descriptor" {
 				continue

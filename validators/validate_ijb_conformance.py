@@ -50,7 +50,7 @@ import _literal_args as argparse
 import pathlib
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
-from _literal_paths import candidate_file, discovery_root
+from _literal_paths import discovery_root
 from _ascii_predicates import (
     matches_decimal_id,
     valid_date,
@@ -60,7 +60,7 @@ from _ascii_predicates import (
     valid_unprefixed_name,
     valid_upper_prefix,
 )
-from _profile_discovery import profile_name
+from _profile_discovery import profile_candidates, profile_name
 
 
 IJB_PRIMITIVES = ("thing", "scope", "path", "observed", "constraint", "time")
@@ -636,10 +636,7 @@ def discover_profile_descriptors(repo_root: pathlib.Path) -> set[str]:
     profiles_dir = repo_root / "profiles"
     if not discovery_root(profiles_dir, required=True):
         return names
-    for entry in sorted(profiles_dir.iterdir()):
-        candidate = entry / "PROFILE.toml"
-        if not candidate_file(candidate):
-            continue
+    for candidate in profile_candidates(repo_root):
         try:
             doc = load_toml(candidate)
         except (OSError, tomllib.TOMLDecodeError) as exc:

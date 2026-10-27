@@ -54,7 +54,7 @@ import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
 from _ascii_predicates import valid_closure_field, valid_reverse_dns, valid_unprefixed_name
 from _literal_paths import candidate_directory, candidate_file, discovery_root
-from _profile_discovery import profile_name
+from _profile_discovery import profile_candidates, profile_name
 
 
 REQUIRED_PROFILE_FIELDS = (
@@ -103,15 +103,18 @@ def discover_descriptors(repo_root: pathlib.Path) -> dict[str, tuple[pathlib.Pat
     profiles_dir = repo_root / "profiles"
     if not discovery_root(profiles_dir, required=True):
         return found
-    for entry in sorted(profiles_dir.iterdir()):
-        candidate = entry / "PROFILE.toml"
-        if not candidate_file(candidate):
-            continue
+    for candidate in profile_candidates(repo_root):
         try:
             doc = load_toml(candidate)
         except (OSError, tomllib.TOMLDecodeError) as exc:
             raise ValueError(f"{candidate}: cannot parse profile descriptor ({exc})") from exc
-        found[profile_name(doc, candidate)] = (candidate, doc)
+        name = profile_name(doc, candidate)
+        if name in found:
+            raise ValueError(
+                f"duplicate profile-descriptor name `{name}` "
+                f"({found[name][0]} and {candidate}): pin resolution refuses to proceed"
+            )
+        found[name] = (candidate, doc)
     return found
 
 
@@ -632,41 +635,6 @@ def main() -> int:
         descriptors = discover_descriptors(repo_root)
     except (OSError, ValueError) as exc:
         print(f"PROFILE DESCRIPTOR VALIDATION FAILED: cannot inspect descriptors ({exc})")
-        return 1
-
-    # Duplicate profile names would shadow each other in the name-keyed
-    # map and could erase closure pins; refuse to validate anything
-    # (SPEC 12.8.1 pin resolution, mirrored by the closure validators).
-    seen_names: dict[str, pathlib.Path] = {}
-    duplicate_errors: list[str] = []
-    profiles_dir = repo_root / "profiles"
-    if discovery_root(profiles_dir, required=True):
-        for entry in sorted(profiles_dir.iterdir()):
-            candidate = entry / "PROFILE.toml"
-            try:
-                if not candidate_file(candidate):
-                    continue
-                dup_doc = load_toml(candidate)
-            except (OSError, tomllib.TOMLDecodeError) as exc:
-                duplicate_errors.append(f"{candidate}: cannot inspect profile descriptor ({exc})")
-                continue
-            if (dup_doc.get("meta") or {}).get("template_kind") != "profile-descriptor":
-                continue
-            dup_name = (dup_doc.get("profile") or {}).get("name")
-            if not isinstance(dup_name, str):
-                continue
-            if dup_name in seen_names:
-                duplicate_errors.append(
-                    f"duplicate profile-descriptor name `{dup_name}` "
-                    f"({seen_names[dup_name]} and {candidate}): pin resolution "
-                    f"refuses to proceed (SPEC §12.8.1)"
-                )
-            else:
-                seen_names[dup_name] = candidate
-    if duplicate_errors:
-        print("PROFILE DESCRIPTOR VALIDATION FAILED")
-        for line in duplicate_errors:
-            print(f"- {line}")
         return 1
 
     all_errors: list[str] = []

@@ -146,11 +146,10 @@ func loadDoc(path string) (rawDoc, error) {
 		if errors.As(err, &decodeError) {
 			row, column := decodeError.Position()
 			if offset, ok := byteOffsetAt(bytes, row, column); ok {
-				return nil, fmt.Errorf("%s: TOML parse failed (strict): %s (source sha256:%x; byte span %d..%d)", path, decodeError.Error(), sha256.Sum256(bytes), offset, offset)
+				return nil, fmt.Errorf("%s: TOML parse failed (strict) (source sha256:%x; byte span %d..%d)", path, sha256.Sum256(bytes), offset, offset)
 			}
-			return nil, fmt.Errorf("%s: TOML parse failed (strict): %s (source sha256:%x)", path, decodeError.Error(), sha256.Sum256(bytes))
 		}
-		return nil, fmt.Errorf("%s: TOML parse failed (strict; source sha256:%x)", path, sha256.Sum256(bytes))
+		return nil, fmt.Errorf("%s: TOML parse failed (strict) (source sha256:%x)", path, sha256.Sum256(bytes))
 	}
 	// BurntSushi performs the structural decode the rest of the validator
 	// relies on (its typed array/datetime shapes are threaded through
@@ -2982,17 +2981,21 @@ func discoverDescriptors(repoRoot string) (map[string]descriptor, []string) {
 			continue
 		}
 		if tk, ok := stringOf(doc["meta"], "template_kind"); !ok || tk != "profile-descriptor" {
+			discoveryErrors = append(discoveryErrors, fmt.Sprintf("%s: expected a profile-descriptor declaration", candidate))
 			continue
 		}
-		if name, ok := stringOf(doc["profile"], "name"); ok {
-			if existing, dup := out[name]; dup {
-				discoveryErrors = append(discoveryErrors, fmt.Sprintf(
-					"duplicate profile-descriptor name `%s` (%s and %s)",
-					name, existing.path, candidate))
-				continue
-			}
-			out[name] = descriptor{candidate, doc}
+		name, ok := stringOf(doc["profile"], "name")
+		if !ok || name == "" {
+			discoveryErrors = append(discoveryErrors, fmt.Sprintf("%s: [profile].name must be a nonempty string", candidate))
+			continue
 		}
+		if existing, dup := out[name]; dup {
+			discoveryErrors = append(discoveryErrors, fmt.Sprintf(
+				"duplicate profile-descriptor name `%s` (%s and %s)",
+				name, existing.path, candidate))
+			continue
+		}
+		out[name] = descriptor{candidate, doc}
 	}
 	return out, discoveryErrors
 }

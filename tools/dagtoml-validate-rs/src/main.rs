@@ -3525,7 +3525,7 @@ mod profile {
             Ok(entries) => entries,
             Err(error) => {
                 discovery_errors.push(format!(
-                    "{}: profile discovery failed: {error}",
+                    "{}: cannot enumerate profiles: {error}",
                     dir.display()
                 ));
                 return (out, discovery_errors);
@@ -3536,26 +3536,67 @@ mod profile {
                 Ok(entry) => entry,
                 Err(error) => {
                     discovery_errors.push(format!(
-                        "{}: profile discovery failed: {error}",
+                        "{}: cannot inspect profile entry: {error}",
                         dir.display()
                     ));
                     continue;
                 }
             };
-            match candidate_directory(&entry.path()) {
-                Ok(true) => {}
-                Ok(false) => continue,
+            let entry_path = entry.path();
+            let file_type = match entry.file_type() {
+                Ok(file_type) => file_type,
                 Err(error) => {
-                    discovery_errors.push(error);
+                    discovery_errors.push(format!(
+                        "{}: cannot inspect profile entry: {error}",
+                        entry_path.display()
+                    ));
                     continue;
                 }
+            };
+            if file_type.is_symlink() {
+                match std::fs::metadata(&entry_path) {
+                    Ok(metadata) if metadata.is_dir() => {}
+                    Ok(_) => {
+                        discovery_errors.push(format!(
+                            "{}: profile link does not target a directory",
+                            entry_path.display()
+                        ));
+                        continue;
+                    }
+                    Err(error) => {
+                        discovery_errors.push(format!(
+                            "{}: cannot follow profile directory link: {error}",
+                            entry_path.display()
+                        ));
+                        continue;
+                    }
+                }
+            } else if !file_type.is_dir() {
+                continue;
             }
             let candidate = entry.path().join("PROFILE.toml");
-            match candidate_file(&candidate) {
-                Ok(true) => {}
-                Ok(false) => continue,
+            match candidate.symlink_metadata() {
+                Ok(_) if candidate.is_file() => {}
+                Ok(metadata) if metadata.file_type().is_symlink() && !candidate.exists() => {
+                    discovery_errors.push(format!(
+                        "{}: dangling discovery candidate",
+                        candidate.display()
+                    ));
+                    continue;
+                }
+                Ok(_) => {
+                    discovery_errors.push(format!(
+                        "{}: profile descriptor is not a regular file",
+                        candidate.display()
+                    ));
+                    continue;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
                 Err(error) => {
-                    discovery_errors.push(error);
+                    discovery_errors.push(format!(
+                        "{}: cannot inspect profile descriptor: {error}",
+                        candidate.display()
+                    ));
                     continue;
                 }
             }
@@ -3572,24 +3613,34 @@ mod profile {
                 .and_then(|x| x.as_str())
                 .unwrap_or("");
             if tk != "profile-descriptor" {
+                discovery_errors.push(format!(
+                    "{}: expected a profile-descriptor declaration",
+                    candidate.display()
+                ));
                 continue;
             }
-            if let Some(name) = doc
+            let name = doc
                 .get("profile")
                 .and_then(|p| p.get("name"))
                 .and_then(|x| x.as_str())
-            {
-                if let Some((existing, _)) = out.get(name) {
-                    discovery_errors.push(format!(
-                        "duplicate profile-descriptor name `{}` ({} and {})",
-                        name,
-                        existing.display(),
-                        candidate.display()
-                    ));
-                    continue;
-                }
-                out.insert(name.to_string(), (candidate, doc));
+                .filter(|name| !name.is_empty());
+            let Some(name) = name else {
+                discovery_errors.push(format!(
+                    "{}: [profile].name must be a nonempty string",
+                    candidate.display()
+                ));
+                continue;
+            };
+            if let Some((existing, _)) = out.get(name) {
+                discovery_errors.push(format!(
+                    "duplicate profile-descriptor name `{}` ({} and {})",
+                    name,
+                    existing.display(),
+                    candidate.display()
+                ));
+                continue;
             }
+            out.insert(name.to_string(), (candidate, doc));
         }
         (out, discovery_errors)
     }

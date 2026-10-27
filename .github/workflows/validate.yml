@@ -262,6 +262,10 @@ jobs:
           set -e
           cargo test --locked --manifest-path tools/dagtoml-rdf/Cargo.toml
           (cd tools/dagtoml-rdf-go && go test ./...)
+          (cd tools/dagtoml-rdf-go && go build -o "${RUNNER_TEMP}/dagtoml-rdf-go" .)
+          bash validators/check_rdf_descriptor_guards.sh \
+            tools/dagtoml-rdf/target/release/dagtoml-rdf \
+            "${RUNNER_TEMP}/dagtoml-rdf-go"
 
       - name: Install Taplo
         run: |
@@ -536,28 +540,11 @@ jobs:
           import sys, pathlib
           # Vendored TOML 1.1 parser; stdlib tomllib is 1.0-only.
           sys.path.insert(0, "validators")
-          import _toml11 as tomllib
-          from _literal_paths import glob, rglob
+          from validate_closure_root import spec_reserved_kinds, _read_discovery_toml
+          from _literal_paths import rglob
 
           root = pathlib.Path(".")
-          spec_reserved = {"kind-descriptor", "ontology"}
-
-          def kind_name(path):
-              try:
-                  data = tomllib.loads_bytes(path.read_bytes())
-              except Exception:
-                  return None
-              kind = data.get("kind")
-              if isinstance(kind, dict) and isinstance(kind.get("name"), str):
-                  return kind["name"]
-              return None
-
-          for descriptor in glob(root, "core/*-kind.toml"):
-              if name := kind_name(descriptor):
-                  spec_reserved.add(name)
-          for descriptor in glob(root, "profiles/*/*-kind.toml"):
-              if name := kind_name(descriptor):
-                  spec_reserved.add(name)
+          spec_reserved = spec_reserved_kinds(root)
 
           skip_dirs = {"target", "node_modules", "__pycache__"}
           for path in sorted(rglob(root, "*.toml")):
@@ -577,10 +564,7 @@ jobs:
               # closure-invalid, e.g. the api-snapshot witness-strip case).
               if path.as_posix().startswith("conformance/cases/") and "/invalid/" in path.as_posix():
                   continue
-              try:
-                  data = tomllib.loads_bytes(path.read_bytes())
-              except Exception:
-                  continue
+              data = _read_discovery_toml(path)
               meta = data.get("meta")
               if isinstance(meta, dict) and meta.get("template_kind") in spec_reserved:
                   print(path)
