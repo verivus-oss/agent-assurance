@@ -2,9 +2,9 @@
 # SPDX-FileCopyrightText: 2021 Taneli Hukkinen
 # Licensed to PSF under a Contributor Agreement.
 
-from typing import Any, Callable, Tuple
+from collections.abc import Callable
 
 # Type annotations
-ParseFloat = Callable[[str], Any]
-Key = Tuple[str, ...]
+ParseFloat = Callable[[str], object]
+Key = tuple[str, ...]
 Pos = int

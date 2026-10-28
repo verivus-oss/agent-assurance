@@ -91,10 +91,12 @@ comment block in `validate.yml`:
 - `osv-scanner` — CVEs in `requirements.txt` + `Cargo.lock` + `go.sum`
   (complements Dependabot: catches transitive and advisory-DB-only
   entries Dependabot misses)
-- `gitleaks` checks credential patterns in reachable commits, including
-  the checked-out tracked tree, with planted credential controls. An exact
-  post-scan check recognizes the historical public hex literal; all other
-  findings fail the gate.
+- The native credential gate checks stored blobs throughout reachable Git
+  history, including the HEAD tree, merge parents and deletion-only commits.
+  Cold controls exercise declared provider candidates, rejected inputs and
+  source identity failures. The exact four historical public-literal events
+  remain the sole event exceptions; all other events fail. See
+  `validators/CREDENTIALS.md` for the candidate contract and scan boundaries.
 - `cargo-audit` — RustSec advisory DB check for every `tools/*-rs`
 - `cargo-deny` — Rust license policy + dep ban + advisories (catches
   license drift that audit doesn't)

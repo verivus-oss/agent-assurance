@@ -7,8 +7,8 @@ that can be resolved and checked. Prose under `docs/issues/` and messages in
 citations point at anything.
 
 This scans issue prose and authored validator text for commit-shaped tokens.
-Vendored parser source and unit fixtures are excluded because their numeric
-literals are input data, not commit claims. Each detected token is checked for
+Vendored parser source, Python unit fixtures and Python byte constants are
+excluded because their literals are input data, not commit claims. Each detected token is checked for
 reachability
 from HEAD, and fails on any that is not unless
 `validators/unresolvable-commit-citations.toml` records it with a reason.
@@ -71,13 +71,15 @@ load-bearing rather than annotation.
 Within the governed source population, tokens that match the shape but are
 not citations (a hex alphabet literal, for instance) are recorded in the
 baseline's `not_a_commit` table with a reason. Vendored parser source and the
-two scanner unit fixtures are outside that population because their literals
-are test data.
+Python unit fixtures are outside that population because their literals are
+test data. The Python parser identifies byte constants structurally; comments,
+docstrings and ordinary strings beside them remain governed.
 """
 
 from __future__ import annotations
 
 import pathlib
+import ast
 import shutil
 # Git calls below use a resolved executable and argument lists without a shell.
 import subprocess  # nosec B404
@@ -146,10 +148,63 @@ def governed_file(path: pathlib.Path, root: pathlib.Path) -> bool:
     rel = path.relative_to(root)
     if rel.parts[:2] == ("validators", "_toml11_vendor") and rel.name != "README.md":
         return False
-    return rel.as_posix() not in {
-        "validators/test_toml11_scanner.py",
-        "validators/test_commit_citations.py",
-    }
+    return not (rel.parts[0] == "validators" and rel.name.startswith("test_") and rel.suffix == ".py")
+
+
+def citation_text(text: str, path: pathlib.Path) -> str:
+    """Python byte constants are source data, not authored commit citations.
+
+    Mask exactly the parser's byte-constant spans. Comments, docstrings and
+    ordinary strings remain governed, including text beside a byte constant.
+    Parser coordinates are transient and never enter a result or record.
+    """
+    if path.suffix != ".py":
+        return text
+    try:
+        tree = ast.parse(text)
+    except SyntaxError as exc:
+        raise Infrastructure("cannot identify byte data in invalid Python source: " + path.name) from exc
+    source = bytearray(text.encode("utf-8"))
+    starts = [0]
+    for index, byte in enumerate(source):
+        if byte == 10:
+            starts.append(index + 1)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and isinstance(node.value, bytes):
+            start = starts[node.lineno - 1] + node.col_offset
+            end = starts[node.end_lineno - 1] + node.end_col_offset
+            cursor = start
+            while cursor < end:
+                if source[cursor] == 35:
+                    # Adjacent byte literals may contain a comment between
+                    # tokens. That prose remains governed by the citation gate.
+                    stop = source.find(b"\n", cursor, end)
+                    cursor = end if stop == -1 else stop + 1
+                    continue
+                token_start = cursor
+                if source[cursor] not in b"bBrR":
+                    cursor += 1
+                    continue
+                while cursor < end and source[cursor] in b"bBrR":
+                    cursor += 1
+                if cursor == end or source[cursor] not in b"'\"":
+                    continue
+                quote = bytes(source[cursor:cursor + 1])
+                if source[cursor:cursor + 3] == quote * 3:
+                    quote *= 3
+                cursor += len(quote)
+                while cursor < end:
+                    if source[cursor] == 92:
+                        cursor += 2
+                    elif source[cursor:cursor + len(quote)] == quote:
+                        cursor += len(quote)
+                        break
+                    else:
+                        cursor += 1
+                for index in range(token_start, cursor):
+                    if source[index] not in (10, 13):
+                        source[index] = 32
+    return source.decode("utf-8")
 
 
 def parse_args() -> SimpleNamespace:
@@ -291,7 +346,8 @@ def main() -> int:
             continue
         try:
             text = path.read_text()
-        except (UnicodeDecodeError, OSError) as exc:
+            text = citation_text(text, path)
+        except (UnicodeDecodeError, OSError, Infrastructure) as exc:
             undecodable.append(f"{path.relative_to(root).as_posix()}: {exc.__class__.__name__}")
             continue
         scanned += 1

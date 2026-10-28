@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone, tzinfo
 from functools import lru_cache
-from typing import Any
 
 from ._types import ParseFloat
 
@@ -157,7 +156,7 @@ def scan_datetime(source: str, start: int) -> ScanMatch | None:
 
 
 class Scanner:
-    def __init__(self, scan: Any) -> None:
+    def __init__(self, scan: object) -> None:
         self.scan = scan
 
     def match(self, source: str, pos: int) -> ScanMatch | None:
@@ -201,7 +200,7 @@ def match_to_localtime(match: ScanMatch) -> time:
     return time(int(hour_str), int(minute_str), sec, micros)
 
 
-def match_to_number(match: ScanMatch, parse_float: ParseFloat) -> Any:
+def match_to_number(match: ScanMatch, parse_float: ParseFloat) -> object:
     value = match.group()
     if match.group("floatpart"):
         return parse_float(value)

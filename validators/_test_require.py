@@ -1,10 +1,8 @@
 """Assertion helper that remains active under optimized Python."""
 
+from __future__ import annotations
+
 from collections.abc import Callable
-from typing import TypeVar
-
-
-E = TypeVar("E", bound=Exception)
 
 
 def require(condition: object, message: object = "test expectation failed") -> None:
@@ -12,7 +10,7 @@ def require(condition: object, message: object = "test expectation failed") -> N
         raise AssertionError(message)
 
 
-def expect_raises(error_type: type[E], action: Callable[[], object], message: str) -> E:
+def expect_raises(error_type: type[Exception], action: Callable[[], object], message: str) -> Exception:
     try:
         action()
     except error_type as exc:

@@ -2,7 +2,7 @@
 from _test_require import require
 import pathlib
 import sys
-from check_commit_citations import commit_tokens, governed_file, parse_args
+from check_commit_citations import citation_text, commit_tokens, governed_file, parse_args
 
 def test_commit_words_and_noncommit_words() -> None:
     require(commit_tokens('opened_in_commit: 9996826') == {'9996826'})
@@ -24,6 +24,22 @@ def test_scan_population_excludes_vendor_and_unit_fixtures() -> None:
     require(governed_file(root / 'validators/_toml11_vendor/README.md', root))
     require(not governed_file(root / 'validators/_toml11_vendor/_scan.py', root))
     require(not governed_file(root / 'validators/test_toml11_scanner.py', root))
+    require(not governed_file(root / 'validators/test_credential_detection.py', root))
+    require(governed_file(root / 'validators/_credential_detection.py', root))
+
+def test_byte_data_and_adjacent_prose() -> None:
+    path = pathlib.Path('subject.py')
+    source = '# measured abcdef0\nvalue = b"0123456789abcdef"; claim = "abcdef1"\n'
+    require(set().union(*(commit_tokens(row) for row in citation_text(source, path).splitlines()))
+            == {'abcdef0', 'abcdef1'})
+    source = '"""caf\u00e9 abcdef0"""\nx = b"0123456789abcdef" + b"deadbeef"\n# abcdef1\n'
+    require(set().union(*(commit_tokens(row) for row in citation_text(source, path).splitlines()))
+            == {'abcdef0', 'abcdef1'})
+    require(citation_text('b"abcdef0"', pathlib.Path('subject.md')) == 'b"abcdef0"')
+    source = 'x = (rb"0123456789abcdef"\n # measured abcdef0\n b"deadbeef")\n'
+    require(set().union(*(commit_tokens(row) for row in citation_text(source, path).splitlines())) == {'abcdef0'})
+    source = 'x = b"""# 0123456789abcdef\n deadbeef"""\n# abcdef0\n'
+    require(set().union(*(commit_tokens(row) for row in citation_text(source, path).splitlines())) == {'abcdef0'})
 
 def test_cli_accepts_exact_options_and_rejects_missing_values() -> None:
     original = sys.argv
@@ -52,5 +68,6 @@ if __name__ == '__main__':
     test_commit_words_and_noncommit_words()
     test_uuid_segments_are_not_citations()
     test_scan_population_excludes_vendor_and_unit_fixtures()
+    test_byte_data_and_adjacent_prose()
     test_cli_accepts_exact_options_and_rejects_missing_values()
-    print('commit citation scanner: 4 test groups passed')
+    print('commit citation scanner: declared citation and source-data controls passed')

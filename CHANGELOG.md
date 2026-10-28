@@ -9,6 +9,14 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Replace the credential workflow from candidate
+  `fa8c3051e3cafd83ddcbd8898f4c0028d824c450` with explicit byte predicates,
+  bounded decoding and complete stored Git blob traversal. Retire the Gitleaks
+  executable, configuration and merge wrapper. Preserve the four exact public
+  history controls; reject corrupt objects, incomplete history and moving refs.
+  Keep source digests and byte spans in candidate reports. Add cold component,
+  policy and Git graph controls in normal and optimized Python. Other active
+  scanner dependencies and cold reference-store imports remain audit blockers.
 - Replace the prefix-shape gate observed at
   `f445e17dcb281d2a95026928e730f645a13b20ae` with native Turtle parsing
   and a bounded evaluator for the declared identifier-prefix queries.

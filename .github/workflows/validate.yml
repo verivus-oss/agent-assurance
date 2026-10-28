@@ -117,6 +117,8 @@ jobs:
               raise SystemExit("FAIL: Python boundary test population changed")
           for path in tests:
               command = [sys.executable, str(path)]
+              if path.name == "test_credential_cold_start.py":
+                  command.insert(1, "-S")
               if path.name == "test_ontology_prefix_types.py":
                   command.extend(["--rs", sys.argv[1], "--go", sys.argv[2]])
               subprocess.run(command, check=True)
@@ -962,8 +964,8 @@ jobs:
       #   osv-scanner     - CVEs in pinned Python locks + Cargo.lock + go.sum
       #                     (complements Dependabot: catches transitive
       #                     and advisory-DB-only entries Dependabot misses)
-      #   gitleaks        : credential token checks in reachable commits,
-      #                     including the checked-out tracked tree
+      #   credential gate : explicit byte predicates over all reachable
+      #                     committed blobs, including the HEAD tree
       #   cargo-audit     — RustSec advisory DB check for every tools/*-rs
       #   cargo-deny      — Rust license policy + dep ban + advisories
       #                     (catches license drift that audit doesn't)
@@ -1089,51 +1091,13 @@ jobs:
         if: always()
         run: python3 tools/prepare_osv_python.py --cleanup
 
-      - name: Secret scan (gitleaks)
+      - name: Credential controls and complete history scan
         continue-on-error: false
         run: |
           set -euo pipefail
-          VERSION="8.30.1"
-          TARBALL="gitleaks_${VERSION}_linux_x64.tar.gz"
-          EXPECTED_SHA="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
-          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/${TARBALL}" -o "/tmp/${TARBALL}"
-          actual=$(sha256sum "/tmp/${TARBALL}")
-          actual=${actual%% *}
-          if [ "${actual}" != "${EXPECTED_SHA}" ]; then
-            echo "FAIL: gitleaks tarball SHA256 mismatch."
-            exit 1
-          fi
-          mkdir -p /tmp/gitleaks-bin
-          tar -xzf "/tmp/${TARBALL}" -C /tmp/gitleaks-bin gitleaks
-          control='ghp_'"Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56Qr78"
-          if printf 'token=%s\n' "$control" | /tmp/gitleaks-bin/gitleaks detect \
-              --pipe --config .gitleaks.toml --no-banner --redact --exit-code 7 \
-              >/dev/null 2>&1; then
-            echo "FAIL: planted credential was accepted."
-            exit 1
-          else
-            code=$?
-            if [ "$code" -ne 7 ]; then
-              echo "FAIL: planted credential control did not reach the finding path."
-              exit 1
-            fi
-          fi
-          if printf 'token=%s\n' '0123456789abcdef' | /tmp/gitleaks-bin/gitleaks detect \
-              --pipe --config .gitleaks.toml --no-banner --redact --exit-code 7 \
-              >/dev/null 2>&1; then
-            echo "FAIL: raw Gitleaks suppressed the public hex control."
-            exit 1
-          else
-            code=$?
-            if [ "$code" -ne 7 ]; then
-              echo "FAIL: public hex control did not reach the finding path."
-              exit 1
-            fi
-          fi
-          python3 validators/check_secret_scan.py \
-            --gitleaks /tmp/gitleaks-bin/gitleaks --repo-root .
-          python3 validators/check_secret_scan_merge.py \
-            --gitleaks /tmp/gitleaks-bin/gitleaks --config .gitleaks.toml
+          python3 -S validators/test_credential_cold_start.py
+          python3 -O -S validators/test_credential_cold_start.py
+          python3 -S validators/check_secret_scan.py --repo-root .
 
       - name: Python static security analysis (bandit)
         continue-on-error: false

@@ -1,171 +1,73 @@
-"""Keep the historical public literal exception exact and fail closed."""
+"""Keep the historical public event exception exact and fail closed."""
 
 from contextlib import redirect_stderr
-import hashlib
 from io import StringIO
-from pathlib import Path
-import subprocess
-import sys
-from tempfile import TemporaryDirectory
 
 from _test_require import expect_raises, require
-from check_secret_scan import (
-    KNOWN_COMMITS, PUBLIC_HEX_FILE, PUBLIC_HEX_RULE,
-    check_exact_config, check_findings, check_no_ignore_file, check_scan_population, gitleaks_command,
-    known_public_literal, scanned_count, text_change_commits,
-)
+from _credential_report import encode_report
+from check_secret_scan import (KNOWN_COMMITS, PUBLIC_HEX_FILE, PUBLIC_HEX_RULE, PUBLIC_HEX_SHA256,
+                               check_findings, check_scan_population, known_public_literal)
 
 
-def test_exception() -> None:
-    public = "".join(chr(code) for code in range(ord("0"), ord("9") + 1))
-    public += "".join(chr(code) for code in range(ord("a"), ord("f") + 1))
+def fixture():
     commit = sorted(KNOWN_COMMITS)[0]
-    record = {"Secret": public, "RuleID": PUBLIC_HEX_RULE,
-              "File": PUBLIC_HEX_FILE, "Commit": commit}
+    digest = "f" * 64
+    capture = {"rule": PUBLIC_HEX_RULE, "value_sha256": PUBLIC_HEX_SHA256, "source_sha256": digest,
+               "byte_span": [10, 26], "context_byte_span": [0, 26]}
+    return {"rule": PUBLIC_HEX_RULE, "path": PUBLIC_HEX_FILE, "commit": commit,
+            "value_sha256": PUBLIC_HEX_SHA256, "source_sha256": digest,
+            "capture_count": 1, "parent_capture_counts": [0, 1], "captures": [capture]}
+
+
+def test_exception():
+    record = fixture()
+    expected = {record["commit"]}
     require(known_public_literal(record))
-    check_findings([record], {commit})
+    check_findings([record], expected)
     for field, replacement in (
-        ("Secret", public + "x"),
-        ("RuleID", "other-rule"),
-        ("File", "validators/other.toml"),
-        ("Commit", "a" * 40),
+        ("value_sha256", "a" * 64), ("rule", "other-rule"), ("path", "validators/other.toml"),
+        ("commit", "a" * 40), ("capture_count", 2), ("capture_count", True),
+        ("parent_capture_counts", [1, 1]), ("parent_capture_counts", []),
+        ("parent_capture_counts", [False]), ("source_sha256", None),
+        ("captures", []), ("captures", [record["captures"][0]] * 2),
+        ("captures", [record["captures"][0] | {"decoding": {"depth": 1}}]),
+        ("captures", [record["captures"][0] | {"source_sha256": "a" * 64}]),
     ):
         changed = record | {field: replacement}
-        require(not known_public_literal(changed), "public exception widened")
+        require(not known_public_literal(changed), "public exception widened: " + field)
         output = StringIO()
-        try:
-            with redirect_stderr(output):
-                check_findings([changed], {commit})
-        except RuntimeError:
-            require("unapproved finding" in output.getvalue())
-        else:
-            raise AssertionError("unapproved finding was accepted")
-    expect_raises(RuntimeError, lambda: check_findings([], {commit}),
-                  "absent scanner control was accepted")
+        with redirect_stderr(output):
+            expect_raises(RuntimeError, lambda: check_findings([changed], expected),
+                          "unapproved event was accepted")
+        require("unapproved event" in output.getvalue())
+    expect_raises(RuntimeError, lambda: check_findings([], expected), "absent public control was accepted")
+    expect_raises(RuntimeError, lambda: check_findings([record, record], expected), "duplicate control passed")
 
 
-def test_scan_count() -> None:
-    require(scanned_count("INF 12 commits scanned.\n") == 12)
-    for output in ("", "INF scanned bytes", "INF 12 commits scanned.\nINF 12 commits scanned."):
-        expect_raises(RuntimeError, lambda: scanned_count(output),
-                      "missing or duplicate scan count was accepted")
-
-    head = {"head", "merge", "known"}
-    all_commits = head | {"branch"}
-    patches = {"head", "known"}
-    check_scan_population(2, all_commits, head, {"known"}, patches)
-    for count, reachable, ancestry, expected, patch_commits in (
-        (0, all_commits, head, {"known"}, patches),
-        (1, all_commits, head, {"known"}, patches),
-        (3, all_commits, head, {"known"}, patches),
-        (2, all_commits, head, {"branch"}, patches),
-        (2, all_commits, set(), {"known"}, patches),
-        (2, all_commits, head | {"unknown"}, {"known"}, patches),
-        (3, all_commits, head, {"known"}, patches | {"unknown"}),
-        (0, all_commits, head, {"known"}, set()),
+def test_population():
+    known, head, blob = sorted(KNOWN_COMMITS)[0], "a" * 40, "b" * 40
+    result = {"head": head, "commits": [known, head], "scanned_commits": [known, head],
+              "head_ancestry": [known, head], "scanned_blobs": [blob]}
+    require(check_scan_population(result) == {known})
+    for field, replacement in (
+        ("head", "c" * 40), ("commits", []), ("commits", [known, known]),
+        ("commits", [head]), ("scanned_commits", [head]), ("scanned_commits", [known, head, blob]),
+        ("head_ancestry", [head]), ("head_ancestry", [known, head, blob]),
+        ("scanned_blobs", []), ("scanned_blobs", ["bad"]),
     ):
-        expect_raises(RuntimeError,
-                      lambda: check_scan_population(count, reachable, ancestry, expected, patch_commits),
-                      "invalid scan population was accepted")
-
-    first, second = "a" * 40, "b" * 40
-    numstat = (b"SCAN-COMMIT:" + first.encode() + b"\0\n2\t0\tfile\0"
-               + b"SCAN-COMMIT:" + second.encode() + b"\0\n0\t2\tother\0")
-    require(text_change_commits(numstat, {first, second}) == {first, second})
-    rename = (b"SCAN-COMMIT:" + first.encode() + b"\0\n1\t1\t\0"
-              + b"SCAN-COMMIT:" + second.encode() + b"\0new-name\0")
-    require(text_change_commits(rename, {first, second}) == {first})
-    for broken in (
-        b"SCAN-COMMIT:short\0\n1\t0\tfile\0",
-        b"SCAN-COMMIT:" + b"g" * 40 + b"\0\n1\t0\tfile\0",
-        b"SCAN-COMMIT:" + second.encode() + b"\0\n1\t0\tfile\0",
-        b"SCAN-COMMIT:" + first.encode() + b"\0\nnot-a-count\t0\tfile\0",
-        b"SCAN-COMMIT:" + first.encode() + b"\0\n1\tbad\tfile\0",
-        b"SCAN-COMMIT:" + first.encode() + b"\0\n-\t1\tbinary\0",
-        b"SCAN-COMMIT:" + first.encode() + b"\0\n0\t0\tfile\0",
-        b"SCAN-COMMIT:" + first.encode() + b"\0\n1\t0\t\0old-path\0",
-        b"\n1\t0\tfile\0",
-    ):
-        expect_raises(RuntimeError, lambda: text_change_commits(broken, {first}),
-                      "invalid Git numstat record was accepted")
-
-    with TemporaryDirectory(prefix="gitleaks-ignore-control-") as directory:
-        root = Path(directory)
-        check_no_ignore_file(root)
-        ignore = root / ".gitleaksignore"
-        ignore.write_text("ignored-fingerprint\n")
-        expect_raises(RuntimeError, lambda: check_no_ignore_file(root),
-                      "Gitleaks ignore file was accepted")
-        ignore.unlink()
-        ignore.symlink_to("missing-file")
-        expect_raises(RuntimeError, lambda: check_no_ignore_file(root),
-                      "Gitleaks ignore symlink was accepted")
-    require("--ignore-gitleaks-allow" in gitleaks_command(
-        Path("/usr/bin/gitleaks"), ".gitleaks.toml", Path("findings.json")))
+        expect_raises(RuntimeError, lambda: check_scan_population(result | {field: replacement}),
+                      "invalid scan population passed: " + field)
 
 
-def test_main_rejects_ignore_file() -> None:
-    with TemporaryDirectory(prefix="gitleaks-main-control-") as directory:
-        root = Path(directory)
-        binary = root / "gitleaks"
-        binary.write_text("")
-        (root / ".gitleaks.toml").write_text("[extend]\nuseDefault = true\n")
-        ignore = root / ".gitleaksignore"
-        ignore.write_text("ignored-fingerprint\n")
-        command = [sys.executable, str(Path(__file__).with_name("check_secret_scan.py")),
-                   "--gitleaks", str(binary), "--repo-root", str(root)]
-        rejected = subprocess.run(command, capture_output=True, text=True, check=False)  # nosec B603  # noqa: S603
-        require(rejected.returncode == 1 and "Gitleaks ignore file is not permitted" in rejected.stderr)
-        ignore.unlink()
-        reached_history = subprocess.run(command, capture_output=True, text=True, check=False)  # nosec B603  # noqa: S603
-        require(reached_history.returncode == 1 and "secret scan requires a full Git checkout" in reached_history.stderr)
-
-
-def test_config_boundary() -> None:
-    repository_config = Path(__file__).resolve().parents[1] / ".gitleaks.toml"
-    check_exact_config(repository_config)
-    with TemporaryDirectory(prefix="gitleaks-config-control-") as directory:
-        root = Path(directory)
-        binary = root / "gitleaks"
-        binary.write_text("")
-        config = root / ".gitleaks.toml"
-        main_command = [sys.executable, str(Path(__file__).with_name("check_secret_scan.py")),
-                        "--gitleaks", str(binary), "--repo-root", str(root)]
-        merge_command = [sys.executable, str(Path(__file__).with_name("check_secret_scan_merge.py")),
-                         "--gitleaks", str(binary), "--config", str(config)]
-        rejected_configs = (
-            "[extend]\nuseDefault = true\n[[allowlists]]\npaths = ['validators/']\n",
-            "[extend]\nuseDefault = true\n[[rules]]\nid = 'generic-api-key'\n[[rules.allowlists]]\npaths = ['validators/']\n",
-            "[extend]\nuseDefault = true\ndisabledRules = ['generic-api-key']\n",
-            "[extend]\nuseDefault = true\npath = 'other.toml'\n",
-            "[extend]\nuseDefault = 1\n",
-        )
-        for content in rejected_configs:
-            config.write_text(content)
-            expect_raises(RuntimeError, lambda: check_exact_config(config),
-                          "suppressing Gitleaks configuration was accepted")
-            for command in (main_command, merge_command):
-                result = subprocess.run(command, capture_output=True, text=True, check=False)  # nosec B603  # noqa: S603
-                require(result.returncode != 0 and "default rule extension" in result.stderr)
-        invalid = b"[extend]\nuseDefault = true\n\xff"
-        config.write_bytes(invalid)
-        try:
-            check_exact_config(config)
-        except RuntimeError as exc:
-            message = str(exc)
-            require(hashlib.sha256(invalid).hexdigest() in message)
-            require(f"bytes {len(invalid) - 1}:{len(invalid)}" in message)
-            require("line" not in message and "column" not in message)
-        else:
-            raise AssertionError("invalid UTF-8 Gitleaks configuration was accepted")
-        for command in (main_command, merge_command):
-            result = subprocess.run(command, capture_output=True, text=True, check=False)  # nosec B603  # noqa: S603
-            require(result.returncode != 0 and hashlib.sha256(invalid).hexdigest() in result.stderr)
+def test_report_serialization():
+    require(encode_report({"z": [None, True, False, 12, "\n\u2603"], "a": "quoted\""})
+            == '{"a":"quoted\\\"","z":[null,true,false,12,"\\n\\u2603"]}')
+    for value in (1.5, b"bytes", {1: "key"}, {"set"}):
+        expect_raises(TypeError, lambda: encode_report(value), "unsupported report type was accepted")
 
 
 if __name__ == "__main__":
     test_exception()
-    test_scan_count()
-    test_main_rejects_ignore_file()
-    test_config_boundary()
-    print("secret scan filter: exact accepted and rejected controls passed")
+    test_population()
+    test_report_serialization()
+    print("credential event filter: exact accepted and rejected historical controls passed")
