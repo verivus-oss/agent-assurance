@@ -1,6 +1,6 @@
 """Named provider byte requirements; no expression syntax is interpreted."""
 
-from _credential_detection import ALNUM, WORD, Capture, all_bytes, bindings, entropy, occurrences
+from _credential_primitives import ALNUM, WORD, Capture, all_bytes, bindings, entropy, occurrences
 
 DIGITS = b"0123456789"
 LETTERS = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"

@@ -3,6 +3,7 @@
 
 import _literal_args as argparse
 import hashlib
+from contextlib import closing
 import _literal_json as json
 import os
 from _text_checks import contains_table_diagnostic
@@ -53,8 +54,7 @@ def loader_verify_checks(root, work, binary, cli, destination, env):
         subject = work / (name + ".duckdb")
         shutil.copy2(destination, subject)
         if name != "pristine-seed":
-            connection = connect("duckdb", str(subject))
-            try:
+            with closing(connect("duckdb", str(subject))) as connection:
                 store = Store("duckdb", connection, root)
                 store.insert("reference_contract", {"singleton_id": 1, "contract_bundle_sha256": digest, "projection_version": 1})
                 if name == "runtime-document-populated":
@@ -63,8 +63,6 @@ def loader_verify_checks(root, work, binary, cli, destination, env):
                                  "content_sha256": "sha256:" + "0" * 64, "schema_version": "0.1.0",
                                  "template_kind": "adapter-contract", "framework_profile": "agent-assurance"})
                     store.insert("runtime_document", document_fixture("adapter-contract", identifier, digest))
-            finally:
-                connection.close()
         process = subprocess.run([str(binary), "verify", "--duckdb", str(cli), "-o", str(subject)],  # nosec B603 # noqa: S603
                                  cwd=root, env=env, capture_output=True, text=True, timeout=60)
         output = process.stdout + process.stderr

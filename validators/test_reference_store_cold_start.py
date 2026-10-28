@@ -40,6 +40,7 @@ if __name__ == '__main__':
     root = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(root / 'reference/database'))
     import sqlite3
+    from contextlib import closing
     from _storage import Store, StorageError, connect
     from _connection_checks import exercise_rejected_postgres_parameters
     from _runtime_document_vocab import KINDS
@@ -49,9 +50,8 @@ if __name__ == '__main__':
     exercise_rejected_postgres_parameters('host=127.0.0.1 port=1 dbname=unreachable')
     required = {'adapter-contract', 'adapter-registry-binding', 'gate-decision'}
     require(set(KINDS) == required, 'cold store kind population changed')
-    connection = connect('sqlite', ':memory:')
-    store = Store('sqlite', connection, root)
-    try:
+    with closing(connect('sqlite', ':memory:')) as connection:
+        store = Store('sqlite', connection, root)
         for name in ('schema', 'seed'):
             connection.executescript((root / ('reference/database/sqlite/' + name + '.sql')).read_text(encoding='utf-8'))
         version = store.execute('SELECT sqlite_version()').fetchone()[0]
@@ -71,8 +71,7 @@ if __name__ == '__main__':
         expect_raises(sqlite3.OperationalError, lambda: store.execute('SELECT missing_cold_control_column'), 'invalid SQL passed')
         result = store.audit()
         require(result['status'] == 'consistent' and result['checked_documents'] == len(required) and not result['failures'])
-    finally:
-        connection.close()
+    expect_raises(sqlite3.ProgrammingError, lambda: connection.execute('SELECT 7'), 'SQLite control leaked its connection')
     sys.setprofile(None)
     require(not attempted_imports, 'reference store suppressed forbidden import attempts: ' + repr(sorted(attempted_imports)))
     require(not observed and not (retired & set(sys.modules)))

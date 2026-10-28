@@ -15,7 +15,7 @@ from _instrument import require
 def exercise(candidate, work):
     """Mutate only an isolated source copy; retain each property failure."""
     from check_attribute_values import parse_go_expected_counts, parse_rust_expected_counts
-    from discrimination import discover_cases
+    import discrimination
     from _storage import StorageError
     import ingest_runtime_document as ingest_cli
     import replay_runtime_documents as replay_cli
@@ -89,7 +89,7 @@ def exercise(candidate, work):
     directory.rename(hidden)
     try:
         try:
-            discover_cases(candidate / "conformance/cases")
+            discrimination.discover_cases(candidate / "conformance/cases")
         except ValueError as exc:
             require("mapped kinds have no conformance directory" in str(exc))
             observations.append({"control": "removed-kind-directory", "status": "killed", "output": str(exc)})
@@ -107,7 +107,7 @@ def exercise(candidate, work):
     dotted_side = dotted.with_suffix(".expected.toml")
     dotted.write_bytes(case.read_bytes())
     dotted_side.write_text('error_contains = ["review-impossible-dotted-sidecar-diagnostic"]\n')
-    require(dotted in discover_cases(candidate / "conformance/cases"))
+    require(dotted in discrimination.discover_cases(candidate / "conformance/cases"))
     # Stub process observations only for this sidecar-reader instrument. The
     # complete conformance suite separately executes the actual validators.
     import runner
@@ -120,7 +120,6 @@ def exercise(candidate, work):
             result = runner.main()
         require(result == 1 and "review-impossible-dotted-sidecar-diagnostic" in output.getvalue())
         observations.append({"control": "dotted-sidecar-runner", "status": "killed", "output": output.getvalue()})
-        import discrimination
         with temporary_attribute(sys, "argv", ["discrimination", "--rs", "inert-rust", "--go", "inert-go", "--repo-root", str(candidate), "--cases", str(candidate / "conformance/cases")]), temporary_attribute(discrimination, "collect_output", returning("review-stub-observation")), contextlib.redirect_stdout(io.StringIO()) as output:
             result = discrimination.main()
         require(result == 1 and "review.dotted.toml: sidecar fails to match" in output.getvalue())

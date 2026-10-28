@@ -23,9 +23,8 @@ Exit codes: 0 all agree (modulo known divergences), 1 disagreement,
 
 from __future__ import annotations
 
-from _path_scan import glob as literal_glob
-import _argument_parser as argparse
 import _path_scan as pathlib
+import _argument_parser as argparse
 import subprocess
 import sys
 
@@ -114,7 +113,7 @@ def main() -> int:
             failures.append(f"{kind}: no Python reference validator registered in runner.py")
             continue
         for verdict_dir in ("valid", "invalid"):
-            for fixture in sorted(literal_glob(kind_dir / verdict_dir, "*.toml")):
+            for fixture in sorted(pathlib.glob(kind_dir / verdict_dir, "*.toml")):
                 if fixture.name.endswith(".expected.toml"):
                     continue
                 total += 1

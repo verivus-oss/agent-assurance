@@ -6,15 +6,14 @@ from _path_scan import Path
 import subprocess
 import sys
 import threading
-import _storage as storage
 import _sql_probes as sql_probes
 from _temporary_attribute import temporary_attribute, successive
 
 from _contract import bundle_digest, bundle_entries
-from _storage import Store, StorageError
+import _storage as storage
 
 
-def initialize_checks(store: Store, work: Path) -> list[dict]:
+def initialize_checks(store: storage.Store, work: Path) -> list[dict]:
     store._empty()
     if store.contract():
         raise AssertionError("initialization tests require an empty, uninitialized private destination")
@@ -39,11 +38,11 @@ def initialize_checks(store: Store, work: Path) -> list[dict]:
         barrier = threading.Barrier(2)
 
         def contender(root):
-            candidate = Store(store.engine, store.reconnect(), root, reconnect=store.reconnect)
+            candidate = storage.Store(store.engine, store.reconnect(), root, reconnect=store.reconnect)
             try:
                 barrier.wait(timeout=20)
                 return candidate.initialize(exclusive_unpublished=True)
-            except StorageError as exc:
+            except storage.StorageError as exc:
                 return {"status": exc.code}
             finally:
                 candidate.connection.close()
@@ -66,7 +65,7 @@ def initialize_checks(store: Store, work: Path) -> list[dict]:
         outcomes.append({"check": name + "-initializers", "barrier_participants": 2, "outcomes": statuses})
         reset_private()
 
-    class LoseInitializationAcknowledgement(Store):
+    class LoseInitializationAcknowledgement(storage.Store):
         fired = False
 
         def execute(self, sql, parameters=()):
@@ -104,12 +103,12 @@ def initialize_checks(store: Store, work: Path) -> list[dict]:
         with probe_context, temporary_attribute(storage, "bundle_digest", successive(sequence)):
             try:
                 candidate.initialize(exclusive_unpublished=True)
-            except StorageError as exc:
+            except storage.StorageError as exc:
                 expected_code = "commit-outcome-unknown" if phase == "reconciliation" else "bundle-changed"
                 if exc.code != expected_code:
                     raise AssertionError("bundle-change control failed for the wrong reason") from exc
                 if phase == "reconciliation" and (exc.context != {"operation": "initialize", "contract_bundle_sha256": digest}
-                                                  or not isinstance(exc.__cause__, StorageError) or exc.__cause__.code != "bundle-changed"):
+                                                  or not isinstance(exc.__cause__, storage.StorageError) or exc.__cause__.code != "bundle-changed"):
                     raise AssertionError("indeterminate initialization lost identity or bundle-change cause")
                 outcomes.append({"check": "initialization-bundle-change-" + phase, "outcome": expected_code})
             else:
@@ -122,16 +121,16 @@ def initialize_checks(store: Store, work: Path) -> list[dict]:
     return outcomes
 
 
-def writer_checks(store: Store, destination: str) -> list[dict]:
+def writer_checks(store: storage.Store, destination: str) -> list[dict]:
     raw = (store.root / "examples/minimal-adapter-contract.toml").read_bytes()
     barrier = threading.Barrier(2)
 
     def contender():
-        candidate = Store(store.engine, store.reconnect(), store.root, reconnect=store.reconnect)
+        candidate = storage.Store(store.engine, store.reconnect(), store.root, reconnect=store.reconnect)
         try:
             barrier.wait(timeout=20)
             return candidate.ingest([("concurrent/repeat.toml", raw)])
-        except StorageError as exc:
+        except storage.StorageError as exc:
             return {"status": exc.code}
         finally:
             candidate.connection.close()
@@ -151,10 +150,10 @@ def writer_checks(store: Store, destination: str) -> list[dict]:
         store.execute("BEGIN IMMEDIATE")
 
         def blocked_writer():
-            candidate = Store(store.engine, store.reconnect(), store.root, reconnect=store.reconnect)
+            candidate = storage.Store(store.engine, store.reconnect(), store.root, reconnect=store.reconnect)
             try:
                 candidate.ingest([("concurrent/blocked.toml", raw)])
-            except StorageError as exc:
+            except storage.StorageError as exc:
                 return exc.code
             finally:
                 candidate.connection.close()

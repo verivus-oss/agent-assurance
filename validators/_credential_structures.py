@@ -2,7 +2,7 @@
 
 from bisect import bisect_left, bisect_right
 
-from _credential_detection import ALNUM, WORD, SPACE, Capture, FileCapture, all_bytes, bindings, entropy, occurrences
+from _credential_primitives import ALNUM, WORD, SPACE, Capture, FileCapture, all_bytes, bindings, entropy, occurrences
 from _credential_formats import (BASE64_BODY, DIGITS, HEX, LOWER_HEX, PADDED_BODY,
                                  URL_BODY, boundary, terminated, uuid_body)
 

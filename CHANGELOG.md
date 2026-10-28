@@ -9,6 +9,14 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Repair the CodeQL findings measured at
+  `8fe869c4c46b8cd696879c176fc7032da906f9ba`: separate shared credential
+  predicates from detector orchestration, give file obligations their own
+  empty-file invariant, own the Git error stream with a closing scope, and
+  preserve explicit database connection closure. Use one import style per
+  module across the tracked Python source population. Keep the PR draft
+  while broader driver and scanner replacements remain under validation.
+
 - Retain actionable link-check outcomes from the wrapper measured at
   `24ece13835c385ddb7352861c9aae5c22ced471f`. Validate the complete
   success/error/timeout partition even when the scanner exits nonzero,

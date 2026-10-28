@@ -4,7 +4,6 @@ import os
 import stat
 
 import _literal_path as paths
-from _literal_path import Path, PurePosixPath, PureWindowsPath
 from _literal_paths import glob, rglob
 from _test_require import expect_raises, require
 
@@ -14,7 +13,7 @@ class Workspace:
 
     def __enter__(self):
         Workspace.sequence += 1
-        self.root = Path(__file__).resolve().parents[1] / '.local/path-controls' / (str(os.getpid()) + '-' + str(self.sequence))
+        self.root = paths.Path(__file__).resolve().parents[1] / '.local/path-controls' / (str(os.getpid()) + '-' + str(self.sequence))
         self.root.mkdir(parents=True)
         return self.root
 
@@ -38,9 +37,9 @@ def test_exported_class_population_and_retired_apis():
         constructor = getattr(paths, name)
         for retired in ('glob', 'rglob', 'match', 'as_uri', 'touch'):
             require(not hasattr(constructor, retired), 'retired path API remained: ' + name + '.' + retired)
-    expect_raises(TypeError, lambda: Path(b'byte-path'), 'byte path operand passed')
-    expect_raises(TypeError, lambda: Path(None), 'absent path operand passed')
-    expect_raises(TypeError, lambda: Path(1), 'numeric path operand passed')
+    expect_raises(TypeError, lambda: paths.Path(b'byte-path'), 'byte path operand passed')
+    expect_raises(TypeError, lambda: paths.Path(None), 'absent path operand passed')
+    expect_raises(TypeError, lambda: paths.Path(1), 'numeric path operand passed')
     if os.name != 'nt':
         expect_raises(NotImplementedError, lambda: paths.WindowsPath('C:/a'), 'foreign native path was instantiated')
 
@@ -60,25 +59,25 @@ def test_posix_lexical_goldens():
     }
     visited = set()
     for source, answer in expected.items():
-        path = PurePosixPath(source)
+        path = paths.PurePosixPath(source)
         observed = (str(path), path.parts, str(path.parent), tuple(str(p) for p in path.parents),
                     path.name, path.suffix, path.is_absolute())
         require(observed == answer, 'POSIX lexical contract differed: ' + repr(source))
         require(os.fspath(path) == str(path) and path.as_posix() == str(path))
-        require(path == PurePosixPath(str(path)) and hash(path) == hash(PurePosixPath(str(path))))
+        require(path == paths.PurePosixPath(str(path)) and hash(path) == hash(paths.PurePosixPath(str(path))))
         visited.add(source)
     require(visited == set(expected))
-    require(PurePosixPath('a', '/b', 'c') == PurePosixPath('/b/c'))
-    require(PurePosixPath('a') / 'b' == PurePosixPath('a/b'))
-    require('a' / PurePosixPath('b') == PurePosixPath('a/b'))
-    require(sorted([PurePosixPath('b'), PurePosixPath('a')]) == [PurePosixPath('a'), PurePosixPath('b')])
-    require(PurePosixPath('a') != 'a')
-    path = PurePosixPath('a/b/c')
-    require(path.parents[-1] == PurePosixPath('.') and path.parents[:2] == (PurePosixPath('a/b'), PurePosixPath('a')))
+    require(paths.PurePosixPath('a', '/b', 'c') == paths.PurePosixPath('/b/c'))
+    require(paths.PurePosixPath('a') / 'b' == paths.PurePosixPath('a/b'))
+    require('a' / paths.PurePosixPath('b') == paths.PurePosixPath('a/b'))
+    require(sorted([paths.PurePosixPath('b'), paths.PurePosixPath('a')]) == [paths.PurePosixPath('a'), paths.PurePosixPath('b')])
+    require(paths.PurePosixPath('a') != 'a')
+    path = paths.PurePosixPath('a/b/c')
+    require(path.parents[-1] == paths.PurePosixPath('.') and path.parents[:2] == (paths.PurePosixPath('a/b'), paths.PurePosixPath('a')))
     expect_raises(IndexError, lambda: path.parents[3], 'absent ancestor passed')
-    require(path.with_name('d') == PurePosixPath('a/b/d'))
-    require(path.with_suffix('.toml') == PurePosixPath('a/b/c.toml'))
-    require(PurePosixPath('a/b.toml').with_suffix('') == PurePosixPath('a/b'))
+    require(path.with_name('d') == paths.PurePosixPath('a/b/d'))
+    require(path.with_suffix('.toml') == paths.PurePosixPath('a/b/c.toml'))
+    require(paths.PurePosixPath('a/b.toml').with_suffix('') == paths.PurePosixPath('a/b'))
     for name in ('', '.', 'a/b'):
         expect_raises(ValueError, lambda: path.with_name(name), 'invalid replacement name passed')
     expect_raises(ValueError, lambda: path.with_suffix('toml'), 'invalid suffix passed')
@@ -93,27 +92,27 @@ def test_windows_lexical_goldens():
     }
     visited = set()
     for source, answer in expected.items():
-        path = PureWindowsPath(source)
+        path = paths.PureWindowsPath(source)
         require((str(path), path.parts, path.drive, path.is_absolute()) == answer)
         visited.add(source)
     require(visited == set(expected))
-    require(PureWindowsPath('C:/A') == PureWindowsPath('c:/a'))
+    require(paths.PureWindowsPath('C:/A') == paths.PureWindowsPath('c:/a'))
     for prefix in ('COM', 'LPT'):
         for value in (*range(1, 10), '¹', '²', '³'):
-            require(PureWindowsPath(prefix + str(value)).is_reserved())
+            require(paths.PureWindowsPath(prefix + str(value)).is_reserved())
         for value in (0, 10, 11):
-            require(not PureWindowsPath(prefix + str(value)).is_reserved())
-    require(PureWindowsPath('C:/a/b').relative_to('c:/A') == PureWindowsPath('b'))
-    expect_raises(ValueError, lambda: PureWindowsPath('C:/a').relative_to('D:/'), 'foreign drive containment passed')
+            require(not paths.PureWindowsPath(prefix + str(value)).is_reserved())
+    require(paths.PureWindowsPath('C:/a/b').relative_to('c:/A') == paths.PureWindowsPath('b'))
+    expect_raises(ValueError, lambda: paths.PureWindowsPath('C:/a').relative_to('D:/'), 'foreign drive containment passed')
 
 
 def test_relative_roots_and_parent_traversal():
-    require(PurePosixPath('a/../b').parts == ('a', '..', 'b'), 'lexical parent was erased')
-    require(PurePosixPath('a/../b').relative_to('a') == PurePosixPath('../b'))
-    require(PurePosixPath('/a/b').relative_to('/a') == PurePosixPath('b'))
+    require(paths.PurePosixPath('a/../b').parts == ('a', '..', 'b'), 'lexical parent was erased')
+    require(paths.PurePosixPath('a/../b').relative_to('a') == paths.PurePosixPath('../b'))
+    require(paths.PurePosixPath('/a/b').relative_to('/a') == paths.PurePosixPath('b'))
     for source, root in (('ab/file', 'a'), ('/a/b', 'a'), ('a/b', '/a'), ('a', 'a/b')):
-        require(not PurePosixPath(source).is_relative_to(root))
-        expect_raises(ValueError, lambda: PurePosixPath(source).relative_to(root), 'unrelated lexical root passed')
+        require(not paths.PurePosixPath(source).is_relative_to(root))
+        expect_raises(ValueError, lambda: paths.PurePosixPath(source).relative_to(root), 'unrelated lexical root passed')
     with Workspace() as root:
         (root / 'target/child').mkdir(parents=True)
         (root / 'target/value').write_bytes(b'original')

@@ -1,6 +1,7 @@
 """Executed connection preconditions, using only private test destinations."""
 
 from _random_id import random_id_hex
+from contextlib import closing
 
 from _storage import Store, StorageError, connect, connect_postgres
 
@@ -83,7 +84,7 @@ def exercise_connection(store, destination):
         import psycopg
         from psycopg._queries import PostgresQuery
         from psycopg.pq import TransactionStatus
-        from _postgres import require_compiled_adapters
+        import _postgres as native_postgres
         if store.connection.cursor_factory is not psycopg.RawCursor:
             raise AssertionError("PostgreSQL store did not select the raw cursor")
         if store.connection.prepare_threshold is not None:
@@ -92,7 +93,7 @@ def exercise_connection(store, destination):
         psycopg.pq.__impl__ = "python"
         try:
             try:
-                require_compiled_adapters()
+                native_postgres.require_compiled_adapters()
             except RuntimeError as exc:
                 if "requires compiled psycopg adapters" not in str(exc):
                     raise AssertionError("adapter guard failed for an unrelated reason") from exc
@@ -100,14 +101,13 @@ def exercise_connection(store, destination):
                 raise AssertionError("pure Python PostgreSQL adapters were accepted")
         finally:
             psycopg.pq.__impl__ = previous_implementation
-        import _postgres as native_postgres
         previous_transformer = native_postgres.Transformer
         class PythonTransformer:
             """An unsupported adapter implementation for the guard control."""
         native_postgres.Transformer = PythonTransformer
         try:
             try:
-                require_compiled_adapters()
+                native_postgres.require_compiled_adapters()
             except RuntimeError as exc:
                 if "requires compiled psycopg adapters" not in str(exc):
                     raise AssertionError("transformer guard failed for an unrelated reason") from exc
@@ -202,11 +202,8 @@ def exercise_connection(store, destination):
         name = "dagtoml_encoding_" + random_id_hex() + "'\\ space"
         store.connection.execute(psycopg.sql.SQL("CREATE DATABASE {} ENCODING 'SQL_ASCII' TEMPLATE template0").format(psycopg.sql.Identifier(name)))
         try:
-            connection = connect_postgres(destination, dbname=name)
-            try:
+            with connect_postgres(destination, dbname=name) as connection:
                 refused(Store("postgres", connection, store.root), "setup")
-            finally:
-                connection.close()
         finally:
             store.connection.execute(psycopg.sql.SQL("DROP DATABASE {}").format(psycopg.sql.Identifier(name)))
         checks.append("non-utf8-server-refused")
@@ -248,12 +245,9 @@ def exercise_connection(store, destination):
         accepted = []
         for name, value in (("text", destination), ("text-subclass", Text(destination)),
                             ("filesystem-protocol", TextPath(Text(destination)))):
-            connection = connect("duckdb", value)
-            try:
+            with closing(connect("duckdb", value)) as connection:
                 if connection.execute("SELECT 7").fetchone() != (7,):
                     raise AssertionError("accepted destination changed the connected query result")
-            finally:
-                connection.close()
             accepted.append(name)
         if len(accepted) != 3 or set(accepted) != {"text", "text-subclass", "filesystem-protocol"}:
             raise AssertionError("accepted text destination population changed")

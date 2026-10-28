@@ -5,6 +5,7 @@ import binascii
 import os
 
 from _credential_detection import Capture, entropy, scan_bytes
+from _credential_primitives import FileCapture
 from _credential_controls import controls, opaque, rejections
 from _credential_decoding import View
 from _credential_git import git
@@ -64,6 +65,13 @@ def test_capture_boundary():
     for start, end in ((0, 0), (-1, 1), (0, 4), (2, 1)):
         expect_raises(ValueError, lambda: Capture("control", b"abc", start, end),
                       "invalid credential byte span was accepted")
+    for data in (b"", b"public file bytes"):
+        capture = FileCapture("pkcs12-file", data)
+        require(not isinstance(capture, Capture), "file obligations inherited the nonempty value invariant")
+        require(capture.record() == {"rule": "pkcs12-file", "kind": "file", "byte_span": [0, len(data)],
+                                     "source_sha256": hashlib.sha256(data).hexdigest()})
+        found = [item for item in scan_bytes(data, path=b"public.p12") if item.rule == "pkcs12-file"]
+        require(len(found) == 1 and found[0].record() == capture.record())
 
 
 def test_population():

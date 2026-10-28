@@ -39,12 +39,11 @@ baseline, 1 when it regresses above it, 2 on an infrastructure error.
 
 from __future__ import annotations
 
-from _path_scan import glob as literal_glob
+import _path_scan as pathlib
 import _argument_parser as argparse
 import _syntax_tree as ast
 import atexit
 import os
-import _path_scan as pathlib
 import signal
 import subprocess
 import sys
@@ -119,7 +118,7 @@ class Restorer:
 
 def rejected(validator: str, pattern: str, root: pathlib.Path) -> set[str]:
     out: set[str] = set()
-    for f in sorted(literal_glob(root, pattern)):
+    for f in sorted(pathlib.glob(root, pattern)):
         rel = str(f.relative_to(root))
         if any(s in rel for s in BASELINE_SKIP):
             continue

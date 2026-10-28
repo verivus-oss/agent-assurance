@@ -37,17 +37,17 @@ class GitProcess:
             descriptors.extend((read_input, write_input))
             read_output, write_output = os.pipe()
             descriptors.extend((read_output, write_output))
-            errors = os.open(os.devnull, os.O_WRONLY)
-            descriptors.append(errors)
-            if min(descriptors) < 3:
-                raise RuntimeError("credential Git transport requires open standard file descriptors")
-            actions = [(os.POSIX_SPAWN_DUP2, read_input, 0),
-                       (os.POSIX_SPAWN_DUP2, write_output, 1),
-                       (os.POSIX_SPAWN_DUP2, errors, 2)]
-            actions.extend((os.POSIX_SPAWN_CLOSE, descriptor) for descriptor in descriptors)
-            self.pid = os.posix_spawn(binary,
-                [binary, "--no-pager", "-C", os.fspath(root), "-c", "core.fsmonitor=false", *arguments],
-                git_environment(), file_actions=actions)
+            with open(os.devnull, "wb") as errors:
+                if min(*descriptors, errors.fileno()) < 3:
+                    raise RuntimeError("credential Git transport requires open standard file descriptors")
+                actions = [(os.POSIX_SPAWN_DUP2, read_input, 0),
+                           (os.POSIX_SPAWN_DUP2, write_output, 1),
+                           (os.POSIX_SPAWN_DUP2, errors.fileno(), 2)]
+                actions.extend((os.POSIX_SPAWN_CLOSE, descriptor) for descriptor in descriptors)
+                actions.append((os.POSIX_SPAWN_CLOSE, errors.fileno()))
+                self.pid = os.posix_spawn(binary,
+                    [binary, "--no-pager", "-C", os.fspath(root), "-c", "core.fsmonitor=false", *arguments],
+                    git_environment(), file_actions=actions)
             self.stdin = os.fdopen(write_input, "wb")
             descriptors.remove(write_input)
             self.stdout = os.fdopen(read_output, "rb")

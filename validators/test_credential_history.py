@@ -1,14 +1,16 @@
 """Exercise native history coverage against independently constructed Git graphs."""
 
+import builtins
+import errno
 import hashlib
 import os
 from os.path import join
 import zlib
-import _credential_history as history
 
-from _credential_history import BlobReader, scan_history, tree_entries
+import _credential_history as history
 from _credential_git import GitProcess
 from _credential_test_support import TemporaryTree, command, commit, initialize, write
+from _temporary_attribute import temporary_attribute
 from _test_require import expect_raises, require
 
 
@@ -20,7 +22,7 @@ def test_history_boundaries():
         record = join(root, "credential.txt")
         write(record, b"public base\n")
         base = commit(root, "public base")
-        pristine = scan_history(root)
+        pristine = history.scan_history(root)
         require(pristine["events"] == [] and pristine["head"] == base)
         command(root, "branch", "feature")
         write(record, b"public main\n")
@@ -47,7 +49,7 @@ def test_history_boundaries():
         os.symlink(outside, join(root, "link.txt"))
         linked = commit(root, "symlink target is a stored path, not an external file read")
         write(join(root, "untracked.txt"), planted)
-        measured = scan_history(root)
+        measured = history.scan_history(root)
         expected = {base, main, feature, merge, deleted, inline, renamed, linked}
         require(set(measured["commits"]) == expected)
         require(set(measured["scanned_commits"]) == expected)
@@ -64,24 +66,24 @@ def test_history_boundaries():
                 require(capture["value_sha256"] == hashlib.sha256(planted).hexdigest())
         # Replacement refs must not erase a stored historical candidate.
         command(root, "replace", merge, base)
-        replaced = scan_history(root)
+        replaced = history.scan_history(root)
         require(replaced["events"] == measured["events"])
         command(root, "replace", "-d", merge)
         shallow = join(outer, "shallow")
         command(outer, "clone", "-q", "--depth", "1", "--no-local", "file://" + str(root), str(shallow))
-        error = expect_raises(RuntimeError, lambda: scan_history(shallow), "shallow source was accepted")
+        error = expect_raises(RuntimeError, lambda: history.scan_history(shallow), "shallow source was accepted")
         require("complete Git history" in str(error))
         grafts = join(root, ".git/info/grafts")
         write(grafts, (linked + "\n").encode())
-        error = expect_raises(RuntimeError, lambda: scan_history(root), "grafted history was accepted")
+        error = expect_raises(RuntimeError, lambda: history.scan_history(root), "grafted history was accepted")
         require("graft" in str(error))
 
 
 def test_missing_and_corrupt_subjects():
     with TemporaryTree() as root:
-        expect_raises(RuntimeError, lambda: scan_history(root), "nonrepository subject passed")
+        expect_raises(RuntimeError, lambda: history.scan_history(root), "nonrepository subject passed")
         initialize(root)
-        expect_raises(RuntimeError, lambda: scan_history(root), "absent HEAD passed")
+        expect_raises(RuntimeError, lambda: history.scan_history(root), "absent HEAD passed")
         write(join(root, "public.txt"), b"public source")
         commit(root, "public source")
         fake = b"a" * 40
@@ -89,13 +91,13 @@ def test_missing_and_corrupt_subjects():
         os.makedirs(object_directory, exist_ok=True)
         object_file = join(object_directory, fake[2:].decode())
         write(object_file, zlib.compress(b"blob 6\0wrong!"))
-        with BlobReader(root) as reader:
+        with history.BlobReader(root) as reader:
             error = expect_raises(RuntimeError, lambda: reader.read(fake), "misnamed object bytes were trusted")
             require("do not match" in str(error), "corruption control did not reach content-identity verification")
-        expect_raises(RuntimeError, lambda: list(tree_entries(b"")), "unframed tree response was accepted")
+        expect_raises(RuntimeError, lambda: list(history.tree_entries(b"")), "unframed tree response was accepted")
         for bad in (b"100644 blob short\tfile\0", b"100644 blob " + fake + b"\t\0",
                     b"100644 blob " + fake + b"\tfile\0" + b"100644 blob " + fake + b"\tfile\0"):
-            expect_raises(RuntimeError, lambda: list(tree_entries(bad)), "malformed tree identity was accepted")
+            expect_raises(RuntimeError, lambda: list(history.tree_entries(bad)), "malformed tree identity was accepted")
 
 
 def test_object_formats_and_source_identity():
@@ -110,7 +112,7 @@ def test_object_formats_and_source_identity():
             command(root, "update-index", "--add", "--cacheinfo", "160000," + base + ",external")
             command(root, "commit", "-qm", "external repository reference control")
             head = command(root, "rev-parse", "HEAD").stdout.strip().decode()
-            result = scan_history(root)
+            result = history.scan_history(root)
             require(result["head"] == head and set(result["commits"]) == {base, head})
             require(len(head) == (40 if object_format == "sha1" else 64))
             events = result["events"]
@@ -137,39 +139,72 @@ def test_reference_movement():
             return result
         history.git = update_reference
         try:
-            error = expect_raises(RuntimeError, lambda: scan_history(root), "moving subject references were accepted")
+            error = expect_raises(RuntimeError, lambda: history.scan_history(root), "moving subject references were accepted")
             require(moved == [True] and "references moved" in str(error))
         finally:
             history.git = original
 
 
 def test_transport_setup_failure_reaps_child_and_descriptors():
+    modes = {"pipe", "errors", "spawn", "input", "output", "success"}
+    visited = set()
     with TemporaryTree() as root:
         initialize(root)
-        original_spawn, original_fdopen, original_pipe = os.posix_spawn, os.fdopen, os.pipe
-        children, descriptors = [], []
-        def record_spawn(*arguments, **options):
-            pid = original_spawn(*arguments, **options)
-            children.append(pid)
-            return pid
-        def record_pipe():
-            pair = original_pipe()
-            descriptors.extend(pair)
-            return pair
-        def fail_output_stream(descriptor, mode):
-            if mode == "rb":
-                raise OSError("controlled Git output stream setup failure")
-            return original_fdopen(descriptor, mode)
-        os.posix_spawn, os.fdopen, os.pipe = record_spawn, fail_output_stream, record_pipe
-        try:
-            error = expect_raises(OSError, lambda: GitProcess(root, ["status", "--porcelain"]), "stream setup failure passed")
-            require("controlled Git output stream setup failure" in str(error))
-        finally:
-            os.posix_spawn, os.fdopen, os.pipe = original_spawn, original_fdopen, original_pipe
-        require(len(children) == 1 and len(descriptors) == 4, "setup control did not reach a spawned Git child and both pipes")
-        expect_raises(ChildProcessError, lambda: os.waitpid(children[0], os.WNOHANG), "Git child was not reaped")
-        for descriptor in descriptors:
-            expect_raises(OSError, lambda: os.fstat(descriptor), "Git setup failure leaked a pipe descriptor")
+        original_spawn, original_fdopen, original_pipe, original_open = os.posix_spawn, os.fdopen, os.pipe, builtins.open
+        for mode in sorted(modes):
+            children, descriptors, error_streams, pipe_calls = [], [], [], []
+            marker = "controlled Git setup failure: " + mode
+
+            def record_spawn(*arguments, **options):
+                if mode == "spawn":
+                    raise OSError(marker)
+                pid = original_spawn(*arguments, **options)
+                children.append(pid)
+                return pid
+
+            def record_pipe():
+                pipe_calls.append(True)
+                if mode == "pipe" and len(pipe_calls) == 2:
+                    raise OSError(marker)
+                pair = original_pipe()
+                descriptors.extend(pair)
+                return pair
+
+            def record_errors(path, *arguments, **options):
+                if path == os.devnull and mode == "errors":
+                    raise OSError(marker)
+                stream = original_open(path, *arguments, **options)
+                if path == os.devnull:
+                    error_streams.append(stream)
+                return stream
+
+            def open_stream(descriptor, access):
+                if (mode, access) in (("input", "wb"), ("output", "rb")):
+                    raise OSError(marker)
+                return original_fdopen(descriptor, access)
+
+            with temporary_attribute(os, "posix_spawn", record_spawn), temporary_attribute(os, "pipe", record_pipe), temporary_attribute(os, "fdopen", open_stream), temporary_attribute(builtins, "open", record_errors):
+                if mode == "success":
+                    process = GitProcess(root, ["status", "--porcelain"])
+                    try:
+                        process.stdin.close()
+                        require(process.stdout.read() == b"" and process.wait() == 0)
+                    finally:
+                        process.close(failed=True)
+                else:
+                    error = expect_raises(OSError, lambda: GitProcess(root, ["status", "--porcelain"]), "setup failure passed")
+                    require(str(error) == marker, "setup control failed for an unrelated reason")
+            require(len(pipe_calls) == 2 and len(descriptors) == (2 if mode == "pipe" else 4))
+            require(len(error_streams) == int(mode not in ("pipe", "errors")))
+            require(all(stream.closed for stream in error_streams), "Git stderr descriptor leaked")
+            require(len(children) == int(mode in ("input", "output", "success")))
+            for child in children:
+                expect_raises(ChildProcessError, lambda: os.waitpid(child, os.WNOHANG), "Git child was not reaped")
+            for descriptor in descriptors:
+                error = expect_raises(OSError, lambda: os.fstat(descriptor), "Git setup leaked a pipe descriptor")
+                require(error.errno == errno.EBADF, "descriptor check failed for an unrelated reason")
+            visited.add(mode)
+    require(visited == modes, "transport setup control population did not execute")
 
 
 if __name__ == "__main__":

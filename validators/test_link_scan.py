@@ -1,14 +1,13 @@
 """Accepted and rejected boundaries for the exact link scan exceptions."""
 
 from _test_require import expect_raises, require
-from check_link_scan import artifact_target, check_report, report_outcomes
+import check_link_scan as scanner
 from contextlib import redirect_stdout, redirect_stderr
 from io import StringIO
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import os
 import hashlib
-import check_link_scan as scanner
 from _literal_json import dumps, loads
 from _temporary_attribute import temporary_attribute, returning, successive
 from prepare_link_scan import host_of, included_source, select_links, split_record, tracked_files, tracked_paths
@@ -113,26 +112,26 @@ def test_report() -> None:
     source = Path("candidate-links.txt")
     candidates = ["https://example.org/a", "https://example.org/b"]
     report = native_report(candidates, source)
-    check_report(report, candidates, source)
+    scanner.check_report(report, candidates, source)
     for change in ({"successful": 1}, {"excludes": 1}, {"errors": 1},
                    {"success_map": {str(source): [{"url": candidates[0]}]}}):
-        expect_raises(RuntimeError, lambda: check_report(report | change, candidates, source),
+        expect_raises(RuntimeError, lambda: scanner.check_report(report | change, candidates, source),
                       "incomplete link check report was accepted")
 
 
 def test_complete_failure_partition_is_actionable_without_producer_coordinates():
     source = Path("candidate-links.txt")
     candidates = ["https://example.org/a", "https://example.org/b", "https://example.org/c"]
-    summary = report_outcomes(native_report(candidates, source, failures=candidates[:1], timeouts=candidates[1:2]),
+    summary = scanner.report_outcomes(native_report(candidates, source, failures=candidates[:1], timeouts=candidates[1:2]),
                               candidates, source)
     require(summary == {"status": "failed", "total": 3, "successful": 1, "errors": 1, "timeouts": 1,
                         "failures": [{"url": candidates[0], "outcome": "error", "http_status": 500},
                                      {"url": candidates[1], "outcome": "timeout", "http_status": None}]})
     no_producer_metadata(summary)
     expect_raises(RuntimeError,
-                  lambda: check_report(native_report(candidates, source, failures=candidates[:1]), candidates, source),
+                  lambda: scanner.check_report(native_report(candidates, source, failures=candidates[:1]), candidates, source),
                   "complete failed checks were accepted by the successful-report guard")
-    uniform = report_outcomes(native_report(candidates, source, failures=candidates), candidates, source)
+    uniform = scanner.report_outcomes(native_report(candidates, source, failures=candidates), candidates, source)
     require(uniform["status"] == "failed" and uniform["errors"] == len(candidates) and not uniform["successful"])
     require({row["url"] for row in uniform["failures"]} == set(candidates))
 
@@ -143,7 +142,7 @@ def test_outcome_partition_rejects_absent_duplicate_substituted_and_falsely_succ
     def rejected(change):
         report = native_report(candidates, source)
         change(report)
-        expect_raises(RuntimeError, lambda: report_outcomes(report, candidates, source),
+        expect_raises(RuntimeError, lambda: scanner.report_outcomes(report, candidates, source),
                       "invalid outcome partition was accepted")
     rejected(lambda report: report.update(successful=True))
     rejected(lambda report: report.update(errors=1))
@@ -160,13 +159,13 @@ def test_outcome_partition_rejects_absent_duplicate_substituted_and_falsely_succ
         rejected(lambda report: report["success_map"][str(source)][0]["status"].update(code=code))
     for candidate_set in ([], [candidates[0], candidates[0]], list(reversed(candidates)), [7], [["nested"]],
                           ["file:///private"], ["https://example.org/\nforged"]):
-        expect_raises(RuntimeError, lambda: report_outcomes({}, candidate_set, source),
+        expect_raises(RuntimeError, lambda: scanner.report_outcomes({}, candidate_set, source),
                       "absent or invalid candidate set was accepted")
     for code in (200, 204, 299, 403, 429):
         report = native_report(candidates, source)
         for entry in report["success_map"][str(source)]:
             entry["status"]["code"] = code
-        require(report_outcomes(report, candidates, source)["status"] == "passed")
+        require(scanner.report_outcomes(report, candidates, source)["status"] == "passed")
 
 
 def test_artifacts_cannot_overwrite_checkout_sources_or_escape_through_a_symlink():
@@ -175,16 +174,16 @@ def test_artifacts_cannot_overwrite_checkout_sources_or_escape_through_a_symlink
         root = work / "checkout"
         root.mkdir()
         tracked = {"README.md", ".github/workflows/validate.yml"}
-        require(artifact_target(root, work / "report.json", tracked) == work / "report.json")
-        require(artifact_target(root, root / ".local/report.json", tracked) == root / ".local/report.json")
+        require(scanner.artifact_target(root, work / "report.json", tracked) == work / "report.json")
+        require(scanner.artifact_target(root, root / ".local/report.json", tracked) == root / ".local/report.json")
         for target in (root / "README.md", root / "new-report.json", root / ".github/workflows/validate.yml",
                        root / ".hidden/report.json"):
-            expect_raises(ValueError, lambda: artifact_target(root, target, tracked),
+            expect_raises(ValueError, lambda: scanner.artifact_target(root, target, tracked),
                           "report could overwrite a governed source path")
         (root / ".local").mkdir()
         (root / "README.md").write_text("independent source sentinel")
         (root / ".local/alias").symlink_to(root / "README.md")
-        expect_raises(ValueError, lambda: artifact_target(root, root / ".local/alias", tracked),
+        expect_raises(ValueError, lambda: scanner.artifact_target(root, root / ".local/alias", tracked),
                       "report symlink could overwrite tracked source")
         require((root / "README.md").read_text() == "independent source sentinel")
 
