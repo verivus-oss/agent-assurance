@@ -116,6 +116,10 @@ before native value decoding. Its cold controls reject standard JSON and
 regex imports; [the codec contract](validators/JSON.md) names its boundaries.
 Other reference-store cold imports remain inside the audit scope.
 
+The authored record sites from `1691549990e81ac801fbbc611d1f7e31a36b5719`
+use explicit carriers with [record component controls](validators/RECORDS.md).
+This retires their dataclass dependency without widening the cold audit scope.
+
 The estate no-regex rule also covers dependencies, build and test tools,
 and security scanners. The active scanner engines still require a consumer
 audit and replacement; a successful scan is not evidence of compliance

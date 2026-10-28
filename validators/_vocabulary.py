@@ -1,19 +1,10 @@
 """Read the authoritative TOML vocabulary declarations, without SQL inference."""
 
 from _literal_paths import glob as literal_glob
-from dataclasses import dataclass
+from _literal_records import Vocabulary
 from pathlib import Path
 
 import _toml11 as toml
-
-
-@dataclass(frozen=True)
-class Vocabulary:
-    attribute: str
-    values: tuple[str, ...]
-    extensible: bool
-    source: str
-    declaration: dict
 
 
 def load_catalog(repo_root: Path) -> dict[str, Vocabulary]:

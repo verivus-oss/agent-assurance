@@ -59,6 +59,31 @@ def test_ascii_escape_and_decimal_alphabets():
         require(loads('"\\u' + format(value, '04x') + '"') == chr(value))
 
 
+def test_character_range_boundaries():
+    decimal = {chr(48 + value): value for value in range(10)}
+    hexadecimal = dict(decimal)
+    hexadecimal.update({chr(65 + value): 10 + value for value in range(6)})
+    hexadecimal.update({chr(97 + value): 10 + value for value in range(6)})
+    required = {chr(value) for value in range(128)} | {'١', '１', '𝟙', 'é', '\u00a0', chr(0x10ffff)}
+    visited = set()
+    for character in sorted(required):
+        for source in (character, '-' + character, '0.' + character, '1e' + character):
+            if character in decimal:
+                require(isinstance(loads(source), (int, float)))
+            else:
+                expect_raises(InvalidJSON, lambda: loads(source), 'non-ASCII decimal operand passed')
+        for place in range(4):
+            digits = ['0'] * 4
+            digits[place] = character
+            source = '"\\u' + ''.join(digits) + '"'
+            if character in hexadecimal:
+                require(loads(source) == chr(hexadecimal[character] * 16 ** (3 - place)))
+            else:
+                expect_raises(InvalidJSON, lambda: loads(source), 'non-ASCII hexadecimal operand passed')
+        visited.add(character)
+    require(visited == required)
+
+
 def test_rejections():
     subjects = (
         '', ' ', '{}x', '[]\xa0', '{"x":}', '[1,]', '1 2', '[', '{',

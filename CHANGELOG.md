@@ -9,6 +9,13 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Replace the authored record consumers from candidate
+  `1691549990e81ac801fbbc611d1f7e31a36b5719` with explicit constructors and
+  named fields, preserving shallow freezing, mutable specimens and defaults.
+  Retire dataclass code generation and direct imports at those sites; add
+  cold controls and complete tracked-source import checks. Other reference
+  cold dependencies remain open. Express JSON character classes with ASCII
+  range predicates so their source text does not create false commit citations.
 - Replace the shared JSON wrapper from candidate
   `16d7d85f31a3071d56f4f8c34d99d1800ad5ce73` with explicit syntax validation
   and direct compiled value/encoding primitives. Retire standard JSON and

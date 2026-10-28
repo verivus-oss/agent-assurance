@@ -111,6 +111,7 @@ jobs:
                            and Path(raw.decode()).suffix == ".py")
           required = {"test_abstraction_class_errors.py", "test_ai_attribution.py", "test_database_download.py",
                       "test_credential_cold_start.py", "test_literal_json_cold_start.py",
+                      "test_literal_records_cold_start.py",
                       "test_link_scan.py", "test_ontology_prefix_types.py",
                       "test_profile_discovery_errors.py", "test_safe_tools.py", "test_secret_scan_filter.py",
                       "test_workflow_text.py"}

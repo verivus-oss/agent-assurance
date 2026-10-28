@@ -1,6 +1,5 @@
 """Captured TOML bytes and deterministic, portable metadata indexes."""
 
-from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
 import hashlib
@@ -9,6 +8,7 @@ import math
 from pathlib import Path
 
 from _contract import load_mapping
+from _literal_records import Projection
 from _ascii_predicates import valid_date, valid_index_timestamp, valid_sha256
 from _runtime_validation import validate_document
 from _runtime_document_vocab import KINDS
@@ -23,15 +23,6 @@ PROJECTION_COLUMNS = ("runtime_kind", "runtime_network_policy", "runtime_clock_p
                       "adapter_id_derivation", "adapter_ref_syntax", "gate_decision_verdict")
 META_KEYS = {"schema_version", "ontology_version", "template_kind", "framework_profile",
              "title", "docs", "created", "created_at"}
-
-
-@dataclass(frozen=True)
-class Projection:
-    source: bytes
-    instance: dict
-    provenance: dict | None
-    fields: dict
-    unindexed_fields: tuple[tuple[str, ...], ...]
 
 
 class UnsupportedProjection(ValueError):

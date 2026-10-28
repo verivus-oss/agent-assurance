@@ -51,6 +51,14 @@ def _spacing(source, position):
     return position
 
 
+def _decimal_digit(character):
+    return "0" <= character <= "9"
+
+
+def _hexadecimal_digit(character):
+    return _decimal_digit(character) or "a" <= character <= "f" or "A" <= character <= "F"
+
+
 def _string_end(source, position, strict):
     position += 1
     while position < len(source):
@@ -65,7 +73,7 @@ def _string_end(source, position, strict):
             if character == "u":
                 position += 1
                 for _ in range(4):
-                    if position == len(source) or source[position] not in "0123456789abcdefABCDEF":
+                    if position == len(source) or not _hexadecimal_digit(source[position]):
                         raise InvalidJSON(source, position)
                     position += 1
                 continue
@@ -84,16 +92,16 @@ def _number_end(source, position):
         raise InvalidJSON(source, position)
     if source[position] == "0":
         position += 1
-    elif source[position] in "123456789":
+    elif "1" <= source[position] <= "9":
         position += 1
-        while position < len(source) and source[position] in "0123456789":
+        while position < len(source) and _decimal_digit(source[position]):
             position += 1
     else:
         raise InvalidJSON(source, position)
     if position < len(source) and source[position] == ".":
         position += 1
         start = position
-        while position < len(source) and source[position] in "0123456789":
+        while position < len(source) and _decimal_digit(source[position]):
             position += 1
         if position == start:
             raise InvalidJSON(source, position)
@@ -102,7 +110,7 @@ def _number_end(source, position):
         if position < len(source) and source[position] in "+-":
             position += 1
         start = position
-        while position < len(source) and source[position] in "0123456789":
+        while position < len(source) and _decimal_digit(source[position]):
             position += 1
         if position == start:
             raise InvalidJSON(source, position)
@@ -140,7 +148,7 @@ def _validated_interval(source, strict):
                                 if source.startswith(value, position)), None)
                 if literal is not None:
                     position += len(literal)
-                elif character in "-0123456789":
+                elif character == "-" or _decimal_digit(character):
                     position = _number_end(source, position)
                 else:
                     raise InvalidJSON(source, position)
