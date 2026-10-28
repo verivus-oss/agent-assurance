@@ -9,6 +9,14 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Add a safe Rust advisory evaluator for the tracked lock population from
+  `82f10ba69328b94e5b831baad5ddc6a0ad9ed2f6`. Fetch complete ecosystem
+  archives and evaluate typed package versions locally, with archive,
+  freshness, source-identity and affected/unaffected controls. Keep the
+  existing required scanner active alongside the native workflow check
+  while dependency audits and clean candidate validation remain unfinished.
+  Preserve the exact supplier compression identifiers in spelling checks
+  without accepting their component word or longer identifiers.
 - Replace the standard syntax-tree helpers observed at candidate
   `640db84cf0538c333807631611215ace77a8f150` with owned, licensed
   compile-only inspection and mutation helpers. Preserve current literal,

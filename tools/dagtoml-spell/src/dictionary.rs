@@ -68,7 +68,9 @@ impl Dictionary {
     }
 
     pub fn identifier_is_accepted(identifier: &str) -> bool {
-        matches!(identifier, "O_WRONLY" | "dBA" | "HashiCorp")
+        // Preserve exact supplier compression identities without accepting
+        // their component word or longer surrounding identifiers.
+        matches!(identifier, "O_WRONLY" | "dBA" | "HashiCorp" | "flate2")
     }
 
     pub fn correct(&self, word: Word<'_>) -> Option<Vec<String>> {
@@ -157,9 +159,15 @@ mod tests {
             assert!(!case.input.is_empty());
             assert_eq!(dictionary.correct(word(&case.input, case.case)), None);
         }
-        for identifier in ["O_WRONLY", "dBA", "HashiCorp"] {
+        for identifier in ["O_WRONLY", "dBA", "HashiCorp", "flate2"] {
             assert!(Dictionary::identifier_is_accepted(identifier));
+            assert!(!Dictionary::identifier_is_accepted(&format!(
+                "{identifier}Other"
+            )));
         }
+        let component = "flate2".strip_suffix('2').unwrap();
+        assert!(!Dictionary::identifier_is_accepted(component));
+        assert!(dictionary.correct(word(component, Case::Lower)).is_some());
         let accepted = "HashiCorp";
         assert!(!Dictionary::identifier_is_accepted(&format!(
             "{accepted}Other"

@@ -110,6 +110,15 @@ comment block in `validate.yml`:
 Workflow actions are SHA-pinned. Python verification packages use version
 and hash pins; Rust builds use checked-in Cargo.lock files.
 
+The proposed [native advisory evaluator](tools/dagtoml-osv/README.md) consumes
+complete ecosystem archives and performs local typed version comparisons.
+It targets the lock population and protection purpose at
+`82f10ba69328b94e5b831baad5ddc6a0ad9ed2f6`. The existing required OSV
+workflow remains active alongside the native check during validation.
+Dependency and generated-source audits, omission controls and final
+replacement validation remain open; an
+advisory result does not establish whole-repository policy compliance.
+
 The shared JSON codec replaces the wrapper from
 `16d7d85f31a3071d56f4f8c34d99d1800ad5ce73` with explicit syntax validation
 before native value decoding. Its cold controls reject standard JSON and

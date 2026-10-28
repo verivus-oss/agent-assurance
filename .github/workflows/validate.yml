@@ -85,6 +85,18 @@ jobs:
           cargo build --release --locked || cargo build --release
           cp target/release/dagtoml-validate-rs "${RUNNER_TEMP}/dagtoml-validate-rs"
 
+      - name: Native locked-package advisory controls and evaluation
+        # Keep the established OSV gate below during replacement validation.
+        # This evaluator reads complete published archives and applies local
+        # typed version predicates rather than the semantic query service.
+        run: |
+          set -euo pipefail
+          cargo fmt --manifest-path tools/dagtoml-osv/Cargo.toml --check
+          cargo clippy --locked --manifest-path tools/dagtoml-osv/Cargo.toml --all-targets -- -D warnings
+          cargo test --locked --manifest-path tools/dagtoml-osv/Cargo.toml
+          cargo build --locked --manifest-path tools/dagtoml-osv/Cargo.toml
+          tools/dagtoml-osv/target/debug/dagtoml-osv .
+
       - name: Build primary Go validator
         run: |
           set -e
