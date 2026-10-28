@@ -9,6 +9,12 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Replace the nine `unittest.mock` consumers measured at
+  `6266e2fee491223a715595ef8ba59662aa3c9ba4` with explicit temporary
+  attributes and bounded fault callbacks. Preserve exact restoration and
+  existing property witnesses, and exercise accepted, refused and failure
+  cases in cold normal and optimized processes. Retire dotted import
+  resolution, automatic mock creation and unrelated framework APIs.
 - Replace the advisory source exclusion list observed at
   `fc4bd5c51fd70f7fa00343350620c4927bc66bb3` with recognition of the
   pinned scanner's full lockfile and SBOM extractor populations, followed

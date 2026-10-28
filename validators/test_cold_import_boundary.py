@@ -8,7 +8,7 @@ from _credential_git import git
 from _test_require import require
 
 
-RETIRED = ("json", "dataclasses", "pathlib", "uuid", "ast")
+RETIRED = ("json", "dataclasses", "pathlib", "uuid", "ast", "unittest")
 
 
 def retired(name):

@@ -6,7 +6,9 @@ from _path_scan import Path
 import subprocess
 import sys
 import threading
-from unittest.mock import patch
+import _storage as storage
+import _sql_probes as sql_probes
+from _temporary_attribute import temporary_attribute, successive
 
 from _contract import bundle_digest, bundle_entries
 from _storage import Store, StorageError
@@ -98,8 +100,8 @@ def initialize_checks(store: Store, work: Path) -> list[dict]:
             candidate = LoseInitializationAcknowledgement(store.engine, store.connection, store.root, reconnect=store.reconnect)
         sequence = [digest, digest, "f" * 64] if phase == "reconciliation" else [digest, "f" * 64]
         from contextlib import nullcontext
-        probe_context = patch("_sql_probes.probe_constraints", side_effect=concurrent_publication) if phase == "after-probes" else nullcontext()
-        with probe_context, patch("_storage.bundle_digest", side_effect=sequence):
+        probe_context = temporary_attribute(sql_probes, "probe_constraints", concurrent_publication) if phase == "after-probes" else nullcontext()
+        with probe_context, temporary_attribute(storage, "bundle_digest", successive(sequence)):
             try:
                 candidate.initialize(exclusive_unpublished=True)
             except StorageError as exc:

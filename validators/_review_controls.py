@@ -7,7 +7,7 @@ import io
 from _literal_json import loads as loads_json
 import subprocess
 import sys
-from unittest.mock import patch
+from _temporary_attribute import temporary_attribute, returning, raising
 
 from _instrument import require
 
@@ -116,12 +116,12 @@ def exercise(candidate, work):
     def verdict(argv):
         return (1 if "/invalid/" in str(argv[-1]) else 0), "review-stub-observation"
     try:
-        with patch.object(runner, "parse_args", return_value=args), patch.object(runner, "run_validator", side_effect=verdict), contextlib.redirect_stdout(io.StringIO()) as output:
+        with temporary_attribute(runner, "parse_args", returning(args)), temporary_attribute(runner, "run_validator", verdict), contextlib.redirect_stdout(io.StringIO()) as output:
             result = runner.main()
         require(result == 1 and "review-impossible-dotted-sidecar-diagnostic" in output.getvalue())
         observations.append({"control": "dotted-sidecar-runner", "status": "killed", "output": output.getvalue()})
         import discrimination
-        with patch.object(sys, "argv", ["discrimination", "--rs", "inert-rust", "--go", "inert-go", "--repo-root", str(candidate), "--cases", str(candidate / "conformance/cases")]), patch.object(discrimination, "collect_output", return_value="review-stub-observation"), contextlib.redirect_stdout(io.StringIO()) as output:
+        with temporary_attribute(sys, "argv", ["discrimination", "--rs", "inert-rust", "--go", "inert-go", "--repo-root", str(candidate), "--cases", str(candidate / "conformance/cases")]), temporary_attribute(discrimination, "collect_output", returning("review-stub-observation")), contextlib.redirect_stdout(io.StringIO()) as output:
             result = discrimination.main()
         require(result == 1 and "review.dotted.toml: sidecar fails to match" in output.getvalue())
         observations.append({"control": "dotted-sidecar-discrimination", "status": "killed", "output": output.getvalue()})
@@ -133,7 +133,7 @@ def exercise(candidate, work):
     error.context = {"operation": "ingest", "contract_bundle_sha256": "a" * 64,
                      "documents": [{"source_path": "captured.toml", "content_sha256": "sha256:" + hashlib.sha256(b"captured").hexdigest()}]}
     for module in (ingest_cli, replay_cli):
-        with patch.object(module, "connect", side_effect=error), contextlib.redirect_stdout(io.StringIO()) as out, contextlib.redirect_stderr(io.StringIO()) as err:
+        with temporary_attribute(module, "connect", raising(error)), contextlib.redirect_stdout(io.StringIO()) as out, contextlib.redirect_stderr(io.StringIO()) as err:
             args = ["--engine", "sqlite", "--destination", "inert.db"]
             if module is ingest_cli:
                 args += ["ingest", "captured.toml"]

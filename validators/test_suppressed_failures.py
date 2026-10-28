@@ -6,7 +6,7 @@ from _literal_path import Path
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from _temporary_attribute import temporary_attribute, returning, raising
 
 import _literal_json as json
 from _test_require import require
@@ -59,9 +59,9 @@ def test_rdf_count_failures() -> None:
         binary = root / "tools/dagtoml-rdf/target/release/dagtoml-rdf"
         binary.parent.mkdir(parents=True)
         binary.write_bytes(b"placeholder")
-        with patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0, "parsed 42 triples", "")):
+        with temporary_attribute(subprocess, "run", returning(subprocess.CompletedProcess([], 0, "parsed 42 triples", ""))):
             require(derive_rdf_counts(root) == {"schema": 42, "shapes": 42})
-        with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("rdf", 30)):
+        with temporary_attribute(subprocess, "run", raising(subprocess.TimeoutExpired("rdf", 30))):
             try:
                 derive_rdf_counts(root)
             except ValueError as exc:
@@ -72,7 +72,7 @@ def test_rdf_count_failures() -> None:
 
 def test_connection_close_warning() -> None:
     output, diagnostic = StringIO(), StringIO()
-    with patch.object(ingest_cli, "connect", return_value=CloseFails()), patch.object(ingest_cli, "Store", FakeStore):
+    with temporary_attribute(ingest_cli, "connect", returning(CloseFails())), temporary_attribute(ingest_cli, "Store", FakeStore):
         with redirect_stdout(output), redirect_stderr(diagnostic):
             require(ingest_cli.main(["--engine", "sqlite", "--destination", "unused", "initialize"]) == 0)
     require(json.loads(output.getvalue())["status"] == "committed")
@@ -85,9 +85,9 @@ def test_connection_close_warning() -> None:
         manifest.write_text("[meta]\n")
         report = root / "report.json"
         output, diagnostic = StringIO(), StringIO()
-        with patch.object(replay_cli, "connect", return_value=CloseFails()), \
-             patch.object(replay_cli, "Store", FakeStore), \
-             patch.object(replay_cli, "replay", return_value={"status": "committed"}):
+        with temporary_attribute(replay_cli, "connect", returning(CloseFails())), \
+             temporary_attribute(replay_cli, "Store", FakeStore), \
+             temporary_attribute(replay_cli, "replay", returning({"status": "committed"})):
             with redirect_stdout(output), redirect_stderr(diagnostic):
                 require(replay_cli.main(["--engine", "sqlite", "--destination", "unused",
                                          "--manifest", str(manifest), "--report", str(report)]) == 0)

@@ -2,7 +2,7 @@
 from _test_require import expect_raises, require
 from _literal_path import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from _temporary_attribute import temporary_attribute
 import shutil
 import _literal_paths as paths
 
@@ -83,7 +83,7 @@ def test_observed_directory_disappearance() -> None:
                 shutil.rmtree(profile)
             return original(path)
 
-        with patch.object(paths, 'candidate_directory', side_effect=vanish):
+        with temporary_attribute(paths, 'candidate_directory', vanish):
             expect_raises(OSError, lambda: list(paths.glob(root, 'profiles/*/ontology.toml')),
                           'observed profile directory disappeared without failing the scan')
 

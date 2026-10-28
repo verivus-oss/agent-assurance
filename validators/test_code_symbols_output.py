@@ -2,7 +2,8 @@
 
 from _literal_path import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from _temporary_attribute import temporary_attribute, returning
+import validate_code_symbols as code_symbols
 
 from _test_require import require
 from validate_code_symbols import SymbolRef, result_summary, sqry_search
@@ -17,7 +18,7 @@ if __name__ == "__main__":
     root = Path(__file__).resolve().parent.parent
     selected = str((root / source.path).resolve())
     good = SimpleNamespace(returncode=0, stdout='{"results":[{"file_path":"' + selected + '"}]}', stderr="")
-    with patch("validate_code_symbols.subprocess.run", return_value=good):
+    with temporary_attribute(code_symbols.subprocess, "run", returning(good)):
         matches, detail = sqry_search("sqry", root, source)
     require(len(matches) == 1 and detail is None)
 
@@ -29,7 +30,7 @@ if __name__ == "__main__":
             raise OSError("injected path resolution failure")
         return original_resolve(path, *args, **kwargs)
 
-    with patch("validate_code_symbols.subprocess.run", return_value=bad), patch.object(Path, "resolve", reject_bad_path):
+    with temporary_attribute(code_symbols.subprocess, "run", returning(bad)), temporary_attribute(Path, "resolve", reject_bad_path):
         matches, detail = sqry_search("sqry", root, source)
     require(not matches and detail is not None and "invalid source path" in detail)
     print("symbol output: durable identity retained without parser coordinates")

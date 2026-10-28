@@ -6,7 +6,8 @@ import hashlib
 from _storage import Store, StorageError
 from _projection import timestamp_index
 from _instrument import require
-from unittest.mock import patch
+import _storage as storage
+from _temporary_attribute import temporary_attribute, successive
 
 CHECKS = frozenset({"provenance-atomic-row-upstream-subject-and-portable-index", "audit-and-repeat-compare-provenance",
                    "lost-commit-acknowledgement-reconciles-whole-batch", "confirmed-uncommitted-batch-retries-whole-operation",
@@ -112,7 +113,7 @@ opaque_extra = {{ values = [true, 1, "\u0063\u0061\u0066\u00e9"] }}
     from _contract import bundle_digest
     digest = bundle_digest(store.root)
     before = store.counts()
-    with patch("_storage.bundle_digest", side_effect=[digest, digest, "f" * 64]):
+    with temporary_attribute(storage, "bundle_digest", successive([digest, digest, "f" * 64])):
         try:
             store.ingest([("protocol/changed-bundle.toml", raw)])
         except StorageError as exc:

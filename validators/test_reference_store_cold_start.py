@@ -7,7 +7,7 @@ if __name__ == '__main__':
     if sys.implementation.name != 'cpython' or not sys.flags.no_site:
         raise RuntimeError('reference-store cold controls require CPython with -S')
     retired = {'re', 'regex', '_sre', 'pathlib', 'fnmatch', 'glob', 'urllib', 'dataclasses', 'json', 'uuid', 'platform', 'typing',
-               'psycopg', 'psycopg_binary', 'psycopg_c'}
+               'psycopg', 'psycopg_binary', 'psycopg_c', 'unittest'}
     observed = set()
     attempted_imports = set()
 
@@ -26,14 +26,16 @@ if __name__ == '__main__':
     from _literal_path import Path
     from _test_require import expect_raises, require
     import test_random_id
+    import test_temporary_attribute
 
-    identifier_controls = {name for name, value in vars(test_random_id).items() if name.startswith('test_') and callable(value)}
-    require(identifier_controls, 'random identifier controls are absent')
-    executed = set()
-    for name in sorted(identifier_controls):
-        getattr(test_random_id, name)()
-        executed.add(name)
-    require(executed == identifier_controls)
+    for module in (test_random_id, test_temporary_attribute):
+        controls = {name for name, value in vars(module).items() if name.startswith('test_') and callable(value)}
+        require(controls, 'cold helper controls are absent: ' + module.__name__)
+        executed = set()
+        for name in sorted(controls):
+            getattr(module, name)()
+            executed.add(name)
+        require(executed == controls)
 
     root = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(root / 'reference/database'))
@@ -41,7 +43,9 @@ if __name__ == '__main__':
     from _storage import Store, StorageError, connect
     from _connection_checks import exercise_rejected_postgres_parameters
     from _runtime_document_vocab import KINDS
+    import _protocol_checks
 
+    require(callable(_protocol_checks.exercise_protocol), 'actual protocol harness is absent')
     exercise_rejected_postgres_parameters('host=127.0.0.1 port=1 dbname=unreachable')
     required = {'adapter-contract', 'adapter-registry-binding', 'gate-decision'}
     require(set(KINDS) == required, 'cold store kind population changed')
@@ -72,5 +76,5 @@ if __name__ == '__main__':
     sys.setprofile(None)
     require(not attempted_imports, 'reference store suppressed forbidden import attempts: ' + repr(sorted(attempted_imports)))
     require(not observed and not (retired & set(sys.modules)))
-    print('reference store cold control: SQLite initialization, complete supported-kind ingest, idempotency, rejection, SQL error and audit; four NUL and six nontext PostgreSQL parameter rejections executed')
+    print('reference store cold control: complete identifier and temporary-attribute controls, actual protocol harness import, SQLite initialization, supported-kind ingest, idempotency, rejection, SQL error and audit; four NUL and six nontext PostgreSQL parameter rejections executed')
     print('scope: local SQLite ' + version + '; persistent connection-loss/concurrency, accepted PostgreSQL connections, DuckDB, native driver internals and other verification entry points skipped')

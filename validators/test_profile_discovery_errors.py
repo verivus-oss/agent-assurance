@@ -5,7 +5,7 @@ from io import StringIO
 import hashlib
 from _literal_path import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from _temporary_attribute import temporary_attribute
 import sys
 
 import _toml11 as tomllib
@@ -54,7 +54,7 @@ def test_discovery_rejects_malformed_profile() -> None:
         require("profile descriptor discovery" in diagnostic.getvalue())
 
         output = StringIO()
-        with patch.object(sys, "argv", ["validate_profile_descriptor.py", "--repo-root", str(root), str(candidate)]), redirect_stdout(output):
+        with temporary_attribute(sys, "argv", ["validate_profile_descriptor.py", "--repo-root", str(root), str(candidate)]), redirect_stdout(output):
             require(profile_main() == 1)
         require("cannot inspect descriptors" in output.getvalue())
 

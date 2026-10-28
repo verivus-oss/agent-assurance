@@ -10,7 +10,7 @@ from _literal_path import Path
 import shutil
 import subprocess
 import sys
-from unittest.mock import patch
+from _temporary_attribute import temporary_attribute, raising
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "conformance"))
 from runtime_specimens import FIELDS, dump, specimens, prepare_roots  # noqa: E402
@@ -128,7 +128,7 @@ def main(argv=None):
     if validate_document(case.doc, captured_path, root, case.kind):
         raise AssertionError("captured-root validation reopened the changed root or rejected the fixed positive control")
     # File-less entry points must not launch anything or open any URL.
-    with patch("subprocess.run", side_effect=AssertionError("validator executed a child process")):
+    with temporary_attribute(subprocess, "run", raising(AssertionError("validator executed a child process"))):
         if validate_document(case.doc, captured_path, root, case.kind):
             raise AssertionError("captured-root validation failed its no-subprocess control")
     boundaries = boundary_checks(root, work, rs, go, Path(args.strace).resolve())

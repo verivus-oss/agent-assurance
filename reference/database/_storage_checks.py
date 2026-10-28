@@ -75,7 +75,7 @@ def exercise_storage(store: Store) -> list[str]:
 
     from _path_scan import Path
     from _random_id import random_id_hex
-    from unittest.mock import patch
+    from _temporary_attribute import temporary_attribute
     original_lines = sources[kinds[0]].splitlines(keepends=True)
     omitted_lines = [line for line in original_lines if not line.startswith(b"id_derivation")]
     require(len(original_lines) - len(omitted_lines) == 1)
@@ -108,7 +108,7 @@ def exercise_storage(store: Store) -> list[str]:
     def guarded_read(path):
         require(path != capture, "storage reopened the captured root source")
         return original_read(path)
-    with patch.object(Path, "read_bytes", guarded_read):
+    with temporary_attribute(Path, "read_bytes", guarded_read):
         version_a = store.ingest([(str(capture), captured)])
     version_b = store.ingest([(str(capture), capture.read_bytes())])
     for result, raw, policy in ((version_a, a, "denied"), (version_b, b, "open")):
