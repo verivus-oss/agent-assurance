@@ -141,6 +141,14 @@ keys and requires CHECK constraints enabled before BEGIN. Embedded DuckDB has on
 writer process and serializes callers within it; another writable process is
 refused. An active caller transaction is rejected without commit or rollback.
 
+The DuckDB connector uses the installed native interface. Its destination is
+text, either supplied directly or returned by the filesystem path protocol.
+It reads the underlying text of a string subclass and rejects NUL bytes before
+opening the destination. Byte paths and nontext protocol results are rejected.
+This entry-point repair targets the connector at
+`eaefe4ca6146fcfd3a433a183c102f5a283922b6`; native binding, engine and build
+dependency audits remain separate requirements.
+
 Ingestion supports the three kinds above, agent-assurance/AGDF, and schema major
 zero. It runs metadata, provenance, IJB, closure, controlling-descriptor/capability,
 and implemented kind checks, reporting that scope. Adapter/binding INV04 prohibits

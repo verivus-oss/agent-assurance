@@ -3,6 +3,7 @@
 from contextlib import contextmanager
 from datetime import date
 from _path_scan import Path
+import os
 import sqlite3
 import threading
 import time
@@ -59,7 +60,13 @@ def connect(engine: str, destination: str):
     if engine == "sqlite":
         return sqlite3.connect(destination, isolation_level=None, timeout=0.25)
     if engine == "duckdb":
-        import duckdb
+        destination = os.fspath(destination)
+        if not isinstance(destination, str):
+            raise TypeError("DuckDB destination must be text")
+        destination = str.__str__(destination)
+        if "\0" in destination:
+            raise StorageError("setup", "DuckDB destination must not contain NUL bytes")
+        import _duckdb as duckdb
         try:
             return duckdb.connect(destination)
         except duckdb.IOException as exc:

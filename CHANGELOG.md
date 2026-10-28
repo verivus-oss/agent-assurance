@@ -9,6 +9,12 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Route the DuckDB reference connector from
+  `eaefe4ca6146fcfd3a433a183c102f5a283922b6` through its installed native
+  interface. Preserve text and text-returning filesystem protocol inputs;
+  reject NUL and nontext destinations before opening a file. Add actual
+  private-destination connection controls for accepted and rejected inputs.
+  The native binding, engine and build dependency audits remain open.
 - Add a safe Rust advisory evaluator for the tracked lock population from
   `82f10ba69328b94e5b831baad5ddc6a0ad9ed2f6`. Fetch complete ecosystem
   archives and evaluate typed package versions locally, with archive,

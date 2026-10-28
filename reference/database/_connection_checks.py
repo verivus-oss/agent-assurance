@@ -2,12 +2,13 @@
 
 from _random_id import random_id_hex
 
-from _storage import Store, StorageError, connect_postgres
+from _storage import Store, StorageError, connect, connect_postgres
 
 CHECKS = {"sqlite": {"foreign-keys-enabled-and-read-back", "disabled-checks-refused"},
           "postgres": {"native-execution-without-driver-text-matchers", "non-utf8-client-refused",
                        "non-utf8-server-refused", "aborted-caller-transaction-preserved"},
-          "duckdb": {"idle-connection-precondition"}}
+          "duckdb": {"idle-connection-precondition", "text-path-destinations",
+                     "nul-text-destinations-refused", "nontext-destinations-refused"}}
 
 
 def exercise_connection(store, destination):
@@ -185,6 +186,66 @@ def exercise_connection(store, destination):
             store.execute("ROLLBACK")
         checks.append("aborted-caller-transaction-preserved")
     else:
+        class Text(str):
+            def __str__(self):
+                raise AssertionError("destination string override was executed")
+
+            def __contains__(self, _value):
+                raise AssertionError("destination containment override was executed")
+
+        class TextPath:
+            def __init__(self, value):
+                self.value = value
+
+            def __fspath__(self):
+                return self.value
+
+            def __str__(self):
+                raise AssertionError("destination display conversion was executed")
+
+        accepted = []
+        for name, value in (("text", destination), ("text-subclass", Text(destination)),
+                            ("filesystem-protocol", TextPath(Text(destination)))):
+            connection = connect("duckdb", value)
+            try:
+                if connection.execute("SELECT 7").fetchone() != (7,):
+                    raise AssertionError("accepted destination changed the connected query result")
+            finally:
+                connection.close()
+            accepted.append(name)
+        if len(accepted) != 3 or set(accepted) != {"text", "text-subclass", "filesystem-protocol"}:
+            raise AssertionError("accepted text destination population changed")
+        checks.append("text-path-destinations")
+        rejected = []
+        for name, value in (("text", destination + "\0ignored"),
+                            ("text-subclass", Text(destination + "\0ignored")),
+                            ("filesystem-protocol", TextPath(Text(destination + "\0ignored")))):
+            try:
+                unexpected = connect("duckdb", value)
+            except StorageError as exc:
+                if exc.code != "setup" or "NUL bytes" not in str(exc):
+                    raise AssertionError("NUL destination failed for an unrelated reason") from exc
+            else:
+                unexpected.close()
+                raise AssertionError("NUL destination was accepted or truncated")
+            rejected.append(name)
+        if len(rejected) != 3 or set(rejected) != {"text", "text-subclass", "filesystem-protocol"}:
+            raise AssertionError("rejected NUL destination population changed")
+        checks.append("nul-text-destinations-refused")
+        rejected = []
+        for name, value in (("bytes", destination.encode("utf-8")),
+                            ("protocol-bytes", TextPath(destination.encode("utf-8"))),
+                            ("protocol-integer", TextPath(7))):
+            try:
+                unexpected = connect("duckdb", value)
+            except TypeError:
+                rejected.append(name)
+            else:
+                unexpected.close()
+                raise AssertionError("nontext destination was accepted")
+        if len(rejected) != 3 or set(rejected) != {"bytes", "protocol-bytes", "protocol-integer"}:
+            raise AssertionError("rejected nontext destination population changed")
+        checks.append("nontext-destinations-refused")
         store.prepare()
         checks.append("idle-connection-precondition")
     if len(checks) != len(CHECKS[store.engine]) or set(checks) != CHECKS[store.engine]:
