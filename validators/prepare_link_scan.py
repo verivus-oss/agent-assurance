@@ -2,11 +2,10 @@
 """Select link checker inputs with exact file and host exceptions."""
 
 from _literal_path import Path
-import shutil
-import subprocess
 import sys
 
 import _literal_args as argparse
+from _credential_git import git
 
 
 SKIP_DIRECTORIES = frozenset({
@@ -81,16 +80,25 @@ def select_links(rows: list[str], tracked: set[str]) -> tuple[list[str], set[str
     return sorted(candidates), exceptions
 
 
+def tracked_paths(raw: bytes) -> set[str]:
+    if not raw or not raw.endswith(b"\0"):
+        raise RuntimeError("tracked link source framing is absent or incomplete")
+    paths = raw[:-1].split(b"\0")
+    if any(not value for value in paths) or len(paths) != len(set(paths)):
+        raise RuntimeError("tracked link source population is empty or repeated")
+    try:
+        tracked = {value.decode("utf-8") for value in paths}
+    except UnicodeDecodeError:
+        raise RuntimeError("tracked link source is not UTF-8") from None
+    for path in tracked:
+        if ("\\" in path or any(ord(char) < 32 or ord(char) == 127 for char in path)
+                or any(part in ("", ".", "..") for part in path.split("/"))):
+            raise RuntimeError("tracked link source path is not canonical relative text")
+    return tracked
+
+
 def tracked_files() -> set[str]:
-    git = shutil.which("git")
-    if git is None:
-        raise RuntimeError("Git is required to bound the link source population")
-    result = subprocess.run(  # nosec B603  # noqa: S603
-        [git, "ls-files", "-z"], capture_output=True, check=False,
-    )
-    if result.returncode:
-        raise RuntimeError("cannot enumerate tracked link sources")
-    tracked = set(result.stdout.decode().strip("\0").split("\0"))
+    tracked = tracked_paths(git(Path.cwd(), ["ls-files", "--full-name", "-z"]))
     if len(tracked) < 100:
         raise RuntimeError("tracked source population is unexpectedly small")
     return tracked

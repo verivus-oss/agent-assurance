@@ -9,6 +9,15 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Retain actionable link-check outcomes from the wrapper measured at
+  `24ece13835c385ddb7352861c9aae5c22ced471f`. Validate the complete
+  success/error/timeout partition even when the scanner exits nonzero,
+  reject inconsistent counts or statuses, and publish sanitized URL/status
+  results in the CI job summary. Keep producer coordinates and diagnostics
+  out of retained results, preserve source and scanner identities, and
+  refuse artifact destinations that could overwrite checkout sources.
+  Align source enumeration with the sanitized Git environment and reject
+  incomplete framing, repeated paths and noncanonical source identities.
 - Replace the nine `unittest.mock` consumers measured at
   `6266e2fee491223a715595ef8ba59662aa3c9ba4` with explicit temporary
   attributes and bounded fault callbacks. Preserve exact restoration and
