@@ -206,7 +206,7 @@ impl Record {
         Ok(record)
     }
 
-    pub fn unparseable_package_names(&self) -> usize {
+    pub fn unparsable_package_names(&self) -> usize {
         self.affected
             .iter()
             .filter_map(|affected| affected.package.as_ref())
@@ -469,7 +469,7 @@ mod tests {
     }
 
     #[test]
-    fn unparseable_names_are_disclosed_and_do_not_equal_typed_queries() {
+    fn unparsable_names_are_disclosed_and_do_not_equal_typed_queries() {
         for (ecosystem, name, invalid) in [
             (Ecosystem::PyPI, "example-package", "bad/name"),
             (Ecosystem::Go, "example.org/module", ""),
@@ -487,7 +487,7 @@ mod tests {
             assert!(accepted.matches(&package).unwrap());
             source["affected"][0]["package"]["name"] = serde_json::json!(invalid);
             let opaque = Record::parse(&serde_json::to_vec(&source).unwrap()).unwrap();
-            assert_eq!(opaque.unparseable_package_names(), 1);
+            assert_eq!(opaque.unparsable_package_names(), 1);
             assert!(!opaque.applies(&package));
             assert!(!opaque.matches(&package).unwrap());
         }

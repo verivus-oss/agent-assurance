@@ -48,7 +48,7 @@ pub struct Dataset {
     pub records: usize,
     pub expanded_bytes: u64,
     pub applicable_records: usize,
-    pub unparseable_package_names: Vec<Evidence>,
+    pub unparsable_package_names: Vec<Evidence>,
     pub assessments: Vec<Assessment>,
     pub controls: Vec<Control>,
 }
@@ -123,7 +123,7 @@ pub fn evaluate(
     let mut directories = 0usize;
     let mut expanded = 0u64;
     let mut applicable_records = 0usize;
-    let mut unparseable_package_names = Vec::new();
+    let mut unparsable_package_names = Vec::new();
     for file in archive.members {
         let name = file.name.to_owned();
         if name.ends_with('/') {
@@ -171,8 +171,8 @@ pub fn evaluate(
             return Err("advisory identity differs from its archive member".into());
         }
         records += 1;
-        if record.unparseable_package_names() > 0 {
-            unparseable_package_names.push(Evidence {
+        if record.unparsable_package_names() > 0 {
+            unparsable_package_names.push(Evidence {
                 advisory_id: record.id.clone(),
                 record_sha256: digest.clone(),
                 member: name.clone(),
@@ -249,7 +249,7 @@ pub fn evaluate(
         records,
         expanded_bytes: expanded,
         applicable_records,
-        unparseable_package_names,
+        unparsable_package_names,
         assessments: queries.into_values().collect(),
         controls,
     })

@@ -64,7 +64,7 @@ fn evaluate() -> Result<bool, String> {
         "source":before,"instrument_sha256":dagtoml_osv::BUILD_TREE_SHA256,"git":git,"transport":curl,
         "packages_evaluated":measured.len(),"affected_packages":affected,"datasets":datasets,
         "comparison":"Every external package identity from the complete derived tracked lock population against every applicable record in the complete retrieved ecosystem archives. Typed release equality and range boundaries are evaluated locally. Independent affected/unaffected controls must agree.",
-        "outside_subject":["unregistered local package roots are identified but have no registry advisory claim","commit ancestry, function reachability, exploitability and installation environments","upstream unpublished advisories, unparseable package names disclosed in each dataset, and provider ingestion completeness"]});
+        "outside_subject":["unregistered local package roots are identified but have no registry advisory claim","commit ancestry, function reachability, exploitability and installation environments","upstream unpublished advisories, unparsable package names disclosed in each dataset, and provider ingestion completeness"]});
     println!(
         "{}",
         serde_json::to_string_pretty(&output).map_err(|_| "cannot encode advisory result")?
