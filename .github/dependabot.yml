@@ -54,10 +54,7 @@ updates:
 
   - package-ecosystem: "cargo"
     directories:
-      - "/tools/dagtoml-validate-rs"
-      - "/tools/toml-test-decode-rs"
-      - "/tools/dagtoml-duckdb"
-      - "/tools/dagtoml-rdf"
+      - "/tools/*"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5

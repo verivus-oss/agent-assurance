@@ -10,6 +10,25 @@ from _literal_paths import glob, rglob
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def cargo_manifests(root: Path) -> list[Path]:
+    """Derive the independent tooling crates for advisory and license checks."""
+    tools = root / "tools"
+    if tools.is_symlink():
+        raise ValueError("tooling root must not be a symbolic link")
+    manifests = sorted(glob(root, "tools/*/Cargo.toml"))
+    if not manifests:
+        raise ValueError("native check requires a nonempty Cargo manifest population")
+    for path in manifests:
+        lock = path.parent / "Cargo.lock"
+        if path.is_symlink() or path.parent.is_symlink() or not path.is_file():
+            raise ValueError("Cargo manifest must be a regular repository file")
+        if lock.is_symlink() or not lock.is_file() or not lock.stat().st_size:
+            raise ValueError("Cargo manifest requires a nonempty regular lockfile")
+    if len(set(manifests)) != len(manifests):
+        raise ValueError("native check repeated a Cargo manifest identity")
+    return manifests
+
+
 def rust_has_forbid(source: str) -> bool:
     first = next((line.strip() for line in _without_comments(source).splitlines() if line.strip()), "")
     return first == "#![forbid(unsafe_code)]"
@@ -222,8 +241,15 @@ def check(root: Path) -> tuple[int, int]:
 
 if __name__ == "__main__":
     try:
+        if sys.argv[1:] == ["--cargo-manifests"]:
+            manifests = cargo_manifests(ROOT)
+            output = b"".join(path.relative_to(ROOT).as_posix().encode("utf-8") + b"\0" for path in manifests)
+            sys.stdout.buffer.write(output)
+            raise SystemExit(0)
+        if sys.argv[1:]:
+            raise ValueError("safe tools option is unsupported")
         rust_count, go_count = check(ROOT)
-    except ValueError as exc:
+    except (OSError, UnicodeError, ValueError) as exc:
         print("FAIL: " + str(exc), file=sys.stderr)
         raise SystemExit(1) from exc
     print(f"safe tools: {rust_count} Rust crates with forbid declarations, {go_count} Go files checked")

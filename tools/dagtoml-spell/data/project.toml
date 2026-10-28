@@ -1,0 +1,19 @@
+schema_version = 1
+source_commit = "a3420ad83ab0758e389fca86dbdfb837e86df5bc"
+catalog_sha256 = "a3c0d1de3103f1e0e4b49c6d5e5905642d35c60b8337672ce8f386e74ba3b8a9"
+stopwords_operand_sha256 = "ba744bd6fa659705d11a073fe32a1c6d1d1c7c78d4664b18228d1d18f5f9faca"
+headers_operand_sha256 = "3173f991f1c13bb771d12ef39c09a5571cec22c67a32c5986bd5d2c46292d526"
+provider_byte_literal = "fo1_"
+
+# Literal acceptances from the preceding source spelling configuration.
+[words]
+COSE = "COSE"
+COSe = "COSe"
+cose = "cose"
+Synopsys = "Synopsys"
+decomission = "decomission"
+ect = "ect"
+rto = "rto"
+ba = "ba"
+afe = "afe"
+vai = "vai"

@@ -1,0 +1,19 @@
+[package]
+name = "dagtoml-spell"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+license = "Apache-2.0"
+description = "Typed spelling checks for the repository source population"
+
+[dependencies]
+winnow = { version = "=1.0.4", default-features = false, features = ["std", "parser"] }
+unicode-ident = "=1.0.26"
+unicase = "=2.9.0"
+sha2 = { version = "=0.11.0", default-features = false }
+toml = { version = "=1.1.5", default-features = false, features = ["parse", "serde", "display"] }
+serde = { version = "=1.0.229", default-features = false, features = ["derive", "alloc"] }
+
+[build-dependencies]
+sha2 = { version = "=0.11.0", default-features = false }

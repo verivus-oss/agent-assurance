@@ -9,6 +9,13 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Replace the source spelling action from candidate
+  `a3420ad83ab0758e389fca86dbdfb837e86df5bc` with a safe Rust command using
+  structured text tokens and the pinned supplier literal dictionary. Retire
+  the old glob/ignore walkers and configuration. Preserve literal word and
+  scope policy, validate named data spans beside governed prose, and report
+  source digests and byte spans. Reject stale instruments and absent inputs.
+  Derive Cargo advisory/license populations from the current tooling tree.
 - Replace the credential workflow from candidate
   `fa8c3051e3cafd83ddcbd8898f4c0028d824c450` with explicit byte predicates,
   bounded decoding and complete stored Git blob traversal. Retire the Gitleaks

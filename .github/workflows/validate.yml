@@ -954,9 +954,8 @@ jobs:
       #                     unpinned uses, excessive permissions)
       #   shellcheck      — shell-script correctness for validators/*.sh
       #                     and example witness scripts
-      #   typos           — source-code spellchecker; critical for spec
-      #                     repos (a misspelled ontology predicate is a
-      #                     silent semantic error)
+      #   spelling gate   - pinned literal corrections and structured UTF-8
+      #                     tokens over derived tracked source and filenames
       #   ruff            — Python deep linter (security `S` rules,
       #                     correctness, dead-code); defense-in-depth
       #                     above bandit
@@ -1014,9 +1013,15 @@ jobs:
           shellcheck \
             validators/check_manifest_drift.sh
 
-      - name: Source-code spellcheck (typos)
+      - name: Source-code spelling (literal correction table)
         continue-on-error: false
-        uses: crate-ci/typos@7f9d0819ca1c008ade73f4b41fa9d258d48f605b  # v1.51.1
+        run: |
+          set -euo pipefail
+          cargo fmt --manifest-path tools/dagtoml-spell/Cargo.toml --check
+          cargo clippy --locked --manifest-path tools/dagtoml-spell/Cargo.toml --all-targets -- -D warnings
+          cargo test --locked --manifest-path tools/dagtoml-spell/Cargo.toml
+          cargo build --locked --manifest-path tools/dagtoml-spell/Cargo.toml
+          tools/dagtoml-spell/target/debug/dagtoml-spell --repo-root .
 
       # --- Language-specific deep checks ---
 
@@ -1135,13 +1140,11 @@ jobs:
         run: |
           set -euo pipefail
           cargo install --locked --version 0.22.1 cargo-audit
-          for d in tools/dagtoml-validate-rs \
-                   tools/toml-test-decode-rs \
-                   tools/dagtoml-duckdb \
-                   tools/dagtoml-rdf; do
-            echo "::group::cargo audit in ${d}"
-            (cd "${d}" && cargo audit --deny warnings)
-            echo "::endgroup::"
+          python3 validators/check_safe_tools.py --cargo-manifests > "$RUNNER_TEMP/native-cargo-manifests.bin"
+          mapfile -d '' -t native_manifests < "$RUNNER_TEMP/native-cargo-manifests.bin"
+          test "${#native_manifests[@]}" -gt 0
+          for manifest in "${native_manifests[@]}"; do
+            cargo audit --file "${manifest%Cargo.toml}Cargo.lock" --deny warnings
           done
 
       - name: Go vulnerability scan (govulncheck)
@@ -1161,43 +1164,19 @@ jobs:
             echo "::endgroup::"
           done
 
-      - name: Rust license + ban + advisory policy (cargo-deny)
+      - name: Rust license, source, ban and advisory policy (cargo-deny)
         continue-on-error: false
-        # cargo-deny adds license policy (require Apache/MIT/BSD/MPL),
-        # banned-crate enforcement, and source allowlist (only crates.io
-        # — no arbitrary git deps). Each tools/*-rs crate is scanned
-        # against the policy in deny.toml at the repo root.
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25  # v2.1.1
-        with:
-          # Default `command: check` runs advisories + bans + licenses
-          # + sources against every Cargo.lock found.
-          command: check advisories bans licenses sources
-          # The action scans the manifest closest to GITHUB_WORKSPACE by
-          # default. We have four independent crates under tools/*-rs;
-          # invoke the action four times, once per crate, via the
-          # `manifest-path` input.
-          manifest-path: tools/dagtoml-validate-rs/Cargo.toml
-
-      - name: Rust license + ban (toml-test-decode-rs)
-        continue-on-error: false
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25  # v2.1.1
-        with:
-          command: check advisories bans licenses sources
-          manifest-path: tools/toml-test-decode-rs/Cargo.toml
-
-      - name: Rust license + ban (dagtoml-duckdb)
-        continue-on-error: false
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25  # v2.1.1
-        with:
-          command: check advisories bans licenses sources
-          manifest-path: tools/dagtoml-duckdb/Cargo.toml
-
-      - name: Rust license + ban (dagtoml-rdf)
-        continue-on-error: false
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25  # v2.1.1
-        with:
-          command: check advisories bans licenses sources
-          manifest-path: tools/dagtoml-rdf/Cargo.toml
+        # Retain the previous action's cargo-deny release. Derive every
+        # independent tools crate instead of maintaining a fixed invocation list.
+        run: |
+          set -euo pipefail
+          cargo install --locked --version 0.20.2 cargo-deny
+          python3 validators/check_safe_tools.py --cargo-manifests > "$RUNNER_TEMP/native-cargo-manifests.bin"
+          mapfile -d '' -t native_manifests < "$RUNNER_TEMP/native-cargo-manifests.bin"
+          test "${#native_manifests[@]}" -gt 0
+          for manifest in "${native_manifests[@]}"; do
+            cargo deny --locked --manifest-path "$manifest" --config deny.toml check advisories bans licenses sources
+          done
 
       - name: Go meta-linter (golangci-lint)
         continue-on-error: false

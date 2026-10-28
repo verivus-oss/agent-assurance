@@ -150,6 +150,7 @@ build break.
 | Semantics — **primary** | `tools/dagtoml-validate-rs/` (safe Rust, `#![forbid(unsafe_code)]`) | Authoritative for profile descriptors; ontologies and IJB conformance; kind-descriptor structure and §13 abstraction/capability envelopes; implementation-dag; traceability; review-readiness; disclosure-profile kinds; cost-record; rollback-plan trigger closure; gate-decision; §2.2 and §2.5–§2.7 meta surface; §11.1 `[provenance.encryption]`; and §12.8 `[provenance].source_sha256` closure roots |
 | Semantics — **primary** | `tools/dagtoml-validate-go/` (safe Go, no `unsafe` import) | Same surface as Rust; CI runs both against ontologies, every kind descriptor, every canonical example, every tier file, and every profile descriptor on each push, and both must exit 0 |
 | Semantics — reference / cross-check | `validators/*.py` | Historical reference implementation. CI keeps these validators as independent cross-checks on the primary Rust/Go surface and uses negative fixtures to prove all three reject malformed examples consistently. |
+| Source spelling | `tools/dagtoml-spell/` (safe Rust) | Derived tracked source and filenames, pinned literal corrections, explicit data roles and source digests |
 | Symbol traceability (optional) | `validators/validate_code_symbols.py` (sqry-backed) | Confirms `[[code]]` symbols in traceability files exist in real Rust/Go/TypeScript/Java sources |
 
 Why a Rust + Go + Python triad: the specification is for security and

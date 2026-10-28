@@ -1,0 +1,45 @@
+role = "spelling-correction-controls"
+
+[[corrections]]
+name = "lowercase-receive"
+input = "recieve"
+case = "lower"
+expected = ["receive"]
+
+[[corrections]]
+name = "title-address"
+input = "Adress"
+case = "title"
+expected = ["Address"]
+
+[[corrections]]
+name = "uppercase-article"
+input = "TEH"
+case = "upper"
+expected = ["THE"]
+
+[[corrections]]
+name = "dictionary-start"
+input = "aaccess"
+case = "lower"
+expected = ["access"]
+
+[[accepted]]
+input = "receive"
+case = "lower"
+
+[[accepted]]
+input = "address"
+case = "lower"
+
+[[accepted]]
+input = "café"
+case = "lower"
+
+[[accepted]]
+input = "cose"
+case = "lower"
+
+[[accepted]]
+input = "12"
+case = "none"

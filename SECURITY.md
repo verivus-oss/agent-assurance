@@ -83,8 +83,10 @@ comment block in `validate.yml`:
   excessive permissions)
 - `shellcheck` — shell-script correctness for `validators/*.sh` and
   example witness scripts
-- `typos` — source-code spellchecker; critical for spec repos (a
-  misspelled ontology predicate is a silent semantic error)
+- `dagtoml-spell` - structured source and filename token checks against a
+  pinned literal correction table, with typed data roles, source digests
+  and explicit omissions. Replaces the spelling action present at
+  `a3420ad83ab0758e389fca86dbdfb837e86df5bc`.
 - `ruff` — Python deep linter (security `S` rules, correctness,
   dead-code); defense-in-depth above bandit
 - `bandit` — Python static security analysis of `validators/`
@@ -97,9 +99,9 @@ comment block in `validate.yml`:
   source identity failures. The exact four historical public-literal events
   remain the sole event exceptions; all other events fail. See
   `validators/CREDENTIALS.md` for the candidate contract and scan boundaries.
-- `cargo-audit` — RustSec advisory DB check for every `tools/*-rs`
-- `cargo-deny` — Rust license policy + dep ban + advisories (catches
-  license drift that audit doesn't)
+- `cargo-audit` - RustSec advisory DB check for every derived tools crate
+- `cargo-deny` - Rust license, source, dependency ban and advisory policy
+  over the same derived tooling manifest population
 - `govulncheck` — Go call-graph-aware vuln check for `tools/*-go`
 - `golangci-lint` — Go meta-linter (gosec + staticcheck + errcheck +
   govet + ineffassign + unused)

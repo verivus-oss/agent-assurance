@@ -3,7 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from _test_require import expect_raises, require
-from check_safe_tools import check, go_unsafe_import, rust_has_forbid, rust_unsafe_keyword
+from check_safe_tools import cargo_manifests, check, go_unsafe_import, rust_has_forbid, rust_unsafe_keyword
 
 def test_rust() -> None:
     require(rust_has_forbid('#![forbid(unsafe_code)]\nfn main() {}'))
@@ -60,8 +60,40 @@ def test_go() -> None:
     require(not go_unsafe_import('package x\nconst note = `import "unsafe"`\nimport "fmt"'))
     expect_raises(ValueError, lambda: go_unsafe_import('package x\nimport "un\\u0073afe"'),
                   'escaped Go import path was accepted without review')
+
+
+def test_cargo_population() -> None:
+    with TemporaryDirectory(prefix="native-population-") as work:
+        root = Path(work)
+        (root / "tools").mkdir()
+        expect_raises(ValueError, lambda: cargo_manifests(root), "absent manifests passed")
+        required = []
+        for name in ("existing", "newly-added"):
+            crate = root / "tools" / name
+            crate.mkdir()
+            manifest = crate / "Cargo.toml"
+            manifest.write_text('[package]\nname="fixture"\nversion="0.1.0"\n')
+            expect_raises(ValueError, lambda: cargo_manifests(root), "missing lock passed")
+            lock = crate / "Cargo.lock"
+            lock.write_bytes(b"")
+            expect_raises(ValueError, lambda: cargo_manifests(root), "empty lock passed")
+            lock.write_text('version = 4\n')
+            required.append(manifest)
+            require(cargo_manifests(root) == sorted(required))
+        lock = required[-1].parent / "Cargo.lock"
+        lock.unlink()
+        lock.symlink_to(required[0].parent / "Cargo.lock")
+        expect_raises(ValueError, lambda: cargo_manifests(root), "linked lock passed")
+        lock.unlink()
+        lock.write_text('version = 4\n')
+        required[-1].unlink()
+        required[-1].symlink_to(required[0])
+        expect_raises(ValueError, lambda: cargo_manifests(root), "linked manifest passed")
+
+
 if __name__ == '__main__':
     test_rust()
     test_rust_roots()
     test_go()
+    test_cargo_population()
     print('safe tools: accepted and rejected declarations passed')

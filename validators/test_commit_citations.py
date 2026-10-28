@@ -32,7 +32,7 @@ def test_byte_data_and_adjacent_prose() -> None:
     source = '# measured abcdef0\nvalue = b"0123456789abcdef"; claim = "abcdef1"\n'
     require(set().union(*(commit_tokens(row) for row in citation_text(source, path).splitlines()))
             == {'abcdef0', 'abcdef1'})
-    source = '"""caf\u00e9 abcdef0"""\nx = b"0123456789abcdef" + b"deadbeef"\n# abcdef1\n'
+    source = '"""café abcdef0"""\nx = b"0123456789abcdef" + b"deadbeef"\n# abcdef1\n'
     require(set().union(*(commit_tokens(row) for row in citation_text(source, path).splitlines()))
             == {'abcdef0', 'abcdef1'})
     require(citation_text('b"abcdef0"', pathlib.Path('subject.md')) == 'b"abcdef0"')
