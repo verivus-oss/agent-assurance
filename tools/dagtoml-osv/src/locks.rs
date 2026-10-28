@@ -110,23 +110,23 @@ pub fn python(source: &[u8]) -> Result<Extracted, String> {
     })
 }
 
-pub fn cargo(source: &[u8], manifest: &[u8]) -> Result<Extracted, String> {
+pub fn cargo(source: &[u8], manifest_source: &[u8]) -> Result<Extracted, String> {
     let lock: toml::Value =
         toml::from_str(text("Cargo lock", source)?).map_err(|_| invalid("Cargo lock", source))?;
-    let manifest: toml::Value = toml::from_str(text("Cargo manifest", manifest)?)
-        .map_err(|_| invalid("Cargo manifest", manifest))?;
+    let manifest: toml::Value = toml::from_str(text("Cargo manifest", manifest_source)?)
+        .map_err(|_| invalid("Cargo manifest", manifest_source))?;
     let local = manifest
         .get("package")
         .and_then(toml::Value::as_table)
-        .ok_or_else(|| invalid("Cargo root package", source))?;
+        .ok_or_else(|| invalid("Cargo root package", manifest_source))?;
     let local_name = local
         .get("name")
         .and_then(toml::Value::as_str)
-        .ok_or_else(|| invalid("Cargo root package name", source))?;
+        .ok_or_else(|| invalid("Cargo root package name", manifest_source))?;
     let local_version = local
         .get("version")
         .and_then(toml::Value::as_str)
-        .ok_or_else(|| invalid("Cargo root package version", source))?;
+        .ok_or_else(|| invalid("Cargo root package version", manifest_source))?;
     if !matches!(
         lock.get("version").and_then(toml::Value::as_integer),
         Some(3 | 4)
@@ -218,7 +218,10 @@ pub fn go(source: &[u8]) -> Result<Extracted, String> {
                 ["go", value]
                     if !go
                         && semver::Version::parse(value).is_ok_and(|version| {
-                            version.major == 1 && version.pre.is_empty() && version.build.is_empty()
+                            version.major == 1
+                                && version.minor >= 17
+                                && version.pre.is_empty()
+                                && version.build.is_empty()
                         }) =>
                 {
                     packages.insert(package(Ecosystem::Go, "stdlib", value));
@@ -374,6 +377,55 @@ mod tests {
                 go(source.as_bytes()).is_err(),
                 "unsupported Go declaration passed: {source}"
             );
+        }
+    }
+
+    #[test]
+    fn go_graph_scope_accepts_modern_declarations_and_refuses_legacy_fallbacks() {
+        let boundary =
+            go(b"module example.org/local\ngo 1.17.0\nrequire example.org/dep v0.1.0\n").unwrap();
+        assert_eq!(
+            boundary.packages,
+            [
+                package(Ecosystem::Go, "stdlib", "1.17.0"),
+                package(Ecosystem::Go, "example.org/dep", "v0.1.0")
+            ]
+            .into()
+        );
+        for version in ["1.16.15", "1.0.0", "1.17", "1.26"] {
+            assert!(
+                go(format!(
+                    "module example.org/local\ngo {version}\nrequire example.org/dep v0.1.0\n"
+                )
+                .as_bytes())
+                .is_err(),
+                "unsupported Go graph scope accepted: {version}"
+            );
+        }
+    }
+
+    #[test]
+    fn malformed_owner_diagnostics_identify_manifest_bytes() {
+        let source = b"version=4\n[[package]]\nname='local-control'\nversion='0.1.0'\n";
+        let valid = b"[package]\nname='local-control'\nversion='0.1.0'\n";
+        let accepted = cargo(source, valid).unwrap();
+        assert!(accepted.packages.is_empty());
+        assert_eq!(
+            accepted.local_packages,
+            [package(Ecosystem::Crates, "local-control", "0.1.0")].into()
+        );
+        for owner in [
+            b"[workspace]\n".as_slice(),
+            b"[package]\nversion='0.1.0'\n".as_slice(),
+            b"[package]\nname='local-control'\n".as_slice(),
+        ] {
+            let error = cargo(source, owner).unwrap_err();
+            assert!(
+                error.contains(&sha256(owner)),
+                "manifest failure identified the wrong source: {error}"
+            );
+            assert!(!error.contains(&sha256(source)));
+            assert!(error.contains(&format!("bytes 0:{}", owner.len())));
         }
     }
 }

@@ -25,6 +25,9 @@ The proposed evaluator contract is:
 - Select every exact Python marker branch without executing marker syntax.
   Validate Python, Cargo and Go versions with explicit typed parsers. Include
   each Go module's declared standard library.
+  Go declarations require a full patch version at least 1.17.0. Older graphs
+  need checksum-file dependency recovery and are unsupported. Two-component
+  versions and toolchain directives also stop extraction.
 - Fetch complete [published ecosystem archives](https://google.github.io/osv.dev/data/)
   over HTTPS. Require the exact object URL, status 200, media type, byte
   length, object generation and entity identity. Bound cached responses to
@@ -57,6 +60,16 @@ The proposed evaluator contract is:
   not general safety. Require the final assessment identities to equal the
   complete derived query set. Recheck source, index, executable and compiled
   instrument identities before returning a result.
+
+At OSV Scanner v2.7.0 commit
+`bfe2f84abd2f09fe0b83ba7f6dad40d296762f40`, the active lock preset selects
+SCALIBR's Go module extractor. Its pinned supplier at
+`5be78a00e3c294c19a0b03949e4eb643653c0218` uses module declarations for
+Go 1.17 and later; checksum recovery belongs to the older-graph branch.
+The native parser at `80fc9813caab7d58d542b5cd705e7d9f722f2c77` accepted
+that older version range without implementing its graph recovery. The
+replacement contract therefore rejects it. All four current module inputs
+declare Go 1.26.10 and remain inside the accepted graph scope.
 
 The semantic query prototype is retired. At upstream OSV commit
 `2550f6d61565de3a813e19f64a24b04b8af0ce39`, the current Go API dispatches both

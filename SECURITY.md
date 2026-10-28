@@ -90,7 +90,8 @@ comment block in `validate.yml`:
 - `ruff` — Python deep linter (security `S` rules, correctness,
   dead-code); defense-in-depth above bandit
 - `bandit` — Python static security analysis of `validators/`
-- `osv-scanner` — CVEs in `requirements.txt` + `Cargo.lock` + `go.sum`
+- `osv-scanner` - CVEs in selected Python locks, Cargo locks and Go module
+  declarations, including declared standard library versions
   (complements Dependabot: catches transitive and advisory-DB-only
   entries Dependabot misses)
 - The native credential gate checks stored blobs throughout reachable Git

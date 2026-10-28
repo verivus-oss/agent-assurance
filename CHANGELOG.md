@@ -9,6 +9,13 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Bound the native Go advisory graph reader from
+  `80fc9813caab7d58d542b5cd705e7d9f722f2c77` to full patch declarations
+  for Go 1.17 and later. Reject older graphs that need the supplier's
+  checksum recovery path; preserve every current Go 1.26.10 input.
+  Correct the scanner scope description to identify module declarations.
+  Bind malformed Cargo owner diagnostics to the manifest's own digest and
+  byte span, with valid-owner and all three required-field rejection cases.
 - Route the DuckDB reference connector from
   `eaefe4ca6146fcfd3a433a183c102f5a283922b6` through its installed native
   interface. Preserve text and text-returning filesystem protocol inputs;
