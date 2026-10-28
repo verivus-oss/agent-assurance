@@ -8,9 +8,11 @@ if __name__ == '__main__':
         raise RuntimeError('path cold controls require CPython with -S')
     retired = {'re', 'regex', '_sre', 'pathlib', 'fnmatch', 'glob', 'urllib'}
     observed = set()
+    attempted_imports = set()
 
     def audit(event, arguments):
         if event == 'import' and arguments[0].split('.')[0] in retired:
+            attempted_imports.add(arguments[0])
             raise RuntimeError('owned path component attempted a retired import: ' + arguments[0])
 
     def profile(frame, event, argument):
@@ -39,6 +41,7 @@ if __name__ == '__main__':
         require(visited == tests)
         executed.add(name)
     sys.setprofile(None)
+    require(not attempted_imports, 'path component suppressed forbidden import attempts: ' + repr(sorted(attempted_imports)))
     require(executed == names and not observed and not (retired & set(sys.modules)))
     print('path cold control: complete declared component population executed without retired imports or Python matcher calls')
     print('scope: owned lexical/native primitives and explicit discovery; native Windows execution, native OS internals and other dependencies were not instrumented')

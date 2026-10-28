@@ -8,5 +8,5 @@ license_path = "validators/licenses/CPython-LICENSE.txt"
 license_sha256 = "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf"
 upstream_license_blob = "f26bcf4d2de6eb136e31006ca3ab447d5e488adf"
 owned_path = "validators/_literal_path.py"
-retired_apis = ["glob", "rglob", "match", "as_uri", "__enter__", "__exit__", "link_to"]
+retired_apis = ["glob", "rglob", "match", "as_uri", "__enter__", "__exit__", "link_to", "touch"]
 retired_imports = ["fnmatch", "functools", "re", "urllib.parse", "warnings", "ntpath", "posixpath"]

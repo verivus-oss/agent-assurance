@@ -7,9 +7,11 @@ if __name__ == "__main__":
     if sys.implementation.name != "cpython" or not sys.flags.no_site:
         raise RuntimeError("JSON cold controls require CPython with -S")
     observed = set()
+    attempted_imports = set()
 
     def audit(event, arguments):
         if event == "import" and arguments[0].split(".")[0] in ("re", "regex", "_sre", "json"):
+            attempted_imports.add(arguments[0])
             raise RuntimeError("JSON component attempted a retired matcher import: " + arguments[0])
 
     def profile(frame, event, argument):
@@ -40,6 +42,7 @@ if __name__ == "__main__":
         executed.add(name)
     sys.setprofile(None)
     require(executed == names, "JSON component population did not execute completely")
+    require(not attempted_imports, "JSON component suppressed forbidden import attempts: " + repr(sorted(attempted_imports)))
     require(not observed, "JSON component called Python matchers: " + repr(sorted(observed)))
     require(not ({"re", "regex", "_sre", "json"} & set(sys.modules)), "JSON component imported retired matcher machinery")
     print("JSON cold control: complete declared component population executed without Python regex or standard JSON imports or matcher calls")

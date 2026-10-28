@@ -36,7 +36,7 @@ def test_exported_class_population_and_retired_apis():
     require(public == expected == set(paths.__all__) and len(paths.__all__) == len(expected))
     for name in expected:
         constructor = getattr(paths, name)
-        for retired in ('glob', 'rglob', 'match', 'as_uri'):
+        for retired in ('glob', 'rglob', 'match', 'as_uri', 'touch'):
             require(not hasattr(constructor, retired), 'retired path API remained: ' + name + '.' + retired)
     expect_raises(TypeError, lambda: Path(b'byte-path'), 'byte path operand passed')
     expect_raises(TypeError, lambda: Path(None), 'absent path operand passed')

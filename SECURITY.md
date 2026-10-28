@@ -126,6 +126,14 @@ containment and cold SQLite outcome controls. Authored random identifiers
 use OS entropy with version/variant controls. External drivers and the wider
 verification dependencies still require their own consumer audits.
 
+Cold instruments from `c8590f56eb33205c7b540f2d959cc39b30dd718d` retain
+attempted forbidden imports and require that population to remain empty.
+Catching the audit exception cannot turn an attempt into a successful
+boundary result. The guard-integrity instrument derives every tracked cold
+runner and its literal forbidden-root population, checks successful controls,
+then requires swallowed attempts to fail the final property in both modes.
+It does not establish absence inside native dependencies.
+
 The estate no-regex rule also covers dependencies, build and test tools,
 and security scanners. The active scanner engines still require a consumer
 audit and replacement; a successful scan is not evidence of compliance

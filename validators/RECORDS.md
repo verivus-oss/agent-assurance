@@ -25,6 +25,8 @@ or absent operands, mutable updates, frozen failures, equality boundaries and
 representations. Fresh normal and optimized controls reject regex/dataclasses
 imports and observe Python matcher calls. The direct-import source boundary
 checks every tracked Python file for retired dependencies.
+Forbidden import attempts stay recorded even if component code catches the
+audit exception; an attempted import prevents a successful cold result.
 
 This component does not complete the reference-store cold audit. Pathlib and
 external driver/dependency consumers remain inside that work. The component

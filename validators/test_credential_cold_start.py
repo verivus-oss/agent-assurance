@@ -7,12 +7,19 @@ if __name__ == "__main__":
     if sys.implementation.name != "cpython" or not sys.flags.no_site:
         raise RuntimeError("credential cold control requires CPython with -S")
     observed = set()
+    attempted_imports = set()
+
+    def audit(event, arguments):
+        if event == "import" and arguments[0].split(".")[0] in ("re", "regex", "_sre"):
+            attempted_imports.add(arguments[0])
+            raise RuntimeError("credential component attempted a retired matcher import: " + arguments[0])
 
     def profile(frame, event, argument):
         if event == "c_call" and type(getattr(argument, "__self__", None)).__name__ == "Pattern":
             if getattr(argument, "__name__", "") in ("match", "search", "fullmatch", "findall", "finditer", "split", "sub", "subn"):
                 observed.add((frame.f_code.co_filename, frame.f_code.co_name, argument.__name__))
 
+    sys.addaudithook(audit)
     sys.setprofile(profile)
     import os
     from _test_require import require
@@ -34,6 +41,7 @@ if __name__ == "__main__":
         executed.add(name)
     sys.setprofile(None)
     require(executed == names, "credential control population did not execute completely")
+    require(not attempted_imports, "credential component suppressed forbidden import attempts: " + repr(sorted(attempted_imports)))
     require(not observed, "credential path called Python matchers: " + encode_report([list(item) for item in sorted(observed)]))
     require(not ({"re", "regex", "_sre"} & set(sys.modules)), "credential path imported regex machinery")
     print("credential cold control: all selected component, policy and Git fixture controls executed without Python regex imports or matcher calls")

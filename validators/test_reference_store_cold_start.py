@@ -8,9 +8,11 @@ if __name__ == '__main__':
         raise RuntimeError('reference-store cold controls require CPython with -S')
     retired = {'re', 'regex', '_sre', 'pathlib', 'fnmatch', 'glob', 'urllib', 'dataclasses', 'json', 'uuid', 'platform', 'typing'}
     observed = set()
+    attempted_imports = set()
 
     def audit(event, arguments):
         if event == 'import' and arguments[0].split('.')[0] in retired:
+            attempted_imports.add(arguments[0])
             raise RuntimeError('reference-store cold operation attempted a retired import: ' + arguments[0])
 
     def profile(frame, event, argument):
@@ -65,6 +67,7 @@ if __name__ == '__main__':
     finally:
         connection.close()
     sys.setprofile(None)
+    require(not attempted_imports, 'reference store suppressed forbidden import attempts: ' + repr(sorted(attempted_imports)))
     require(not observed and not (retired & set(sys.modules)))
     print('reference store cold control: declared SQLite initialization, complete supported-kind ingest, idempotency, rejection, SQL error and audit outcomes executed')
     print('scope: local SQLite ' + version + '; persistent connection-loss/concurrency, PostgreSQL, DuckDB, native driver internals and other verification entry points skipped')

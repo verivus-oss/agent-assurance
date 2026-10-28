@@ -111,6 +111,7 @@ jobs:
                            and Path(raw.decode()).name.startswith("test_")
                            and Path(raw.decode()).suffix == ".py")
           required = {"test_abstraction_class_errors.py", "test_ai_attribution.py", "test_database_download.py",
+                      "test_cold_guard_integrity.py",
                       "test_credential_cold_start.py", "test_literal_json_cold_start.py",
                       "test_literal_records_cold_start.py",
                       "test_path_primitives_cold_start.py",

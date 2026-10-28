@@ -7,9 +7,11 @@ if __name__ == "__main__":
     if sys.implementation.name != "cpython" or not sys.flags.no_site:
         raise RuntimeError("record cold controls require CPython with -S")
     observed = set()
+    attempted_imports = set()
 
     def audit(event, arguments):
         if event == "import" and arguments[0].split(".")[0] in ("re", "regex", "_sre", "dataclasses"):
+            attempted_imports.add(arguments[0])
             raise RuntimeError("record component attempted a retired dependency import: " + arguments[0])
 
     def profile(frame, event, argument):
@@ -40,6 +42,7 @@ if __name__ == "__main__":
         executed.add(name)
     sys.setprofile(None)
     require(executed == names, "record component population did not execute completely")
+    require(not attempted_imports, "record component suppressed forbidden import attempts: " + repr(sorted(attempted_imports)))
     require(not observed, "record component called Python matchers: " + repr(sorted(observed)))
     require(not ({"re", "regex", "_sre", "dataclasses"} & set(sys.modules)), "record component imported retired dependency machinery")
     print("record cold control: complete component population executed without regex or dataclasses imports or Python matcher calls")

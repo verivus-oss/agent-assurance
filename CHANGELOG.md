@@ -9,6 +9,13 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Strengthen every cold instrument from candidate
+  `c8590f56eb33205c7b540f2d959cc39b30dd718d` to retain forbidden import
+  attempts even when component code catches the rejection. Exercise every
+  tracked runner and declared forbidden root with successful unmodified
+  controls and deliberately swallowed imports in normal and optimized Python.
+  Retire the unused inherited path `touch` method rejected by the pinned
+  typed-handler lint gate; retain native write and directory controls.
 - Replace current filesystem dependencies from candidate
   `4df544e0727fd881531b3b2fad716c36468bd996` with owned, licensed native path
   primitives and literal bootstrap bridges. Preserve traversal and symlink

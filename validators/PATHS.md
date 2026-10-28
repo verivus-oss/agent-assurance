@@ -14,8 +14,9 @@ The supplier source SHA256 is
 `3b21ac188fd9ac20bacc8ccd976fabd5d8ccf5000f8e157d3dfff005b228fb3d`.
 The [CPython license](licenses/CPython-LICENSE.txt) is retained. Pattern
 selectors, `glob`, `rglob`, `match`, URI APIs, deprecated context-manager
-methods and the deprecated `link_to` alias are removed with their unused
-matcher, URL, caching, warning and unused flavour-module imports. This is an owned primitive subset,
+methods, the deprecated `link_to` alias and the unused `touch` method are
+removed with their unused matcher, URL, caching, warning and flavour-module
+imports. This is an owned primitive subset,
 not a replacement for every standard-library Pathlib API.
 
 Lexical joins preserve parent traversal segments. Explicit resolution follows
@@ -36,7 +37,8 @@ golden expectations and is not universal cross-version equivalence.
 
 The cold component controls derive and execute every declared test function.
 They reject standard Pathlib, regex, glob, filename-matcher and URL imports,
-and observe Python matcher calls. They cover lexical roots, parent slices,
+retain every attempted import even if its exception is caught, and observe
+Python matcher calls. They cover lexical roots, parent slices,
 name/suffix changes, symlink loops and escapes, strict missing resolution,
 binary/text writes, file types, rename/deletion and the current explicit
 discovery interface. Native OS internals and unrelated dependencies are not
