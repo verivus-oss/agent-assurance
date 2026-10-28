@@ -79,7 +79,7 @@ docstrings and ordinary strings beside them remain governed.
 from __future__ import annotations
 
 import _literal_path as pathlib
-import ast
+import _literal_ast as ast
 import shutil
 # Git calls below use a resolved executable and argument lists without a shell.
 import subprocess  # nosec B404

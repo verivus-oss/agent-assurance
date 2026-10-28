@@ -42,7 +42,7 @@ mirror gate that skips its subject has measured nothing.
 from __future__ import annotations
 
 import _literal_args as argparse
-import ast
+import _literal_ast as ast
 import _literal_path as pathlib
 import subprocess
 import shutil

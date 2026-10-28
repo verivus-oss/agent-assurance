@@ -1,6 +1,6 @@
 """Shared mutation-site selection and stable diagnostic fingerprints."""
 
-import ast
+import _syntax_tree as ast
 
 
 class DisableSite(ast.NodeTransformer):

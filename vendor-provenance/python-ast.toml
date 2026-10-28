@@ -1,0 +1,12 @@
+supplier_repository = "python/cpython"
+supplier_version = "3.11.15"
+supplier_commit = "2340a037f7450e70fccfe411e6531afb4d57a312"
+source_path = "Lib/ast.py"
+source_blob = "d84d75e1f3a8e1babe50174119de2c603d28a66c"
+source_sha256 = "c513073798bdbf3cdef09327d0d2d381a53213a13a4ba3f02729695327539406"
+owned_path = "validators/_literal_ast.py"
+license_path = "validators/licenses/CPython-LICENSE.txt"
+license_sha256 = "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf"
+retained_definitions = ["NodeTransformer", "NodeVisitor", "_Precedence", "_Unparser", "copy_location", "fix_missing_locations", "iter_child_nodes", "iter_fields", "literal_eval", "walk"]
+retired_apis = ["dump", "get_docstring", "get_source_segment", "increment_lineno", "main", "deprecated constant/slice aliases and visitor callbacks"]
+changed_behaviors = ["immutable source normalization and coordinate-free syntax errors", "coordinate-free literal failures", "explicit missing-field sentinel", "optimized-mode-safe unparser failures", "unsupported newer syntax rejected before source emission"]

@@ -14,6 +14,7 @@ from _test_require import expect_raises, require
 
 
 DIAGNOSTICS = {
+    'test_literal_ast_cold_start.py': 'AST component suppressed forbidden import attempts: ',
     'test_credential_cold_start.py': 'credential component suppressed forbidden import attempts: ',
     'test_literal_json_cold_start.py': 'JSON component suppressed forbidden import attempts: ',
     'test_literal_records_cold_start.py': 'record component suppressed forbidden import attempts: ',

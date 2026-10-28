@@ -41,7 +41,7 @@ from __future__ import annotations
 
 from _path_scan import glob as literal_glob
 import _argument_parser as argparse
-import ast
+import _syntax_tree as ast
 import atexit
 import os
 import _path_scan as pathlib

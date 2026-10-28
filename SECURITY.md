@@ -116,6 +116,16 @@ before native value decoding. Its cold controls reject standard JSON and
 regex imports; [the codec contract](validators/JSON.md) names its boundaries.
 Other reference-store cold imports remain inside the audit scope.
 
+The source-inspection consumers use compile-only native syntax trees and
+owned traversal, literal and regeneration helpers. The supplier and license
+are recorded in `vendor-provenance/python-ast.toml`; the bounded interface
+and retirement decisions are in `validators/SYNTAX-TREE.md`. Malformed source
+diagnostics identify original bytes without retaining native parser source
+coordinates. Unknown regeneration nodes fail before source emission. Cold
+component controls cover the helper and current mutation selector, with
+independent swallowed-import guard controls. Native compiler internals and
+other entry points remain outside that component observation.
+
 The authored record sites from `1691549990e81ac801fbbc611d1f7e31a36b5719`
 use explicit carriers with [record component controls](validators/RECORDS.md).
 This retires their dataclass dependency without widening the cold audit scope.

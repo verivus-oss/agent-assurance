@@ -1,6 +1,6 @@
 """Inspect every tracked Python source for retired cold dependency imports."""
 
-import ast
+import _literal_ast as ast
 import hashlib
 from _literal_path import Path
 
@@ -8,7 +8,7 @@ from _credential_git import git
 from _test_require import require
 
 
-RETIRED = ("json", "dataclasses", "pathlib", "uuid")
+RETIRED = ("json", "dataclasses", "pathlib", "uuid", "ast")
 
 
 def retired(name):

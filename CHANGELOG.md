@@ -9,6 +9,13 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Replace the standard syntax-tree helpers observed at candidate
+  `640db84cf0538c333807631611215ace77a8f150` with owned, licensed
+  compile-only inspection and mutation helpers. Preserve current literal,
+  visitor and source regeneration consumers; reject unsupported syntax
+  before regeneration and report original-byte identities for parse errors.
+  Retire unused debug, CLI and deprecated compatibility APIs. Exercise
+  cold components with swallowed-import controls in both Python modes.
 - Strengthen every cold instrument from candidate
   `c8590f56eb33205c7b540f2d959cc39b30dd718d` to retain forbidden import
   attempts even when component code catches the rejection. Exercise every
