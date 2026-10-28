@@ -29,12 +29,16 @@ class StorageError(RuntimeError):
 
 def connect_postgres(destination: str, *, dbname: str | None = None):
     """Let libpq parse connection strings without Python's regex rewriter."""
+    if not isinstance(destination, str) or dbname is not None and not isinstance(dbname, str):
+        raise TypeError("PostgreSQL connection parameters must be text")
+    destination = str.__str__(destination)
+    dbname = None if dbname is None else str.__str__(dbname)
+    if "\0" in destination or dbname is not None and "\0" in dbname:
+        raise StorageError("setup", "PostgreSQL connection parameters must not contain NUL bytes")
+    encoded = destination.encode("utf-8")
     import psycopg
     from _postgres import native_connection, require_compiled_adapters
     require_compiled_adapters()
-    encoded = destination.encode("utf-8")
-    if b"\0" in encoded or dbname is not None and "\0" in dbname:
-        raise psycopg.ProgrammingError("PostgreSQL connection parameters must not contain NUL bytes")
     if dbname is not None:
         options = {option.keyword: option.val for option in psycopg.pq.Conninfo.parse(encoded)
                    if option.val is not None}

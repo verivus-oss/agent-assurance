@@ -1,4 +1,4 @@
-"""Exercise actual SQLite reference-store outcomes without matcher imports."""
+"""Exercise SQLite outcomes and PostgreSQL input rejection before driver loading."""
 
 import sys
 
@@ -6,7 +6,8 @@ import sys
 if __name__ == '__main__':
     if sys.implementation.name != 'cpython' or not sys.flags.no_site:
         raise RuntimeError('reference-store cold controls require CPython with -S')
-    retired = {'re', 'regex', '_sre', 'pathlib', 'fnmatch', 'glob', 'urllib', 'dataclasses', 'json', 'uuid', 'platform', 'typing'}
+    retired = {'re', 'regex', '_sre', 'pathlib', 'fnmatch', 'glob', 'urllib', 'dataclasses', 'json', 'uuid', 'platform', 'typing',
+               'psycopg', 'psycopg_binary', 'psycopg_c'}
     observed = set()
     attempted_imports = set()
 
@@ -38,8 +39,10 @@ if __name__ == '__main__':
     sys.path.insert(0, str(root / 'reference/database'))
     import sqlite3
     from _storage import Store, StorageError, connect
+    from _connection_checks import exercise_rejected_postgres_parameters
     from _runtime_document_vocab import KINDS
 
+    exercise_rejected_postgres_parameters('host=127.0.0.1 port=1 dbname=unreachable')
     required = {'adapter-contract', 'adapter-registry-binding', 'gate-decision'}
     require(set(KINDS) == required, 'cold store kind population changed')
     connection = connect('sqlite', ':memory:')
@@ -69,5 +72,5 @@ if __name__ == '__main__':
     sys.setprofile(None)
     require(not attempted_imports, 'reference store suppressed forbidden import attempts: ' + repr(sorted(attempted_imports)))
     require(not observed and not (retired & set(sys.modules)))
-    print('reference store cold control: declared SQLite initialization, complete supported-kind ingest, idempotency, rejection, SQL error and audit outcomes executed')
-    print('scope: local SQLite ' + version + '; persistent connection-loss/concurrency, PostgreSQL, DuckDB, native driver internals and other verification entry points skipped')
+    print('reference store cold control: SQLite initialization, complete supported-kind ingest, idempotency, rejection, SQL error and audit; four NUL and six nontext PostgreSQL parameter rejections executed')
+    print('scope: local SQLite ' + version + '; persistent connection-loss/concurrency, accepted PostgreSQL connections, DuckDB, native driver internals and other verification entry points skipped')

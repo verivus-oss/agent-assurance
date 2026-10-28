@@ -9,6 +9,12 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Validate PostgreSQL connection text before loading the driver, using the
+  underlying string buffer for accepted subclasses. At source
+  `b83953fb8e209aa34e1a9060559709ec6defe687`, invalid input reached the
+  driver import before rejection and text encoding invoked an override.
+  Exercise NUL and nontext rejections in cold processes, plus accepted
+  text parameters in the persistent PostgreSQL lanes.
 - Bound the native Go advisory graph reader from
   `80fc9813caab7d58d542b5cd705e7d9f722f2c77` to full patch declarations
   for Go 1.17 and later. Reject older graphs that need the supplier's

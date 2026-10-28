@@ -6,9 +6,53 @@ from _storage import Store, StorageError, connect, connect_postgres
 
 CHECKS = {"sqlite": {"foreign-keys-enabled-and-read-back", "disabled-checks-refused"},
           "postgres": {"native-execution-without-driver-text-matchers", "non-utf8-client-refused",
-                       "non-utf8-server-refused", "aborted-caller-transaction-preserved"},
+                       "non-utf8-server-refused", "aborted-caller-transaction-preserved",
+                       "text-connection-parameters", "invalid-connection-parameters-refused"},
           "duckdb": {"idle-connection-precondition", "text-path-destinations",
                      "nul-text-destinations-refused", "nontext-destinations-refused"}}
+
+
+class _ConnectionText(str):
+    def encode(self, *_args, **_kwargs):
+        raise AssertionError("connection text encoding override was executed")
+
+    def __contains__(self, _value):
+        raise AssertionError("connection text containment override was executed")
+
+
+def exercise_rejected_postgres_parameters(destination):
+    """Reject invalid input before driver loading or network connection."""
+    nul_cases = ((destination + "\0ignored", None),
+                 (_ConnectionText(destination + "\0ignored"), None),
+                 (destination, "bad\0name"),
+                 (destination, _ConnectionText("bad\0name")))
+    rejected = 0
+    for value, name in nul_cases:
+        try:
+            unexpected = connect_postgres(value, dbname=name)
+        except StorageError as exc:
+            if exc.code != "setup" or "NUL bytes" not in str(exc):
+                raise AssertionError("NUL connection failed for an unrelated reason") from exc
+        else:
+            unexpected.close()
+            raise AssertionError("NUL connection parameter was accepted or truncated")
+        rejected += 1
+    if rejected != 4:
+        raise AssertionError("NUL connection rejection population changed")
+    rejected = 0
+    for value in (b"not-text", 7, object()):
+        for connection_text, name in ((value, None), (destination, value)):
+            try:
+                unexpected = connect_postgres(connection_text, dbname=name)
+            except TypeError as exc:
+                if "must be text" not in str(exc):
+                    raise AssertionError("nontext connection failed for an unrelated reason") from exc
+            else:
+                unexpected.close()
+                raise AssertionError("nontext connection parameter was accepted")
+            rejected += 1
+    if rejected != 6:
+        raise AssertionError("nontext connection rejection population changed")
 
 
 def exercise_connection(store, destination):
@@ -83,15 +127,13 @@ def exercise_connection(store, destination):
         psycopg.conninfo._param_escape = forbidden_placeholder_conversion
         misc.strip_severity = forbidden_placeholder_conversion
         try:
-            for bad_destination, bad_name in ((destination + "\0ignored", None), (destination, "bad\0name")):
-                try:
-                    unexpected = connect_postgres(bad_destination, dbname=bad_name)
-                except psycopg.ProgrammingError as exc:
-                    if "NUL bytes" not in str(exc):
-                        raise AssertionError("invalid connection failed for an unrelated reason") from exc
-                else:
-                    unexpected.close()
-                    raise AssertionError("NUL connection parameter was truncated instead of rejected")
+            exercise_rejected_postgres_parameters(destination)
+            checks.append("invalid-connection-parameters-refused")
+            database = store.execute("SELECT current_database()").fetchone()[0]
+            with connect_postgres(_ConnectionText(destination), dbname=_ConnectionText(database)) as fresh:
+                if fresh.execute("SELECT current_database(), 7").fetchone() != (database, 7):
+                    raise AssertionError("text connection parameters changed their native values")
+            checks.append("text-connection-parameters")
             with connect_postgres(destination) as fresh:
                 if fresh.execute("SELECT 7").fetchone() != (7,):
                     raise AssertionError("native PostgreSQL connection changed its result")

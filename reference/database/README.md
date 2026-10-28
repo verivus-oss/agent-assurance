@@ -141,6 +141,13 @@ keys and requires CHECK constraints enabled before BEGIN. Embedded DuckDB has on
 writer process and serializes callers within it; another writable process is
 refused. An active caller transaction is rejected without commit or rollback.
 
+The PostgreSQL connector requires text connection parameters and an optional
+text database name. It normalizes string subclasses to their underlying text
+and rejects NUL before loading the driver or opening a connection. Invalid
+text raises `StorageError` with code `setup`; nontext raises `TypeError`.
+Accepted input still uses libpq's connection-string parser. This boundary
+does not complete the driver's import and native dependency audit.
+
 The DuckDB connector uses the installed native interface. Its destination is
 text, either supplied directly or returned by the filesystem path protocol.
 It reads the underlying text of a string subclass and rejects NUL bytes before
