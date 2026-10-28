@@ -22,6 +22,11 @@ The proposed evaluator contract is:
   unsupported recognized lock formats and unregistered local Cargo sources.
   Cargo registry packages need checksums. Each local root must match its
   tracked owning manifest and receives no registry advisory claim.
+  Requirement basenames containing the literal text `requirements` and ending
+  in `.txt` are included, alongside every `.txt` file in `requirements/`.
+  Recognize the complete pinned lockfile preset and both SBOM entry points
+  before admitting the three implemented extractors. Other recognized
+  subjects stop evaluation instead of disappearing from its scope.
 - Select every exact Python marker branch without executing marker syntax.
   Validate Python, Cargo and Go versions with explicit typed parsers. Include
   each Go module's declared standard library.
@@ -70,6 +75,17 @@ The native parser at `80fc9813caab7d58d542b5cd705e7d9f722f2c77` accepted
 that older version range without implementing its graph recovery. The
 replacement contract therefore rejects it. All four current module inputs
 declare Go 1.26.10 and remain inside the accepted graph scope.
+
+`data/extractor-scope.toml` records every extractor in that lockfile preset
+and the separately enabled SBOM preset, with pinned supplier source objects.
+Controls compare the complete inventory with the native classifier and
+exercise actual tracked filename variants and unsupported subjects. Node
+module lock candidates, the previously guarded binary Bun name and marked
+SPDX names with unsupported extensions are conservatively refused too.
+Root Git ancestry and vendored native-code fingerprint discovery belong to
+the old directory preset and remain outside this lock extractor result;
+their replacement or explicit retirement remains necessary before removing
+the original workflow gate.
 
 The semantic query prototype is retired. At upstream OSV commit
 `2550f6d61565de3a813e19f64a24b04b8af0ce39`, the current Go API dispatches both

@@ -202,6 +202,102 @@ fn newly_tracked_sources_are_derived_and_unsupported_formats_fail() {
 }
 
 #[test]
+fn requirements_filename_variants_are_discovered() {
+    for path in [
+        "nested/requirements-dev.txt",
+        "nested/my-requirements.txt",
+        "nested/the_requirements_for_test.txt",
+        "nested/requirements.prod.txt",
+    ] {
+        let fixture = Fixture::new();
+        fixture.write("requirements.txt", b"original==1.0\n");
+        fixture.write(path, b"additional==2.0\n");
+        fixture.commit();
+        let subject = fixture.capture().unwrap();
+        assert_eq!(
+            subject.subjects.len(),
+            2,
+            "omitted requirement source: {path}"
+        );
+        assert_eq!(subject.packages().len(), 2);
+        assert!(subject.subjects.iter().any(|source| source.path == path));
+    }
+}
+
+#[test]
+fn legacy_recognized_subjects_cannot_disappear() {
+    let paths = [
+        "conan.lock",
+        "mix.lock",
+        "pubspec.lock",
+        "package_config.json",
+        "gradle.lockfile",
+        "buildscript-gradle.lockfile",
+        "gradle/verification-metadata.xml",
+        "pom.xml",
+        "library.pom",
+        "package-lock.json",
+        "npm-shrinkwrap.json",
+        "pnpm-lock.yaml",
+        "yarn.lock",
+        "bun.lock",
+        "bun.lockb",
+        "composer.lock",
+        "Pipfile.lock",
+        "pdm.lock",
+        "poetry.lock",
+        "pylock.toml",
+        "pylock.production.toml",
+        "pylock..toml",
+        "uv.lock",
+        "renv.lock",
+        "Gemfile.lock",
+        "gems.locked",
+        "Package.resolved",
+        "project.csproj",
+        "project.vbproj",
+        "project.fsproj",
+        "project.deps.json",
+        "Directory.Packages.props",
+        "Directory.Build.props",
+        "packages.config",
+        "packages.lock.json",
+        "cabal.project.freeze",
+        "stack.yaml.lock",
+        "osv-scanner-custom.json",
+        "lib/apk/db/installed",
+        "var/lib/apk/db/installed",
+        "usr/lib/apk/db/installed",
+        "var/lib/dpkg/status",
+        "usr/lib/opkg/status",
+        "var/lib/dpkg/status.d/package",
+        "bom.json",
+        "BOM.XML",
+        "project.cdx.json",
+        "PROJECT.CDX.XML",
+        "project.spdx",
+        "project.spdx.json",
+        ".spdx.project.yml",
+        "project.spdx.rdf",
+        "project.spdx.xml",
+    ];
+    assert_eq!(paths.len(), 53);
+    let fixture = Fixture::new();
+    fixture.write("requirements.txt", b"original==1.0\n");
+    fixture.commit();
+    for path in paths {
+        fixture.write(path, b"unsupported source must not be silently omitted\n");
+        fixture.commit();
+        assert_eq!(
+            fixture.capture().unwrap_err(),
+            format!("advisory source format needs an implemented extractor: {path}")
+        );
+        std::fs::remove_file(fixture.root.join(path)).unwrap();
+        fixture.commit();
+    }
+}
+
+#[test]
 fn cargo_ownership_requires_a_tracked_manifest() {
     let fixture = Fixture::new();
     fixture.write("requirements.txt", b"package==1.0\n");

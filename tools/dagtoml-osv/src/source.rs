@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use serde::Serialize;
 
-use crate::{digest::sha256, locks, model::Package, process};
+use crate::{digest::sha256, formats, formats::Kind, locks, model::Package, process};
 
 const MAX_SOURCE: u64 = 16 * 1024 * 1024;
 
@@ -188,36 +188,6 @@ fn read(root: &Path, path: &str) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
-fn unsupported(path: &str) -> bool {
-    let basename = path.rsplit('/').next().unwrap_or(path);
-    [
-        "conan.lock",
-        "pubspec.lock",
-        "mix.lock",
-        "package-lock.json",
-        "npm-shrinkwrap.json",
-        "pnpm-lock.yaml",
-        "yarn.lock",
-        "bun.lock",
-        "bun.lockb",
-        "Pipfile.lock",
-        "poetry.lock",
-        "pdm.lock",
-        "uv.lock",
-        "pylock.toml",
-        "Gemfile.lock",
-        "gems.locked",
-        "composer.lock",
-        "packages.lock.json",
-        "renv.lock",
-        "stack.yaml.lock",
-        "gradle.lockfile",
-        "buildscript-gradle.lockfile",
-        "cabal.project.freeze",
-    ]
-    .contains(&basename)
-}
-
 impl Snapshot {
     pub fn capture(root: &Path, git: &Git) -> Result<Self, String> {
         let actual = git.run(root, &["rev-parse", "--show-toplevel"], vec![])?;
@@ -252,23 +222,14 @@ impl Snapshot {
             .is_empty();
         let mut subjects = Vec::new();
         for (path, entry) in &index {
-            if unsupported(path) {
+            let Some(kind) = formats::classify(path) else {
+                continue;
+            };
+            if kind == Kind::Unsupported {
                 return Err(format!(
                     "advisory source format needs an implemented extractor: {path}"
                 ));
             }
-            let basename = path.rsplit('/').next().unwrap_or(path);
-            let kind = if basename == "Cargo.lock" {
-                "cargo"
-            } else if basename == "go.mod" {
-                "go"
-            } else if basename == "requirements.txt"
-                || path.starts_with("requirements/") && path.ends_with(".txt")
-            {
-                "python"
-            } else {
-                continue;
-            };
             if !entry.regular {
                 return Err("indexed advisory source is not a regular file".into());
             }
@@ -285,7 +246,7 @@ impl Snapshot {
             }
             let mut manifest = None;
             let extracted = match kind {
-                "cargo" => {
+                Kind::Cargo => {
                     let parent = Path::new(path).parent().ok_or("Cargo lock has no parent")?;
                     let manifest_path = parent
                         .join("Cargo.toml")
@@ -316,9 +277,9 @@ impl Snapshot {
                     });
                     extracted
                 }
-                "go" => locks::go(&source)?,
-                "python" => locks::python(&source)?,
-                _ => return Err("unimplemented advisory source kind".into()),
+                Kind::Go => locks::go(&source)?,
+                Kind::Python => locks::python(&source)?,
+                Kind::Unsupported => return Err("unimplemented advisory source kind".into()),
             };
             subjects.push(Subject {
                 path: path.clone(),
@@ -393,8 +354,14 @@ mod tests {
         ] {
             assert!(!relative(path));
         }
-        assert!(unsupported("new/package-lock.json"));
-        assert!(unsupported("new/uv.lock"));
-        assert!(!unsupported("reference/database/engine-lock.toml"));
+        assert_eq!(
+            formats::classify("new/package-lock.json"),
+            Some(Kind::Unsupported)
+        );
+        assert_eq!(formats::classify("new/uv.lock"), Some(Kind::Unsupported));
+        assert_eq!(
+            formats::classify("reference/database/engine-lock.toml"),
+            None
+        );
     }
 }

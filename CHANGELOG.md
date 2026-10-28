@@ -9,6 +9,13 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Replace the advisory source exclusion list observed at
+  `fc4bd5c51fd70f7fa00343350620c4927bc66bb3` with recognition of the
+  pinned scanner's full lockfile and SBOM extractor populations, followed
+  by admission of implemented formats. Include variant requirements
+  filenames; refuse other recognized subjects before advisory evaluation.
+  Keep the original required gate while its directory and dependency
+  consumers remain under repair.
 - Validate PostgreSQL connection text before loading the driver, using the
   underlying string buffer for accepted subclasses. At source
   `b83953fb8e209aa34e1a9060559709ec6defe687`, invalid input reached the

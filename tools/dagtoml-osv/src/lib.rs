@@ -2,6 +2,7 @@
 
 pub mod archive;
 pub mod digest;
+mod formats;
 pub mod https;
 pub mod locks;
 pub mod model;
