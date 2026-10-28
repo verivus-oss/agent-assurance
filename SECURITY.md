@@ -110,6 +110,12 @@ comment block in `validate.yml`:
 Workflow actions are SHA-pinned. Python verification packages use version
 and hash pins; Rust builds use checked-in Cargo.lock files.
 
+The shared JSON codec replaces the wrapper from
+`16d7d85f31a3071d56f4f8c34d99d1800ad5ce73` with explicit syntax validation
+before native value decoding. Its cold controls reject standard JSON and
+regex imports; [the codec contract](validators/JSON.md) names its boundaries.
+Other reference-store cold imports remain inside the audit scope.
+
 The estate no-regex rule also covers dependencies, build and test tools,
 and security scanners. The active scanner engines still require a consumer
 audit and replacement; a successful scan is not evidence of compliance

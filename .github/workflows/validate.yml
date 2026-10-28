@@ -110,6 +110,7 @@ jobs:
                            and Path(raw.decode()).name.startswith("test_")
                            and Path(raw.decode()).suffix == ".py")
           required = {"test_abstraction_class_errors.py", "test_ai_attribution.py", "test_database_download.py",
+                      "test_credential_cold_start.py", "test_literal_json_cold_start.py",
                       "test_link_scan.py", "test_ontology_prefix_types.py",
                       "test_profile_discovery_errors.py", "test_safe_tools.py", "test_secret_scan_filter.py",
                       "test_workflow_text.py"}
@@ -117,11 +118,13 @@ jobs:
               raise SystemExit("FAIL: Python boundary test population changed")
           for path in tests:
               command = [sys.executable, str(path)]
-              if path.name == "test_credential_cold_start.py":
+              if path.name.endswith("_cold_start.py"):
                   command.insert(1, "-S")
               if path.name == "test_ontology_prefix_types.py":
                   command.extend(["--rs", sys.argv[1], "--go", sys.argv[2]])
               subprocess.run(command, check=True)
+              if path.name.endswith("_cold_start.py"):
+                  subprocess.run([sys.executable, "-O", *command[1:]], check=True)
           print(f"Python boundary controls: {len(tests)} test files executed")
           PY
 
@@ -1096,12 +1099,11 @@ jobs:
         if: always()
         run: python3 tools/prepare_osv_python.py --cleanup
 
-      - name: Credential controls and complete history scan
+      - name: Credential complete history scan
         continue-on-error: false
+        # Normal and optimized cold controls run in the derived boundary suite.
         run: |
           set -euo pipefail
-          python3 -S validators/test_credential_cold_start.py
-          python3 -O -S validators/test_credential_cold_start.py
           python3 -S validators/check_secret_scan.py --repo-root .
 
       - name: Python static security analysis (bandit)

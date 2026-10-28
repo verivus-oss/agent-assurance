@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Accepted and rejected boundaries for Python lockfile scan coverage."""
 
-import json
 import shutil
 import subprocess
 import tempfile
@@ -67,14 +66,7 @@ def test_coverage_and_cleanup_fail_closed() -> None:
             "packages": [{"package": {"name": "rootpkg", "version": "2.0", "ecosystem": "PyPI"}}],
         }
         result.write_text(dumps_json({"results": [entry, root_entry]}))
-        decoder = json.JSONDecoder.decode
-        def forbidden_decode(self, source):
-            raise AssertionError("regex JSON whitespace matcher was used")
-        json.JSONDecoder.decode = forbidden_decode
-        try:
-            verify(root, result)
-        finally:
-            json.JSONDecoder.decode = decoder
+        verify(root, result)
         unknown = {
             "source": {"path": str(root / "osv-python-lockfiles" / "unknown" / "requirements.txt"),
                        "type": "lockfile"},

@@ -366,7 +366,7 @@ mod parser {
 
             if captured.slice_len() < 90
                 && padding_len == 0
-                && captured.as_bstr().iter().all(|c| ![b'/', b'+'].contains(c))
+                && captured.as_bstr().iter().all(|c| !b"/+".contains(c))
             {
                 return Err(());
             }
@@ -782,6 +782,18 @@ mod tests {
         }
         assert_eq!(identifiers("receive").unwrap().len(), 1);
         assert!(identifiers("").unwrap().is_empty());
+        for value in [
+            "AAAA+AAA".to_owned(),
+            "G".repeat(92),
+            format!("{}=", "G".repeat(91)),
+        ] {
+            assert!(
+                identifiers(&value).unwrap().is_empty(),
+                "declared encoding literal reached word lookup"
+            );
+        }
+        assert!(!identifiers(&"G".repeat(91)).unwrap().is_empty());
+        assert!(!identifiers("AAAA-AAA").unwrap().is_empty());
     }
 
     #[test]

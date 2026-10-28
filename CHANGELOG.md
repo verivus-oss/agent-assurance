@@ -9,6 +9,14 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Replace the shared JSON wrapper from candidate
+  `16d7d85f31a3071d56f4f8c34d99d1800ad5ce73` with explicit syntax validation
+  and direct compiled value/encoding primitives. Retire standard JSON and
+  typing imports from this codec, preserve current hooks and formatting, and
+  retain original-byte diagnostics. Add normal/optimized cold controls and
+  tracked import checks; keep the other reference-store imports in audit scope.
+  Repair the spelling lexer constant rejected by Rust 1.99 Clippy without
+  weakening the lint gate.
 - Replace the source spelling action from candidate
   `a3420ad83ab0758e389fca86dbdfb837e86df5bc` with a safe Rust command using
   structured text tokens and the pinned supplier literal dictionary. Retire
