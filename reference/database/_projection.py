@@ -5,7 +5,7 @@ from decimal import Decimal
 import hashlib
 import _json_decode as json
 import math
-from pathlib import Path
+from _path_scan import Path
 
 from _contract import load_mapping
 from _literal_records import Projection

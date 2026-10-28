@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import _literal_args as argparse
 import ast
-import pathlib
+import _literal_path as pathlib
 import sys
 
 import _toml11 as tomllib

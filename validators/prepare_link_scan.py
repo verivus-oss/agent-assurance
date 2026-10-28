@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Select link checker inputs with exact file and host exceptions."""
 
-from pathlib import Path
+from _literal_path import Path
 import shutil
 import subprocess
 import sys

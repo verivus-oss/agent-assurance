@@ -2,7 +2,7 @@
 from _test_require import require
 import hashlib
 import io
-import pathlib
+import _literal_path as pathlib
 import tempfile
 from datetime import date, datetime, time, timedelta, timezone
 import _toml11 as tomllib

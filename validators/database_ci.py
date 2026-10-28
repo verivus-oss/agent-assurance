@@ -6,13 +6,13 @@ import hashlib
 import _literal_json as json
 import os
 from _text_checks import contains_table_diagnostic
-from pathlib import Path
+from _literal_path import Path
 import shutil
 import subprocess
 import sys
 import tarfile
 import time
-import uuid
+from _random_id import random_id_hex, random_id_text
 import zipfile
 
 import _toml11 as toml
@@ -58,7 +58,7 @@ def loader_verify_checks(root, work, binary, cli, destination, env):
                 store = Store("duckdb", connection, root)
                 store.insert("reference_contract", {"singleton_id": 1, "contract_bundle_sha256": digest, "projection_version": 1})
                 if name == "runtime-document-populated":
-                    identifier = str(uuid.uuid4())
+                    identifier = random_id_text()
                     store.insert("instance_file", {"id": identifier, "source_path": "loader-control.toml",
                                  "content_sha256": "sha256:" + "0" * 64, "schema_version": "0.1.0",
                                  "template_kind": "adapter-contract", "framework_profile": "agent-assurance"})
@@ -129,7 +129,7 @@ def main(argv=None):
     lanes = {lane["id"]: lane for lane in lock["lanes"]}
     lane = lanes[args.lane or "duckdb-maintained"]
     output = root / ".local/database-ci"
-    work = root / ".local/database-work" / name / uuid.uuid4().hex
+    work = root / ".local/database-work" / name / random_id_hex()
     work.mkdir(parents=True)
     (work / "scratch").mkdir()
     (output / "receipts").mkdir(parents=True, exist_ok=True)
@@ -146,7 +146,7 @@ def main(argv=None):
             runtime = shutil.which(args.container_runtime)
             if runtime is None:
                 raise ValueError("selected container runtime is missing")
-            container = "dagtoml-vocabulary-" + uuid.uuid4().hex
+            container = "dagtoml-vocabulary-" + random_id_hex()
             run([runtime, "run", "-d", "--rm", "--name", container, "-e", "POSTGRES_PASSWORD=dagtoml-ci",
                  "-p", "127.0.0.1::5432", lane["image"]], root, env)
             address = run([runtime, "port", container, "5432/tcp"], root, env).strip()

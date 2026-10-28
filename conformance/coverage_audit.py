@@ -44,11 +44,11 @@ import _argument_parser as argparse
 import ast
 import atexit
 import os
-import pathlib
+import _path_scan as pathlib
 import signal
 import subprocess
 import sys
-import uuid
+from _random_id import random_id_hex
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "validators"))
 import _toml11 as tomllib  # noqa: E402
@@ -230,7 +230,7 @@ def main():
     parser.add_argument("--runtime-only", action="store_true", help="explicit partial development run")
     args = parser.parse_args()
     root = args.repo_root.resolve()
-    work = root / ".local/coverage-audit" / uuid.uuid4().hex
+    work = root / ".local/coverage-audit" / random_id_hex()
     source = work / "source"
     population = copy_source(root, source)
     import _json_decode as json

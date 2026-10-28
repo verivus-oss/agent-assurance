@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import _literal_args as argparse
 import _literal_json as json
-import pathlib
+import _literal_path as pathlib
 import shutil
 import subprocess
 import sys

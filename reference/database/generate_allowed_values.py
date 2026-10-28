@@ -2,7 +2,7 @@
 """Emit the owned catalog section from TOML; do not infer SQL semantics."""
 
 import _argument_parser as argparse
-from pathlib import Path
+from _path_scan import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "validators"))

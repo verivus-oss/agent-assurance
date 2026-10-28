@@ -9,6 +9,12 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Replace current filesystem dependencies from candidate
+  `4df544e0727fd881531b3b2fad716c36468bd996` with owned, licensed native path
+  primitives and literal bootstrap bridges. Preserve traversal and symlink
+  boundaries while retiring unused matching and URI APIs. Replace authored
+  UUID generation and the active argument-parser typing import; exercise
+  cold lexical/filesystem components and actual SQLite store outcomes.
 - Replace the authored record consumers from candidate
   `1691549990e81ac801fbbc611d1f7e31a36b5719` with explicit constructors and
   named fields, preserving shallow freezing, mutable specimens and defaults.

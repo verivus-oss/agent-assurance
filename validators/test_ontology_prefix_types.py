@@ -1,6 +1,6 @@
 """Check accepted and rejected ontology prefix declarations in all validators."""
 
-from pathlib import Path
+from _literal_path import Path
 import subprocess
 import sys
 from tempfile import TemporaryDirectory

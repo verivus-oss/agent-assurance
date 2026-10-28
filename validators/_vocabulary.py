@@ -2,7 +2,7 @@
 
 from _literal_paths import glob as literal_glob
 from _literal_records import Vocabulary
-from pathlib import Path
+from _literal_path import Path
 
 import _toml11 as toml
 

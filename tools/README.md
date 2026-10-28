@@ -79,7 +79,7 @@ both implementations against the same positive/negative evidence.
   (`validators/check_manifest_drift.sh`) delegates to its Python checker.
 - **Python with a runtime dependency** for new spec-critical tools.
   Python is acceptable for Tier-2 cross-checks using only the stdlib
-  (`tomllib`, `pathlib`, etc.) and the small allowed set in
+  (native IO and the owned TOML/path helpers) and the small allowed set in
   `requirements.txt`.
 - **C, C++, anything FFI-heavy**, unless an existence proof shows that
   Rust or Go cannot reach the required performance. Has not happened

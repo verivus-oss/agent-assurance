@@ -16,7 +16,11 @@ can recompute all of them.
 from __future__ import annotations
 
 import hashlib
-import pathlib
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))), "validators"))
+import _literal_path as pathlib  # noqa: E402
 
 LF = b"\n"
 
@@ -39,7 +43,7 @@ body_d = digest(body)
 #   * line 2: "url: <url with query parameters sorted bytewise by raw key>"
 #   * one "header: <lowercase-name> sha256:<digest-of-value>" line per
 #     significant header, sorted bytewise by header name. Header VALUES never
-#     appear raw — only the digest of the value — which is what makes RKV02
+#     appear raw , only the digest of the value , which is what makes RKV02
 #     ("no inlined secrets; header values carried as digests") mechanical.
 #   * every line LF-terminated; UTF-8.
 accept_value = b"application/json"
@@ -87,7 +91,7 @@ closure_source_only = digest(
     f"provenance.source_sha256 {source_d}\n".encode()
 )
 
-# Four-input (the profile-PROPOSED, NOT-YET-PROMOTED fold) — the value the
+# Four-input (the profile-PROPOSED, NOT-YET-PROMOTED fold) , the value the
 # bad-closure negative carries so the source-only validator rejects it.
 four_records = sorted([
     f"provenance.source_sha256 {source_d}\n",

@@ -1,6 +1,6 @@
 """Copy repository sources into persistent ignored test workspaces."""
 
-from pathlib import Path
+from _literal_path import Path
 import shutil
 import subprocess
 import hashlib

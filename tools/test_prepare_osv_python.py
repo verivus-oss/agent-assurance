@@ -4,7 +4,7 @@
 import shutil
 import subprocess
 import tempfile
-from pathlib import Path
+from _path_scan import Path
 
 from prepare_osv_python import canonical_name, cleanup, pins, stage, staged_path, tracked_sources, verify
 from _literal_json import dumps as dumps_json

@@ -120,6 +120,12 @@ The authored record sites from `1691549990e81ac801fbbc611d1f7e31a36b5719`
 use explicit carriers with [record component controls](validators/RECORDS.md).
 This retires their dataclass dependency without widening the cold audit scope.
 
+Current filesystem consumers from `4df544e0727fd881531b3b2fad716c36468bd996`
+use [owned native path primitives](validators/PATHS.md), with explicit
+containment and cold SQLite outcome controls. Authored random identifiers
+use OS entropy with version/variant controls. External drivers and the wider
+verification dependencies still require their own consumer audits.
+
 The estate no-regex rule also covers dependencies, build and test tools,
 and security scanners. The active scanner engines still require a consumer
 audit and replacement; a successful scan is not evidence of compliance

@@ -2,11 +2,11 @@
 
 from contextlib import contextmanager
 from datetime import date
-from pathlib import Path
+from _path_scan import Path
 import sqlite3
 import threading
 import time
-import uuid
+from _random_id import random_id_hex, random_id_text
 
 from _contract import bundle_digest, expected_counts, load_mapping, REGISTRY_TABLES
 from _projection import (INSTANCE_COLUMNS, PROJECTION_COLUMNS, PROVENANCE_COLUMNS,
@@ -365,7 +365,7 @@ class Store:
                             identifier = self.existing(item, digest)
                             if identifier is None:
                                 new_identities.add((item.instance["source_path"], item.instance["content_sha256"]))
-                                identifier = uuid.uuid4().hex if self.engine == "sqlite" else str(uuid.uuid4())
+                                identifier = random_id_hex() if self.engine == "sqlite" else random_id_text()
                                 self.insert("instance_file", {"id": identifier, **item.instance})
                                 if item.provenance is not None:
                                     self.insert("provenance", {"instance_file_id": identifier, **item.provenance})

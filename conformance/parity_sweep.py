@@ -11,7 +11,7 @@ The primary mode is selected for each kind so this compares matching
 kind-layer checks. The separate runtime instrument also tests auto dispatch.
 """
 from _path_scan import glob as literal_glob
-import pathlib
+import _path_scan as pathlib
 import subprocess
 import sys
 import _argument_parser as argparse

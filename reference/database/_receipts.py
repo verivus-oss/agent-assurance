@@ -2,7 +2,7 @@
 
 import hashlib
 from _json_decode import loads as loads_json
-from pathlib import Path
+from _path_scan import Path
 import sys
 
 from _contract import artifact_hashes, bundle_digest, expected_counts, load_mapping

@@ -6,8 +6,8 @@ import _literal_args as argparse
 import _literal_json as json
 import hashlib
 from copy import deepcopy
-import uuid
-from pathlib import Path
+from _random_id import random_id_hex
+from _literal_path import Path
 import sys
 
 import _toml11 as toml
@@ -158,7 +158,7 @@ def main(argv=None):
 
 def receipt_controls(root, path, owners):
     original = json.loads(path.read_text())
-    work = root / ".local/runtime-ownership-controls" / uuid.uuid4().hex
+    work = root / ".local/runtime-ownership-controls" / random_id_hex()
     work.mkdir(parents=True)
     controls = []
     for name, edit, needle in (

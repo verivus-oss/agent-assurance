@@ -78,7 +78,7 @@ docstrings and ordinary strings beside them remain governed.
 
 from __future__ import annotations
 
-import pathlib
+import _literal_path as pathlib
 import ast
 import shutil
 # Git calls below use a resolved executable and argument lists without a shell.

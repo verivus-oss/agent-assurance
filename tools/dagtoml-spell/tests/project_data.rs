@@ -16,6 +16,33 @@ fn root() -> PathBuf {
 }
 
 #[test]
+fn licensed_proper_names_preserve_adjacent_corrections() {
+    let project = Project::load(&root()).unwrap();
+    let dictionary = Dictionary::pinned(project.accepted_words.clone()).unwrap();
+    let corpus: toml::Value = toml::from_str(include_str!("fixtures/corrections.toml")).unwrap();
+    let control = corpus["corrections"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|case| case["name"].as_str() == Some("lowercase-receive"))
+        .unwrap();
+    let input = control["input"].as_str().unwrap();
+    let expected: Vec<_> = control["expected"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_str().unwrap())
+        .collect();
+    let source = format!("Stichting Mathematisch STICHTING MATHEMATISCH {input}");
+    let checked =
+        dagtoml_spell::scan::content(&project, &dictionary, "sample.md", source.as_bytes())
+            .unwrap();
+    assert_eq!(checked.findings.len(), 1);
+    assert_eq!(checked.findings[0].token, input);
+    assert_eq!(checked.findings[0].corrections, expected);
+}
+
+#[test]
 fn current_data_agrees_with_independent_ast_operand_answers() {
     let root = root();
     let project = Project::load(&root).unwrap();

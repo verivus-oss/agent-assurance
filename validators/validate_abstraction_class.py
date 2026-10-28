@@ -44,7 +44,7 @@ Exits 0 on pass; 1 on any structural violation.
 from __future__ import annotations
 
 import _literal_args as argparse
-import pathlib
+import _literal_path as pathlib
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
 from _ascii_predicates import valid_abstraction_id

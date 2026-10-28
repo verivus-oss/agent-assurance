@@ -37,7 +37,7 @@ from __future__ import annotations
 from _literal_paths import candidate_directory, candidate_file, discovery_root, glob as literal_glob, rglob as literal_rglob
 import _literal_args as argparse
 import hashlib
-import pathlib
+import _literal_path as pathlib
 from collections.abc import Callable
 from _ascii_predicates import split_closure_root, valid_sha256
 import sys

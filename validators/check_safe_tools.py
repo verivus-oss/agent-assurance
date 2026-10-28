@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Require safe Rust crates and reject Go imports of the unsafe package."""
 
-from pathlib import Path
+from _literal_path import Path
 import sys
 
 from _literal_paths import glob, rglob

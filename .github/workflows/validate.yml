@@ -97,9 +97,10 @@ jobs:
           (cd tools/dagtoml-validate-rs && cargo test --locked)
           (cd tools/dagtoml-validate-go && go test ./...)
           python3 - "${RUNNER_TEMP}/dagtoml-validate-rs" "${RUNNER_TEMP}/dagtoml-validate-go" <<'PY'
-          from pathlib import Path
           import subprocess
           import sys
+          sys.path.insert(0, "validators")
+          from _literal_path import Path
 
           tests = sorted(path for path in Path("validators").iterdir()
                          if path.is_file() and path.name.startswith("test_")
@@ -112,6 +113,8 @@ jobs:
           required = {"test_abstraction_class_errors.py", "test_ai_attribution.py", "test_database_download.py",
                       "test_credential_cold_start.py", "test_literal_json_cold_start.py",
                       "test_literal_records_cold_start.py",
+                      "test_path_primitives_cold_start.py",
+                      "test_reference_store_cold_start.py",
                       "test_link_scan.py", "test_ontology_prefix_types.py",
                       "test_profile_discovery_errors.py", "test_safe_tools.py", "test_secret_scan_filter.py",
                       "test_workflow_text.py"}
@@ -201,8 +204,9 @@ jobs:
         run: |
           set -e
           python3 - <<'PY'
-          import ast, pathlib, sys
+          import ast, sys
           sys.path.insert(0, "validators")
+          import _literal_path as pathlib
           from _literal_paths import glob
 
           src = pathlib.Path("conformance/discrimination.py")
@@ -392,11 +396,12 @@ jobs:
       - name: Parse all TOML
         run: |
           python3 - <<'PY'
-          import sys, pathlib
+          import sys
           # Parse with the vendored TOML 1.1 reference parser; stdlib tomllib
           # is 1.0-only and would reject valid 1.1 content, reintroducing a
           # cross-implementation split (C01).
           sys.path.insert(0, "validators")
+          import _literal_path as pathlib
           import _toml11 as tomllib
           from _literal_paths import rglob
           fails, parsed, skipped = [], [], []
@@ -543,9 +548,10 @@ jobs:
         run: |
           set -e
           python3 - <<'PY' > "${RUNNER_TEMP}/conforming-dagtoml-files.txt"
-          import sys, pathlib
+          import sys
           # Vendored TOML 1.1 parser; stdlib tomllib is 1.0-only.
           sys.path.insert(0, "validators")
+          import _literal_path as pathlib
           from validate_closure_root import spec_reserved_kinds, is_conforming_toml
           from _literal_paths import rglob
 
@@ -688,8 +694,9 @@ jobs:
           done
           # Parse every profile example; dedicated validators run separately.
           python3 -c '
-          import sys, pathlib
+          import sys
           sys.path.insert(0, "validators")  # TOML 1.1 reference shim
+          import _literal_path as pathlib
           import _toml11 as tomllib
           for name in [
               "minimal-spec-contract.toml",

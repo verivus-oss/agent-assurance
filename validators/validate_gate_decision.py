@@ -20,7 +20,7 @@ Exit code 0 on full agreement, 1 on any defect.
 from __future__ import annotations
 
 import _literal_args as argparse
-import pathlib
+import _literal_path as pathlib
 import sys
 from _ascii_predicates import valid_assertion_id, valid_hex, valid_observed_line
 from _runtime_document_vocab import validate_fields

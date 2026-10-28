@@ -17,3 +17,6 @@ rto = "rto"
 ba = "ba"
 afe = "afe"
 vai = "vai"
+# Dutch proper names retained verbatim in the CPython license.
+Stichting = "Stichting"
+Mathematisch = "Mathematisch"

@@ -4,7 +4,7 @@
 from _path_scan import rglob as literal_rglob
 import _argument_parser as argparse
 import _json_decode as json
-from pathlib import Path
+from _path_scan import Path
 import subprocess
 import sys
 

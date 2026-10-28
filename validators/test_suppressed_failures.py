@@ -2,7 +2,7 @@
 
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
-from pathlib import Path
+from _literal_path import Path
 import subprocess
 import sys
 from tempfile import TemporaryDirectory

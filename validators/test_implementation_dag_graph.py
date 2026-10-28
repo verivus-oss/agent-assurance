@@ -2,7 +2,7 @@
 from _test_require import require
 from contextlib import redirect_stderr
 from io import StringIO
-from pathlib import Path
+from _literal_path import Path
 from tempfile import TemporaryDirectory
 import sys
 import time

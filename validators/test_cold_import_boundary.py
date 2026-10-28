@@ -2,13 +2,13 @@
 
 import ast
 import hashlib
-from pathlib import Path
+from _literal_path import Path
 
 from _credential_git import git
 from _test_require import require
 
 
-RETIRED = ("json", "dataclasses")
+RETIRED = ("json", "dataclasses", "pathlib", "uuid")
 
 
 def retired(name):
@@ -38,6 +38,62 @@ def test_import_shapes():
         require(not direct_retired_imports(ast.parse(source)))
 
 
+def workflow_python(source):
+    """Read the literal Python shell forms currently supported by CI."""
+    lines = source.splitlines()
+    fragments = []
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        index += 1
+        command = line.lstrip(' ')
+        require(command not in ('python3 -', 'python -'), 'unsupported inline Python stdin')
+        if not command.startswith(('python3 ', 'python ')):
+            continue
+        prefix = line[:len(line) - len(command)]
+        if '<<' in command:
+            before, separator, after = command.partition("<<'")
+            require(separator and before.split()[1] == '-', 'unsupported inline Python input form')
+            terminator, quote, _tail = after.partition("'")
+            require(quote and terminator and all('A' <= c <= 'Z' or c == '_' for c in terminator),
+                    'unsupported inline Python terminator')
+            kind = 'heredoc'
+        elif command.startswith(('python3 -c ', 'python -c ')):
+            value = command.split(' -c ', 1)[1]
+            require(value.startswith("'"), 'inline Python command requires a literal operand')
+            if value != "'":
+                require(value.endswith("'"), 'unterminated inline Python literal')
+                fragments.append(('literal-command', value[1:-1]))
+                continue
+            terminator = "'"
+            kind = 'literal-command'
+        else:
+            require(not command.startswith(('python3 - ', 'python - ')), 'unsupported inline Python stdin')
+            continue
+        body = []
+        while index < len(lines) and lines[index] != prefix + terminator:
+            require(lines[index].startswith(prefix) or not lines[index], 'inline Python indentation changed')
+            body.append(lines[index][len(prefix):])
+            index += 1
+        require(index < len(lines), 'inline Python terminator is absent')
+        index += 1
+        require(body, 'inline Python subject is absent')
+        fragments.append((kind, '\n'.join(body)))
+    return fragments
+
+
+def test_workflow_python_shapes():
+    from _test_require import expect_raises
+
+    for source in ("python3 - <<'PY'\nimport pathlib\nPY", "python3 -c '\nimport uuid\n'",
+                   "python3 -c 'import dataclasses'"):
+        fragments = workflow_python(source)
+        require(len(fragments) == 1 and direct_retired_imports(ast.parse(fragments[0][1])))
+    require(not workflow_python('python3 validators/example.py'))
+    for source in ("python3 - <<'PY'\nimport os", "python3 -c 'import os", 'python3 -c "$SOURCE"', 'python3 -'):
+        expect_raises(AssertionError, lambda: workflow_python(source), 'unsupported inline Python form passed')
+
+
 def test_tracked_python_import_population():
     root = Path(__file__).resolve().parents[1]
     raw = git(root, ["ls-files", "-z"])
@@ -62,7 +118,32 @@ def test_tracked_python_import_population():
     require(not observed, "retired cold dependency imports in tracked Python source: " + repr(observed))
 
 
+def test_tracked_workflow_python_import_population():
+    root = Path(__file__).resolve().parents[1]
+    raw = git(root, ['ls-files', '-z'])
+    require(raw.endswith(b'\0'))
+    paths = raw[:-1].split(b'\0')
+    required = {path.decode() for path in paths if path.startswith(b'.github/workflows/')
+                and path.endswith((b'.yml', b'.yaml'))}
+    require(required and '.github/workflows/validate.yml' in required)
+    visited = set()
+    selected = set()
+    kinds = set()
+    for relative in sorted(required):
+        source = (root / relative).read_bytes()
+        for kind, fragment in workflow_python(source.decode()):
+            require(not direct_retired_imports(ast.parse(fragment)),
+                    'retired inline workflow dependency: ' + relative + ' SHA256 ' + hashlib.sha256(source).hexdigest())
+            kinds.add(kind)
+            selected.add(relative)
+        visited.add(relative)
+    require(visited == required and '.github/workflows/validate.yml' in selected)
+    require(kinds == {'heredoc', 'literal-command'})
+
+
 if __name__ == "__main__":
     test_import_shapes()
+    test_workflow_python_shapes()
     test_tracked_python_import_population()
-    print("cold import boundary: complete tracked Python source population and accepted/rejected import shapes checked")
+    test_tracked_workflow_python_import_population()
+    print("cold import boundary: complete tracked Python and workflow literal-Python populations and accepted/rejected shapes checked")

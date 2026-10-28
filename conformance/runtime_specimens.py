@@ -7,7 +7,7 @@ mapping. The gate separately compares this field population with that mapping.
 
 from copy import deepcopy
 import _json_decode as json
-from pathlib import Path
+from _path_scan import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "validators"))

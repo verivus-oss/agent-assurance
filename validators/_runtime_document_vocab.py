@@ -1,6 +1,6 @@
 """Structural adapter/binding checks. References remain inert at the SPEC layer."""
 
-from pathlib import Path
+from _literal_path import Path
 from _ascii_predicates import valid_assertion_id, valid_hex
 
 from _vocabulary import canonical_profile, load_catalog

@@ -2,7 +2,7 @@
 
 import os
 import stat
-from pathlib import Path
+from _literal_path import Path
 from collections.abc import Iterator
 
 

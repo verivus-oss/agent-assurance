@@ -6,7 +6,7 @@ from copy import deepcopy
 import hashlib
 import _literal_json as json
 import os
-from pathlib import Path
+from _literal_path import Path
 import shutil
 import subprocess
 import sys

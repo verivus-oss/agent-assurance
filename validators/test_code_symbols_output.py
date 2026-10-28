@@ -1,6 +1,6 @@
 """Symbol results retain stable identities and omit parser coordinates."""
 
-from pathlib import Path
+from _literal_path import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 

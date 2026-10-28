@@ -2,7 +2,7 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from _json_decode import loads as loads_json
-from pathlib import Path
+from _path_scan import Path
 import subprocess
 import sys
 import threading

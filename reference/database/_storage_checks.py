@@ -73,8 +73,8 @@ def exercise_storage(store: Store) -> list[str]:
     require(relocated["documents"][0]["id"] != first["documents"][0]["id"])
     checks.append("changed-content-and-distinct-source-occurrences")
 
-    from pathlib import Path
-    import uuid
+    from _path_scan import Path
+    from _random_id import random_id_hex
     from unittest.mock import patch
     original_lines = sources[kinds[0]].splitlines(keepends=True)
     omitted_lines = [line for line in original_lines if not line.startswith(b"id_derivation")]
@@ -88,7 +88,7 @@ def exercise_storage(store: Store) -> list[str]:
     checks.append("optional-derivation-stores-null")
     # Capture valid A, replace its path with valid B, and exercise the complete
     # projection/write/repeat/audit path while forbidding a root-source reopen.
-    capture = root / ".local/storage-capture" / (uuid.uuid4().hex + ".toml")
+    capture = root / ".local/storage-capture" / (random_id_hex() + ".toml")
     capture.parent.mkdir(parents=True, exist_ok=True)
     a = sources[kinds[0]]
     b = a.replace(b'network_policy = "denied"', b'network_policy = "open"')

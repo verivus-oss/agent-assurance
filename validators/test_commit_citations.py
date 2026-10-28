@@ -1,6 +1,6 @@
 """Accepted and rejected cases for the commit citation scanner."""
 from _test_require import require
-import pathlib
+import _literal_path as pathlib
 import sys
 from check_commit_citations import citation_text, commit_tokens, governed_file, parse_args
 

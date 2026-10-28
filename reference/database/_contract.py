@@ -2,7 +2,7 @@
 
 from _path_scan import glob as literal_glob
 import hashlib
-from pathlib import Path
+from _path_scan import Path
 import struct
 import sys
 

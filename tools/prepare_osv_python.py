@@ -6,7 +6,7 @@ import hashlib
 import shutil
 import subprocess
 import sys
-from pathlib import Path
+from _path_scan import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "validators"))
 from _literal_json import InvalidJSON, loads as loads_json  # noqa: E402

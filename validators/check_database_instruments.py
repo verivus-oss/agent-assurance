@@ -7,11 +7,11 @@ import _literal_args as argparse
 from copy import deepcopy
 import _literal_json as json
 import os
-from pathlib import Path
+from _literal_path import Path
 import sqlite3
 import subprocess
 import sys
-import uuid
+from _random_id import random_id_hex
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "reference/database"))
@@ -344,7 +344,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     root = args.repo_root.resolve()
     identity = source_identity(root)
-    work = root / ".local/database-instruments" / uuid.uuid4().hex
+    work = root / ".local/database-instruments" / random_id_hex()
     work.mkdir(parents=True)
     path = work / "receipt.json"
     path.write_text(json.dumps({"status": "incomplete"}))

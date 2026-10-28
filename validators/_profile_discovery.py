@@ -1,6 +1,6 @@
 """Validate a selected profile declaration before adding it to discovery."""
 
-from pathlib import Path
+from _literal_path import Path
 import stat
 
 

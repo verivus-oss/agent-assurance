@@ -3,7 +3,7 @@
 from contextlib import redirect_stdout
 import hashlib
 from io import StringIO
-from pathlib import Path
+from _literal_path import Path
 import shutil
 import subprocess
 from tempfile import TemporaryDirectory
@@ -18,10 +18,12 @@ def test_provenance_population() -> None:
         validator = root / "validators/validate_provenance.py"
         validator.parent.mkdir()
         validator.write_text(
-            "from pathlib import Path\n"
             "import sys\n"
+            "def rejected(source):\n"
+            "    with open(source) as stream:\n"
+            "        return 'reject' in stream.read()\n"
             "sources = sys.argv[1:sys.argv.index('--repo-root')]\n"
-            "raise SystemExit(int(any('reject' in Path(source).read_text() for source in sources)))\n"
+            "raise SystemExit(int(any(rejected(source) for source in sources)))\n"
         )
         negative = root / "examples/negative/bad.toml"
         sibling = root / "examples/negative-extra/sibling.toml"

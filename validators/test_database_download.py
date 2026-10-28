@@ -1,7 +1,7 @@
 """Pinned database downloads require HTTPS and an exact digest."""
 
 from hashlib import sha256
-from pathlib import Path
+from _literal_path import Path
 from tempfile import TemporaryDirectory
 import io
 import os

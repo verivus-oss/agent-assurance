@@ -1,6 +1,6 @@
 """Executed connection preconditions, using only private test destinations."""
 
-import uuid
+from _random_id import random_id_hex
 
 from _storage import Store, StorageError, connect_postgres
 
@@ -127,7 +127,7 @@ def exercise_connection(store, destination):
             else:
                 raise AssertionError("invalid PostgreSQL arithmetic was accepted")
             try:
-                missing = connect_postgres(destination, dbname="dagtoml_missing_" + uuid.uuid4().hex)
+                missing = connect_postgres(destination, dbname="dagtoml_missing_" + random_id_hex())
             except psycopg.OperationalError:
                 # This private database name was never created.
                 if store.execute("SELECT 7").fetchone() != (7,):
@@ -156,7 +156,7 @@ def exercise_connection(store, destination):
         checks.append("non-utf8-client-refused")
         # The runner owns a private server. A distinct encoding needs a
         # distinct database, not a mocked SHOW response.
-        name = "dagtoml_encoding_" + uuid.uuid4().hex + "'\\ space"
+        name = "dagtoml_encoding_" + random_id_hex() + "'\\ space"
         store.connection.execute(psycopg.sql.SQL("CREATE DATABASE {} ENCODING 'SQL_ASCII' TEMPLATE template0").format(psycopg.sql.Identifier(name)))
         try:
             connection = connect_postgres(destination, dbname=name)

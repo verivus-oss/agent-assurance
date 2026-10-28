@@ -2,9 +2,9 @@
 """Build validator and syscall instruments, then execute the required gates."""
 
 import os
-from pathlib import Path
+from _literal_path import Path
 import sys
-import uuid
+from _random_id import random_id_hex
 
 import _toml11 as toml
 from database_ci import download, extract_source, run
@@ -12,7 +12,7 @@ from database_ci import download, extract_source, run
 
 def main():
     root = Path(__file__).resolve().parents[1]
-    work = root / ".local/runtime-ci" / uuid.uuid4().hex
+    work = root / ".local/runtime-ci" / random_id_hex()
     work.mkdir(parents=True)
     (work / "scratch").mkdir()
     env = {**os.environ, "TMPDIR": str(work / "scratch"), "GOCACHE": str(work / "go-cache"),

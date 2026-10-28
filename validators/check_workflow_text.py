@@ -2,7 +2,7 @@
 """Run fixed-string CI text checks without pattern matching."""
 
 import os
-from pathlib import Path
+from _literal_path import Path
 import shutil
 import subprocess
 import sys

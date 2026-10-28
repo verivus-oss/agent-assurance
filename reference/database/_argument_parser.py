@@ -1,6 +1,6 @@
 """Load the repository's exact-option parser for database commands."""
 
-from pathlib import Path
+from _path_scan import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "validators"))

@@ -7,14 +7,14 @@ compared as a fixed string; no pattern engine participates in dispatch.
 from __future__ import annotations
 
 import sys
-from typing import Any, Callable
+from collections.abc import Callable
 
 
 _MISSING = object()
 
 
 class Namespace:
-    def __init__(self, **values: Any) -> None:
+    def __init__(self, **values: object) -> None:
         self.__dict__.update(values)
 
 
@@ -26,10 +26,10 @@ class _Argument:
         positional: bool,
         action: str | None,
         nargs: str | None,
-        converter: Callable[[str], Any],
-        choices: tuple[Any, ...] | None,
+        converter: Callable[[str], object],
+        choices: tuple[object, ...] | None,
         required: bool,
-        default: Any,
+        default: object,
         help: str | None,
         metavar: str | None,
         version: str | None,
@@ -54,7 +54,7 @@ class _Group:
         self.required = required
         self.arguments: list[_Argument] = []
 
-    def add_argument(self, name: str, **options: Any) -> _Argument:
+    def add_argument(self, name: str, **options: object) -> _Argument:
         argument = self.parser.add_argument(name, **options)
         self.arguments.append(argument)
         return argument
@@ -66,7 +66,7 @@ class _Subparsers:
         self.required = required
         self.parsers: dict[str, ArgumentParser] = {}
 
-    def add_parser(self, name: str, **options: Any) -> ArgumentParser:
+    def add_parser(self, name: str, **options: object) -> ArgumentParser:
         if name in self.parsers:
             raise ValueError("duplicate subcommand: " + name)
         parser = ArgumentParser(description=options.get("description"), prog=name)
@@ -87,14 +87,14 @@ class ArgumentParser:
         name: str,
         *,
         action: str | None = None,
-        choices: tuple[Any, ...] | list[Any] | None = None,
-        default: Any = _MISSING,
+        choices: tuple[object, ...] | list[object] | None = None,
+        default: object = _MISSING,
         dest: str | None = None,
         help: str | None = None,
         metavar: str | None = None,
         nargs: str | None = None,
         required: bool = False,
-        type: Callable[[str], Any] = str,
+        type: Callable[[str], object] = str,
         version: str | None = None,
     ) -> _Argument:
         if not isinstance(name, str) or not name or name.startswith("-") and not name.startswith("--"):
@@ -265,7 +265,7 @@ class ArgumentParser:
             self.error("a subcommand is required")
         return Namespace(**values)
 
-    def _convert(self, argument: _Argument, value: str) -> Any:
+    def _convert(self, argument: _Argument, value: str) -> object:
         try:
             converted = argument.converter(value)
         except (ValueError, TypeError) as exc:

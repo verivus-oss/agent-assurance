@@ -2,7 +2,7 @@
 from _test_require import require
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
-from pathlib import Path
+from _literal_path import Path
 from _literal_args import ArgumentParser
 
 def rejected(parser: ArgumentParser, tokens: list[str]) -> None:

@@ -4,8 +4,8 @@
 import _literal_json as json
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
-from pathlib import Path
-import uuid
+from _literal_path import Path
+from _random_id import random_id_hex
 
 from validate_closure_root import (
     _loaded_profile_names,
@@ -39,7 +39,7 @@ def expect_cli_failure(repo, root, source):
 
 
 def main():
-    work = Path(".local/closure-discovery") / uuid.uuid4().hex
+    work = Path(".local/closure-discovery") / random_id_hex()
     (work / "profiles").mkdir(parents=True)
     (work / "core").mkdir()
     root = work / "source"

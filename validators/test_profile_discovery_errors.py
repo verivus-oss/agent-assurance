@@ -3,7 +3,7 @@
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 import hashlib
-from pathlib import Path
+from _literal_path import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 import sys

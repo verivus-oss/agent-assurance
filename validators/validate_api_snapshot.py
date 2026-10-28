@@ -51,7 +51,7 @@ from __future__ import annotations
 
 import _literal_args as argparse
 import hashlib
-import pathlib
+import _literal_path as pathlib
 import sys
 from _ascii_predicates import valid_digest, valid_header_name
 

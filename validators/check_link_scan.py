@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run pinned Lychee with exact source and URL exceptions, then assert coverage."""
 
-from pathlib import Path
+from _literal_path import Path
 import subprocess
 import sys
 from tempfile import TemporaryDirectory

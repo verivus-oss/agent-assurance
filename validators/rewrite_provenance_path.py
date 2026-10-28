@@ -2,7 +2,7 @@
 """Replace one fixture source path with a quoted absolute path."""
 
 import _literal_json as json
-from pathlib import Path
+from _literal_path import Path
 import sys
 
 

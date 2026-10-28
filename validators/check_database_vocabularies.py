@@ -4,11 +4,11 @@
 import _literal_args as argparse
 import hashlib
 import _literal_json as json
-from pathlib import Path
+from _literal_path import Path
 import subprocess
 import shutil
 import sys
-import uuid
+from _random_id import random_id_hex
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reference/database"))
 from _contract import artifact_hashes, bundle_digest, bundle_entries  # noqa: E402
@@ -67,7 +67,7 @@ def run_lane(root: Path, engine: str, destination: str, expected_version: str, l
             raise ValueError("schema/seed must leave the instance and initialization populations empty")
         # The table identifier is selected from the closed engine map.
         pairs = store.execute(f"SELECT attribute,value FROM {store.table('attribute_value_allowed')} ORDER BY attribute,value").fetchall()  # nosec B608 # noqa: S608
-        work = root / ".local/database-checks" / lane / uuid.uuid4().hex
+        work = root / ".local/database-checks" / lane / random_id_hex()
         work.mkdir(parents=True)
         metadata_checks = exercise_catalog_metadata(store)
         connection_checks = exercise_connection(store, destination)

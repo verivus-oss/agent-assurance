@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import math
-import pathlib
+import _path_scan as pathlib
 import sys
 from datetime import date, datetime, time
 

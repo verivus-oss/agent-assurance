@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-import pathlib
+import _literal_path as pathlib
 import hashlib
 import sys
 from types import SimpleNamespace
