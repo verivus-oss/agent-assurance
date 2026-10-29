@@ -37,6 +37,16 @@ text with unsigned 64-bit big-endian byte lengths, under the
 `dagtoml-postgres-dependencies-v1` domain and a zero separator. Omitted,
 duplicated or altered records cannot retain the executed dependency identity.
 
+The build supervisor owns each Go command's process group and keeps its direct
+PID unreaped until group cleanup. It waits for both stream completion and the
+direct process's terminal state. At baseline
+`48fbde757f63bf4e6aa7c889cee54b67e3e25c26`, a time-scaled source probe showed
+the previous command wrapper waiting beyond its deadline on a descendant-held
+pipe. Current controls exercise actual bounded output, forced Go environment
+settings, deadlines, inherited streams, direct-child reaping and finite work
+after output descriptors close. Failed command transcripts retain bounded raw
+streams and process outcomes, without copying the caller's environment.
+
 At baseline `bdd63b22483fc7c96b0896c3dcc994f1aa0ce37e`, the record captured
 supplier notices but the distributed native artifact retained only their
 hashes. The builder now publishes the complete prepared supplier tree,

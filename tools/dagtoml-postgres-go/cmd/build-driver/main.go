@@ -3,7 +3,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
@@ -97,40 +96,25 @@ func population(root string) (_ []sourceFile, _ string, resultErr error) {
 	return files, hex.EncodeToString(digest.Sum(nil)), nil
 }
 
-type limitedBuffer struct{ bytes.Buffer }
-
-func (b *limitedBuffer) Write(value []byte) (int, error) {
-	if b.Len()+len(value) > 32*1024*1024 {
-		return 0, errors.New("build output exceeded its bound")
-	}
-	return b.Buffer.Write(value)
-}
-
 func run(root string, arguments ...string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	command := exec.CommandContext(ctx, "go", arguments...) // #nosec G204 -- All operation vectors are authored here; no shell or connection data is accepted.
-	command.Dir = root
-	command.Env = append(os.Environ(), "GOTOOLCHAIN="+goVersion, "CGO_ENABLED=0", "GOWORK=off",
-		"GOOS=linux", "GOARCH=amd64", "GOAMD64=v1", "GOEXPERIMENT=", "GOFLAGS=")
-	var output limitedBuffer
-	var diagnostics limitedBuffer
-	command.Stdout = &output
-	command.Stderr = &diagnostics
-	if err := command.Run(); err != nil {
+	executable, err := exec.LookPath("go")
+	if err != nil || !filepath.IsAbs(executable) {
+		return nil, errors.New("pinned Go executable is absent or not absolute")
+	}
+	record, err := commandRun(root, append([]string{executable}, arguments...), 10*time.Minute)
+	if err != nil {
 		transcript, recordErr := os.CreateTemp("", "dagtoml-postgres-build-*.json")
 		if recordErr != nil {
 			return nil, errors.New("cannot retain failed build transcript")
 		}
-		record := map[string]any{"command": command.Args, "cwd": root, "stdout": output.String(), "stderr": diagnostics.String()}
 		encodeErr := json.NewEncoder(transcript).Encode(record)
 		closeErr := transcript.Close()
 		if encodeErr != nil || closeErr != nil {
 			return nil, errors.New("cannot retain complete build transcript")
 		}
-		return nil, fmt.Errorf("pinned Go %s operation failed; tool transcript: %s", arguments[0], transcript.Name())
+		return nil, fmt.Errorf("pinned Go operation failed; tool transcript: %s", transcript.Name())
 	}
-	return output.Bytes(), nil
+	return record.Stdout, nil
 }
 
 type edit struct {
@@ -346,6 +330,9 @@ func build(root, output string) (resultErr error) {
 	if err = transform(filepath.Join(work, "vendor/github.com/jackc/pgpassfile/pgpass.go"), true); err != nil {
 		return err
 	}
+	if err = processControls(work); err != nil {
+		return err
+	}
 	if err = graphControls(); err != nil {
 		return err
 	}
@@ -432,7 +419,15 @@ func build(root, output string) (resultErr error) {
 
 func main() {
 	output := flag.String("output", "", "absolute output path outside this source module")
+	producer := flag.String("instrument-producer", "", "private compiler ownership control")
 	flag.Parse()
+	if *producer != "" {
+		if err := instrumentProducer(*producer); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		return
+	}
 	root, err := os.Getwd()
 	if err != nil || !filepath.IsAbs(*output) || flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "build requires an absolute output path")

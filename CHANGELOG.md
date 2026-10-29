@@ -9,6 +9,14 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Repair native build-command ownership measured against
+  `48fbde757f63bf4e6aa7c889cee54b67e3e25c26`. The PostgreSQL build wrapper
+  could wait beyond a time-scaled deadline on a descendant-held stream. The
+  DuckDB supervisor treated closed streams as completion and stopped a finite
+  producer before its final write. Require process completion and stream
+  completion, retain the PID until owned-group cleanup, and exercise both
+  accepted completion and bounded refusal with actual private producers.
+
 - Require explicit list populations in the DuckDB identity framer after the
   quality notice on `bdd63b22483fc7c96b0896c3dcc994f1aa0ce37e`. Preserve
   accepted list framing and reject string, bytes, mapping, tuple and absent

@@ -1,10 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -80,6 +84,13 @@ func commandRun(directory string, arguments []string, deadline time.Duration) (r
 			closeError = nil
 		}
 		waitErr := command.Wait()
+		if command.ProcessState != nil {
+			record.ExitCode = command.ProcessState.ExitCode()
+		}
+		if record.Failure == "" && waitErr != nil {
+			record.Failure = "exit-status"
+		}
+		resultErr = errors.Join(resultErr, killErr, closeOut, closeError, waitErr)
 		cleanupTimer := time.NewTimer(time.Second)
 		defer cleanupTimer.Stop()
 		for len(seen) < 2 {
@@ -92,13 +103,6 @@ func commandRun(directory string, arguments []string, deadline time.Duration) (r
 				return
 			}
 		}
-		if command.ProcessState != nil {
-			record.ExitCode = command.ProcessState.ExitCode()
-		}
-		if record.Failure == "" && waitErr != nil {
-			record.Failure = "exit-status"
-		}
-		resultErr = errors.Join(resultErr, killErr, closeOut, closeError, waitErr)
 		if record.Failure == "" && resultErr != nil {
 			record.Failure = "cleanup"
 		}
@@ -111,7 +115,10 @@ func commandRun(directory string, arguments []string, deadline time.Duration) (r
 	go read("stderr", stderr)
 	timer := time.NewTimer(deadline)
 	defer timer.Stop()
-	for len(seen) < 2 {
+	poll := time.NewTicker(10 * time.Millisecond)
+	defer poll.Stop()
+	exited := false
+	for len(seen) < 2 || !exited {
 		select {
 		case stream := <-streams:
 			if err := save(stream); err != nil {
@@ -126,10 +133,33 @@ func commandRun(directory string, arguments []string, deadline time.Duration) (r
 				record.Failure = "output-limit"
 				return record, errors.New("compiler output exceeded its bound")
 			}
+		case <-poll.C:
+			exited, err = commandExited(command.Process.Pid)
+			if err != nil {
+				record.Failure = "process-state"
+				return record, err
+			}
 		case <-timer.C:
 			record.Failure = "deadline"
 			return record, errors.New("compiler operation exceeded its deadline")
 		}
 	}
 	return record, nil
+}
+
+// Observe completion without reaping the PID that reserves the owned group.
+func commandExited(pid int) (bool, error) {
+	body, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "stat")) // #nosec G304 -- The command's own unreaped numeric PID, not a caller-supplied path.
+	if err != nil {
+		return false, err
+	}
+	at := bytes.LastIndexByte(body, ')')
+	if at < 0 {
+		return false, errors.New("owned compiler process state is malformed")
+	}
+	fields := strings.Fields(string(body[at+1:]))
+	if len(fields) == 0 || len(fields[0]) != 1 {
+		return false, errors.New("owned compiler process state is absent")
+	}
+	return fields[0] == "Z" || fields[0] == "X", nil
 }

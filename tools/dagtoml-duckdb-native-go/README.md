@@ -49,6 +49,14 @@ owned process group before reaping the direct child. Failed command records
 retain exact arguments, directory and raw base64 output; their diagnostic
 coordinates stay tool transcripts.
 
+Completion requires both closed streams and a terminal direct process, observed
+without reaping its reserved PID. The supervisor at baseline
+`48fbde757f63bf4e6aa7c889cee54b67e3e25c26` stopped a finite producer that
+closed its output descriptors before a final write. The current real-child
+control requires that write and a successful exit, alongside deadline and
+descendant cleanup refusals. These Linux builders require the kernel's process
+state interface under `/proc`.
+
 The reference connector requires this build's embedded identity, complete input
 populations, supplier notices and exact loaded native core. It buffers results
 within the existing reference cursor surface and rejects unsupported objects
