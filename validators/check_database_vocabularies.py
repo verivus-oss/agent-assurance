@@ -6,6 +6,7 @@ import hashlib
 import _literal_json as json
 from _literal_path import Path
 from _credential_git import git
+from _working_source import DIFF_FORMAT, working_delta
 import sys
 from _random_id import random_id_hex
 
@@ -30,11 +31,12 @@ def source_identity(root: Path) -> dict:
         raise ValueError("database source binding requires a named commit")
     tracked = set(git(root, ["ls-files", "-z"]).decode().split("\0"))
     status = git(root, ["status", "--porcelain", "-z"])
-    return {"commit": commit, "working_tree_clean": not status,
+    byte_clean, delta = working_delta(root, commit)
+    return {"commit": commit, "working_tree_clean": not status and byte_clean,
             "status_sha256": hashlib.sha256(status).hexdigest(),
-            "tracked_tree_clean": not bool(git(root, ["status", "--porcelain", "--untracked-files=no", "-z"])),
+            "tracked_tree_clean": byte_clean and not bool(git(root, ["status", "--porcelain", "--untracked-files=no", "-z"])),
             "bundle_files_tracked": set(bundle_entries(root)) <= tracked,
-            "diff_sha256": hashlib.sha256(git(root, ["diff", "HEAD", "--binary"])).hexdigest()}
+            "diff_format": DIFF_FORMAT, "diff_sha256": delta}
 
 
 def engine_version(store: Store) -> str:

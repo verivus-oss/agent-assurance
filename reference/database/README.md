@@ -163,6 +163,16 @@ with the cold-guard launcher: both own and reap their child, drain both output
 streams, and fail on deadline or output overflow. These Python import-boundary
 repairs do not establish absence inside Git, database engines or build tools.
 
+The byte comparison also repairs index-cache assumptions measured at
+`543bc3e3665131854ad7b109d59b562e28664f3f`. A clean Git status is accompanied
+by direct SHA-256 comparison of committed, indexed and working contents and
+Git executable modes. The `git-source-bytes-v1` delta is length framed and
+does not render a Git patch or apply content filters. Link text is captured;
+symlinked ancestors, special file types, unmerged entries and unassessed
+submodules refuse binding. Checkouts whose raw bytes differ through content
+normalization remain working files. Source identities still do not attest the
+runtime environment or complete the native dependency audit.
+
 The PostgreSQL connector requires text connection parameters and an optional
 text database name. It normalizes string subclasses to their underlying text
 and rejects NUL before loading the driver or opening a connection. Invalid

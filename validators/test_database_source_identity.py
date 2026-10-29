@@ -66,6 +66,19 @@ def test_source_identity_uses_supplied_root_and_complete_status():
                     'foreign Git settings concealed a changed selected source')
             tracked.write_bytes(original)
             require(source_identity(subject) == baseline, 'restored source did not recover its original identity')
+            for flag in ('assume-unchanged', 'skip-worktree'):
+                git(subject, ['update-index', '--' + flag, '--', 'reference/database/_parallel_checks.py'])
+                try:
+                    tracked.write_bytes(original + b'\n# Hidden source byte control.\n')
+                    require(not git(subject, ['status', '--porcelain']), 'source change was not hidden by its control flag')
+                    hidden = source_identity(subject)
+                    require(not hidden['working_tree_clean'] and not hidden['tracked_tree_clean']
+                            and hidden['diff_sha256'] != baseline['diff_sha256'],
+                            'database receipt identity concealed changed source bytes')
+                finally:
+                    tracked.write_bytes(original)
+                    git(subject, ['update-index', '--no-' + flag, '--', 'reference/database/_parallel_checks.py'])
+                require(source_identity(subject) == baseline)
             untracked = subject / 'untracked-source-identity-witness.txt'
             untracked.write_text('untracked evidence must prevent a clean receipt\n')
             with git_settings(foreign):

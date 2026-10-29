@@ -9,6 +9,14 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Bind database and link receipts to working file bytes even when Git index
+  assumption flags hide changes. Both source identities at
+  `543bc3e3665131854ad7b109d59b562e28664f3f` reported changed files as clean
+  under `assume-unchanged`. Compare committed, indexed and working SHA-256
+  identities directly, capture link text without following linked ancestors,
+  and version the framed delta. Retire rendered Git patches from these
+  fingerprints while preserving shared raw-object integrity checks.
+
 - Refuse tracked vendored-directory roots and unassessed Git submodules in the
   native advisory replacement. Its snapshot at
   `16233b65fb855f9bad7582603d5064e6d7e45f27` admitted a package-only result

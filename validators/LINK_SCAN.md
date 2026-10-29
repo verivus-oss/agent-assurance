@@ -38,6 +38,14 @@ declared exceptions, outcome counts and failed URL/status pairs. Native
 producer messages, input-source keys, durations and line/column metadata
 remain transient and are omitted from the retained schema. The source and
 executable identities are rechecked before final outcomes are published.
+The working-byte comparison repairs the source identities measured at
+`543bc3e3665131854ad7b109d59b562e28664f3f`: index assumption flags could hide
+changed files while the wrapper labelled them clean. Committed, indexed and
+working contents now receive direct SHA-256 comparisons. The length-framed
+`git-source-bytes-v1` delta replaces rendered Git patches in the fingerprint.
+Changed bytes or executable modes remain working files even when cached Git
+status is empty. Link text is captured without following linked ancestors;
+unmerged entries, unassessed submodules and special files refuse binding.
 Phase records remain incomplete until the source and executable checks
 finish. Report-delivery errors fail the command.
 

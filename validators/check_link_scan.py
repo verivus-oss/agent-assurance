@@ -10,6 +10,7 @@ from tempfile import TemporaryDirectory
 import _literal_args as argparse
 from _literal_json import InvalidJSON, dumps as dumps_json, loads as loads_json
 from _credential_git import git
+from _working_source import DIFF_FORMAT, working_delta
 from prepare_link_scan import (SKIP_DIRECTORIES, SKIP_HOSTS,
                                select_links, split_record, tracked_files)
 
@@ -105,9 +106,10 @@ def source_identity(root: Path) -> dict:
     if len(commit) not in (40, 64) or any(char not in "0123456789abcdef" for char in commit):
         raise RuntimeError("link source is not a named commit")
     status = git(root, ["status", "--porcelain", "-z"])
-    return {"commit": commit, "tree_state": "working-files" if status else "clean",
+    byte_clean, delta = working_delta(root, commit)
+    return {"commit": commit, "tree_state": "clean" if not status and byte_clean else "working-files",
             "status_sha256": hashlib.sha256(status).hexdigest(),
-            "diff_sha256": hashlib.sha256(git(root, ["diff", "HEAD", "--binary"])).hexdigest()}
+            "diff_format": DIFF_FORMAT, "diff_sha256": delta}
 
 
 def artifact_target(root: Path, target: Path, tracked: set[str]) -> Path:

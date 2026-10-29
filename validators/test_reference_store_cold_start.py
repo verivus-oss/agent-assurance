@@ -29,8 +29,9 @@ if __name__ == '__main__':
     import test_random_id
     import test_temporary_attribute
     import test_parallel_checks
+    import test_working_source
 
-    for module in (test_random_id, test_temporary_attribute, test_parallel_checks):
+    for module in (test_random_id, test_temporary_attribute, test_parallel_checks, test_working_source):
         controls = {name for name, value in vars(module).items() if name.startswith('test_') and callable(value)}
         require(controls, 'cold helper controls are absent: ' + module.__name__)
         executed = set()

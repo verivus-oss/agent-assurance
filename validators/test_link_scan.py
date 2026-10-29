@@ -12,6 +12,31 @@ from _literal_json import dumps, loads
 from _temporary_attribute import temporary_attribute, returning, successive
 from prepare_link_scan import host_of, included_source, select_links, split_record, tracked_files, tracked_paths
 from _literal_path import Path
+from _credential_test_support import TemporaryTree, command, commit, initialize, write
+
+
+def test_source_identity_detects_hidden_working_bytes():
+    with TemporaryTree() as directory:
+        root = Path(directory).resolve()
+        initialize(root)
+        subject = root / 'source.md'
+        original = b'original\n'
+        write(subject, original)
+        commit(root, 'link source byte control')
+        baseline = scanner.source_identity(root)
+        require(baseline['tree_state'] == 'clean')
+        for flag in ('assume-unchanged', 'skip-worktree'):
+            command(root, 'update-index', '--' + flag, '--', 'source.md')
+            try:
+                write(subject, b'changed!\n')
+                require(command(root, 'status', '--porcelain').stdout == b'', 'link source change was not hidden')
+                changed = scanner.source_identity(root)
+                require(changed['tree_state'] == 'working-files' and changed['diff_sha256'] != baseline['diff_sha256'],
+                        'link receipt identity concealed changed source bytes')
+            finally:
+                write(subject, original)
+                command(root, 'update-index', '--no-' + flag, '--', 'source.md')
+            require(scanner.source_identity(root) == baseline)
 
 
 def native_report(candidates, source, *, failures=(), timeouts=()):
