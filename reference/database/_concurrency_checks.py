@@ -1,6 +1,6 @@
 """Private-destination initialization and writer concurrency acceptance tests."""
 
-from concurrent.futures import ThreadPoolExecutor
+from _parallel_checks import run_calls
 from _json_decode import loads as loads_json
 from _path_scan import Path
 import subprocess
@@ -47,9 +47,7 @@ def initialize_checks(store: storage.Store, work: Path) -> list[dict]:
             finally:
                 candidate.connection.close()
 
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            futures = [pool.submit(contender, root) for root in roots]
-            results = [future.result(timeout=120) for future in futures]
+        results = run_calls(contender, tuple((root,) for root in roots), timeout=120, abort=barrier.abort)
         statuses = sorted(result["status"] for result in results)
         if statuses.count("initialized") != 1:
             raise AssertionError(f"{name}: race did not produce exactly one initializer: {results!r}")
@@ -135,9 +133,7 @@ def writer_checks(store: storage.Store, destination: str) -> list[dict]:
         finally:
             candidate.connection.close()
 
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        futures = [pool.submit(contender) for _ in range(2)]
-        results = [future.result(timeout=60) for future in futures]
+    results = run_calls(contender, ((), ()), timeout=60, abort=barrier.abort)
     committed = [result for result in results if result["status"] == "committed"]
     if not committed or any(result["status"] not in {"committed", "retryable-busy"} for result in results):
         raise AssertionError("concurrent writers did not reach a supported committed/busy outcome")
@@ -160,8 +156,7 @@ def writer_checks(store: storage.Store, destination: str) -> list[dict]:
             raise AssertionError("locked SQLite writer unexpectedly committed")
 
         try:
-            with ThreadPoolExecutor(max_workers=1) as pool:
-                outcome = pool.submit(blocked_writer).result(timeout=20)
+            outcome, = run_calls(blocked_writer, ((),), timeout=20)
             if outcome != "retryable-busy":
                 raise AssertionError("SQLite lock exhaustion did not return explicit retryable-busy")
         finally:

@@ -141,6 +141,18 @@ keys and requires CHECK constraints enabled before BEGIN. Embedded DuckDB has on
 writer process and serializes callers within it; another writable process is
 refused. An active caller transaction is rejected without commit or rollback.
 
+The private-lane concurrency harness replaces the executor dependency from
+`4069dfababe2b74bb1ed7fc8795cc0a8263e7943` with explicit worker threads.
+Initialization and repeated-write races still use two simultaneous contenders;
+the SQLite lock-exhaustion probe uses one. Results preserve input order and
+worker exceptions fail the lane. A shared deadline bounds waiting, and startup
+or deadline failure releases peers at the supplied barrier. Python cannot
+cancel a stuck native driver call: a failed lane must abandon its private
+destination and process. No partial worker results become a successful receipt.
+Worker controls run under the cold import guard; persistent engine lanes
+separately exercise the real initialization and writer outcomes. This does not
+complete native driver, subprocess or build dependency audits.
+
 The PostgreSQL connector requires text connection parameters and an optional
 text database name. It normalizes string subclasses to their underlying text
 and rejects NUL before loading the driver or opening a connection. Invalid

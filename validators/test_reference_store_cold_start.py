@@ -7,7 +7,7 @@ if __name__ == '__main__':
     if sys.implementation.name != 'cpython' or not sys.flags.no_site:
         raise RuntimeError('reference-store cold controls require CPython with -S')
     retired = {'re', 'regex', '_sre', 'pathlib', 'fnmatch', 'glob', 'urllib', 'dataclasses', 'json', 'uuid', 'platform', 'typing',
-               'psycopg', 'psycopg_binary', 'psycopg_c', 'unittest'}
+               'psycopg', 'psycopg_binary', 'psycopg_c', 'unittest', 'concurrent', 'logging'}
     observed = set()
     attempted_imports = set()
 
@@ -27,8 +27,9 @@ if __name__ == '__main__':
     from _test_require import expect_raises, require
     import test_random_id
     import test_temporary_attribute
+    import test_parallel_checks
 
-    for module in (test_random_id, test_temporary_attribute):
+    for module in (test_random_id, test_temporary_attribute, test_parallel_checks):
         controls = {name for name, value in vars(module).items() if name.startswith('test_') and callable(value)}
         require(controls, 'cold helper controls are absent: ' + module.__name__)
         executed = set()
@@ -75,5 +76,5 @@ if __name__ == '__main__':
     sys.setprofile(None)
     require(not attempted_imports, 'reference store suppressed forbidden import attempts: ' + repr(sorted(attempted_imports)))
     require(not observed and not (retired & set(sys.modules)))
-    print('reference store cold control: complete identifier and temporary-attribute controls, actual protocol harness import, SQLite initialization, supported-kind ingest, idempotency, rejection, SQL error and audit; four NUL and six nontext PostgreSQL parameter rejections executed')
+    print('reference store cold control: complete identifier, temporary-attribute and parallel-worker controls, actual protocol harness import, SQLite initialization, supported-kind ingest, idempotency, rejection, SQL error and audit; four NUL and six nontext PostgreSQL parameter rejections executed')
     print('scope: local SQLite ' + version + '; persistent connection-loss/concurrency, accepted PostgreSQL connections, DuckDB, native driver internals and other verification entry points skipped')

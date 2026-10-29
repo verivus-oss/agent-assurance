@@ -9,6 +9,14 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Replace the three database acceptance-harness executor sites measured at
+  `4069dfababe2b74bb1ed7fc8795cc0a8263e7943` with one or two explicit worker
+  threads. Preserve simultaneous contenders, input-ordered results and fatal
+  worker failures; bound waiting and release barrier peers after startup or
+  deadline failure. Cold controls exercise accepted and rejected calls without
+  loading the retired executor or logging framework. Native driver and other
+  harness dependency audits remain open.
+
 - Repair command and discovery regressions measured at
   `11660352c4c6c1bd30d051607fd4cdde6ca2b470` against the original behavior at
   `518656923ee1beadc8b5722617782804b7db2da6`. Restore short help and
