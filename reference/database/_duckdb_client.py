@@ -77,6 +77,8 @@ def _recipe(root):
 def inventory(domain, *populations):
     digest = hashlib.sha256(domain.encode('ascii') + b'\0')
     for population in populations:
+        if not isinstance(population, list) or type(population) is not list:
+            raise ArtifactError('native DuckDB identity population requires a plain list')
         digest.update(len(population).to_bytes(8, 'big'))
         for entry in population:
             for value in (entry['path'], entry['sha256']):

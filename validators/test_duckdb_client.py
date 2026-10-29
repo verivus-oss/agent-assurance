@@ -44,6 +44,10 @@ def test_parameters_have_independent_expected_values():
 
 
 def test_inventory_refuses_ambiguous_rosters_and_binds_populations():
+    class List(list):
+        def __iter__(self):
+            raise AssertionError('identity sequence subclass iteration executed')
+
     good = [{'path': 'source/input.cpp', 'sha256': 'a' * 64}]
     require(client._roster(good) == good)
     for bad in ([], good * 2, [{'path': '../outside', 'sha256': 'a' * 64}],
@@ -52,6 +56,10 @@ def test_inventory_refuses_ambiguous_rosters_and_binds_populations():
         expect_raises(client.ArtifactError, lambda: client._roster(bad), 'invalid identity roster was accepted')
     require(client.inventory('control-v1', good) != client.inventory('control-v1', [], good))
     require(client.inventory('control-v1', good) != client.inventory('control-v2', good))
+    for invalid in ('source', b'source', None, tuple(good), {'source': good}, List(good)):
+        error = expect_raises(client.ArtifactError, lambda: client.inventory('control-v1', invalid),
+                              'a non-list identity population was accepted')
+        require('requires a plain list' in str(error), 'identity population failed during unrelated setup')
     require(client._kernel_path('/private/path\\040with\\134escape') == '/private/path with\\escape')
     require(client._kernel_path('/private/literal\\04x') == '/private/literal\\04x')
 

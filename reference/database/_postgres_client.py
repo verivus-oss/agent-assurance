@@ -302,12 +302,17 @@ def build_identity(root):
             or len(record['sources']) != len(files) or record['compiled_graph_sha256'] != graph_digest.hexdigest()
             or any(name == 'regexp' or name.startswith('regexp/') for name in record['compiled_packages'])):
         raise OperationalError('PostgreSQL native driver build identity is stale or incomplete')
+    prepared = relative + '.dependencies/' + record['dependencies_sha256']
+    _stamp, published = source_identity(root / prepared)
+    if published != {item['path']: item['sha256'] for item in record['prepared_dependencies']}:
+        raise OperationalError('PostgreSQL native published supplier population differs from its prepared identity')
     binary_sha256 = hashlib.sha256(binary.read_bytes()).hexdigest()
     if binary_sha256 != record['binary_sha256']:
         raise OperationalError('PostgreSQL native driver binary differs from its build identity')
     return {'protocol': PROTOCOL, 'go_version': record['go_version'], 'source_sha256': source_sha256,
             'binary_sha256': binary_sha256, 'dependencies_sha256': record['dependencies_sha256'],
             'compiled_graph_sha256': graph_digest.hexdigest(),
+            'prepared_dependencies': prepared,
             'binary': relative}
 
 

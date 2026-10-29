@@ -9,6 +9,19 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Require explicit list populations in the DuckDB identity framer after the
+  quality notice on `bdd63b22483fc7c96b0896c3dcc994f1aa0ce37e`. Preserve
+  accepted list framing and reject string, bytes, mapping, tuple and absent
+  populations before iteration, without suppressing the analysis.
+
+- Publish and verify the complete prepared PostgreSQL supplier tree after
+  the artifact audit at `bdd63b22483fc7c96b0896c3dcc994f1aa0ce37e` found
+  captured notices represented only by hashes in the output. Recheck prepared
+  inputs after compilation and retain every source and notice under its
+  content identity. Replace the dependency updater's four fixed Go roots,
+  which omitted both new native modules, with the complete tooling-directory
+  scope already used for Rust.
+
 - Preserve complete supplier enum identifiers in the spelling gate after the
   four fragment findings measured at
   `b506356cd82aa85b8217104357f45a16a51bf952`. Move the complete identifier

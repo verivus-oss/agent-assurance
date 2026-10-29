@@ -29,12 +29,23 @@ checks the current source, executable and native handshake before sending
 connection parameters, then rechecks source and executable identity during
 the session. Executed receipts retain that driver identity; the receipt gate
 requires the retained native executable and build record.
+It also requires every file in the published prepared supplier tree.
 
 The complete prepared file inventory is itself bound into the native
 handshake. Its digest frames sorted relative paths and lowercase file SHA-256
 text with unsigned 64-bit big-endian byte lengths, under the
 `dagtoml-postgres-dependencies-v1` domain and a zero separator. Omitted,
 duplicated or altered records cannot retain the executed dependency identity.
+
+At baseline `bdd63b22483fc7c96b0896c3dcc994f1aa0ce37e`, the record captured
+supplier notices but the distributed native artifact retained only their
+hashes. The builder now publishes the complete prepared supplier tree,
+including its licenses and patent notices, under
+`dagtoml-postgres-go.dependencies/DEPENDENCY_DIGEST`. The bridge compares
+every retained path and file hash with the native-bound inventory before
+accepting an artifact. Existing publications must agree exactly; changed,
+missing, linked and extra files refuse reuse. No filename exclusion decides
+which prepared supplier material reaches the artifact recipient.
 
 Connection parameters travel over standard input, never command arguments.
 Query values use PostgreSQL's separate parameter protocol. The server's

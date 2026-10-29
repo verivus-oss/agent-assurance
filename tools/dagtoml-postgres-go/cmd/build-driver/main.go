@@ -349,6 +349,9 @@ func build(root, output string) (resultErr error) {
 	if err = graphControls(); err != nil {
 		return err
 	}
+	if err = publicationControls(); err != nil {
+		return err
+	}
 	if err = prepareSupplierControls(work); err != nil {
 		return err
 	}
@@ -406,6 +409,13 @@ func build(root, output string) (resultErr error) {
 	_, after, err := population(root)
 	if err != nil || after != stamp {
 		return errors.New("driver source moved during its build")
+	}
+	preparedAfter, _, err := population(filepath.Join(work, "vendor"))
+	if err != nil || dependencyInventory(preparedAfter) != vendorStamp {
+		return errors.New("prepared PostgreSQL supplier population moved during compilation")
+	}
+	if err = publishDependencies(output, dependencies, vendorStamp); err != nil {
+		return err
 	}
 	binaryData, err := os.ReadFile(output) // #nosec G304 -- Identify the executable just built at the operator-selected output path.
 	if err != nil {

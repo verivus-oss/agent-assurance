@@ -10,6 +10,7 @@ from _owned_session import Session, SessionError
 from _posix_process import run
 from _temporary_attribute import temporary_attribute
 from _test_require import expect_raises, require
+from _random_id import random_id_hex
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'reference/database'))
@@ -166,6 +167,49 @@ def test_retained_inventory_and_native_handshake_refuse_altered_proof(identity):
     require(build_identity(ROOT) == identity, 'binary control did not restore its subject')
 
 
+def test_published_supplier_material_requires_complete_actual_bytes(identity):
+    published = ROOT / identity['prepared_dependencies']
+    record = loads((ROOT / (identity['binary'] + '.build.json')).read_bytes())
+    notices = [item for item in record['prepared_dependencies'] if item['path'].rsplit('/', 1)[-1].upper().startswith(
+        ('LICENSE', 'LICENCE', 'NOTICE', 'COPYING', 'COPYRIGHT', 'PATENTS', 'AUTHORS', 'CONTRIBUTORS', 'LEGAL'))]
+    require(notices, 'actual prepared supplier notice population is absent')
+    exercised = set()
+    for item in notices:
+        path = published / item['path']
+        original = path.read_bytes()
+        try:
+            path.write_bytes(original + b'\nchanged supplier material\n')
+            error = expect_raises(OperationalError, lambda: build_identity(ROOT), 'changed supplier notice was accepted')
+            require('published supplier population differs' in str(error), 'changed notice failed during unrelated setup')
+            path.unlink()
+            error = expect_raises(OperationalError, lambda: build_identity(ROOT), 'missing supplier notice was accepted')
+            require('published supplier population differs' in str(error), 'missing notice failed during unrelated setup')
+        finally:
+            path.write_bytes(original)
+        require(build_identity(ROOT) == identity, 'supplier notice control did not restore the actual artifact')
+        exercised.add(item['path'])
+    require(exercised == {item['path'] for item in notices}, 'published notice refusal population was incomplete')
+    extra = published / 'unexpected-source-control'
+    try:
+        extra.write_bytes(b'unexpected supplier source')
+        error = expect_raises(OperationalError, lambda: build_identity(ROOT), 'extra supplier source was accepted')
+        require('published supplier population differs' in str(error), 'extra source failed during unrelated setup')
+    finally:
+        extra.unlink()
+    selected = published / notices[0]['path']
+    parked = published.parent / (random_id_hex() + '.notice-control')
+    selected.rename(parked)
+    try:
+        selected.symlink_to(parked)
+        error = expect_raises(OperationalError, lambda: build_identity(ROOT), 'linked supplier notice was accepted')
+        require('nonregular entry' in str(error), 'linked notice failed during unrelated setup')
+    finally:
+        if selected.is_symlink():
+            selected.unlink()
+        parked.rename(selected)
+    require(build_identity(ROOT) == identity, 'published source controls did not restore the actual artifact')
+
+
 if __name__ == '__main__':
     identity = prepare()
     controls = {name: value for name, value in globals().items() if name.startswith('test_') and callable(value)}
@@ -175,4 +219,4 @@ if __name__ == '__main__':
         control(identity)
         executed.add(name)
     require(executed == set(controls))
-    print('native PostgreSQL producer: current rebuilt subject and supplier controls; valid Unicode/request/close controls; malformed, duplicate, out-of-order and invalid Unicode refusal; altered inventory, handshake and executable refusal; live database lanes skipped')
+    print('native PostgreSQL producer: current rebuilt subject and supplier controls; valid Unicode/request/close controls; malformed, duplicate, out-of-order and invalid Unicode refusal; altered inventory, handshake and executable refusal; every captured supplier notice changed/removed, extra source and linked notice refused with restored actual controls; live database lanes skipped')
