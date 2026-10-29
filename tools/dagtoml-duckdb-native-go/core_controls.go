@@ -67,5 +67,32 @@ func sourceControls() error {
 	if _, err := prepareCore([]byte(`namespace duckdb_re2 {}`), refusal, lexer); err == nil {
 		return errors.New("native source preparation accepted a changed matcher population")
 	}
+	return httpSourceControls()
+}
+
+func httpSourceControls() error {
+	class := `class HTTPLibClient : public HTTPClient { const char *text="}"; private: void Member() {} };`
+	helper := `unique_ptr<HTTPResponse> TransformResponse(duckdb_httplib::Result &res) { if (ok) { action(); } return result; }`
+	factory := `unique_ptr<HTTPClient> HTTPUtil::InitializeClient(HTTPParams &params, const string &host) { return make_uniq<HTTPLibClient>(params,host); }`
+	source := []byte("outside_before();\nnamespace duckdb {" + class + helper + factory + "}\noutside_after();")
+	result, err := retireHTTPImplementation(source)
+	if err != nil {
+		return err
+	}
+	for _, expected := range []string{"outside_before();", "outside_after();", "HTTPUtil::InitializeClient", "built-in HTTP transport is retired"} {
+		if bytes.Count(result, []byte(expected)) != 1 {
+			return errors.New("native HTTP retirement changed its declared retained or refusal population")
+		}
+	}
+	for _, bad := range []string{class + class + helper + factory, class + factory, class + helper, "duckdb_httplib::Client unresolved;"} {
+		if _, err := retireHTTPImplementation([]byte(bad)); err == nil {
+			return errors.New("native HTTP retirement accepted a changed or partial source population")
+		}
+	}
+	already := []byte(`namespace duckdb { const char *text="HTTPLibClient duckdb_httplib"; }`)
+	result, err = retireHTTPImplementation(already)
+	if err != nil || !bytes.Equal(result, already) {
+		return errors.New("native HTTP retirement changed an already retired implementation")
+	}
 	return nil
 }

@@ -92,7 +92,7 @@ func prepareCore(data, refusal, lexer []byte) ([]byte, error) {
 	}
 	scanner := selected[0]
 	result := append(append(append([]byte{}, prepared[:scanner.Start]...), lexer...), prepared[scanner.End:]...)
-	return result, nil
+	return retireHTTPImplementation(result)
 }
 
 func buildCore(work, sdk, core, compiler string, data []byte) (result coreBuild, resultErr error) {

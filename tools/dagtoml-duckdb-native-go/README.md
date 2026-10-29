@@ -52,7 +52,13 @@ without generating a scanner. Both pinned sources' compile-time
 `DUCKDB_DISABLE_EXTENSION_LOAD` boundary removes external extension loading and
 installation while preserving those static extensions. SQL and binding methods
 must refuse external loads before opening or downloading extension code. The
-source archive's complete third-party notice
+floor build at project commit `5c32a84befa67d3828b428f5257a974a7af7dd8a`
+exposed an unguarded HTTP implementation after its declarations were disabled.
+Source preparation removes the complete HTTP class and response helper and
+retains its existing factory with an explicit refusal before a request. The
+maintained source already guards that implementation. Both cases are derived
+from the full current token population and checked for partial retirement.
+The source archive's complete third-party notice
 block is retained beside the exact prepared source and static extension hook.
 Protocol version two binds those populations, the complete derived core target
 set and the built shared library into the native module identity. The connector

@@ -9,6 +9,13 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Retire the floor core's unguarded HTTP implementation after compilation at
+  `5c32a84befa67d3828b428f5257a974a7af7dd8a` showed that disabling extension
+  loading removed its declarations while leaving the HTTP class and response
+  helper active. Remove those complete definitions and retain the existing
+  client factory with an explicit refusal before any request. Exercise retained,
+  removed, already-retired and partial source populations in preparation controls.
+
 - Replace the published DuckDB core binary input with a source build that
   retires its matcher implementation and generated SQL scanner. Maintain the
   existing native ABI with explicit pattern refusal and a byte-state SQL
