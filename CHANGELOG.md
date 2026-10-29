@@ -9,6 +9,16 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Replace the installed DuckDB binding path measured at
+  `12cb56dd0a6ce892d51930554080e2411ec35521` with a pinned, directly built
+  variant of that existing native dependency. Bind complete source and header
+  populations, compiler and core identities to the loaded module, retain
+  supplier notices, and require artifact and cold-import proofs in receipts.
+  Retire Python packaging and optional ecosystem conversion from this path;
+  keep supplier origin identities in advisory discovery. Preserve reference
+  parameter types, canonical UUID text, UTC timestamps and primary errors.
+  Native core, compiler and other verification dependency audits remain open.
+
 - Make PostgreSQL sequence admission and database connection ownership
   explicit after the quality analysis of
   `544cdec5b5b88500ba149b57050f0d10967a11d1`. Preserve exact sequence

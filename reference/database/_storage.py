@@ -49,10 +49,12 @@ def connect(engine: str, destination: str):
         destination = str.__str__(destination)
         if "\0" in destination:
             raise StorageError("setup", "DuckDB destination must not contain NUL bytes")
-        import _duckdb as duckdb
+        from _duckdb_client import connect as connect_native, connection_error
         try:
-            return duckdb.connect(destination)
-        except duckdb.IOException as exc:
+            return connect_native(destination)
+        except Exception as exc:
+            if not connection_error(exc):
+                raise
             code = "busy/unsupported-writer" if "lock" in str(exc).lower() else "setup"
             raise StorageError(code, str(exc)) from exc
     if engine == "postgres":
@@ -74,6 +76,9 @@ class Store:
             raise ValueError("unsupported engine")
         if engine == "postgres":
             from _postgres import native_connection
+            connection = native_connection(connection)
+        if engine == "duckdb":
+            from _duckdb_client import native_connection
             connection = native_connection(connection)
         self.engine = engine
         self.connection = connection
@@ -214,6 +219,9 @@ class Store:
         self.connection = self.reconnect()
         if self.engine == "postgres":
             from _postgres import native_connection
+            self.connection = native_connection(self.connection)
+        if self.engine == "duckdb":
+            from _duckdb_client import native_connection
             self.connection = native_connection(self.connection)
         self.prepare()
 

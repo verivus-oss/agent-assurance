@@ -178,7 +178,7 @@ connection.close()
 sys.exit(1)
 '''
         status, output, _errors = run_process(
-            [sys.executable, "-c", code, str(store.root / "reference/database"), destination],
+            [sys.executable, "-S", "-c", code, str(store.root / "reference/database"), destination],
             timeout=20, output_limit=65536,
         )
         if status != 0 or loads_json(output).get("status") != "busy/unsupported-writer":

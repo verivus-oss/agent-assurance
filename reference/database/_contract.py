@@ -93,10 +93,13 @@ def bundle_entries(root: Path) -> dict[str, str]:
         "requirements/toml.txt", "requirements/database.txt",
         "reference/database/engine-lock.toml",
         "tools/dagtoml-postgres-go/go.mod", "tools/dagtoml-postgres-go/go.sum",
+        "tools/dagtoml-duckdb-native-go/go.mod",
     )}
     for pattern in ("profiles/*/ontology.toml", "core/*-kind.toml", "profiles/*/*-kind.toml",
                     "profiles/*/PROFILE.toml", "validators/**/*.py", "reference/database/**/*.py",
-                    "requirements/database*.txt", "tools/dagtoml-postgres-go/**/*.go"):
+                    "requirements/database*.txt", "tools/dagtoml-postgres-go/**/*.go",
+                    "tools/dagtoml-duckdb-native-go/**/*.go", "tools/dagtoml-duckdb-native-go/**/*.json",
+                    "tools/dagtoml-duckdb-native-go/**/*.md"):
         paths.update(literal_glob(root, pattern))
     entries = {}
     for path in paths:

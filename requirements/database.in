@@ -1,4 +1,4 @@
-# Optional DuckDB Python bridge. PostgreSQL uses the owned native Go driver.
+# Native supplier origin identities for advisory matching, not Python installation.
+# Runtime artifacts are built from tools/dagtoml-duckdb-native-go/data/inputs.json.
 duckdb==1.5.3
-# DuckDB's Python conversion of TIMESTAMPTZ imports pytz.
-pytz==2026.3.post1
+pybind11==2.13.6

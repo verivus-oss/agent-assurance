@@ -140,6 +140,16 @@ def main(argv=None):
     try:
         if lane["engine"] == "sqlite":
             env["LD_LIBRARY_PATH"] = build_sqlite(lane, work, env)
+        elif lane["engine"] == "duckdb":
+            env["DAGTOML_DUCKDB_VERSION"] = lane["version"]
+            os.environ["DAGTOML_DUCKDB_VERSION"] = lane["version"]
+            driver = output / "duckdb-driver" / lane["version"] / sys.implementation.cache_tag
+            print(run(["go", "run", ".", "--self-check"], root / "tools/dagtoml-duckdb-native-go",
+                      {**env, "GOTOOLCHAIN": "go1.26.10"}), end="")
+            run(["go", "run", ".", "--version", lane["version"], "--python", sys.executable,
+                 "--output", str(driver), "--cache", str(work / "archive-cache")],
+                root / "tools/dagtoml-duckdb-native-go", {**env, "GOTOOLCHAIN": "go1.26.10"})
+            print(run([sys.executable, "-B", "-S", "validators/test_duckdb_client.py", "--native"], root, env), end="")
         elif lane["engine"] == "postgres":
             driver = root / ".local/database-ci/postgres-driver/dagtoml-postgres-go"
             run(["go", "run", "./cmd/build-driver", "--output", str(driver)],
@@ -190,7 +200,7 @@ def main(argv=None):
                              "binary": published_binary.relative_to(root).as_posix(),
                              "binary_sha256": hashlib.sha256(published_binary.read_bytes()).hexdigest(),
                              "verify_checks": loader_verify_checks(root, work, published_binary, work / "duckdb", destination, env)}
-        command = [sys.executable, *(["-S"] if lane["engine"] == "postgres" else []), str(root / "validators/check_database_vocabularies.py"), "--repo-root", str(root),
+        command = [sys.executable, *(["-S"] if lane["engine"] in {"postgres", "duckdb"} else []), str(root / "validators/check_database_vocabularies.py"), "--repo-root", str(root),
                    "--engine", lane["engine"], "--destination", destination, "--expected-version", lane["version"],
                    "--lane", name, "--receipt", str(receipt_path)]
         if args.loader:

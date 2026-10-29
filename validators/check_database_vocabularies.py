@@ -50,6 +50,10 @@ def run_lane(root: Path, engine: str, destination: str, expected_version: str, l
         from _postgres_guard import guarded_lane
         return guarded_lane(lambda: _run_lane(root, engine, destination, expected_version, lane,
                                                existing_seed=existing_seed))
+    if engine == "duckdb":
+        from _duckdb_guard import guarded_lane
+        return guarded_lane(lambda: _run_lane(root, engine, destination, expected_version, lane,
+                                               existing_seed=existing_seed))
     return _run_lane(root, engine, destination, expected_version, lane, existing_seed=existing_seed)
 
 
@@ -65,7 +69,7 @@ def _run_lane(root: Path, engine: str, destination: str, expected_version: str, 
         def close_current_connection():
             (store.connection if store is not None else connection).close()
         resources.callback(close_current_connection)
-        native_driver = connection.driver_identity if engine == "postgres" else None
+        native_driver = connection.driver_identity if engine in {"postgres", "duckdb"} else None
         store = Store(engine, connection, root, reconnect=lambda: connect(engine, destination))
         actual_version = engine_version(store)
         if actual_version != expected_version:
@@ -105,6 +109,10 @@ def _run_lane(root: Path, engine: str, destination: str, expected_version: str, 
             from _postgres_client import build_identity
             if build_identity(root) != native_driver:
                 raise ValueError("native PostgreSQL driver artifacts changed while the executed gate was running")
+        if engine == "duckdb":
+            from _duckdb_client import build_identity
+            if build_identity(root, expected_version) != native_driver:
+                raise ValueError("native DuckDB driver artifacts changed while the executed gate was running")
         return {"receipt_version": 1, "status": "passed", "lane": lane, "engine": engine,
                 "expected_version": expected_version, "actual_version": actual_version, "source": identity,
                 **({"native_driver": native_driver} if native_driver is not None else {}),

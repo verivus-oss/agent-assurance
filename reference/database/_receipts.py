@@ -57,6 +57,13 @@ def validate_receipts(root: Path, paths: list[Path], *, require_clean=True, incl
                 raise ValueError("missing or stale executed native PostgreSQL driver identity")
             if receipt.get("execution_guard") != expected_proof():
                 raise ValueError("missing or unsuccessful native PostgreSQL execution guard")
+        if lane["engine"] == "duckdb":
+            from _duckdb_client import build_identity
+            from _duckdb_guard import expected_proof
+            if receipt.get("native_driver") != build_identity(root, lane["version"]):
+                raise ValueError("missing or stale executed native DuckDB driver identity")
+            if receipt.get("execution_guard") != expected_proof():
+                raise ValueError("missing or unsuccessful native DuckDB execution guard")
         counts = receipt.get("seed_counts", {})
         if counts != {**registry, "instance_file": 0, "reference_contract": 0, "runtime_document": 0}:
             raise ValueError("receipt seed counts do not match the declarations and empty seed-only contract")

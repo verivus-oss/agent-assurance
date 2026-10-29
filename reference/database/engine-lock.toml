@@ -51,10 +51,10 @@ driver = "Python sqlite3 linked to the selected library; assert SELECT sqlite_ve
 id = "duckdb-floor"
 engine = "duckdb"
 version = "1.5.0"
-driver_lock = "requirements/database-floor.txt"
+driver_module = "tools/dagtoml-duckdb-native-go/go.mod"
 
 [[lanes]]
 id = "duckdb-maintained"
 engine = "duckdb"
 version = "1.5.3"
-driver_lock = "requirements/database.txt"
+driver_module = "tools/dagtoml-duckdb-native-go/go.mod"

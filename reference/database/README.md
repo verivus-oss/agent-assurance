@@ -92,14 +92,28 @@ with duplicate keys is rejected. Indexes are not completeness/authenticity claim
 
 ## Initialize and ingest
 
-Install optional database drivers separately. At commit
-`6f58c814158c3b1ba46eb49a9b0dec544140ae26`, the Python TOML 1.1 parser
-is bundled with the reference validators. It is based on Tomli 2.5.0 with
-local scanner and diagnostic changes described in the vendor README:
+Build DuckDB's maintained native binding with the selected CPython installation
+and its matching development headers. At baseline
+`12cb56dd0a6ce892d51930554080e2411ec35521`, the reference used the installed
+native package without binding it to a retained build identity. The replacement
+recipe pins supplier archives, prepares the existing binding and records the
+exact native artifacts. There is no installed-package fallback.
 
 ```sh
-python3 -m pip install --require-hashes -r requirements/database.txt
+cd tools/dagtoml-duckdb-native-go
+GOTOOLCHAIN=go1.26.10 go run . --version 1.5.3 \
+  --python /absolute/path/to/python \
+  --cache /absolute/path/to/archive-cache \
+  --output /absolute/path/to/repository/.local/database-ci/duckdb-driver/1.5.3/cpython-311
 ```
+
+The output ABI directory must match the interpreter. Set
+`DAGTOML_DUCKDB_VERSION=1.5.0` when selecting the floor build. Supplier origin
+identities remain in `requirements/database*.txt` for advisory matching. Those
+files describe native inputs and are not installation instructions. The local
+variant retires optional Python ecosystem conversion; UUID output is canonical
+text and timezone-aware timestamp output is UTC. See the native builder README
+for supported platforms, input inventories and remaining audit boundaries.
 
 Load the engine's `schema.sql` and `seed.sql` into a fresh private destination.
 Those files leave `reference_contract` and `runtime_document` empty. Rust/Go
@@ -129,7 +143,7 @@ zero separator, unsigned 64-bit big-endian entry count, then path-byte length,
 canonical UTF-8 relative path, and raw SHA-256 bytes for each sorted entry.
 Its population includes specification prose, discovered ontologies, kind/profile
 descriptors, assertion grammar, storage mapping, Python validators and database
-support modules, native PostgreSQL Go sources and module locks, engine lock,
+support modules, native PostgreSQL Go sources and module locks, the complete native DuckDB recipe, engine lock,
 and pinned dependencies. Missing or escaping paths
 fail. SQL artifacts are hashed separately and verified by execution to avoid a
 seed/hash cycle. The bare 64-character lowercase bundle digest never substitutes
