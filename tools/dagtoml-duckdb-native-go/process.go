@@ -40,7 +40,7 @@ func commandRun(directory string, arguments []string, deadline time.Duration) (r
 	command := exec.Command(arguments[0], arguments[1:]...) // #nosec G204 -- Authored compiler vectors use no shell and accept no document data.
 	command.Dir = directory
 	// Compiler search paths and Python imports must not inherit caller overrides.
-	command.Env = []string{"PATH=/usr/bin:/bin", "LC_ALL=C", "TMPDIR=" + directory}
+	command.Env = []string{"PATH=/usr/bin:/bin", "LC_ALL=C", "TMPDIR=" + directory, "SOURCE_DATE_EPOCH=0"}
 	record.Environment = append([]string{}, command.Env...)
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	stdout, err := command.StdoutPipe()

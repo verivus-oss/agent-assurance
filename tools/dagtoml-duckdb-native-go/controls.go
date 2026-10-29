@@ -107,7 +107,7 @@ func processControls(work string) (resultErr error) {
 		return err
 	}
 	record, err = commandRun(work, []string{executable, "--instrument-producer", "environment"}, 2*time.Second)
-	expectedEnvironment := "PATH=/usr/bin:/bin\nLC_ALL=C\nTMPDIR=" + work
+	expectedEnvironment := "PATH=/usr/bin:/bin\nLC_ALL=C\nTMPDIR=" + work + "\nSOURCE_DATE_EPOCH=0"
 	if err != nil || string(record.Stdout) != expectedEnvironment || strings.Join(record.Environment, "\n") != expectedEnvironment {
 		return errors.New("actual producer inherited an undeclared caller environment")
 	}

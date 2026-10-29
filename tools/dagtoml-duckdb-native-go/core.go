@@ -126,7 +126,8 @@ func buildCore(work, sdk, core, compiler string, data []byte) (result coreBuild,
 	}
 	notice := append([]byte{}, original[bytes.Index(original, []byte(noticeAnchor)):]...)
 	const stub = "void ExtensionHelper::LoadAllExtensions(DuckDB &db) {\n\t// nop\n}"
-	if bytes.Count(original, []byte(stub)) != 1 || bytes.Count(original, []byte("#include <regex>")) != 1 {
+	if (bytes.Count(original, []byte(stub)) != 1 || bytes.Count(original, []byte("#include <regex>")) != 1 ||
+		bytes.Count(original, []byte("__DATE__")) != 1 || bytes.Count(original, []byte("__TIME__")) != 1) {
 		return coreBuild{}, errors.New("native source core preparation anchors differ")
 	}
 	original = bytes.Replace(original, []byte(stub), nil, 1)
@@ -159,6 +160,9 @@ func buildCore(work, sdk, core, compiler string, data []byte) (result coreBuild,
 	body, err := workRoot.ReadFile("core-preprocessed.cpp")
 	if err != nil || len(body) == 0 || len(body) > 128*1024*1024 {
 		return coreBuild{}, errors.New("native preprocessed core subject is absent or exceeds its bound")
+	}
+	if bytes.Count(body, []byte(`"Jan  1 1970" "00:00:00"`)) != 1 {
+		return coreBuild{}, errors.New("native preprocessed core retained a variable build clock")
 	}
 	refusal, err := inputs.ReadFile("data/retired-matcher.hpp")
 	if err != nil {

@@ -86,6 +86,15 @@ Header and core populations are compared again after compilation. Commands use
 an explicit minimal environment, so caller include/library/import overrides do
 not change the declared build. The process control observes that environment
 in an actual child while a hostile compiler include path is set in its caller.
+The compiler environment also sets `SOURCE_DATE_EPOCH=0`. Both pinned core
+archives contain one use each of `__DATE__` and `__TIME__`; the builder rejects
+a preprocessed core unless they expand to the fixed epoch values. At candidate
+`aa0b471702dd55f26e3d1b4128361ee01086d492`, separate CI jobs for the
+maintained engine and both loaders produced three different prepared core
+identities because those macros expanded to each job's wall clock. Their
+artifact paths collided when the full matrix was assembled, so the aggregate
+receipt gate correctly rejected the mixed build. The fixed epoch keeps the
+prepared core identity and embedded binding identity consistent across jobs.
 Compiler processes have bounded streams and deadlines. Cleanup abandons their
 owned process group before reaping the direct child. Failed command records
 retain exact arguments, directory and raw base64 output; their diagnostic
