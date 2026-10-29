@@ -129,7 +129,8 @@ zero separator, unsigned 64-bit big-endian entry count, then path-byte length,
 canonical UTF-8 relative path, and raw SHA-256 bytes for each sorted entry.
 Its population includes specification prose, discovered ontologies, kind/profile
 descriptors, assertion grammar, storage mapping, Python validators and database
-support modules, engine lock, and pinned dependencies. Missing or escaping paths
+support modules, native PostgreSQL Go sources and module locks, engine lock,
+and pinned dependencies. Missing or escaping paths
 fail. SQL artifacts are hashed separately and verified by execution to avoid a
 seed/hash cycle. The bare 64-character lowercase bundle digest never substitutes
 for a document hash or `closure_root`. One database belongs to one immutable bundle.
@@ -177,8 +178,18 @@ The PostgreSQL connector requires text connection parameters and an optional
 text database name. It normalizes string subclasses to their underlying text
 and rejects NUL before loading the driver or opening a connection. Invalid
 text raises `StorageError` with code `setup`; nontext raises `TypeError`.
-Accepted input still uses libpq's connection-string parser. This boundary
-does not complete the driver's import and native dependency audit.
+The connector at `7d871361d4275860dab54b628894a54d20d977e6` loaded the
+Psycopg Python stack. It is replaced by the [native reference session](../../tools/dagtoml-postgres-go/README.md),
+whose prepared Go sources replace the supplier's password-file matcher and
+connection-error redactors. PostgreSQL uses separate protocol parameters,
+actual server transaction state and primary-message/SQLSTATE errors. Its
+Python bridge preserves the reference store's supported values and abandons
+the owned child on timeout or malformed framing. Build the native client
+before using PostgreSQL; the private CI runner builds it automatically.
+The executed lane runs with site disabled and guards both the main thread
+and new workers. Receipts require that guard, the current driver source and
+dependency identities, and the retained executable/build record. These
+client checks do not complete the server, compiler or wider tool audits.
 
 The DuckDB connector uses the installed native interface. Its destination is
 text, either supplied directly or returned by the filesystem path protocol.

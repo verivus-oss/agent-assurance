@@ -30,6 +30,8 @@ pub struct Snapshot {
     pub tree_state: String,
     pub index_sha256: String,
     pub tracked_population: usize,
+    pub filesystem_directories: BTreeSet<String>,
+    pub ignored_directory_roots: BTreeSet<String>,
     pub subjects: Vec<Subject>,
 }
 
@@ -103,7 +105,9 @@ impl Git {
             Duration::from_secs(30),
         )?;
         self.require_unchanged()?;
-        if !output.status.success() {
+        let unmatched_ignore_query = arguments == ["check-ignore", "--no-index", "-z", "--stdin"]
+            && output.status.code() == Some(1);
+        if !output.status.success() && !unmatched_ignore_query {
             return Err("read-only advisory Git operation failed".into());
         }
         Ok(output.stdout)
@@ -190,6 +194,94 @@ fn read(root: &Path, path: &str) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
+fn directory_population(
+    root: &Path,
+    git: &Git,
+) -> Result<(BTreeSet<String>, BTreeSet<String>), String> {
+    // Discover actual directories, then ask Git about each literal path.
+    // ls-files --ignored --directory is insufficient: it also lists visible
+    // parents whose children are all ignored, hiding a selected vendor root.
+    let mut ignored = BTreeSet::new();
+    let mut directories = BTreeSet::new();
+    let mut pending = vec![PathBuf::new()];
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    let mut entries = 0usize;
+    while !pending.is_empty() {
+        let mut candidates = BTreeSet::new();
+        for parent in pending.drain(..) {
+            let listing = std::fs::read_dir(root.join(&parent))
+                .map_err(|_| "cannot enumerate advisory filesystem directories")?;
+            for entry in listing {
+                entries += 1;
+                if entries > 1_000_000 || std::time::Instant::now() > deadline {
+                    return Err("advisory filesystem discovery exceeded its bound".into());
+                }
+                let entry = entry.map_err(|_| "advisory directory entry is unreadable")?;
+                let path = parent.join(entry.file_name());
+                let name = path
+                    .to_str()
+                    .ok_or("advisory filesystem path is not UTF-8")?;
+                if !relative(name) {
+                    return Err("advisory filesystem path is invalid".into());
+                }
+                // Repository metadata is not a source subject. Nested repositories
+                // are not followed through links; tracked gitlinks are refused.
+                if entry.file_name() == ".git" {
+                    continue;
+                }
+                let kind = entry
+                    .file_type()
+                    .map_err(|_| "advisory filesystem type is unreadable")?;
+                if kind.is_symlink() && formats::vendored_directory(name) {
+                    return Err(format!(
+                        "advisory vendored directory needs an implemented extractor: {name}"
+                    ));
+                }
+                if kind.is_dir() {
+                    candidates.insert(name.to_owned());
+                }
+            }
+        }
+        if candidates.is_empty() {
+            break;
+        }
+        let mut input = Vec::new();
+        for name in &candidates {
+            input.extend_from_slice(name.as_bytes());
+            input.extend_from_slice(b"/\0");
+        }
+        let raw = git.run(
+            root,
+            &["check-ignore", "--no-index", "-z", "--stdin"],
+            input,
+        )?;
+        if !raw.is_empty() && !raw.ends_with(&[0]) {
+            return Err("ignored directory query has incomplete framing".into());
+        }
+        for name in raw.split(|byte| *byte == 0).filter(|name| !name.is_empty()) {
+            let name = std::str::from_utf8(name).map_err(|_| "ignored directory is not UTF-8")?;
+            let name = name
+                .strip_suffix('/')
+                .ok_or("ignored directory lost its type marker")?;
+            if !candidates.remove(name) || !ignored.insert(name.to_owned()) {
+                return Err(
+                    "ignored directory query returned an unknown or repeated identity".into(),
+                );
+            }
+        }
+        for name in candidates {
+            if formats::vendored_directory(&name) {
+                return Err(format!(
+                    "advisory vendored directory needs an implemented extractor: {name}"
+                ));
+            }
+            pending.push(PathBuf::from(&name));
+            directories.insert(name);
+        }
+    }
+    Ok((directories, ignored))
+}
+
 impl Snapshot {
     pub fn capture(root: &Path, git: &Git) -> Result<Self, String> {
         let actual = git.run(root, &["rev-parse", "--show-toplevel"], vec![])?;
@@ -242,6 +334,7 @@ impl Snapshot {
                 ));
             }
         }
+        let (filesystem_directories, ignored_directory_roots) = directory_population(root, git)?;
         let clean = git
             .run(
                 root,
@@ -323,6 +416,8 @@ impl Snapshot {
             tree_state: if clean { "clean" } else { "dirty" }.into(),
             index_sha256: sha256(&raw),
             tracked_population: index.len(),
+            filesystem_directories,
+            ignored_directory_roots,
             subjects,
         };
         if snapshot.subjects.is_empty() || snapshot.packages().is_empty() {

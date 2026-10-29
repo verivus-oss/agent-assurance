@@ -50,6 +50,13 @@ def validate_receipts(root: Path, paths: list[Path], *, require_clean=True, incl
             raise ValueError("failed, skipped, wrong-engine, or wrong-version receipt")
         if receipt.get("source") != source or receipt.get("artifacts") != artifacts or receipt.get("contract_bundle_sha256") != digest:
             raise ValueError("stale receipt: source commit/tree, artifacts, or validation bundle differ")
+        if lane["engine"] == "postgres":
+            from _postgres_client import build_identity
+            from _postgres_guard import expected_proof
+            if receipt.get("native_driver") != build_identity(root):
+                raise ValueError("missing or stale executed native PostgreSQL driver identity")
+            if receipt.get("execution_guard") != expected_proof():
+                raise ValueError("missing or unsuccessful native PostgreSQL execution guard")
         counts = receipt.get("seed_counts", {})
         if counts != {**registry, "instance_file": 0, "reference_contract": 0, "runtime_document": 0}:
             raise ValueError("receipt seed counts do not match the declarations and empty seed-only contract")

@@ -3,7 +3,7 @@ from _literal_path import Path
 from tempfile import TemporaryDirectory
 
 from _test_require import expect_raises, require
-from check_safe_tools import cargo_manifests, check, go_unsafe_import, rust_has_forbid, rust_unsafe_keyword
+from check_safe_tools import cargo_manifests, check, go_manifests, go_unsafe_import, rust_has_forbid, rust_unsafe_keyword
 
 def test_rust() -> None:
     require(rust_has_forbid('#![forbid(unsafe_code)]\nfn main() {}'))
@@ -91,9 +91,30 @@ def test_cargo_population() -> None:
         expect_raises(ValueError, lambda: cargo_manifests(root), "linked manifest passed")
 
 
+def test_go_population() -> None:
+    with TemporaryDirectory(prefix="go-population-") as work:
+        root = Path(work)
+        (root / "tools").mkdir()
+        expect_raises(ValueError, lambda: go_manifests(root), "absent Go population passed")
+        required = []
+        for name in ("existing-go", "new-native-go"):
+            module = root / "tools" / name
+            module.mkdir()
+            manifest = module / "go.mod"
+            manifest.write_bytes(b"")
+            expect_raises(ValueError, lambda: go_manifests(root), "empty Go manifest passed")
+            manifest.write_text("module fixture\n")
+            required.append(manifest)
+            require(go_manifests(root) == sorted(required), "new Go module was omitted")
+        required[-1].unlink()
+        required[-1].symlink_to(required[0])
+        expect_raises(ValueError, lambda: go_manifests(root), "linked Go manifest passed")
+
+
 if __name__ == '__main__':
     test_rust()
     test_rust_roots()
     test_go()
     test_cargo_population()
+    test_go_population()
     print('safe tools: accepted and rejected declarations passed')

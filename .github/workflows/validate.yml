@@ -1195,10 +1195,11 @@ jobs:
         run: |
           set -euo pipefail
           go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
-          for d in tools/dagtoml-validate-go \
-                   tools/dagtoml-duckdb-go \
-                   tools/dagtoml-rdf-go \
-                   tools/toml-test-decode-go; do
+          python3 validators/check_safe_tools.py --go-manifests > "$RUNNER_TEMP/native-go-manifests.bin"
+          mapfile -d '' -t native_go_manifests < "$RUNNER_TEMP/native-go-manifests.bin"
+          test "${#native_go_manifests[@]}" -gt 0
+          for manifest in "${native_go_manifests[@]}"; do
+            d="${manifest%/go.mod}"
             echo "::group::govulncheck in ${d}"
             (cd "${d}" && "$(go env GOPATH)/bin/govulncheck" ./...)
             echo "::endgroup::"
@@ -1218,7 +1219,7 @@ jobs:
             cargo deny --locked --manifest-path "$manifest" --config deny.toml check advisories bans licenses sources
           done
 
-      - name: Go meta-linter (golangci-lint)
+      - name: Install the pinned Go meta-linter
         continue-on-error: false
         # golangci-lint runs the configured suite from .golangci.yml:
         # gosec (security), staticcheck (correctness), errcheck (error
@@ -1226,35 +1227,16 @@ jobs:
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
         with:
           version: v2.12.2
-          # Run against each Go module independently. The action accepts
-          # a single working-directory; loop in CI by invoking three
-          # times below via separate steps.
-          working-directory: tools/dagtoml-validate-go
-          args: --config=${{ github.workspace }}/.golangci.yml
-
-      - name: Go meta-linter (golangci-lint - duckdb-go)
-        continue-on-error: false
-        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
-        with:
-          version: v2.12.2
-          working-directory: tools/dagtoml-duckdb-go
-          args: --config=${{ github.workspace }}/.golangci.yml
-
-      - name: Go meta-linter (golangci-lint - rdf-go)
-        continue-on-error: false
-        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
-        with:
-          version: v2.12.2
-          working-directory: tools/dagtoml-rdf-go
-          args: --config=${{ github.workspace }}/.golangci.yml
-
-      - name: Go meta-linter (golangci-lint - toml-test-decode-go)
-        continue-on-error: false
-        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
-        with:
-          version: v2.12.2
-          working-directory: tools/toml-test-decode-go
-          args: --config=${{ github.workspace }}/.golangci.yml
+          install-only: true
+      - name: Go meta-linter for every discovered native module
+        run: |
+          set -euo pipefail
+          python3 validators/check_safe_tools.py --go-manifests > "$RUNNER_TEMP/native-go-manifests.bin"
+          mapfile -d '' -t native_go_manifests < "$RUNNER_TEMP/native-go-manifests.bin"
+          test "${#native_go_manifests[@]}" -gt 0
+          for manifest in "${native_go_manifests[@]}"; do
+            (cd "${manifest%/go.mod}" && golangci-lint run --config="$GITHUB_WORKSPACE/.golangci.yml")
+          done
 
       - name: Link-rot scan (lychee)
         continue-on-error: false

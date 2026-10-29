@@ -45,14 +45,24 @@ def engine_version(store: Store) -> str:
 
 
 def run_lane(root: Path, engine: str, destination: str, expected_version: str, lane: str, *, existing_seed=False) -> dict:
+    if engine == "postgres":
+        from _postgres_guard import guarded_lane
+        return guarded_lane(lambda: _run_lane(root, engine, destination, expected_version, lane,
+                                               existing_seed=existing_seed))
+    return _run_lane(root, engine, destination, expected_version, lane, existing_seed=existing_seed)
+
+
+def _run_lane(root: Path, engine: str, destination: str, expected_version: str, lane: str, *, existing_seed=False) -> dict:
     if destination == ":memory:":
         raise ValueError("full executed lanes require a persistent private destination for connection-loss tests")
     identity = source_identity(root)
     hashes = artifact_hashes(root)
     digest = bundle_digest(root)
     connection = connect(engine, destination)
-    store = Store(engine, connection, root, reconnect=lambda: connect(engine, destination))
+    store = None
     try:
+        native_driver = connection.driver_identity if engine == "postgres" else None
+        store = Store(engine, connection, root, reconnect=lambda: connect(engine, destination))
         actual_version = engine_version(store)
         if actual_version != expected_version:
             raise ValueError(f"wrong engine version: selected {expected_version}, connected {actual_version}")
@@ -87,8 +97,13 @@ def run_lane(root: Path, engine: str, destination: str, expected_version: str, l
         concurrency_checks = writer_checks(store, destination)
         if source_identity(root) != identity or artifact_hashes(root) != hashes or bundle_digest(root) != digest:
             raise ValueError("source or SQL artifacts changed while the executed gate was running")
+        if engine == "postgres":
+            from _postgres_client import build_identity
+            if build_identity(root) != native_driver:
+                raise ValueError("native PostgreSQL driver artifacts changed while the executed gate was running")
         return {"receipt_version": 1, "status": "passed", "lane": lane, "engine": engine,
                 "expected_version": expected_version, "actual_version": actual_version, "source": identity,
+                **({"native_driver": native_driver} if native_driver is not None else {}),
                 "artifacts": hashes, "contract_bundle_sha256": digest, "seed_counts": counts,
                 "allowed_pairs": pairs, "constraint_probes": initialization["probes"],
                 "storage_checks": storage_checks, "protocol_checks": protocol_checks, "skipped": [],
@@ -97,7 +112,7 @@ def run_lane(root: Path, engine: str, destination: str, expected_version: str, l
                 "connection_checks": connection_checks, "metadata_checks": metadata_checks,
                 "excluded": ["libSQL compatibility", "runtime execution", "signature verification", "evidence authenticity"]}
     finally:
-        store.connection.close()
+        (store.connection if store is not None else connection).close()
 
 
 def main(argv=None) -> int:

@@ -9,6 +9,23 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Extend scanner directory discovery from
+  `7d871361d4275860dab54b628894a54d20d977e6` to visible empty directories
+  and directories whose files are ignored. Check each literal directory's
+  ignore status, retain the directory population, and refuse unimplemented
+  vendor roots before evaluating advisories. Derive native Go module inputs
+  for security and quality checks so new modules receive those checks.
+
+- Replace the PostgreSQL Python driver path measured at
+  `7d871361d4275860dab54b628894a54d20d977e6` with an owned native protocol
+  session and typed buffered bridge. Preserve server transaction states,
+  separate parameters, supported result values and structured errors. Prepare
+  the pinned supplier sources with explicit password-file fields and fixed
+  diagnostics, retain the compiled dependency and executable identities,
+  and require the actual PostgreSQL lane's cold guard in executed receipts.
+  Retire Psycopg and its exclusive Python support packages from both driver
+  locks. Other drivers, native servers and build/scanner audits remain open.
+
 - Bind database and link receipts to working file bytes even when Git index
   assumption flags hide changes. Both source identities at
   `543bc3e3665131854ad7b109d59b562e28664f3f` reported changed files as clean

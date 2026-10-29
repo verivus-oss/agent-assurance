@@ -320,6 +320,15 @@ def receipt_controls(root, paths, work):
     variant = deepcopy(original)
     next(row for row in variant if "loader" in row)["loader"]["verify_checks"] = []
     variants["missing-loader-verify-controls"] = variant
+    for name, edit in (
+        ("missing-native-driver", lambda row: row.pop("native_driver")),
+        ("stale-native-driver", lambda row: row["native_driver"].update(binary_sha256="0" * 64)),
+        ("missing-postgres-guard", lambda row: row.pop("execution_guard")),
+        ("suppressed-postgres-import", lambda row: row["execution_guard"].update(import_attempts=["re"])),
+    ):
+        variant = deepcopy(original)
+        edit(next(row for row in variant if row["engine"] == "postgres"))
+        variants[name] = variant
     for name, variant in variants.items():
         directory = work / name
         directory.mkdir()

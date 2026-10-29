@@ -28,36 +28,15 @@ class StorageError(RuntimeError):
 
 
 def connect_postgres(destination: str, *, dbname: str | None = None):
-    """Let libpq parse connection strings without Python's regex rewriter."""
+    """Normalize text before the native PostgreSQL connection parser."""
     if not isinstance(destination, str) or dbname is not None and not isinstance(dbname, str):
         raise TypeError("PostgreSQL connection parameters must be text")
     destination = str.__str__(destination)
     dbname = None if dbname is None else str.__str__(dbname)
     if "\0" in destination or dbname is not None and "\0" in dbname:
         raise StorageError("setup", "PostgreSQL connection parameters must not contain NUL bytes")
-    encoded = destination.encode("utf-8")
-    import psycopg
-    from _postgres import native_connection, require_compiled_adapters
-    require_compiled_adapters()
-    if dbname is not None:
-        options = {option.keyword: option.val for option in psycopg.pq.Conninfo.parse(encoded)
-                   if option.val is not None}
-        options[b"dbname"] = dbname.encode("utf-8")
-        encoded = b" ".join(key + b"='" + value.replace(b"\\", b"\\\\").replace(b"'", b"\\'") + b"'"
-                            for key, value in options.items())
-    pgconn = psycopg.pq.PGconn.connect(encoded)
-    try:
-        if pgconn.status != psycopg.pq.ConnStatus.OK:
-            raise psycopg.OperationalError(pgconn.error_message.decode("utf-8", "replace"))
-        pgconn.nonblocking = 1
-        connection = psycopg.Connection(pgconn)
-        connection.autocommit = True
-        connection.cursor_factory = psycopg.RawCursor
-        connection.prepare_threshold = None
-        return native_connection(connection)
-    except BaseException:
-        pgconn.finish()
-        raise
+    from _postgres import connect as connect_native
+    return connect_native(destination, dbname=dbname)
 
 
 def connect(engine: str, destination: str):
@@ -137,7 +116,7 @@ class Store:
             if self.execute("PRAGMA ignore_check_constraints").fetchone() != (0,):
                 raise StorageError("setup", "SQLite CHECK constraints must be enabled")
         elif self.engine == "postgres":
-            from psycopg.pq import TransactionStatus
+            from _postgres import TransactionStatus
             if self.connection.info.transaction_status != TransactionStatus.IDLE:
                 raise StorageError("active-caller-transaction", "supply a dedicated idle connection")
             self.connection.autocommit = True

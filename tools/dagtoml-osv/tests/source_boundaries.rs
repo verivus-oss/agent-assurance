@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -250,6 +251,84 @@ fn neighboring_directory_names_and_direct_files_remain_accepted() {
     assert_eq!(result.tracked_population, 5);
     assert_eq!(result.subjects.len(), 1);
     assert_eq!(result.packages().len(), 1);
+}
+
+#[test]
+fn empty_and_ignored_content_vendor_roots_cannot_hide_behind_a_clean_index() {
+    let data: toml::Value = toml::from_str(include_str!("../data/directory-scope.toml")).unwrap();
+    let parents = data["extractor"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["name"].as_str() == Some("filesystem/vendored"))
+        .unwrap()["parents"]
+        .as_array()
+        .unwrap();
+    assert_eq!(parents.len(), 11);
+    let mut executed = 0;
+    for parent in parents {
+        for ignored_content in [false, true] {
+            let fixture = Fixture::new();
+            fixture.write("requirements.txt", b"package==1.0\n");
+            fixture.write(".gitignore", b"*.c\n");
+            fixture.commit();
+            let directory = format!("nested/{}/library", parent.as_str().unwrap());
+            std::fs::create_dir_all(fixture.root.join(&directory)).unwrap();
+            if ignored_content {
+                fixture.write(
+                    &format!("{directory}/control.c"),
+                    b"int component_version(void) { return 1; }\n",
+                );
+            }
+            assert!(
+                fixture
+                    .command(&["status", "--porcelain", "--untracked-files=normal"])
+                    .is_empty()
+            );
+            assert_eq!(
+                fixture.capture().unwrap_err(),
+                format!("advisory vendored directory needs an implemented extractor: {directory}")
+            );
+            executed += 1;
+        }
+    }
+    assert_eq!(executed, parents.len() * 2);
+}
+
+#[test]
+fn literal_directory_ignores_and_visible_empty_neighbors_are_distinguished() {
+    let fixture = Fixture::new();
+    fixture.write("requirements.txt", b"package==1.0\n");
+    fixture.write(".gitignore", b"/vendor/ignored/\n/cache/\n");
+    fixture.commit();
+    let before = fixture.capture().unwrap();
+    std::fs::create_dir_all(fixture.root.join("vendor/ignored/deeper")).unwrap();
+    std::fs::create_dir_all(fixture.root.join("cache/vendor/library")).unwrap();
+    std::fs::create_dir_all(fixture.root.join("vendor-extra/empty")).unwrap();
+    let after = fixture.capture().unwrap();
+    assert_eq!(after.tree_state, "clean");
+    assert_eq!(after.subjects, before.subjects);
+    assert_eq!(
+        after.ignored_directory_roots,
+        BTreeSet::from(["cache".to_owned(), "vendor/ignored".to_owned()])
+    );
+    assert_eq!(
+        after.filesystem_directories,
+        BTreeSet::from([
+            "vendor".to_owned(),
+            "vendor-extra".to_owned(),
+            "vendor-extra/empty".to_owned()
+        ])
+    );
+    assert_ne!(before, after);
+    std::fs::remove_dir(fixture.root.join("vendor-extra/empty")).unwrap();
+    let removed = fixture.capture().unwrap();
+    assert_ne!(removed, after);
+    assert!(
+        !removed
+            .filesystem_directories
+            .contains("vendor-extra/empty")
+    );
 }
 
 #[test]

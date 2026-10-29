@@ -35,7 +35,16 @@ jobs:
         run: |
           dependency_lock=requirements/database.txt
           if [ "$DATABASE_LANE" = duckdb-floor ]; then dependency_lock=requirements/database-floor.txt; fi
-          python3 -m pip install --require-hashes -r requirements.txt -r requirements/toml.txt -r "$dependency_lock"
+          case "$DATABASE_LANE" in
+            postgres-*) python3 -m pip install --require-hashes -r requirements.txt -r requirements/toml.txt ;;
+            *) python3 -m pip install --require-hashes -r requirements.txt -r requirements/toml.txt -r "$dependency_lock" ;;
+          esac
+      - name: Set up the native PostgreSQL driver toolchain
+        if: ${{ startsWith(matrix.lane, 'postgres-') }}
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.10"
+          cache-dependency-path: tools/dagtoml-postgres-go/go.sum
       - name: Execute the pinned engine lane
         env:
           DATABASE_LANE: ${{ matrix.lane }}

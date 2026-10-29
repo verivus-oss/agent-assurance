@@ -73,8 +73,8 @@ SCALIBR's Go module extractor. Its pinned supplier at
 Go 1.17 and later; checksum recovery belongs to the older-graph branch.
 The native parser at `80fc9813caab7d58d542b5cd705e7d9f722f2c77` accepted
 that older version range without implementing its graph recovery. The
-replacement contract therefore rejects it. All four current module inputs
-declare Go 1.26.10 and remain inside the accepted graph scope.
+replacement contract therefore rejects it. The four module inputs at that
+commit declare Go 1.26.10 and remain inside the accepted graph scope.
 
 `data/extractor-scope.toml` records every extractor in that lockfile preset
 and the separately enabled SBOM preset, with pinned supplier source objects.
@@ -97,10 +97,22 @@ issuing a package-only verdict over that input. Git submodule entries also
 stop evaluation because their contents are outside the captured file index.
 Neighboring names and direct files that the upstream directory predicate does
 not select remain admitted. This is a refusal boundary, not fingerprint
-identification. Complete filesystem directory discovery, including untracked
-empty or ignored-content directory roots, remains open. The required original
-workflow gate stays active until that discovery and the dependency/build audit
-support replacement.
+identification.
+
+The next repair uses the discovery boundary at project baseline
+`7d871361d4275860dab54b628894a54d20d977e6`. It enumerates actual visible
+directories independently of the index, including empty directories and
+directories containing only ignored files. Git checks each literal directory
+path against its ignore rules; a visible directory is not excluded merely
+because all its contents are ignored. Results retain the complete visible
+directory set and the ignored subtree roots, and compare them again before
+returning a verdict. Repository metadata and ignored subtrees are outside
+that filesystem subject, matching the existing workflow's default ignore
+selection. Directory enumeration errors, non-UTF-8 names and exceeded
+discovery bounds stop evaluation. New controls exercise every supplier parent
+name with both empty and ignored-content roots, accepted neighboring names,
+literal subtree ignores and directory changes. The original required workflow
+gate remains active while the dependency/build audit supports replacement.
 
 The semantic query prototype is retired. At upstream OSV commit
 `2550f6d61565de3a813e19f64a24b04b8af0ce39`, the current Go API dispatches both

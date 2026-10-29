@@ -160,6 +160,16 @@ audit and replacement; a successful scan is not evidence of compliance
 with that rule. The link checker receives URLs selected by exact path and
 host comparisons.
 
+The PostgreSQL client path from
+`7d871361d4275860dab54b628894a54d20d977e6` is replaced by the
+[owned native reference session](tools/dagtoml-postgres-go/README.md).
+Its prepared supplier sources use explicit password-file parsing and fixed
+connection-error diagnostics. Current source, dependency and executable
+identities bind the session to its build. PostgreSQL receipts require the
+actual lane's cold import/matching guard and retained driver artifacts.
+The server, compiler, other drivers and remaining scanners keep their own
+audit requirements; this client boundary is not a global compliance claim.
+
 ## Disclosure
 
 We coordinate disclosure: the reporter, the maintainers, and (if the

@@ -141,6 +141,9 @@ def main(argv=None):
         if lane["engine"] == "sqlite":
             env["LD_LIBRARY_PATH"] = build_sqlite(lane, work, env)
         elif lane["engine"] == "postgres":
+            driver = root / ".local/database-ci/postgres-driver/dagtoml-postgres-go"
+            run(["go", "run", "./cmd/build-driver", "--output", str(driver)],
+                root / "tools/dagtoml-postgres-go", {**env, "GOTOOLCHAIN": "go1.26.10"})
             runtime = shutil.which(args.container_runtime)
             if runtime is None:
                 raise ValueError("selected container runtime is missing")
@@ -151,14 +154,14 @@ def main(argv=None):
             if not address.startswith("127.0.0.1:") or not address.removeprefix("127.0.0.1:").isdigit():
                 raise ValueError("container database is not bound to a single loopback port")
             destination = "host=127.0.0.1 port=" + address.split(":")[1] + " user=postgres password=dagtoml-ci dbname=postgres"
-            import psycopg
             sys.path.insert(0, str(root / "reference/database"))
+            from _postgres import OperationalError
             from _storage import connect_postgres
             for attempt in range(120):
                 try:
                     with connect_postgres(destination):
                         break
-                except psycopg.OperationalError:
+                except OperationalError:
                     if attempt == 119:
                         raise
                     time.sleep(0.25)
@@ -187,7 +190,7 @@ def main(argv=None):
                              "binary": published_binary.relative_to(root).as_posix(),
                              "binary_sha256": hashlib.sha256(published_binary.read_bytes()).hexdigest(),
                              "verify_checks": loader_verify_checks(root, work, published_binary, work / "duckdb", destination, env)}
-        command = [sys.executable, str(root / "validators/check_database_vocabularies.py"), "--repo-root", str(root),
+        command = [sys.executable, *(["-S"] if lane["engine"] == "postgres" else []), str(root / "validators/check_database_vocabularies.py"), "--repo-root", str(root),
                    "--engine", lane["engine"], "--destination", destination, "--expected-version", lane["version"],
                    "--lane", name, "--receipt", str(receipt_path)]
         if args.loader:

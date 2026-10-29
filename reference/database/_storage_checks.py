@@ -27,6 +27,9 @@ def exercise_storage(store: Store) -> list[str]:
     root = store.root
 
     class FailingClose:
+        def __getattr__(self, name):
+            return getattr(store.connection, name)
+
         def close(self) -> None:
             raise OSError("injected close failure")
 

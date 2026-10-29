@@ -29,6 +29,22 @@ def cargo_manifests(root: Path) -> list[Path]:
     return manifests
 
 
+def go_manifests(root: Path) -> list[Path]:
+    """Derive every independent native Go module, including new tools."""
+    tools = root / "tools"
+    if tools.is_symlink():
+        raise ValueError("tooling root must not be a symbolic link")
+    manifests = sorted(glob(root, "tools/*/go.mod"))
+    if not manifests:
+        raise ValueError("native check requires a nonempty Go manifest population")
+    for path in manifests:
+        if path.is_symlink() or path.parent.is_symlink() or not path.is_file() or not path.stat().st_size:
+            raise ValueError("Go manifest must be a nonempty regular repository file")
+    if len(set(manifests)) != len(manifests):
+        raise ValueError("native check repeated a Go manifest identity")
+    return manifests
+
+
 def rust_has_forbid(source: str) -> bool:
     first = next((line.strip() for line in _without_comments(source).splitlines() if line.strip()), "")
     return first == "#![forbid(unsafe_code)]"
@@ -217,7 +233,7 @@ def go_unsafe_import(source: str) -> bool:
 
 def check(root: Path) -> tuple[int, int]:
     crates = sorted(glob(root, "tools/*/Cargo.toml"))
-    modules = sorted(glob(root, "tools/*/go.mod"))
+    modules = go_manifests(root)
     if not crates or not modules:
         raise ValueError("safe tooling check requires both Rust and Go source populations")
     for manifest in crates:
@@ -241,8 +257,8 @@ def check(root: Path) -> tuple[int, int]:
 
 if __name__ == "__main__":
     try:
-        if sys.argv[1:] == ["--cargo-manifests"]:
-            manifests = cargo_manifests(ROOT)
+        if sys.argv[1:] in (["--cargo-manifests"], ["--go-manifests"]):
+            manifests = cargo_manifests(ROOT) if sys.argv[1:] == ["--cargo-manifests"] else go_manifests(ROOT)
             output = b"".join(path.relative_to(ROOT).as_posix().encode("utf-8") + b"\0" for path in manifests)
             sys.stdout.buffer.write(output)
             raise SystemExit(0)
