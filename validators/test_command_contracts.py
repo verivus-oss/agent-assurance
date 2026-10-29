@@ -226,6 +226,14 @@ def test_workflow_discovery_prunes_declared_exclusions():
                 'workflow pruning hid a malformed selected sibling: ' + repr((status, output, errors)))
 
 
+def test_workflow_closure_discovery_instrument():
+    with TemporaryTree() as directory:
+        status, output, errors = execute_workflow(
+            'from check_closure_discovery import main\nraise SystemExit(main())\n', Path(directory))
+        require(status == 0 and not errors and output.startswith('PASS: ')
+                and output.endswith('skipped=[]\n'), repr((status, output, errors)))
+
+
 if __name__ == '__main__':
     tests = {name: value for name, value in globals().items() if name.startswith('test_') and callable(value)}
     require(tests)

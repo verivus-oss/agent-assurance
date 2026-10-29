@@ -17,6 +17,10 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   and prune declared discovery exclusions before inspecting
   their contents. Exercise every shared CLI entry point and both whole-tree
   workflow selectors, including rejection of malformed selected sources.
+  Align the active closure discovery instrument measured at
+  `cecc0b90a65b5f3454a7ae26fd8ceb463caf180b` with directory pruning, assert
+  the remaining selected document count, and retain an unexcluded malformed
+  source refusal control for relative and absolute discovery roots.
 
 - Repair the CodeQL findings measured at
   `8fe869c4c46b8cd696879c176fc7032da906f9ba`: separate shared credential

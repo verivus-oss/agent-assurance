@@ -89,14 +89,24 @@ def main():
     rejected = sweep / "negative" / "malformed.toml"
     rejected.parent.mkdir()
     rejected.write_bytes(b"[meta]\n\xff")
-    output = StringIO()
-    with redirect_stdout(output):
-        result = closure_main([
-            "--repo-root", str(work), "--discover", str(sweep),
-            "--exclude", str(rejected.parent),
-        ])
-    if result != 0 or str(rejected) not in output.getvalue():
-        raise AssertionError("asserted-negative malformed TOML was not excluded before parsing")
+    for selected in (sweep, sweep.resolve()):
+        output, diagnostic = StringIO(), StringIO()
+        with redirect_stdout(output), redirect_stderr(diagnostic):
+            result = closure_main([
+                "--repo-root", str(work), "--discover", str(selected),
+                "--exclude", str(rejected.parent),
+            ])
+        expected = [
+            f"EXCLUDED (asserted-negative path): {selected / 'negative'}",
+            "CLOSURE-ROOT VALIDATION PASSED (1 file(s)).",
+        ]
+        if result != 0 or output.getvalue().splitlines() != expected or diagnostic.getvalue():
+            raise AssertionError(
+                f"excluded directory did not preserve the selected document: "
+                f"{result}, {output.getvalue()!r}, {diagnostic.getvalue()!r}"
+            )
+        expect_parse_failure(lambda: discover_conforming([selected], kinds), selected / "negative/malformed.toml")
+        expect_cli_failure(work, selected, selected / "negative/malformed.toml")
 
     repo = work / "repo"
     profile = repo / "profiles" / "broken" / "PROFILE.toml"
