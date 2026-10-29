@@ -1,15 +1,18 @@
 """Independent expected values for the reference PostgreSQL bridge."""
 
 import sys
+import os
 from datetime import date, datetime, timezone
 from _decimal import Decimal
 
 from _literal_path import Path
+from _literal_json import InvalidJSON
 from _test_require import expect_raises, require
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'reference/database'))
-from _postgres_client import (ParameterEncodingError, ProgrammingError, array_value, bytea_value,
-                              identifier, parameter, result_value)  # noqa: E402
+from _postgres_client import (NativeConnection, OperationalError, ParameterEncodingError, ProgrammingError,
+                              array_value, bytea_value, identifier, parameter, result_value, source_identity)  # noqa: E402
+from _owned_session import Session  # noqa: E402
 from _sql_probes import constraint_failure  # noqa: E402
 
 
@@ -20,6 +23,14 @@ def test_parameters_preserve_text_bytes_arrays_and_scalars():
 
         def __contains__(self, _value):
             raise AssertionError('parameter containment override executed')
+
+    class List(list):
+        def __iter__(self):
+            raise AssertionError('sequence subclass iteration executed')
+
+    class Tuple(tuple):
+        def __iter__(self):
+            raise AssertionError('sequence subclass iteration executed')
 
     cases = ((None, None), (True, 'true'), (False, 'false'), (7, '7'), (1.25, '1.25'),
              (Decimal('1.25'), '1.25'), (b'\0\xff', '\\x00ff'),
@@ -34,7 +45,7 @@ def test_parameters_preserve_text_bytes_arrays_and_scalars():
         error = expect_raises(ParameterEncodingError, lambda: parameter(value), 'NUL text was accepted')
         require(error.sqlstate is None and constraint_failure('postgres', error, 'encoding'))
         require(not constraint_failure('postgres', error, 'value'))
-    for value in (object(), {'unsupported': 7}, {1, 2}):
+    for value in (object(), {'unsupported': 7}, {1, 2}, List([7]), Tuple((7,))):
         expect_raises(TypeError, lambda: parameter(value), 'unsupported parameter was accepted')
     require(identifier('quoted"name') == '"quoted""name"')
     expect_raises(TypeError, lambda: identifier('nul\0name'), 'NUL identifier was accepted')
@@ -71,6 +82,35 @@ def test_only_typed_encoding_refusals_count_as_driver_witnesses():
             'setup failure was mistaken for a constraint rejection')
 
 
+def test_malformed_json_reply_abandons_its_actual_owned_child():
+    # Exercise the post-handshake reply path with a live framed producer.
+    # Native handshake and server behavior have separate producer/lane controls.
+    program = ("import os,sys,time; size=int.from_bytes(sys.stdin.buffer.read(4),'big'); "
+               "data=sys.stdin.buffer.read(size); value=b'not-json'; "
+               "os.write(1,len(value).to_bytes(4,'big')+value); time.sleep(5)")
+    session = Session([sys.executable, '-B', '-S', '-c', program])
+    descriptors = tuple(session.descriptors)
+    connection = NativeConnection.__new__(NativeConnection)
+    connection._session, connection._sequence, connection._closed = session, 0, False
+    connection._source_root = Path(__file__).resolve().parents[1] / 'tools/dagtoml-postgres-go'
+    connection.source_sha256 = source_identity(connection._source_root)[0]
+    connection._binary = sys.executable
+    metadata = os.stat(sys.executable)
+    connection._binary_identity = (metadata.st_dev, metadata.st_ino, metadata.st_size,
+                                   metadata.st_mtime_ns, metadata.st_ctime_ns)
+    try:
+        error = expect_raises(OperationalError, lambda: connection._request({'operation': 'close'}),
+                              'malformed JSON reply yielded a successful result')
+        require(isinstance(error.__cause__, InvalidJSON), 'malformed JSON control failed during unrelated setup')
+        require(connection.closed and session.status is not None and not session.descriptors,
+                'malformed JSON reply left its owned producer or descriptors live')
+        expect_raises(ChildProcessError, lambda: os.waitpid(session.pid, os.WNOHANG), 'malformed reply child was not reaped')
+        for descriptor in descriptors:
+            expect_raises(OSError, lambda: os.fstat(descriptor), 'malformed reply retained a descriptor')
+    finally:
+        session.close()
+
+
 if __name__ == '__main__':
     controls = {name: value for name, value in globals().items() if name.startswith('test_') and callable(value)}
     require(controls)
@@ -79,4 +119,4 @@ if __name__ == '__main__':
         control()
         executed.add(name)
     require(executed == set(controls))
-    print('PostgreSQL bridge: independent typed parameter/result answers, malformed input and encoding-witness controls; live server, packaging and mutation checks skipped')
+    print('PostgreSQL bridge: independent typed parameter/result answers, malformed input and encoding-witness controls, live framed decoder-failure cleanup; live server, packaging and mutation checks skipped')

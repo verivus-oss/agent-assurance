@@ -97,7 +97,9 @@ def parameter(value):
         return '\\x' + value.hex()
     if type(value) in (date, datetime):
         return value.isoformat()
-    if type(value) in (tuple, list):
+    if isinstance(value, (tuple, list)):
+        if type(value) not in (tuple, list):
+            raise TypeError('unsupported PostgreSQL reference parameter type')
         parts = []
         for item in value:
             if type(item) in (tuple, list):
@@ -382,6 +384,7 @@ class NativeConnection:
             response = loads(self._session.frame(dumps(request).encode('utf-8')))
         except (SessionError, OSError, ValueError) as exc:
             self._closed = True
+            self._session.close()
             raise OperationalError('PostgreSQL native session could not complete its protocol') from exc
         if (type(response) is not dict or response.get('protocol') != PROTOCOL
                 or type(response.get('request_id')) is not int or response.get('request_id') != self._sequence

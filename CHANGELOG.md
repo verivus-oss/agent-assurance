@@ -9,6 +9,13 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Make PostgreSQL sequence admission and database connection ownership
+  explicit after the quality analysis of
+  `544cdec5b5b88500ba149b57050f0d10967a11d1`. Preserve exact sequence
+  types and close the latest reconnection through a managed scope. Also
+  abandon the owned producer immediately when a complete reply fails JSON
+  decoding; the earlier client reported closed while retaining that child.
+
 - Bind the complete native PostgreSQL dependency file inventory to the
   executed client. The build-record reader at
   `713901fddff9ded2cb41dd04b3e2f5fcb0def754` accepted an inventory with all

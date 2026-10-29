@@ -2,6 +2,7 @@
 """Execute the reference SQL artifacts and retain an artifact-bound test receipt."""
 
 import _literal_args as argparse
+from contextlib import ExitStack
 import hashlib
 import _literal_json as json
 from _literal_path import Path
@@ -58,9 +59,12 @@ def _run_lane(root: Path, engine: str, destination: str, expected_version: str, 
     identity = source_identity(root)
     hashes = artifact_hashes(root)
     digest = bundle_digest(root)
-    connection = connect(engine, destination)
-    store = None
-    try:
+    with ExitStack() as resources:
+        connection = connect(engine, destination)
+        store = None
+        def close_current_connection():
+            (store.connection if store is not None else connection).close()
+        resources.callback(close_current_connection)
         native_driver = connection.driver_identity if engine == "postgres" else None
         store = Store(engine, connection, root, reconnect=lambda: connect(engine, destination))
         actual_version = engine_version(store)
@@ -111,8 +115,6 @@ def _run_lane(root: Path, engine: str, destination: str, expected_version: str, 
                 "replay_checks": replay_checks,
                 "connection_checks": connection_checks, "metadata_checks": metadata_checks,
                 "excluded": ["libSQL compatibility", "runtime execution", "signature verification", "evidence authenticity"]}
-    finally:
-        (store.connection if store is not None else connection).close()
 
 
 def main(argv=None) -> int:

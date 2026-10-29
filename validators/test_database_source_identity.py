@@ -3,6 +3,7 @@
 from contextlib import contextmanager
 import hashlib
 import os
+import sqlite3
 import sys
 
 from _credential_git import git
@@ -10,6 +11,8 @@ from _credential_test_support import TemporaryTree
 from _literal_json import dumps
 from _literal_path import Path
 from _test_require import expect_raises, require
+from _temporary_attribute import temporary_attribute
+import check_database_vocabularies as controller
 from check_database_vocabularies import source_identity
 import _toml11 as toml
 from _receipts import validate_receipts
@@ -108,6 +111,44 @@ def test_source_identity_uses_supplied_root_and_complete_status():
             git(ROOT, ['worktree', 'remove', '--force', str(subject)])
 
 
+def test_lane_scope_closes_constructor_failures_and_the_latest_reconnection():
+    for phase in ('constructor', 'reconnection'):
+        with TemporaryTree() as directory:
+            destination = str(Path(directory) / 'lifetime.db')
+            connections = [sqlite3.connect(destination, isolation_level=None)
+                           for _ in range(1 if phase == 'constructor' else 2)]
+            selected = []
+            def connect_private(engine, value):
+                require(engine == 'sqlite' and value == destination)
+                require(len(selected) < len(connections), 'lifetime control reconnected unexpectedly')
+                connection = connections[len(selected)]
+                selected.append(connection)
+                return connection
+            def constructor_failure(*_arguments, **_keywords):
+                raise RuntimeError('injected constructor failure')
+            def reconnection_failure(store):
+                store._fresh()
+                require(store.connection is connections[-1], 'actual store reconnection did not replace its connection')
+                raise RuntimeError('injected reconnection failure')
+            try:
+                target = 'Store' if phase == 'constructor' else 'engine_version'
+                fault = constructor_failure if phase == 'constructor' else reconnection_failure
+                with temporary_attribute(controller, 'connect', connect_private), temporary_attribute(controller, target, fault):
+                    error = expect_raises(RuntimeError,
+                        lambda: controller._run_lane(ROOT, 'sqlite', destination, 'unused', 'lifetime-control'),
+                        'lane accepted an injected lifetime failure')
+                require(str(error) == 'injected ' + phase + ' failure', 'lifetime control failed for an unrelated reason')
+                require(selected == connections, 'lifetime control did not exercise its complete connection population')
+                for connection in connections:
+                    error = expect_raises(sqlite3.ProgrammingError, lambda: connection.execute('SELECT 7'),
+                                          'lane scope retained an owned connection')
+                    require('closed' in str(error), 'lifetime witness failed for an unrelated reason')
+            finally:
+                for connection in connections:
+                    connection.close()
+
+
 if __name__ == '__main__':
     test_source_identity_uses_supplied_root_and_complete_status()
-    print('database source binding: clean, changed and untracked source; foreign checkout/index/config refusal; skipped=[]')
+    test_lane_scope_closes_constructor_failures_and_the_latest_reconnection()
+    print('database source binding: clean, changed and untracked source; foreign checkout/index/config refusal; actual constructor/reconnection failure cleanup; skipped=[]')
