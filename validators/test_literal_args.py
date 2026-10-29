@@ -57,7 +57,7 @@ def test_help_and_version() -> None:
     parser = ArgumentParser()
     parser.add_argument('--version', action='version', version='1.2.3')
     parser.add_argument('file')
-    for token, expected in (('--help', 'usage:'), ('--version', '1.2.3')):
+    for token, expected in (('-h', 'usage:'), ('--help', 'usage:'), ('--version', '1.2.3')):
         output = StringIO()
         with redirect_stdout(output):
             try:
@@ -68,8 +68,44 @@ def test_help_and_version() -> None:
                 raise AssertionError('help or version did not exit')
         require(expected in output.getvalue())
     require(parser.parse_args(['--', '--help']).file == '--help')
+    require(parser.parse_args(['--', '-h']).file == '-h')
+    require(parser.parse_args(['--', '--he']).file == '--he')
+    rejected(parser, ['--version=forged'])
+    rejected(parser, ['--ver=forged'])
+
+def test_attached_variable_option_preserves_following_paths() -> None:
+    parser = ArgumentParser()
+    parser.add_argument('paths', nargs='*')
+    parser.add_argument('--discover', nargs='+')
+    result = parser.parse_args(['--discover=selected', 'ignored.toml'])
+    require(result.discover == ['selected'] and result.paths == ['ignored.toml'])
+    result = parser.parse_args(['--discover', 'selected', 'another'])
+    require(result.discover == ['selected', 'another'] and result.paths == [])
+    rejected(parser, ['--discover'])
+
+def test_unambiguous_long_option_prefixes() -> None:
+    parser = ArgumentParser()
+    parser.add_argument('--repo-root')
+    parser.add_argument('--report')
+    parser.add_argument('--quiet', action='store_true')
+    result = parser.parse_args(['--repo-r=selected', '--report', 'report.json', '--qu'])
+    require(result.repo_root == 'selected' and result.report == 'report.json' and result.quiet)
+    rejected(parser, ['--repo', 'ambiguous'])
+    rejected(parser, ['--unrecognized'])
+    for length in range(3, len('--help') + 1):
+        switch = '--help'[:length]
+        output = StringIO()
+        with redirect_stdout(output):
+            try:
+                parser.parse_args([switch])
+            except SystemExit as exc:
+                require(exc.code == 0 and 'usage:' in output.getvalue())
+            else:
+                raise AssertionError('help prefix did not exit')
 if __name__ == '__main__':
     test_options_and_values()
     test_groups_and_subcommands()
     test_help_and_version()
-    print('literal argument parser: 3 test groups passed')
+    test_attached_variable_option_preserves_following_paths()
+    test_unambiguous_long_option_prefixes()
+    print('literal argument parser: accepted and rejected option, command, help and literal-path cases exercised')

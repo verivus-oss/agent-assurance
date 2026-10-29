@@ -1,7 +1,7 @@
-"""Exact-option argument parsing for repository commands.
+"""Literal option parsing for repository commands.
 
-Only the interface used by this repository is provided. Every option token is
-compared as a fixed string; no pattern engine participates in dispatch.
+The repository's long options, unambiguous prefixes and help aliases use
+fixed strings; no pattern engine participates in dispatch.
 """
 
 from __future__ import annotations
@@ -129,7 +129,7 @@ class ArgumentParser:
         lines = ["usage: " + self.prog + " [options]"]
         if self.description:
             lines.extend(("", self.description))
-        lines.extend(("", "options:", "  --help  show this help message and exit"))
+        lines.extend(("", "options:", "  -h, --help  show this help message and exit"))
         for argument in self.arguments + (child.arguments if child else []):
             label = argument.name
             if argument.positional:
@@ -146,6 +146,14 @@ class ArgumentParser:
         print(self.prog + ": error: " + message, file=sys.stderr)
         raise SystemExit(2)
 
+    def _option_name(self, name: str, options: dict[str, _Argument]) -> str:
+        if name in options or name == "--help" or not name.startswith("--"):
+            return name
+        matches = [option for option in (*options, "--help") if option.startswith(name)]
+        if len(matches) > 1:
+            self.error("ambiguous option: " + name + " (" + ", ".join(sorted(matches)) + ")")
+        return matches[0] if matches else name
+
     def parse_args(self, args: list[str] | None = None) -> Namespace:
         tokens = list(sys.argv[1:] if args is None else args)
         child: ArgumentParser | None = None
@@ -154,7 +162,12 @@ class ArgumentParser:
             cursor = 0
             while cursor < len(tokens) and tokens[cursor] != "--":  # nosec B105  # noqa: S105
                 token = tokens[cursor]
+                if token in ("-h", "--help"):
+                    break
                 name, equals, _ = token.partition("=")
+                name = self._option_name(name, parent_options)
+                if name == "--help":
+                    break
                 option = parent_options.get(name)
                 if option is not None:
                     cursor += 1
@@ -173,7 +186,7 @@ class ArgumentParser:
                 break
         arguments = self.arguments + (child.arguments if child else [])
         help_tokens = tokens[:tokens.index("--")] if "--" in tokens else tokens  # nosec B105  # noqa: S105
-        if "--help" in help_tokens:
+        if any(token in ("-h", "--help") for token in help_tokens):
             print(self._help(child))
             raise SystemExit(0)
         by_name = {argument.name: argument for argument in arguments if not argument.positional}
@@ -197,10 +210,18 @@ class ArgumentParser:
                 continue
             name, equals, attached = token.partition("=")
             if not literal_mode and name.startswith("--"):
+                name = self._option_name(name, by_name)
+                if name == "--help":
+                    if equals:
+                        self.error("option does not accept a value: " + name)
+                    print(self._help(child))
+                    raise SystemExit(0)
                 argument = by_name.get(name)
                 if argument is None:
                     self.error("unrecognized argument: " + token)
                 if argument.action == "version":
+                    if equals:
+                        self.error("option does not accept a value: " + name)
                     print(argument.version or "")
                     raise SystemExit(0)
                 if argument.action in ("store_true", "store_false"):
@@ -212,7 +233,7 @@ class ArgumentParser:
                     continue
                 collected = [attached] if equals else []
                 index += 1
-                if argument.nargs in ("*", "+"):
+                if argument.nargs in ("*", "+") and not equals:
                     while index < len(tokens) and tokens[index] != "--" and not tokens[index].startswith("--"):
                         collected.append(tokens[index])
                         index += 1

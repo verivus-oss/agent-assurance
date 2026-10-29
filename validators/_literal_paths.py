@@ -1,9 +1,9 @@
-"""Enumerate files with fixed path segments and explicit star segments."""
+"""Enumerate files with fixed segments, pruning exclusions before inspection."""
 
 import os
 import stat
 from _literal_path import Path
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 
 def _status(path: Path) -> os.stat_result | None:
@@ -77,12 +77,24 @@ def _children(folder: Path, *, required: bool) -> list[os.DirEntry[str]]:
         raise OSError(f"{folder}: discovery root changed during scan") from exc
 
 
-def glob(root: Path, pattern: str) -> Iterator[Path]:
+def glob(root: Path, pattern: str, *, exclude: Callable[[Path], bool] | None = None) -> Iterator[Path]:
     parts = pattern.split("/")
     if not parts or any(not part or part in (".", "..") for part in parts):
         raise ValueError("path pattern must contain safe nonempty segments")
+    if exclude is not None and not callable(exclude):
+        raise TypeError("discovery exclusion must be callable")
+
+    def omitted(path: Path) -> bool:
+        if exclude is None:
+            return False
+        decision = exclude(path)
+        if type(decision) is not bool:
+            raise TypeError("discovery exclusion must return a boolean")
+        return decision
 
     def visit(folder: Path, index: int, observed: bool) -> Iterator[Path]:
+        if omitted(folder):
+            return
         if index == len(parts):
             if _status(folder) is None:
                 if observed:
@@ -94,17 +106,22 @@ def glob(root: Path, pattern: str) -> Iterator[Path]:
         if part == "**":
             yield from visit(folder, index + 1, observed)
             for entry in _children(folder, required=observed):
+                child = Path(entry.path)
+                if omitted(child):
+                    continue
                 if entry.is_symlink():
                     if entry.is_dir():
                         raise OSError(f"{entry.path}: recursive discovery directory link needs an explicit root")
                     if not entry.is_file():
                         raise OSError(f"{entry.path}: dangling recursive discovery link")
                 if entry.is_dir(follow_symlinks=False):
-                    yield from visit(Path(entry.path), index, True)
+                    yield from visit(child, index, True)
             return
         for entry in _children(folder, required=observed):
             if _segment(entry.name, part):
                 child = Path(entry.path)
+                if omitted(child):
+                    continue
                 if index + 1 == len(parts):
                     yield from visit(child, index + 1, True)
                     continue
@@ -122,5 +139,5 @@ def glob(root: Path, pattern: str) -> Iterator[Path]:
     yield from visit(root, 0, False)
 
 
-def rglob(root: Path, pattern: str) -> Iterator[Path]:
-    yield from glob(root, "**/" + pattern)
+def rglob(root: Path, pattern: str, *, exclude: Callable[[Path], bool] | None = None) -> Iterator[Path]:
+    yield from glob(root, "**/" + pattern, exclude=exclude)

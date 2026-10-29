@@ -419,23 +419,34 @@ jobs:
           import _literal_path as pathlib
           import _toml11 as tomllib
           from _literal_paths import rglob
-          fails, parsed, skipped = [], [], []
-          for p in sorted(rglob(pathlib.Path("."), "*.toml")):
-              if any(part.startswith(".") for part in p.parts):
-                  skipped.append(str(p))
-                  continue
+          fails, parsed, skipped = [], [], set()
+
+          def excluded(path):
+              if any(part.startswith(".") for part in path.parts):
+                  skipped.add(str(path))
+                  return True
+              return False
+
+          candidates = sorted(rglob(pathlib.Path("."), "*.toml", exclude=excluded))
+          if len(candidates) != len(set(candidates)):
+              raise SystemExit("FAIL: duplicate TOML discovery candidates")
+          for p in candidates:
               try:
                   tomllib.loads_bytes(p.read_bytes())
                   parsed.append(str(p))
               except Exception as e:
                   fails.append((str(p), str(e)))
+          if len(parsed) + len(fails) != len(candidates):
+              raise SystemExit("FAIL: TOML parse population was not completely exercised")
           if fails:
               for path, err in fails:
                   print(f"PARSE FAIL {path}: {err}")
               sys.exit(1)
           if not parsed:
               raise SystemExit("FAIL: TOML parse population is empty")
-          print(f"parsed OK: {len(parsed)} selected files; excluded {len(skipped)} files under hidden paths")
+          if len(parsed) != len(candidates) or set(parsed) & skipped:
+              raise SystemExit("FAIL: TOML parse and exclusion populations overlap or differ")
+          print(f"parsed OK: {len(parsed)} selected files; pruned {len(skipped)} hidden paths")
           PY
 
       - name: Primary validators (Rust + Go) — full canonical sweep
@@ -574,23 +585,27 @@ jobs:
           spec_reserved = spec_reserved_kinds(root)
 
           skip_dirs = {"target", "node_modules", "__pycache__"}
-          for path in sorted(rglob(root, "*.toml")):
+
+          def excluded(path):
               if any(part.startswith(".") or part in skip_dirs for part in path.parts):
-                  continue
+                  return True
               # examples/negative/ holds deliberately-broken fixtures,
               # including SPEC 12.8/12.8.1 closure negatives with stale
               # roots; every one of them is asserted to FAIL explicitly
               # in the negative-agreement step below. Keeping them out of
               # the positive closure sweep mirrors the [provenance]
               # sweep's explicit exclusion.
-              if path.as_posix().startswith("examples/negative/"):
-                  continue
+              if path.parts[:2] == ("examples", "negative"):
+                  return True
               # Same rule for conformance invalid cases: they are
               # asserted-negative fixtures the runner requires all three
               # implementations to reject (some are deliberately
               # closure-invalid, e.g. the api-snapshot witness-strip case).
-              if path.as_posix().startswith("conformance/cases/") and "/invalid/" in path.as_posix():
-                  continue
+              if path.parts[:2] == ("conformance", "cases") and len(path.parts) >= 4 and path.parts[3] == "invalid":
+                  return True
+              return False
+
+          for path in sorted(rglob(root, "*.toml", exclude=excluded)):
               if is_conforming_toml(path, spec_reserved):
                   print(path)
           PY

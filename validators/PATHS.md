@@ -27,6 +27,15 @@ Current standalone commands bootstrap their shared implementation through
 literal `os.path` operations. No standard Pathlib module is injected or loaded
 as a fallback.
 
+Discovery accepts an optional boolean exclusion predicate. It applies before
+target inspection and recursive traversal, so excluded environments and build
+directories cannot abort a selected-document scan through their links or
+unreadable contents. The closure command and both whole-tree workflow scans
+carry their declared exclusions into that traversal. Broken links and malformed
+documents in the selected population still fail. These repair the discovery
+regressions present at project commit
+`11660352c4c6c1bd30d051607fd4cdde6ca2b470`.
+
 POSIX lexical controls and native file controls run on the Linux validation
 host. Windows pure paths retain the pinned supplier's lexical contract.
 Python 3.13 interprets the malformed Windows operand `///a/b` differently;
@@ -55,7 +64,9 @@ with explicit version-four and RFC variant bits. Only compact hexadecimal
 and hyphenated text are supplied. Standard UUID parsing, platform discovery
 and the broader UUID framework are retired at those authored consumers.
 Every byte-fill value has independent bit-preservation controls; absent,
-wrong-sized or failed entropy produces an error. The exact-option parser
+wrong-sized or failed entropy produces an error. The command-line parser
 also uses built-in object annotations and `collections.abc.Callable`, without
 an active runtime import of the typing framework. Other dependency and
 verification consumers remain inside the wider audit.
+Its standard help aliases, unambiguous long-option prefixes, and attached
+option-value boundaries are retained through literal comparisons.

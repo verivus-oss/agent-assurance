@@ -464,17 +464,23 @@ def discover_conforming(
     out: list[pathlib.Path] = []
     skip_dirs = {"target", "node_modules", "__pycache__"}
     for root in roots:
+        if excluded and excluded(root):
+            continue
         if not candidate_directory(root):
             if not candidate_file(root):
                 raise OSError(f"{root}: explicit closure discovery root is missing")
             if root.suffix == ".toml" and not (excluded and excluded(root)) and is_conforming_toml(root, spec_reserved):
                 out.append(root)
             continue
-        for path in sorted(literal_rglob(root, "*.toml")):
-            if any(part.startswith(".") or part in skip_dirs for part in path.relative_to(root).parts):
-                continue
+
+        def omitted(path: pathlib.Path, selected_root: pathlib.Path = root) -> bool:
+            if any(part.startswith(".") or part in skip_dirs for part in path.relative_to(selected_root).parts):
+                return True
             if excluded and excluded(path):
-                continue
+                return True
+            return False
+
+        for path in sorted(literal_rglob(root, "*.toml", exclude=omitted)):
             if is_conforming_toml(path, spec_reserved):
                 out.append(path)
     return out

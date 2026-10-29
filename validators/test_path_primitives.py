@@ -185,6 +185,32 @@ def test_filesystem_operations_and_discovery():
         require(not folder.exists() and not folder.is_file() and not folder.is_dir())
 
 
+def test_discovery_exclusions_precede_target_inspection():
+    with Workspace() as root:
+        selected = root / 'selected.toml'
+        selected.write_text('public = true\n')
+        omitted = root / 'excluded'
+        (omitted / 'lib').mkdir(parents=True)
+        (omitted / 'lib64').symlink_to('lib')
+        (omitted / 'broken.toml').symlink_to('missing.toml')
+        exclude = lambda path: path == omitted or omitted in path.parents
+        require(list(rglob(root, '*.toml', exclude=exclude)) == [selected])
+        expect_raises(OSError, lambda: list(rglob(root, '*.toml')),
+                      'selected recursive directory link was silently ignored')
+        require(list(glob(root, 'excluded/*.toml', exclude=exclude)) == [])
+        active = root / 'active.toml'
+        active.symlink_to('missing.toml')
+        expect_raises(OSError, lambda: list(rglob(root, '*.toml', exclude=exclude)),
+                      'excluding one subtree concealed a broken selected candidate')
+        active.unlink()
+        for invalid in (True, 'excluded', []):
+            expect_raises(TypeError, lambda: list(rglob(root, '*.toml', exclude=invalid)),
+                          'noncallable exclusion was accepted')
+        for decision in (None, 0, 1, []):
+            expect_raises(TypeError, lambda: list(rglob(root, '*.toml', exclude=lambda _path: decision)),
+                          'nonboolean exclusion decision was accepted')
+
+
 if __name__ == '__main__':
     tests = {name: value for name, value in globals().items() if name.startswith('test_') and callable(value)}
     require(tests)
