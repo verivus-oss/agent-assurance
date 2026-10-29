@@ -18,6 +18,16 @@ The ten-second connection budget includes pool wait, DNS, TCP, proxies and
 TLS. The ninety-second request budget continues after connection; a separate
 ten-second response-header limit bounds a connected but silent peer.
 
+At `4ff598165fb2715fbf4705203a42a44d587127e0`, the standard HTTP parser
+collapsed identical repeated Content-Length fields before the Rust consumer
+could reject them. The maintained transport now captures the bounded final
+HTTP/1 header block before normalization, then uses the standard response/body
+parser and restores the original header population. It admits at most eight
+interim responses within the same header bound. The native consumer still
+rejects duplicate required proof fields. HTTP, HTTPS and SOCKS5 proxy tunnels
+retain destination TLS verification and keep proxy authentication separate
+from destination requests.
+
 The stdout envelope is the archive followed by the existing fixed metadata
 footer and a JSON record. A failed command cannot provide an advisory verdict.
 `--identity` returns the compiled producer/builder/source-graph identities and
@@ -46,6 +56,14 @@ header/body deadlines. A stalled actual TLS handshake must exhaust the shared
 connection budget; an established response may finish after that budget under
 the request deadline. It does not claim live advisory evaluation, complete
 transport equivalence, dependency compliance or pull-request approval.
+
+All TLS fixtures use the production transport with an injected private trust
+root. TLS 1.2 is accepted and a real TLS 1.1 peer is refused. Tunnel controls
+exercise all four proxy schemes with accepted plain/authenticated routes,
+refused routes and named destination identities. Required header duplicates,
+contradictory lengths, interim response bounds and raw header limits have
+separate controls. Fixture-only legacy peer settings are locally annotated;
+the production minimum remains TLS 1.2.
 
 CI builds this artifact before scanner execution and explicitly runs the Rust
 artifact controls. Complete live archive comparisons, dependency audits and

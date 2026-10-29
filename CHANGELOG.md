@@ -9,6 +9,14 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Preserve raw duplicate HTTPS proof fields after the transport review at
+  `4ff598165fb2715fbf4705203a42a44d587127e0` reproduced standard-client
+  normalization of repeated Content-Length headers. Capture the bounded
+  final header block before parsing, preserve proxy routing and destination
+  TLS verification, and require duplicate rejection at every required Rust
+  header consumer. Exercise production transport settings with accepted
+  TLS 1.2, refused TLS 1.1, proxy and actual wire-evidence controls.
+
 - Replace the native advisory evaluator's curl consumer measured against
   `8e64e6851b6ca8230b325c5b83414414d66bc0de` with a bounded Go HTTPS
   producer. Bind the complete producer and builder sources, compiled package

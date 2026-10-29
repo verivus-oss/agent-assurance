@@ -315,6 +315,13 @@ mod tests {
                 decode(encoded(&value), "https://control.invalid/data", now).is_err(),
                 "missing {key}"
             );
+            let mut repeated = response();
+            let first = repeated["headers"][key][0].clone();
+            repeated["headers"][key] = serde_json::json!([first, first]);
+            assert!(
+                decode(encoded(&repeated), "https://control.invalid/data", now).is_err(),
+                "repeated {key}"
+            );
         }
         for (key, value) in [
             ("content-length", serde_json::json!(["4"])),
@@ -324,6 +331,7 @@ mod tests {
                 serde_json::json!(["application/zip", "application/zip"]),
             ),
             ("x-goog-generation", serde_json::json!(["0"])),
+            ("age", serde_json::json!(["0", "0"])),
         ] {
             let mut record = response();
             record["headers"][key] = value;

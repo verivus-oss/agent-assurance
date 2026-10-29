@@ -93,10 +93,10 @@ func (id objectID) address() string {
 }
 func objectURL(value string) bool { _, ok := selectObject(value); return ok }
 
-func transport() *http.Transport {
-	return &http.Transport{Proxy: http.ProxyFromEnvironment, DialContext: (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
+func transport() *wireTransport {
+	return &wireTransport{&http.Transport{Proxy: http.ProxyFromEnvironment, DialContext: (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
 		TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12}, TLSHandshakeTimeout: 10 * time.Second,
-		ResponseHeaderTimeout: 10 * time.Second, DisableCompression: true, MaxResponseHeaderBytes: 65536}
+		ResponseHeaderTimeout: 10 * time.Second, DisableCompression: true, MaxResponseHeaderBytes: 65536}}
 }
 
 func retrieve(ctx context.Context, address string, selected http.RoundTripper, limit int64) (_ []byte, _ receipt, resultErr error) {
