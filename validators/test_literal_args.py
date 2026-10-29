@@ -102,10 +102,24 @@ def test_unambiguous_long_option_prefixes() -> None:
                 require(exc.code == 0 and 'usage:' in output.getvalue())
             else:
                 raise AssertionError('help prefix did not exit')
+
+def test_option_values_and_dash_filenames_stay_distinct() -> None:
+    parser = ArgumentParser()
+    parser.add_argument('--destination', required=True)
+    parser.add_argument('paths', nargs='*')
+    for tokens in (['--destination', '-x'], ['--destination', '-h'],
+                   ['--destination', '--help'], ['--destination', 'selected', '-x']):
+        rejected(parser, tokens)
+    result = parser.parse_args(['--destination=-x', '--', '-h'])
+    require(result.destination == '-x' and result.paths == ['-h'])
+    for value in ('-', '-1', '-1.25', '-.5', '-١'):
+        result = parser.parse_args(['--destination', value])
+        require(result.destination == value and result.paths == [])
 if __name__ == '__main__':
     test_options_and_values()
     test_groups_and_subcommands()
     test_help_and_version()
     test_attached_variable_option_preserves_following_paths()
     test_unambiguous_long_option_prefixes()
+    test_option_values_and_dash_filenames_stay_distinct()
     print('literal argument parser: accepted and rejected option, command, help and literal-path cases exercised')

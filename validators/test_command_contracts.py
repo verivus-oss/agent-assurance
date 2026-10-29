@@ -56,9 +56,10 @@ def test_help_and_unknown_options_for_every_shared_cli():
                     repr(command) + ': ' + repr((status, output, errors)))
             outputs.append(output)
         require(outputs[0] == outputs[1], 'help aliases differ for ' + str(path))
-        command = [sys.executable, '-B', str(ROOT / path), '--unknown-command-contract-option']
-        status, output, errors = run(command)
-        require(status == 2 and errors, repr(command) + ': ' + repr((status, output, errors)))
+        for switch in ('--unknown-command-contract-option', '-x'):
+            command = [sys.executable, '-B', str(ROOT / path), switch]
+            status, output, errors = run(command)
+            require(status == 2 and errors, repr(command) + ': ' + repr((status, output, errors)))
         executed.add(path)
     require(executed == programs, 'shared CLI controls did not execute the complete population')
 
@@ -87,20 +88,49 @@ def test_version_prefix_retains_release_action():
     require(outputs[0] == outputs[1])
 
 
-def test_help_switch_after_separator_is_a_real_filename():
+def test_option_flags_and_dash_filenames_stay_distinct():
     with TemporaryTree() as directory:
         root = Path(directory)
-        (root / '-h').write_bytes((ROOT / 'examples/minimal-adapter-contract.toml').read_bytes())
-        command = [sys.executable, '-B', str(ROOT / 'validators/validate_provenance.py'),
-                   '--repo-root', str(root), '--', '-h']
+        source = (ROOT / 'examples/minimal-adapter-contract.toml').read_bytes()
+        base_command = [sys.executable, '-B', str(ROOT / 'validators/validate_provenance.py'),
+                        '--repo-root', str(root)]
         previous = os.getcwd()
         try:
             os.chdir(root)
-            status, output, errors = run(command)
+            for name in ('-h', '-x', '-1', '-.5'):
+                (root / name).write_bytes(source)
+                command = base_command + ['--', name]
+                status, output, errors = run(command)
+                require(status == 0 and b'PROVENANCE VALIDATION PASSED' in output and not errors,
+                        repr(command) + ': ' + repr((status, output, errors)))
+                if name in ('-1', '-.5'):
+                    status, output, errors = run(base_command + [name])
+                    require(status == 0 and b'PROVENANCE VALIDATION PASSED' in output and not errors)
+            for operands in (['-x'], ['-1', '-x'], ['-1', '--unknown-command-contract-option']):
+                command = base_command + operands
+                status, output, errors = run(command)
+                require(status == 2 and b'unrecognized arguments' in errors,
+                        'unknown option became a filename: ' + repr((status, output, errors)))
         finally:
             os.chdir(previous)
-        require(status == 0 and b'PROVENANCE VALIDATION PASSED' in output and not errors,
-                repr(command) + ': ' + repr((status, output, errors)))
+
+
+def test_missing_destination_value_has_no_filesystem_side_effect():
+    with TemporaryTree() as directory:
+        root, previous = Path(directory), os.getcwd()
+        try:
+            os.chdir(root)
+            for value in ('-x', '-h', '--help'):
+                command = [sys.executable, '-B', str(ROOT / 'reference/database/ingest_runtime_document.py'),
+                           '--engine', 'sqlite', '--destination', value, 'initialize', '--exclusive-unpublished']
+                status, output, errors = run(command)
+                created = (root / value).exists()
+                require(status == 2 and errors and not created,
+                        repr(command) + ': ' + repr({'exit_code': status, 'destination_created': created,
+                                                     'stdout': output, 'stderr': errors}))
+            require(list(root.iterdir()) == [], 'invalid command created an unexpected file')
+        finally:
+            os.chdir(previous)
 
 
 def test_closure_cli_prunes_excluded_directories_before_traversal():

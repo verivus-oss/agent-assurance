@@ -13,6 +13,18 @@ from collections.abc import Callable
 _MISSING = object()
 
 
+def _is_option_token(word: str) -> bool:
+    if not word.startswith("-") or word == "-":
+        return False
+    if word.startswith("--"):
+        return True
+    number = word[1:]
+    if number.isdecimal():
+        return False
+    whole, dot, fraction = number.partition(".")
+    return not (dot and fraction.isdecimal() and (not whole or whole.isdecimal()))
+
+
 class Namespace:
     def __init__(self, **values: object) -> None:
         self.__dict__.update(values)
@@ -149,22 +161,22 @@ class ArgumentParser:
     def _option_name(self, name: str, options: dict[str, _Argument]) -> str:
         if name in options or name == "--help" or not name.startswith("--"):
             return name
-        matches = [option for option in (*options, "--help") if option.startswith(name)]
+        matches = [option for option in sorted(set(options) | {"--help"}) if option.startswith(name)]
         if len(matches) > 1:
             self.error("ambiguous option: " + name + " (" + ", ".join(sorted(matches)) + ")")
         return matches[0] if matches else name
 
     def parse_args(self, args: list[str] | None = None) -> Namespace:
-        tokens = list(sys.argv[1:] if args is None else args)
+        words = list(sys.argv[1:] if args is None else args)
         child: ArgumentParser | None = None
         if self.subparsers:
             parent_options = {argument.name: argument for argument in self.arguments if not argument.positional}
             cursor = 0
-            while cursor < len(tokens) and tokens[cursor] != "--":  # nosec B105  # noqa: S105
-                token = tokens[cursor]
-                if token in ("-h", "--help"):
+            while cursor < len(words) and words[cursor] != "--":
+                word = words[cursor]
+                if word in ("-h", "--help"):
                     break
-                name, equals, _ = token.partition("=")
+                name, equals, _ = word.partition("=")
                 name = self._option_name(name, parent_options)
                 if name == "--help":
                     break
@@ -176,20 +188,21 @@ class ArgumentParser:
                             self.error("variable arity before a subcommand is unsupported")
                         cursor += 1
                     continue
-                if token.startswith("--"):
+                if _is_option_token(word):
                     cursor += 1
                     continue
-                child = self.subparsers.parsers.get(token)
+                child = self.subparsers.parsers.get(word)
                 if child is None:
-                    self.error("unrecognized subcommand: " + token)
-                tokens.pop(cursor)
+                    self.error("unrecognized subcommand: " + word)
+                words.pop(cursor)
                 break
         arguments = self.arguments + (child.arguments if child else [])
-        help_tokens = tokens[:tokens.index("--")] if "--" in tokens else tokens  # nosec B105  # noqa: S105
-        if any(token in ("-h", "--help") for token in help_tokens):
-            print(self._help(child))
-            raise SystemExit(0)
         by_name = {argument.name: argument for argument in arguments if not argument.positional}
+        for word in words:
+            if word == "--":
+                break
+            if word.startswith("--"):
+                self._option_name(word.partition("=")[0], by_name)
         positionals = [argument for argument in arguments if argument.positional]
         if len(positionals) > 1:
             raise ValueError("multiple positional arguments are unsupported")
@@ -200,15 +213,19 @@ class ArgumentParser:
             )
         seen: set[str] = set()
         positional_values: list[str] = []
+        unknown_options: list[str] = []
         index = 0
         literal_mode = False
-        while index < len(tokens):
-            token = tokens[index]
-            if token == "--" and not literal_mode:  # nosec B105  # noqa: S105
+        while index < len(words):
+            word = words[index]
+            if word == "--" and not literal_mode:
                 literal_mode = True
                 index += 1
                 continue
-            name, equals, attached = token.partition("=")
+            if not literal_mode and word == "-h":
+                print(self._help(child))
+                raise SystemExit(0)
+            name, equals, attached = word.partition("=")
             if not literal_mode and name.startswith("--"):
                 name = self._option_name(name, by_name)
                 if name == "--help":
@@ -218,7 +235,9 @@ class ArgumentParser:
                     raise SystemExit(0)
                 argument = by_name.get(name)
                 if argument is None:
-                    self.error("unrecognized argument: " + token)
+                    unknown_options.append(word)
+                    index += 1
+                    continue
                 if argument.action == "version":
                     if equals:
                         self.error("option does not accept a value: " + name)
@@ -234,16 +253,16 @@ class ArgumentParser:
                 collected = [attached] if equals else []
                 index += 1
                 if argument.nargs in ("*", "+") and not equals:
-                    while index < len(tokens) and tokens[index] != "--" and not tokens[index].startswith("--"):
-                        collected.append(tokens[index])
+                    while index < len(words) and not _is_option_token(words[index]):
+                        collected.append(words[index])
                         index += 1
                     if argument.nargs == "+" and not collected:
                         self.error("option requires at least one value: " + name)
                 else:
                     if not collected:
-                        if index == len(tokens) or tokens[index].startswith("--"):
+                        if index == len(words) or _is_option_token(words[index]):
                             self.error("option requires a value: " + name)
-                        collected.append(tokens[index])
+                        collected.append(words[index])
                         index += 1
                 converted = [self._convert(argument, value) for value in collected]
                 if argument.action == "append":
@@ -256,8 +275,16 @@ class ArgumentParser:
                     values[argument.destination] = converted[0]
                 seen.add(argument.name)
                 continue
-            positional_values.append(token)
+            if not literal_mode and _is_option_token(word):
+                if word.startswith("-h"):
+                    self.error("option does not accept a value: -h")
+                unknown_options.append(word)
+                index += 1
+                continue
+            positional_values.append(word)
             index += 1
+        if unknown_options:
+            self.error("unrecognized arguments: " + " ".join(unknown_options))
         if positionals:
             argument = positionals[0]
             if argument.nargs in ("*", "+"):

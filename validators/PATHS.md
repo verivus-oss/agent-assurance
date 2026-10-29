@@ -70,3 +70,6 @@ an active runtime import of the typing framework. Other dependency and
 verification consumers remain inside the wider audit.
 Its standard help aliases, unambiguous long-option prefixes, and attached
 option-value boundaries are retained through literal comparisons.
+Unknown options and missing option values are rejected before filesystem
+operations. The option separator retains literal dash-prefixed filenames;
+negative numeric operands retain their existing command-line behavior.

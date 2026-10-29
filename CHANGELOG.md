@@ -13,7 +13,8 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
   `11660352c4c6c1bd30d051607fd4cdde6ca2b470` against the original behavior at
   `518656923ee1beadc8b5722617782804b7db2da6`. Restore short help and
   unambiguous option prefixes, preserve positional operands after attached
-  option values, and prune declared discovery exclusions before inspecting
+  option values, refuse unknown short options before filesystem access,
+  and prune declared discovery exclusions before inspecting
   their contents. Exercise every shared CLI entry point and both whole-tree
   workflow selectors, including rejection of malformed selected sources.
 
