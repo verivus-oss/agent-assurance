@@ -1,0 +1,16 @@
+schema_version = 1
+scanner_commit = "bfe2f84abd2f09fe0b83ba7f6dad40d296762f40"
+
+[[extractor]]
+name = "vcs/gitrepo"
+source = "internal/scalibrextract/vcs/gitrepo/extractor.go"
+blob = "028662f538ce8306cae3aad461499b47b981ee75"
+enabled_in_workflow = false
+reason = "source command defaults include-git-root to false; getPlugins disables this extractor; current workflow omits the flag"
+
+[[extractor]]
+name = "filesystem/vendored"
+source = "internal/scalibrextract/filesystem/vendored/vendored.go"
+blob = "8b3e0b00b3aecc6303da98cfe3b68eddd0012956"
+enabled_in_workflow = true
+parents = ["3rdparty", "dep", "deps", "thirdparty", "third-party", "third_party", "libs", "external", "externals", "vendor", "vendored"]

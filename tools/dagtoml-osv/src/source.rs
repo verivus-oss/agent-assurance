@@ -126,6 +126,7 @@ fn relative(path: &str) -> bool {
 struct Entry {
     object: String,
     regular: bool,
+    gitlink: bool,
 }
 
 fn entries(raw: &[u8]) -> Result<BTreeMap<String, Entry>, String> {
@@ -153,6 +154,7 @@ fn entries(raw: &[u8]) -> Result<BTreeMap<String, Entry>, String> {
                     Entry {
                         object: fields[1].into(),
                         regular: matches!(fields[0], "100644" | "100755"),
+                        gitlink: fields[0] == "160000",
                     },
                 )
                 .is_some()
@@ -213,6 +215,33 @@ impl Snapshot {
         }
         let raw = git.run(root, &["ls-files", "--stage", "-z"], vec![])?;
         let index = entries(&raw)?;
+        for (path, entry) in &index {
+            if entry.gitlink {
+                return Err(format!(
+                    "advisory Git submodule needs an implemented directory extractor: {path}"
+                ));
+            }
+            // Indexed descendants establish a directory even when its own
+            // name is absent from the index. Never treat that directory as an
+            // unrelated file merely because it has no lockfile basename.
+            let mut parent = Path::new(path).parent();
+            while let Some(directory) = parent {
+                let directory = directory
+                    .to_str()
+                    .ok_or("advisory directory is not UTF-8")?;
+                if formats::vendored_directory(directory) {
+                    return Err(format!(
+                        "advisory vendored directory needs an implemented extractor: {directory}"
+                    ));
+                }
+                parent = Path::new(directory).parent();
+            }
+            if !entry.regular && formats::vendored_directory(path) {
+                return Err(format!(
+                    "advisory vendored directory needs an implemented extractor: {path}"
+                ));
+            }
+        }
         let clean = git
             .run(
                 root,
@@ -321,8 +350,13 @@ mod tests {
         let accepted = entries(raw.as_bytes()).unwrap();
         assert_eq!(accepted["requirements.txt"].object, object);
         assert!(accepted["requirements.txt"].regular);
+        assert!(!accepted["requirements.txt"].gitlink);
         let symlink = entries(format!("120000 {object} 0\trequirements.txt\0").as_bytes()).unwrap();
         assert!(!symlink["requirements.txt"].regular);
+        assert!(!symlink["requirements.txt"].gitlink);
+        let submodule = entries(format!("160000 {object} 0\tlibrary\0").as_bytes()).unwrap();
+        assert!(submodule["library"].gitlink);
+        assert!(!submodule["library"].regular);
         for raw in [
             String::new(),
             format!("100644 {object} 0\trequirements.txt"),

@@ -47,6 +47,29 @@ const NAMED_FORMATS: &[(&str, &[&str])] = &[
     ("osv/osvscannerjson", &["osv-scanner-custom.json"]),
 ];
 
+// Pinned filesystem/vendored FileRequired compares the immediate parent
+// against these exact names. Directory inputs need their own admission rule.
+const VENDORED_PARENTS: &[&str] = &[
+    "3rdparty",
+    "dep",
+    "deps",
+    "thirdparty",
+    "third-party",
+    "third_party",
+    "libs",
+    "external",
+    "externals",
+    "vendor",
+    "vendored",
+];
+
+pub(crate) fn vendored_directory(path: &str) -> bool {
+    let Some((parent, _)) = path.rsplit_once('/') else {
+        return false;
+    };
+    VENDORED_PARENTS.contains(&parent.rsplit('/').next().unwrap_or(parent))
+}
+
 fn recognized(path: &str) -> Option<&'static str> {
     let basename = path.rsplit('/').next().unwrap_or(path);
     if basename.ends_with(".txt")
@@ -120,6 +143,52 @@ pub(crate) fn classify(path: &str) -> Option<Kind> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn directory_inventory_matches_pinned_parent_predicate() {
+        use std::collections::BTreeSet;
+        let data: toml::Value =
+            toml::from_str(include_str!("../data/directory-scope.toml")).unwrap();
+        assert_eq!(data["schema_version"].as_integer(), Some(1));
+        assert_eq!(
+            data["scanner_commit"].as_str(),
+            Some("bfe2f84abd2f09fe0b83ba7f6dad40d296762f40")
+        );
+        let rows = data["extractor"].as_array().unwrap();
+        assert_eq!(rows.len(), 2);
+        let by_name: std::collections::BTreeMap<_, _> = rows
+            .iter()
+            .map(|row| (row["name"].as_str().unwrap(), row))
+            .collect();
+        assert_eq!(by_name.len(), rows.len());
+        assert_eq!(
+            by_name["vcs/gitrepo"]["enabled_in_workflow"].as_bool(),
+            Some(false)
+        );
+        assert_eq!(
+            by_name["filesystem/vendored"]["enabled_in_workflow"].as_bool(),
+            Some(true)
+        );
+        let parents = by_name["filesystem/vendored"]["parents"]
+            .as_array()
+            .unwrap();
+        let declared: BTreeSet<_> = parents
+            .iter()
+            .map(|value| value.as_str().unwrap())
+            .collect();
+        assert_eq!(parents.len(), declared.len());
+        assert_eq!(declared, VENDORED_PARENTS.iter().copied().collect());
+        assert_eq!(declared.len(), 11);
+        for parent in declared {
+            assert!(vendored_directory(&format!("{parent}/library")));
+            assert!(vendored_directory(&format!("nested/{parent}/library")));
+            assert!(!vendored_directory(&format!("{parent}-extra/library")));
+            assert!(!vendored_directory(parent));
+        }
+        for path in ["ordinary/library", "Vendor/library", "_vendor/library"] {
+            assert!(!vendored_directory(path));
+        }
+    }
 
     #[test]
     fn pinned_entry_point_inventory_equals_the_recognized_extractor_population() {

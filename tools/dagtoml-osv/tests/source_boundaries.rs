@@ -202,6 +202,130 @@ fn newly_tracked_sources_are_derived_and_unsupported_formats_fail() {
 }
 
 #[test]
+fn tracked_vendored_directory_roots_cannot_disappear() {
+    let data: toml::Value = toml::from_str(include_str!("../data/directory-scope.toml")).unwrap();
+    let parents = data["extractor"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["name"].as_str() == Some("filesystem/vendored"))
+        .unwrap()["parents"]
+        .as_array()
+        .unwrap();
+    assert_eq!(parents.len(), 11);
+    for parent in parents {
+        let parent = parent.as_str().unwrap();
+        let fixture = Fixture::new();
+        fixture.write("requirements.txt", b"package==1.0\n");
+        fixture.commit();
+        assert_eq!(fixture.capture().unwrap().subjects.len(), 1);
+        let directory = format!("nested/{parent}/library");
+        fixture.write(
+            &format!("{directory}/control.c"),
+            b"int component_version(void) { return 1; }\n",
+        );
+        fixture.commit();
+        assert_eq!(
+            fixture.capture().unwrap_err(),
+            format!("advisory vendored directory needs an implemented extractor: {directory}")
+        );
+    }
+}
+
+#[test]
+fn neighboring_directory_names_and_direct_files_remain_accepted() {
+    let fixture = Fixture::new();
+    fixture.write("requirements.txt", b"package==1.0\n");
+    for path in [
+        "vendor-extra/library/control.c",
+        "Vendor/library/control.c",
+        "_vendor/library/control.c",
+        "vendor/direct-file.c",
+    ] {
+        fixture.write(path, b"int component_version(void) { return 1; }\n");
+    }
+    fixture.commit();
+    let result = fixture.capture().unwrap();
+    assert_eq!(result.tree_state, "clean");
+    assert_eq!(result.tracked_population, 5);
+    assert_eq!(result.subjects.len(), 1);
+    assert_eq!(result.packages().len(), 1);
+}
+
+#[test]
+fn nonregular_vendor_roots_and_gitlinks_are_refused() {
+    let fixture = Fixture::new();
+    fixture.write("requirements.txt", b"package==1.0\n");
+    fixture.commit();
+    assert_eq!(fixture.capture().unwrap().subjects.len(), 1);
+    std::fs::create_dir(fixture.root.join("vendor")).unwrap();
+    std::os::unix::fs::symlink("missing-target", fixture.root.join("vendor/library")).unwrap();
+    fixture.commit();
+    assert_eq!(
+        fixture.capture().unwrap_err(),
+        "advisory vendored directory needs an implemented extractor: vendor/library"
+    );
+    std::fs::remove_file(fixture.root.join("vendor/library")).unwrap();
+    fixture.commit();
+    let commit = String::from_utf8(fixture.command(&["rev-parse", "HEAD"])).unwrap();
+    std::fs::create_dir(fixture.root.join("nested-library")).unwrap();
+    fixture.command(&[
+        "update-index",
+        "--add",
+        "--cacheinfo",
+        "160000",
+        commit.trim(),
+        "nested-library",
+    ]);
+    fixture.command(&[
+        "commit",
+        "--quiet",
+        "--no-gpg-sign",
+        "-m",
+        "unassessed submodule control",
+    ]);
+    assert_eq!(
+        fixture.capture().unwrap_err(),
+        "advisory Git submodule needs an implemented directory extractor: nested-library"
+    );
+}
+
+#[test]
+fn cli_refuses_vendored_directory_before_advisory_retrieval() {
+    use std::os::unix::fs::PermissionsExt;
+    let fixture = Fixture::new();
+    fixture.instrument();
+    fixture.write("requirements.txt", b"package==1.0\n");
+    fixture.write(
+        "third_party/library/control.c",
+        b"int component_version(void) { return 1; }\n",
+    );
+    fixture.commit();
+    // A transport invocation would fail with a different diagnostic. Keep the
+    // trap outside the selected checkout so it cannot make the subject dirty.
+    let transport = Fixture::new();
+    transport.write("curl", b"#!/bin/sh\nexit 99\n");
+    std::fs::set_permissions(
+        transport.root.join("curl"),
+        std::fs::Permissions::from_mode(0o755),
+    )
+    .unwrap();
+    let mut paths = vec![transport.root.clone()];
+    paths.extend(std::env::split_paths(&std::env::var_os("PATH").unwrap()));
+    let output = Command::new(env!("CARGO_BIN_EXE_dagtoml-osv"))
+        .arg(&fixture.root)
+        .env("PATH", std::env::join_paths(paths).unwrap())
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        String::from_utf8(output.stderr).unwrap(),
+        "advisory evaluation incomplete: advisory vendored directory needs an implemented extractor: third_party/library\n"
+    );
+}
+
+#[test]
 fn requirements_filename_variants_are_discovered() {
     for path in [
         "nested/requirements-dev.txt",

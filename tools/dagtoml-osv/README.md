@@ -82,10 +82,25 @@ Controls compare the complete inventory with the native classifier and
 exercise actual tracked filename variants and unsupported subjects. Node
 module lock candidates, the previously guarded binary Bun name and marked
 SPDX names with unsupported extensions are conservatively refused too.
-Root Git ancestry and vendored native-code fingerprint discovery belong to
-the old directory preset and remain outside this lock extractor result;
-their replacement or explicit retirement remains necessary before removing
-the original workflow gate.
+`data/directory-scope.toml` separately records the two directory extractors.
+At the same pinned scanner commit, the source command defaults
+`include-git-root` to false, and `getPlugins` disables `vcs/gitrepo` when
+that flag is absent. The current workflow does not enable it. Root commit
+ancestry is therefore not an active protection of this workflow.
+
+The directory preset still enables `filesystem/vendored`. The native snapshot
+at `16233b65fb855f9bad7582603d5064e6d7e45f27` admitted a package-only result
+after a tracked vendored C directory was added. It now derives directory
+prefixes from the complete index and refuses child roots under the supplier's
+eleven exact parent names, including nonregular root entries, rather than
+issuing a package-only verdict over that input. Git submodule entries also
+stop evaluation because their contents are outside the captured file index.
+Neighboring names and direct files that the upstream directory predicate does
+not select remain admitted. This is a refusal boundary, not fingerprint
+identification. Complete filesystem directory discovery, including untracked
+empty or ignored-content directory roots, remains open. The required original
+workflow gate stays active until that discovery and the dependency/build audit
+support replacement.
 
 The semantic query prototype is retired. At upstream OSV commit
 `2550f6d61565de3a813e19f64a24b04b8af0ce39`, the current Go API dispatches both

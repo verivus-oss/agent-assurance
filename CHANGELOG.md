@@ -9,6 +9,15 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Refuse tracked vendored-directory roots and unassessed Git submodules in the
+  native advisory replacement. Its snapshot at
+  `16233b65fb855f9bad7582603d5064e6d7e45f27` admitted a package-only result
+  after an active directory subject was added. Derive directory prefixes from
+  the full index and retain the pinned upstream predicate, with neighboring
+  accepted cases. Correct the earlier root-Git scope note against the pinned
+  workflow defaults. Keep the original scanner while complete directory
+  discovery and dependency/build audits remain open.
+
 - Bind database receipt metadata to the selected checkout independently of
   inherited Git location, index and configuration settings. The source-binding
   function at `a867058bc03a98c9b1a478543b690f046fe25a7d` could label a dirty
