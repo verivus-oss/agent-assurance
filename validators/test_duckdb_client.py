@@ -9,6 +9,7 @@ from _literal_json import dumps
 from _test_require import expect_raises, require
 from _duckdb_guard import Boundary, BoundaryError, FORBIDDEN, expected_proof
 from _random_id import random_id_hex
+from _credential_test_support import TemporaryTree
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'reference/database'))
@@ -62,6 +63,24 @@ def test_inventory_refuses_ambiguous_rosters_and_binds_populations():
         require('requires a plain list' in str(error), 'identity population failed during unrelated setup')
     require(client._kernel_path('/private/path\\040with\\134escape') == '/private/path with\\escape')
     require(client._kernel_path('/private/literal\\04x') == '/private/literal\\04x')
+
+
+def test_artifact_file_readers_refuse_linked_parent_paths():
+    with TemporaryTree() as directory:
+        root = Path(directory)
+        (root / 'actual').mkdir()
+        (root / 'actual/member').write_bytes(b'accepted bytes')
+        require(client._file(root, 'actual/member') == b'accepted bytes')
+        (root / 'alias').symlink_to(root / 'actual', target_is_directory=True)
+        (root / 'plain').write_bytes(b'not a directory')
+        for relative in ('alias/member', 'plain/member'):
+            error = expect_raises(client.ArtifactError, lambda: client._file(root, relative),
+                                  'linked or non-directory artifact parent was followed')
+            require('linked or non-directory parent' in str(error))
+        require(client._recipe(root, 'actual') == [{'path': 'member', 'sha256': client.hashlib.sha256(b'accepted bytes').hexdigest()}])
+        error = expect_raises(client.ArtifactError, lambda: client._recipe(root, 'alias'),
+                              'linked prepared source root was followed')
+        require('not a regular directory' in str(error))
 
 
 def test_advisory_origins_cover_each_declared_native_input():
@@ -140,6 +159,146 @@ def exercise_native_paths(owned):
         fixture.unlink()
 
 
+def exercise_prepared_core_population(proof, directory):
+    source = directory / 'core-sources'
+    expected = {'NOTICE', 'prepared.cpp', 'static_extensions.cpp'}
+    require({path.name for path in source.iterdir()} == expected)
+    exercised = set()
+    for name in sorted(expected):
+        path = source / name
+        original = path.read_bytes()
+        parked = directory / ('parked-' + name)
+        try:
+            path.write_bytes(original + b'\nchanged prepared core subject\n')
+            error = expect_raises(client.ArtifactError, lambda: client.build_identity(ROOT),
+                                  'changed actual core source was accepted')
+            require('core prepared source differs' in str(error))
+            path.unlink()
+            error = expect_raises(client.ArtifactError, lambda: client.build_identity(ROOT),
+                                  'missing actual core source was accepted')
+            require('core prepared source differs' in str(error))
+            parked.write_bytes(original)
+            path.symlink_to(parked)
+            error = expect_raises(client.ArtifactError, lambda: client.build_identity(ROOT),
+                                  'linked actual core source was accepted')
+            require('nonregular file' in str(error))
+        finally:
+            if path.is_symlink():
+                path.unlink()
+            path.write_bytes(original)
+            if parked.exists():
+                parked.unlink()
+        require(client.build_identity(ROOT) == proof)
+        exercised.add(name)
+    require(exercised == expected)
+    extra = source / 'unexpected-source'
+    try:
+        extra.write_bytes(b'extra native source')
+        error = expect_raises(client.ArtifactError, lambda: client.build_identity(ROOT),
+                              'extra actual core source was accepted')
+        require('core prepared source differs' in str(error))
+    finally:
+        extra.unlink()
+    require(client.build_identity(ROOT) == proof)
+
+
+def exercise_native_sql_states(connection):
+    cases = (
+        ("SELECT 1 /* outer /* nested */ tail */ + 2", (3,)),
+        ("SELECT 'a''b'", ("a'b",)),
+        ("SELECT 'one'\n 'two'", ('onetwo',)),
+        ("SELECT 'one' -- join\n 'two'", ('onetwo',)),
+        ("SELECT E'line\\nend'", ('line\nend',)),
+        ("SELECT $tag$dollar $ inside$tag$", ('dollar $ inside',)),
+        ("SELECT 'ü😀'", ('ü😀',)),
+        ('SELECT "ü" FROM (SELECT 7 AS "ü")', (7,)),
+        ("SELECT 1_234, 2147483648, .5, 1.2e-3", (1234, 2147483648, Decimal('0.5'), 0.0012)),
+        ("SELECT 1 NOT /* gap */ IN (2,3)", (True,)),
+        ("SELECT value FROM (VALUES (NULL), (1)) AS rows(value) ORDER BY value NULLS FIRST LIMIT 1", (None,)),
+    )
+    visited = set()
+    for sql, expected in cases:
+        require(connection.execute(sql).fetchone() == expected, 'SQL byte state changed its independently expected value')
+        visited.add(sql)
+    require(visited == {sql for sql, _expected in cases})
+    for sql, values in (("SELECT $1", [7]), ("SELECT ?2, ?1", [7, 8])):
+        expected = (7,) if len(values) == 1 else (8, 7)
+        require(connection.execute(sql, values).fetchone() == expected)
+    refused = (
+        ('SELECT ""', 'zero length SQL identifier'),
+        ("SELECT 'unfinished", 'unterminated SQL quoted value'),
+        ('SELECT 1 /* unfinished', 'unterminated SQL block comment'),
+        ('SELECT $tag$unfinished', 'unterminated SQL dollar quoted string'),
+        ("SELECT E'\\u0041'", 'Unicode escape conversion is unsupported'),
+        ("SELECT U&'d\\0061t'", 'Unicode escape conversion is unsupported'),
+        ('SELECT $2147483648', 'SQL parameter number exceeds parser bound'),
+        ('SELECT 1 ' + '!' * 64 + ' 2', 'SQL operator exceeds parser byte bound'),
+        ("SELECT 'one' /* block\n gap */ 'two'", 'syntax error'),
+    )
+    rejected = set()
+    for sql, reason in refused:
+        error = expect_raises(connection._module.ParserException, lambda: connection.execute(sql),
+                              'invalid or unsupported SQL state was accepted')
+        require(reason in str(error), 'SQL state failed outside its declared refusal property')
+        rejected.add(sql)
+    require(rejected == {sql for sql, _reason in refused})
+
+
+def exercise_external_extension_refusals(connection):
+    loaded = {row[0] for row in connection.execute(
+        "SELECT extension_name FROM duckdb_extensions() WHERE loaded").fetchall()}
+    require(loaded == {'core_functions', 'json'}, 'required static extension population changed')
+    operations = (
+        lambda: connection.execute("INSTALL dagtoml_refusal_probe"),
+        lambda: connection.execute("LOAD dagtoml_refusal_probe"),
+        lambda: connection._connection.install_extension('dagtoml_refusal_probe'),
+        lambda: connection._connection.load_extension('dagtoml_refusal_probe'),
+    )
+    reached = 0
+    for operation in operations:
+        error = expect_raises(connection._module.PermissionException, operation,
+                              'external extension code could restore a retired dependency')
+        require('external extensions is disabled through a compile time flag' in str(error),
+                'external extension control failed during unrelated setup')
+        reached += 1
+    require(reached == len(operations))
+    require(connection.execute("SELECT '{}'::JSON, 7 + 1").fetchone() == ('{}', 8))
+
+
+def exercise_retired_matching(connection):
+    named_functions = {'regexp_escape', 'regexp_extract', 'regexp_extract_all', 'regexp_full_match',
+                       'regexp_matches', 'regexp_replace', 'regexp_split_to_array', 'regexp_split_to_table',
+                       'str_split_regex', 'string_split_regex'}
+    declared = {row[0] for row in connection.execute(
+        "SELECT DISTINCT function_name FROM duckdb_functions() WHERE contains(function_name, 'regex')").fetchall()}
+    require(declared == named_functions, 'registered pattern function population changed')
+    operations = (
+        "SELECT regexp_matches('a', 'a')",
+        "SELECT regexp_full_match('a', 'a')",
+        "SELECT regexp_replace('abc', 'b', 'X')",
+        "SELECT regexp_extract('abc', '(.)', 1)",
+        "SELECT regexp_extract_all('abc', '(.)', 1)",
+        "SELECT regexp_split_to_array('a,b', ',')",
+        "SELECT regexp_split_to_table('a,b', ',')",
+        "SELECT str_split_regex('a,b', ',')",
+        "SELECT string_split_regex('a,b', ',')",
+        "SELECT 'a' ~ 'a'",
+        "SELECT 'a' !~ 'b'",
+        "SELECT regexp_matches('a', '[')",
+        "SELECT regexp_escape('a.b')",
+        "SELECT 'a' SIMILAR TO 'a'",
+        "SELECT COLUMNS('^a') FROM (SELECT 1 AS a)",
+    )
+    executed = set()
+    for sql in operations:
+        error = expect_raises(connection._module.Error, lambda: connection.execute(sql),
+                              'retired SQL pattern execution was accepted')
+        require('pattern execution is retired' in str(error), 'pattern refusal failed outside its declared property')
+        executed.add(sql)
+    require(executed == set(operations))
+    require(connection.execute("SELECT value FROM (VALUES ('a'), ('b')) AS rows(value) WHERE value = 'a'").fetchall() == [('a',)])
+
+
 def exercise_native():
     proof = client.build_identity(ROOT)
     directory = (ROOT / proof['binary']).parent
@@ -147,7 +306,7 @@ def exercise_native():
     original = record_path.read_bytes()
     original_record = client.loads(original)
     try:
-        for name in ('owned_sources', 'prepared_sources', 'pybind_headers', 'python_headers', 'core_files'):
+        for name in ('owned_sources', 'prepared_sources', 'pybind_headers', 'python_headers', 'core_files', 'native_core_sources'):
             changed = dict(original_record)
             changed[name] = changed[name][1:]
             record_path.write_text(dumps(changed))
@@ -158,6 +317,7 @@ def exercise_native():
     finally:
         record_path.write_bytes(original)
     require(client.build_identity(ROOT) == proof)
+    exercise_prepared_core_population(proof, directory)
     with Boundary() as boundary:
         module = client._module(ROOT, proof)
         for attribute, wrong in (('__file__', str(directory / 'unexpected.so')),
@@ -176,6 +336,9 @@ def exercise_native():
         with client.connect(':memory:') as connection:
             require(connection.driver_identity == proof)
             exercise_native_paths(connection)
+            exercise_retired_matching(connection)
+            exercise_external_extension_refusals(connection)
+            exercise_native_sql_states(connection)
             values = ([7, 8], {'name': 'value'}, date(2026, 10, 29), Decimal('1.250'),
                       datetime(2026, 10, 29, 12, 34, 56, tzinfo=timezone.utc), b'\0\xff', 'text\0ü')
             require(connection.execute('SELECT ?,?,?,?,?,?,?', values).fetchone() == values,
@@ -201,7 +364,7 @@ def exercise_native():
                 parked.rename(binary)
         require(boundary.proof() == expected_proof())
     require(client.build_identity(ROOT) == proof)
-    print('Native DuckDB: exact typed values, canonical UUID and primary errors, both native path consumers with six accepted and six NUL-rejected cases, five population omissions, three actual loaded-module identity mismatches, real closed/missing-artifact cleanup; no boundary attempts; full SQL lane and core/compiler audit skipped')
+    print('Native DuckDB: exact typed values, canonical UUID and primary errors, both native path consumers with six accepted and six NUL-rejected cases, six population omissions, complete actual prepared core source/notice tamper refusals, retired matching operations, three actual loaded-module identity mismatches, real closed/missing-artifact cleanup; no boundary attempts; full SQL lane and core/compiler audit skipped')
 
 
 if __name__ == '__main__':

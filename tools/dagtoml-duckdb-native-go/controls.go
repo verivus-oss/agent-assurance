@@ -342,6 +342,9 @@ func controls() (resultErr error) {
 	if err = processControls(work); err != nil {
 		return err
 	}
+	if err = sourceControls(); err != nil {
+		return err
+	}
 	if err = archiveControls(work); err != nil {
 		return err
 	}

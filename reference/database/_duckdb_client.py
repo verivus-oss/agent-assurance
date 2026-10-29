@@ -12,7 +12,7 @@ from _path_scan import Path
 from _json_decode import loads
 
 
-PROTOCOL = 'dagtoml-duckdb-native-v1'
+PROTOCOL = 'dagtoml-duckdb-native-v2'
 VERSIONS = frozenset({'1.5.0', '1.5.3'})
 _LOCK = threading.RLock()
 _MODULE = None
@@ -49,8 +49,19 @@ def _metadata(value):
     return value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns
 
 
-def _recipe(root):
-    source = root / 'tools/dagtoml-duckdb-native-go'
+def _parents(root, relative):
+    if not _path(relative):
+        raise ArtifactError('native DuckDB retained path is invalid')
+    current = root
+    for part in relative.split('/')[:-1]:
+        current = current / part
+        if not stat.S_ISDIR(os.stat(current, follow_symlinks=False).st_mode):
+            raise ArtifactError('native DuckDB retained path has a linked or non-directory parent')
+
+
+def _recipe(root, relative='tools/dagtoml-duckdb-native-go'):
+    _parents(root, relative)
+    source = root / relative
     if not stat.S_ISDIR(os.stat(source, follow_symlinks=False).st_mode):
         raise ArtifactError('native DuckDB recipe root is not a regular directory')
     def unreadable(_error):
@@ -96,6 +107,7 @@ def selected_version():
 
 
 def _file(root, relative):
+    _parents(root, relative)
     path = root / relative
     if path.is_symlink() or not path.is_file():
         raise ArtifactError('native DuckDB artifact requires a regular retained file')
@@ -120,17 +132,28 @@ def build_identity(root, version=None):
                 or record.get('go_version') != 'go1.26.10' or record['python']['abi'] != abi
                 or not _sha(record['compiler_sha256'])):
             raise ArtifactError('native DuckDB build declaration is invalid')
-        own, prepared, pybind, python, core = (_roster(record[name]) for name in
-            ('owned_sources', 'prepared_sources', 'pybind_headers', 'python_headers', 'core_files'))
+        own, prepared, pybind, python, core, native_sources = (_roster(record[name]) for name in
+            ('owned_sources', 'prepared_sources', 'pybind_headers', 'python_headers', 'core_files', 'native_core_sources'))
         if own != _recipe(root):
             raise ArtifactError('native DuckDB recipe differs from its retained build')
         targets = [entry['path'] for entry in prepared
                    if entry['path'].startswith('src/duckdb_py/') and entry['path'].endswith('.cpp')]
         if not targets or record.get('compiled_sources') != targets:
             raise ArtifactError('native DuckDB compiled target population is incomplete')
+        native_targets = sorted(['core/' + entry['path'] for entry in native_sources if entry['path'].endswith('.cpp')] +
+                                [entry['path'] for entry in prepared if entry['path'].startswith(
+                                    ('external/duckdb/extension/core_functions/', 'external/duckdb/extension/json/'))
+                                 and entry['path'].endswith('.cpp')])
+        if ({entry['path'] for entry in native_sources} != {'NOTICE', 'prepared.cpp', 'static_extensions.cpp'}
+                or not any(path.startswith('external/duckdb/extension/core_functions/') for path in native_targets)
+                or not any(path.startswith('external/duckdb/extension/json/') for path in native_targets)
+                or record.get('native_core_targets') != native_targets):
+            raise ArtifactError('native DuckDB core compiled source population is incomplete')
+        if _recipe(root, prefix + '/core-sources') != native_sources:
+            raise ArtifactError('native DuckDB core prepared source differs from its captured identity')
         compiler = [{'path': 'compiler', 'sha256': record['compiler_sha256']},
                     {'path': 'python-abi', 'sha256': hashlib.sha256(abi.encode('ascii')).hexdigest()}]
-        marker = inventory('dagtoml-duckdb-binding-v1', own, prepared, pybind, python, core, compiler)
+        marker = inventory('dagtoml-duckdb-binding-v2', own, prepared, pybind, python, core, native_sources, compiler)
         if marker != record.get('binding_identity'):
             raise ArtifactError('native DuckDB prepared input inventory differs from its binding identity')
         spec = loads((root / 'tools/dagtoml-duckdb-native-go/data/inputs.json').read_bytes())
@@ -157,6 +180,7 @@ def build_identity(root, version=None):
             raise ArtifactError('native DuckDB header supplier notice is missing or stale')
         return {'protocol': PROTOCOL, 'version': version, 'python_abi': abi,
                 'binding_identity': marker, 'source_sha256': inventory('dagtoml-duckdb-recipe-v1', own),
+                'prepared_core_sha256': inventory('dagtoml-duckdb-core-source-v1', native_sources),
                 'binary_sha256': binary_sha, 'core_sha256': core_sha, 'binary': binary, 'core_binary': native_core}
     except (KeyError, TypeError, ValueError, OSError) as exc:
         raise ArtifactError('native DuckDB retained proof is malformed or unavailable') from exc
@@ -256,7 +280,10 @@ class NativeConnection:
         self._root = Path(__file__).resolve().parents[2]
         self._proof = build_identity(self._root)
         self._module = _module(self._root, self._proof)
-        self._fingerprints = {name: _metadata(os.stat(self._root / self._proof[name])) for name in ('binary', 'core_binary')}
+        prefix = self._proof['binary'].rsplit('/', 1)[0]
+        paths = [self._proof[name] for name in ('binary', 'core_binary')]
+        paths += [prefix + '/core-sources/' + name for name in ('NOTICE', 'prepared.cpp', 'static_extensions.cpp')]
+        self._fingerprints = {path: _metadata(os.stat(self._root / path)) for path in paths}
         self._lock = threading.RLock()
         self._connection = self._module.connect(destination)
         self.closed = False
@@ -270,8 +297,10 @@ class NativeConnection:
             raise ArtifactError('native DuckDB connection is closed')
         try:
             current = (inventory('dagtoml-duckdb-recipe-v1', _recipe(self._root)) == self._proof['source_sha256']
-                       and all(_metadata(os.stat(self._root / self._proof[name])) == metadata
-                               for name, metadata in self._fingerprints.items()))
+                       and all(_metadata(os.stat(self._root / path, follow_symlinks=False)) == metadata
+                               for path, metadata in self._fingerprints.items()))
+            for path in self._fingerprints:
+                _parents(self._root, path)
         except (OSError, ArtifactError):
             self.close()
             raise

@@ -187,9 +187,6 @@ func build(sourceRoot, cache, output, version, interpreter string) (resultErr er
 	if err = extractSDK(sdkData, sdk, selected); err != nil {
 		return err
 	}
-	if err = extractZIP(coreData, core, func(name string) (string, bool) { return "libduckdb.so", name == "libduckdb.so" }); err != nil {
-		return err
-	}
 	if err = extractZIP(pybindData, headers, func(name string) (string, bool) {
 		if strings.HasPrefix(name, "pybind11/include/") && headerFile(name) {
 			return strings.TrimPrefix(name, "pybind11/include/"), true
@@ -213,10 +210,6 @@ func build(sourceRoot, cache, output, version, interpreter string) (resultErr er
 	if err != nil {
 		return err
 	}
-	coreFiles, err := files(core)
-	if err != nil {
-		return err
-	}
 	compiler, err := exec.LookPath("c++")
 	if err != nil || !absolute(compiler) {
 		return errors.New("a native C++ compiler is required for the existing binding")
@@ -226,7 +219,15 @@ func build(sourceRoot, cache, output, version, interpreter string) (resultErr er
 		return err
 	}
 	compilerSHA := digest(compilerData)
-	marker := inventory("dagtoml-duckdb-binding-v1", own, prepared, pybindFiles, pythonFiles, coreFiles, []fileIdentity{{"compiler", compilerSHA}, {"python-abi", digest([]byte(python.ABI))}})
+	nativeCore, err := buildCore(work, sdk, core, compiler, coreData)
+	if err != nil {
+		return err
+	}
+	coreFiles, err := files(core)
+	if err != nil {
+		return err
+	}
+	marker := inventory("dagtoml-duckdb-binding-v2", own, prepared, pybindFiles, pythonFiles, coreFiles, nativeCore.Sources, []fileIdentity{{"compiler", compilerSHA}, {"python-abi", digest([]byte(python.ABI))}})
 	var sources []string
 	for _, file := range prepared {
 		if strings.HasPrefix(file.Path, "src/duckdb_py/") && strings.HasSuffix(file.Path, ".cpp") {
@@ -236,7 +237,7 @@ func build(sourceRoot, cache, output, version, interpreter string) (resultErr er
 	if len(sources) == 0 {
 		return errors.New("native binding has no C++ source targets")
 	}
-	base := []string{compiler, "-O2", "-DNDEBUG", "-std=c++11", "-fPIC", "-fvisibility=hidden", "-fno-strict-aliasing", "-DDUCKDB_PYTHON_LIB_NAME=_duckdb", "-DDAGTOML_BINDING_IDENTITY=" + strconv.Quote(marker), "-ffile-prefix-map=" + work + "=/dagtoml/duckdb-client"}
+	base := []string{compiler, "-O2", "-DNDEBUG", "-std=c++11", "-fPIC", "-fvisibility=hidden", "-fno-strict-aliasing", "-DDUCKDB_PYTHON_LIB_NAME=_duckdb", "-DDUCKDB_DISABLE_EXTENSION_LOAD=1", "-DDAGTOML_BINDING_IDENTITY=" + strconv.Quote(marker), "-ffile-prefix-map=" + work + "=/dagtoml/duckdb-client"}
 	for _, path := range []string{"src/duckdb_py/include", "external/duckdb/src/include", "external/duckdb/third_party", "external/duckdb/third_party/re2", "external/duckdb/third_party/fast_float", "external/duckdb/third_party/utf8proc/include", "external/duckdb/third_party/libpg_query/include", "external/duckdb/third_party/fmt/include"} {
 		base = append(base, "-I"+filepath.Join(sdk, path))
 	}
@@ -272,7 +273,7 @@ func build(sourceRoot, cache, output, version, interpreter string) (resultErr er
 	for _, population := range []struct {
 		root   string
 		before []fileIdentity
-	}{{headers, pybindFiles}, {python.Include, pythonFiles}, {core, coreFiles}} {
+	}{{headers, pybindFiles}, {python.Include, pythonFiles}, {core, coreFiles}, {nativeCore.Directory, nativeCore.Sources}} {
 		after, err = files(population.root)
 		if err != nil || !sameFiles(population.before, after) {
 			return errors.New("native header or core input moved during compilation")
@@ -330,7 +331,20 @@ func build(sourceRoot, cache, output, version, interpreter string) (resultErr er
 	if err = publish(filepath.Join(output, "licenses", "pybind11"), "LICENSE", license); err != nil {
 		return err
 	}
-	proof := map[string]any{"schema_version": 1, "protocol": "dagtoml-duckdb-native-v1", "binding_identity": marker, "go_version": pinnedGo, "version": version, "python": python, "compiler_sha256": compilerSHA, "owned_sources": own, "prepared_sources": prepared, "pybind_headers": pybindFiles, "python_headers": pythonFiles, "core_files": coreFiles, "compiled_sources": sources, "binary_sha256": digest(clientData), "core_sha256": digest(coreBody), "sdk_archive_sha256": selected.SDKSHA, "core_archive_sha256": selected.CoreSHA, "pybind_archive_sha256": declarations.Pybind.SHA}
+	for _, source := range nativeCore.Sources {
+		data, err := os.ReadFile(filepath.Join(nativeCore.Directory, filepath.FromSlash(source.Path))) // #nosec G304 -- Complete captured regular prepared core source population.
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(output, "core-sources", filepath.FromSlash(filepath.Dir(source.Path)))
+		if err = os.MkdirAll(target, 0700); err != nil {
+			return err
+		}
+		if err = publish(target, filepath.Base(source.Path), data); err != nil {
+			return err
+		}
+	}
+	proof := map[string]any{"schema_version": 1, "protocol": "dagtoml-duckdb-native-v2", "binding_identity": marker, "go_version": pinnedGo, "version": version, "python": python, "compiler_sha256": compilerSHA, "owned_sources": own, "prepared_sources": prepared, "pybind_headers": pybindFiles, "python_headers": pythonFiles, "core_files": coreFiles, "native_core_sources": nativeCore.Sources, "native_core_targets": nativeCore.Targets, "compiled_sources": sources, "binary_sha256": digest(clientData), "core_sha256": digest(coreBody), "sdk_archive_sha256": selected.SDKSHA, "core_archive_sha256": selected.CoreSHA, "pybind_archive_sha256": declarations.Pybind.SHA}
 	encoded, err := json.Marshal(proof)
 	if err != nil {
 		return err
@@ -377,7 +391,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		fmt.Println("native build controls: current process/stream ownership and archive admission; SDK compilation, live database lanes and compiler/core policy audit skipped")
+		fmt.Println("native build controls: current process/stream ownership, archive admission and complete source-region preparation controls; SDK/core compilation, live SQL lanes and compiler dependency audit skipped")
 		return
 	}
 	root, err := os.Getwd()

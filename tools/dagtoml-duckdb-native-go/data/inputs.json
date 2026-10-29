@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "project_baseline": "12cb56dd0a6ce892d51930554080e2411ec35521",
+  "project_baseline": "59889665f89c2a8283b448ab33c56d64d19069e5",
   "versions": {
     "1.5.3": {
       "version": "1.5.3",
@@ -194,8 +194,8 @@
           "before_sha256": "1611ed708a336d1bd6d9c2c54ffb96a580e76c6560f5ffe58819fc4e30de47b3"
         }
       ],
-      "core_url": "https://github.com/duckdb/duckdb/releases/download/v1.5.3/libduckdb-linux-amd64.zip",
-      "core_sha256": "0a926eba5bce0abc0010f4b9109133e4440cb74e97bd10fd2d0fc2a721621b05"
+      "core_url": "https://github.com/duckdb/duckdb/releases/download/v1.5.3/libduckdb-src.zip",
+      "core_sha256": "c9f63a137093b155dff02bfe450262455b073ad0d6a8c61921a37bad7f0f207a"
     },
     "1.5.0": {
       "version": "1.5.0",
@@ -389,8 +389,8 @@
           "before_sha256": "1611ed708a336d1bd6d9c2c54ffb96a580e76c6560f5ffe58819fc4e30de47b3"
         }
       ],
-      "core_url": "https://github.com/duckdb/duckdb/releases/download/v1.5.0/libduckdb-linux-amd64.zip",
-      "core_sha256": "e9b2adb9dc5348da57eee9562782e0e7f543e74ff26d634bc7c208a5b6c59a1c"
+      "core_url": "https://github.com/duckdb/duckdb/releases/download/v1.5.0/libduckdb-src.zip",
+      "core_sha256": "26f2b5ba7b2e01ec321707a1b82116d31202ac96cbf089f47d1c1b6dbae15379"
     }
   },
   "pybind": {

@@ -22,7 +22,7 @@ import (
 	"unicode/utf8"
 )
 
-//go:embed data/inputs.json
+//go:embed data/inputs.json data/retired-matcher.hpp data/sql-lexer.hpp
 var inputs embed.FS
 
 const maxDownload = 128 * 1024 * 1024
@@ -184,6 +184,11 @@ func selectedSDK(name string) bool {
 	}
 	if strings.HasPrefix(name, "src/duckdb_py/") {
 		return headerFile(name) || strings.HasSuffix(name, ".cpp")
+	}
+	for _, prefix := range []string{"external/duckdb/extension/core_functions/", "external/duckdb/extension/json/"} {
+		if strings.HasPrefix(name, prefix) {
+			return headerFile(name) || strings.HasSuffix(name, ".cpp")
+		}
 	}
 	for _, prefix := range []string{"external/duckdb/src/include/", "external/duckdb/third_party/"} {
 		if strings.HasPrefix(name, prefix) {

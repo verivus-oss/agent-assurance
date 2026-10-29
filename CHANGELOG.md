@@ -9,6 +9,16 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Replace the published DuckDB core binary input with a source build that
+  retires its matcher implementation and generated SQL scanner. Maintain the
+  existing native ABI with explicit pattern refusal and a byte-state SQL
+  scanner, compile the required core-functions and JSON extensions directly,
+  retain complete third-party notices, and bind prepared core bytes and the
+  derived compiled target set into protocol version two. The isolated
+  experiment used the contract at
+  `59889665f89c2a8283b448ab33c56d64d19069e5`; full artifact admission,
+  version/ABI lanes and fresh review remain required for this repair.
+
 - Clarify Python resource ownership, parser outcomes and verification callback
   lifetimes after the quality findings reported for
   `42b35118d077e60519f630b7cfbb0bda4fe8e318` through merge analysis
