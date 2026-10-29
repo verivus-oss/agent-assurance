@@ -9,6 +9,15 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Clarify Python resource ownership, parser outcomes and verification callback
+  lifetimes after the quality findings reported for
+  `42b35118d077e60519f630b7cfbb0bda4fe8e318` through merge analysis
+  `804c9d57e89be0cff44d7834f0338b3b00df47ac`. Keep descriptor ownership
+  explicit, close null input through a lexical scope, freeze callback mode
+  values and preserve neutral parser errors. Refuse absent or unrelated
+  native syntax roots, align frozen record equality and hashing, and keep
+  refusal/restoration assertions outside statically unreachable branches.
+
 - Preserve raw duplicate HTTPS proof fields after the transport review at
   `4ff598165fb2715fbf4705203a42a44d587127e0` reproduced standard-client
   normalization of repeated Content-Length headers. Capture the bounded

@@ -155,31 +155,31 @@ def test_transport_setup_failure_reaps_child_and_descriptors():
             children, descriptors, error_streams, pipe_calls = [], [], [], []
             marker = "controlled Git setup failure: " + mode
 
-            def record_spawn(*arguments, **options):
-                if mode == "spawn":
+            def record_spawn(*arguments, selected_mode=mode, **options):
+                if selected_mode == "spawn":
                     raise OSError(marker)
                 pid = original_spawn(*arguments, **options)
                 children.append(pid)
                 return pid
 
-            def record_pipe():
+            def record_pipe(selected_mode=mode):
                 pipe_calls.append(True)
-                if mode == "pipe" and len(pipe_calls) == 2:
+                if selected_mode == "pipe" and len(pipe_calls) == 2:
                     raise OSError(marker)
                 pair = original_pipe()
                 descriptors.extend(pair)
                 return pair
 
-            def record_errors(path, *arguments, **options):
-                if path == os.devnull and mode == "errors":
+            def record_errors(path, *arguments, selected_mode=mode, **options):
+                if path == os.devnull and selected_mode == "errors":
                     raise OSError(marker)
                 stream = original_open(path, *arguments, **options)
                 if path == os.devnull:
                     error_streams.append(stream)
                 return stream
 
-            def open_stream(descriptor, access):
-                if (mode, access) in (("input", "wb"), ("output", "rb")):
+            def open_stream(descriptor, access, selected_mode=mode):
+                if (selected_mode, access) in (("input", "wb"), ("output", "rb")):
                     raise OSError(marker)
                 return original_fdopen(descriptor, access)
 

@@ -36,6 +36,9 @@ class _FrozenRecord(_Record):
     def __delattr__(self, name):
         raise AttributeError("cannot delete immutable record field: " + name)
 
+    def __eq__(self, other):
+        return super().__eq__(other)
+
     def __hash__(self):
         return hash(self._values())
 

@@ -243,31 +243,31 @@ def test_entry_point_retains_failed_and_incomplete_results_and_matches_exit_stat
             if mode == "summary-unavailable":
                 summary.mkdir()
 
-            def controlled_run(_binary, arguments):
+            def controlled_run(_binary, arguments, selected_mode=mode):
                 if arguments == ["--version"]:
-                    return SimpleNamespace(returncode=0, stdout="lychee 0.0.0\n" if mode == "wrong-version" else "lychee 0.24.2\n",
+                    return SimpleNamespace(returncode=0, stdout="lychee 0.0.0\n" if selected_mode == "wrong-version" else "lychee 0.24.2\n",
                                            stderr="")
                 output = Path(arguments[arguments.index("--output") + 1])
                 subject = arguments[-1]
                 if "--dump" in arguments:
-                    if mode == "extract-failed":
+                    if selected_mode == "extract-failed":
                         return SimpleNamespace(returncode=1, stdout="", stderr="private extraction detail")
                     selected = rows if subject == "." else [url + " (" + subject + ")" for url in candidates]
-                    if subject != "." and mode == "admission-excluded":
+                    if subject != "." and selected_mode == "admission-excluded":
                         selected[0] += " [excluded]"
-                    output.write_text("" if mode == "no-inputs" else "\n".join(selected) + "\n")
+                    output.write_text("" if selected_mode == "no-inputs" else "\n".join(selected) + "\n")
                     return SimpleNamespace(returncode=0, stdout="", stderr="")
                 native = native_report(candidates, subject,
-                                       failures=candidates if mode == "uniform-error" else candidates[:1] if mode == "error" else (),
-                                       timeouts=candidates[:1] if mode == "timeout" else ())
-                if mode == "false-success":
+                                       failures=candidates if selected_mode == "uniform-error" else candidates[:1] if selected_mode == "error" else (),
+                                       timeouts=candidates[:1] if selected_mode == "timeout" else ())
+                if selected_mode == "false-success":
                     for entry in native["success_map"][subject]:
                         entry["status"]["code"] = 500
-                if mode != "missing":
-                    output.write_text("{" if mode == "malformed" else dumps(native))
-                if mode == "binary-moved":
+                if selected_mode != "missing":
+                    output.write_text("{" if selected_mode == "malformed" else dumps(native))
+                if selected_mode == "binary-moved":
                     binary.write_bytes(b"different fixture producer")
-                return SimpleNamespace(returncode=2 if mode in ("error", "timeout", "uniform-error", "bad-exit") else 0,
+                return SimpleNamespace(returncode=2 if selected_mode in ("error", "timeout", "uniform-error", "bad-exit") else 0,
                                        stdout="", stderr="private producer diagnostic")
 
             identity = scanner.source_identity(Path.cwd().resolve())

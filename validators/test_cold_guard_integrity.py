@@ -1,6 +1,7 @@
 """Require every cold instrument to detect swallowed forbidden imports."""
 
 import _ast as ast
+import builtins
 import errno
 import os
 import sys
@@ -91,11 +92,24 @@ def test_root_derivation():
                   'wrong import-root separator passed')
 
 
+def require_process_cleanup(owned, children):
+    require(len(owned) == 5, 'owned process descriptor population changed')
+    for descriptor in owned:
+        try:
+            os.fstat(descriptor)
+        except OSError as error:
+            require(error.errno == errno.EBADF, 'owned descriptor failed outside the closed-state property')
+        else:
+            raise AssertionError('owned process descriptor leaked')
+    for child in children:
+        expect_raises(ChildProcessError, lambda: os.waitpid(child, os.WNOHANG), 'owned process was not reaped')
+
+
 def test_owned_process_transport():
     def measured(command, *, expired=False, output_limit=16 * 1024 * 1024):
         owned = []
         children = []
-        original_pipe, original_open = os.pipe, os.open
+        original_pipe, original_open = os.pipe, builtins.open
         original_spawn, original_clock = os.posix_spawn, time.monotonic
 
         def pipe():
@@ -104,9 +118,9 @@ def test_owned_process_transport():
             return pair
 
         def opened(*arguments, **options):
-            descriptor = original_open(*arguments, **options)
-            owned.append(descriptor)
-            return descriptor
+            stream = original_open(*arguments, **options)
+            owned.append(stream.fileno())
+            return stream
 
         def spawn(*arguments, **options):
             child = original_spawn(*arguments, **options)
@@ -114,23 +128,14 @@ def test_owned_process_transport():
             return child
 
         try:
-            os.pipe, os.open, os.posix_spawn = pipe, opened, spawn
+            os.pipe, builtins.open, os.posix_spawn = pipe, opened, spawn
             if expired:
                 ticks = iter((0, 121))
                 time.monotonic = lambda: next(ticks)
             return run(command, output_limit=output_limit)
         finally:
-            os.pipe, os.open, os.posix_spawn, time.monotonic = original_pipe, original_open, original_spawn, original_clock
-            require(len(owned) == 5, 'owned process descriptor population changed')
-            for descriptor in owned:
-                try:
-                    os.fstat(descriptor)
-                except OSError as error:
-                    require(error.errno == errno.EBADF, 'owned descriptor failed outside the closed-state property')
-                else:
-                    raise AssertionError('owned process descriptor leaked')
-            for child in children:
-                expect_raises(ChildProcessError, lambda: os.waitpid(child, os.WNOHANG), 'owned process was not reaped')
+            os.pipe, builtins.open, os.posix_spawn, time.monotonic = original_pipe, original_open, original_spawn, original_clock
+            require_process_cleanup(owned, children)
 
     command = [sys.executable, '-S', '-c', "import os; os.write(1, b'O' * 131072); os.write(2, b'E' * 131072)"]
     code, stdout, stderr = measured(command)

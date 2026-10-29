@@ -1,6 +1,6 @@
 """Compare raw working and indexed bytes with immutable committed blobs."""
 
-from contextlib import contextmanager, ExitStack
+from contextlib import ExitStack
 import hashlib
 import os
 import stat
@@ -33,13 +33,26 @@ def _entries(raw, *, index):
     return result
 
 
-@contextmanager
-def _descriptor(path, flags, *, parent=None):
-    descriptor = os.open(path, flags, dir_fd=parent)
-    try:
-        yield descriptor
-    finally:
-        os.close(descriptor)
+class _Descriptor:
+    __slots__ = ('path', 'flags', 'parent', 'value')
+
+    def __init__(self, path, flags, *, parent=None):
+        self.path, self.flags, self.parent = path, flags, parent
+        self.value = None
+
+    def __enter__(self):
+        if self.value is not None:
+            raise RuntimeError('source descriptor already has an owner')
+        self.value = os.open(self.path, self.flags, dir_fd=self.parent)
+        return self.value
+
+    def close(self):
+        value, self.value = self.value, None
+        if value is not None:
+            os.close(value)
+
+    def __exit__(self, *_failure):
+        self.close()
 
 
 def _identity(metadata):
@@ -60,7 +73,7 @@ def _current(root_descriptor, path):
                 before = os.stat(part, dir_fd=parent, follow_symlinks=False)
                 if stat.S_ISLNK(before.st_mode):
                     raise ValueError('working source has a symlinked ancestor')
-                parent = owned.enter_context(_descriptor(
+                parent = owned.enter_context(_Descriptor(
                     part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, parent=parent))
             before = os.stat(parts[-1], dir_fd=parent, follow_symlinks=False)
         except (FileNotFoundError, NotADirectoryError):
@@ -73,7 +86,7 @@ def _current(root_descriptor, path):
             return _state(b'120000', data)
         if not stat.S_ISREG(before.st_mode):
             raise ValueError('working source has an unsupported file type')
-        descriptor = owned.enter_context(_descriptor(
+        descriptor = owned.enter_context(_Descriptor(
             parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, parent=parent))
         if _identity(os.fstat(descriptor)) != _identity(before):
             raise ValueError('working source changed before capture')
@@ -119,7 +132,7 @@ def working_delta(root, commit):
         frame.extend(len(value).to_bytes(8, 'big'))
         frame.extend(value)
 
-    with BlobReader(root) as reader, _descriptor(
+    with BlobReader(root) as reader, _Descriptor(
             os.fspath(root), os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW) as root_descriptor:
         for path in sorted(set(head) | set(indexed)):
             committed = stored(head.get(path), reader)

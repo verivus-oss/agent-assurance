@@ -18,9 +18,9 @@ def worker(root):
     import validate_adapter_contract
     import validate_adapter_registry_binding
     roots = prepare_roots(root, root / ".local/runtime-coverage-inputs")
-    validators = {"gate-decision": lambda doc, trusted: validate_gate_decision.validate_one(root / "inert.toml", trusted, doc=doc),
-                  "adapter-contract": lambda doc, trusted: validate_adapter_contract.validate(doc, trusted),
-                  "adapter-registry-binding": lambda doc, trusted: validate_adapter_registry_binding.validate(doc, trusted)}
+    validators = {"gate-decision": lambda doc, repository_root: validate_gate_decision.validate_one(root / "inert.toml", repository_root, doc=doc),
+                  "adapter-contract": lambda doc, repository_root: validate_adapter_contract.validate(doc, repository_root),
+                  "adapter-registry-binding": lambda doc, repository_root: validate_adapter_registry_binding.validate(doc, repository_root)}
     observations = []
     for case in specimens(root):
         errors = validators[case.kind](case.doc, roots[case.root_mode])

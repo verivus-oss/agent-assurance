@@ -72,12 +72,12 @@ class _Flavour(object):
                     # If no drive is present, try to find one in the previous
                     # parts. This makes the result of parsing e.g.
                     # ("C:", "/", "a") reasonably intuitive.
-                    for part in it:
-                        if not part:
+                    for earlier_part in it:
+                        if not earlier_part:
                             continue
                         if altsep:
-                            part = part.replace(altsep, sep)
-                        drv = self.splitroot(part)[0]
+                            earlier_part = earlier_part.replace(altsep, sep)
+                        drv = self.splitroot(earlier_part)[0]
                         if drv:
                             break
                 break

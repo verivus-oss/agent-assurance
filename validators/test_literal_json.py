@@ -1,6 +1,7 @@
 """Independent JSON value, syntax, formatting and native-boundary controls."""
 
 import hashlib
+import math
 import _json
 import sys
 from decimal import Decimal
@@ -30,7 +31,7 @@ def test_values():
     require(loads('Infinity') == float('inf'))
     require(loads('-Infinity') == -float('inf'))
     value = loads('NaN')
-    require(value != value)
+    require(type(value) is float and math.isnan(value))
     require(loads('NaN', parse_constant=lambda value: value) == 'NaN')
     require(loads('{"a":1}', object_hook=lambda value: ('object', value)) == ('object', {'a': 1}))
     called = []
@@ -202,7 +203,8 @@ def test_encoder_rejections():
     expect_raises(ValueError, lambda: dumps(float('nan'), allow_nan=False), 'nonfinite output was accepted')
     expect_raises(TypeError, lambda: dumps(object()), 'unsupported output value was accepted')
     expect_raises(TypeError, lambda: dumps({(1,): 1}), 'unsupported output key was accepted')
-    expect_raises(TypeError, lambda: dumps({}, unsupported=True), 'unknown output option was accepted')
+    unknown_options = {'unsupported': True}
+    expect_raises(TypeError, lambda: dumps({}, **unknown_options), 'unknown output option was accepted')
     expect_raises(TypeError, lambda: dumps({}, indent=1.5), 'invalid indent was accepted')
     expect_raises(TypeError, lambda: dumps({}, separators=(',',)), 'incomplete separators were accepted')
     expect_raises(TypeError, lambda: dumps({}, separators=(',', 1)), 'non-text separator was accepted')

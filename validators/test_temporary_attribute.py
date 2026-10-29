@@ -13,14 +13,15 @@ def test_module_values_nested_restoration_and_failure_propagation():
     error = ValueError('independent temporary attribute failure')
     with temporary_attribute(owner, 'value', first) as selected:
         require(selected is first and owner.value is first)
+        caught = None
         try:
             with temporary_attribute(owner, 'value', second):
                 require(owner.value is second)
                 raise error
         except ValueError as observed:
+            caught = observed
             require(observed is error)
-        else:
-            raise AssertionError('temporary scope suppressed its body failure')
+        require(caught is error, 'temporary scope suppressed its body failure')
         require(owner.value is first)
     require(owner.value is None and vars(owner)['value'] is None)
 
@@ -66,13 +67,15 @@ def test_failed_installation_never_enters_the_body():
             return super().__setattr__(name, value)
     class Owner(metaclass=Locked):
         value = 3
+    entered = False
+    caught = None
     try:
         with temporary_attribute(Owner, 'value', 7):
-            raise AssertionError('failed replacement entered its body')
+            entered = True
     except OSError as observed:
+        caught = observed
         require(str(observed) == 'independent attribute write refusal')
-    else:
-        raise AssertionError('attribute installation failure was suppressed')
+    require(not entered and caught is not None, 'attribute installation failure was suppressed')
     require(Owner.value == 3)
 
 
@@ -87,16 +90,17 @@ def test_restoration_failure_retains_the_body_failure_and_can_be_repaired():
         value = original
         refuse = False
     body_failure = ValueError('independent body failure')
+    caught = None
     try:
         try:
             with temporary_attribute(Owner, 'value', replacement):
                 Owner.refuse = True
                 raise body_failure
         except OSError as observed:
+            caught = observed
             require(str(observed) == 'independent restoration refusal' and observed.__context__ is body_failure)
             require(Owner.value is replacement)
-        else:
-            raise AssertionError('restoration failure was suppressed')
+        require(caught is not None, 'restoration failure was suppressed')
     finally:
         Owner.refuse = False
         Owner.value = original

@@ -158,13 +158,15 @@ def parse(source, filename='<owned-python-source>', mode='exec'):
         raw = owned
     else:
         raise TypeError('owned Python source requires immutable text or bytes')
-    error = None
+    error = tree = None
     try:
         tree = compile(owned, filename, mode, flags=PyCF_ONLY_AST, dont_inherit=True)
     except (SyntaxError, UnicodeError):
         error = _SourceSyntaxError(raw)
     if error is not None:
         raise error from None
+    if type(tree) is not {'exec': Module, 'eval': Expression, 'single': Interactive}[mode]:
+        raise RuntimeError('native Python parser did not return its declared syntax root')
     return tree
 
 
@@ -577,11 +579,13 @@ class _Unparser(NodeVisitor):
         node = node.value
         if isinstance(node, Constant) and isinstance(node.value, str):
             return node
+        return None
 
     def get_type_comment(self, node):
         comment = self._type_ignores.get(node.lineno) or node.type_comment
         if comment is not None:
             return f" # type: {comment}"
+        return None
 
     def traverse(self, node):
         if isinstance(node, list):
@@ -940,7 +944,8 @@ class _Unparser(NodeVisitor):
         if self._avoid_backslashes:
             with self.buffered() as buffer:
                 self._write_fstring_inner(node)
-            return self._write_str_avoiding_backslashes("".join(buffer))
+            self._write_str_avoiding_backslashes("".join(buffer))
+            return
 
         # If we don't need to avoid backslashes globally (i.e., we only need
         # to avoid them inside FormattedValues), it's cosmetically preferred
@@ -1376,9 +1381,7 @@ class _Unparser(NodeVisitor):
 
         # kwargs
         if node.kwarg:
-            if first:
-                first = False
-            else:
+            if not first:
                 self.write(", ")
             self.write("**" + node.kwarg.arg)
             if node.kwarg.annotation:

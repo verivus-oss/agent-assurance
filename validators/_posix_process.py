@@ -25,14 +25,14 @@ def run(command, *, output_limit=16 * 1024 * 1024, timeout=120):
         descriptors.extend((out_read, out_write))
         err_read, err_write = os.pipe()
         descriptors.extend((err_read, err_write))
-        empty = os.open(os.devnull, os.O_RDONLY)
-        descriptors.append(empty)
-        require(min(descriptors) >= 3)
-        actions = [(os.POSIX_SPAWN_DUP2, empty, 0), (os.POSIX_SPAWN_DUP2, out_write, 1),
-                   (os.POSIX_SPAWN_DUP2, err_write, 2)]
-        actions.extend((os.POSIX_SPAWN_CLOSE, descriptor) for descriptor in descriptors)
-        pid = os.posix_spawn(command[0], command, dict(os.environ), file_actions=actions)
-        for descriptor in (out_write, err_write, empty):
+        with open(os.devnull, 'rb') as null_input:
+            empty = null_input.fileno()
+            require(min([*descriptors, empty]) >= 3)
+            actions = [(os.POSIX_SPAWN_DUP2, empty, 0), (os.POSIX_SPAWN_DUP2, out_write, 1),
+                       (os.POSIX_SPAWN_DUP2, err_write, 2)]
+            actions.extend((os.POSIX_SPAWN_CLOSE, descriptor) for descriptor in [*descriptors, empty])
+            pid = os.posix_spawn(command[0], command, dict(os.environ), file_actions=actions)
+        for descriptor in (out_write, err_write):
             os.close(descriptor)
             descriptors.remove(descriptor)
         pending = {out_read, err_read}

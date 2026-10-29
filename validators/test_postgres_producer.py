@@ -14,8 +14,7 @@ from _random_id import random_id_hex
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'reference/database'))
-from _postgres_client import build_identity  # noqa: E402
-from _postgres_client import NativeConnection, OperationalError  # noqa: E402
+import _postgres_client as client  # noqa: E402
 
 
 def prepare():
@@ -32,7 +31,7 @@ def prepare():
                 'native producer subject did not build and execute its supplier controls: ' + errors.decode())
     finally:
         os.chdir(before)
-    return build_identity(ROOT)
+    return client.build_identity(ROOT)
 
 
 def start(identity):
@@ -127,44 +126,43 @@ def test_retained_inventory_and_native_handshake_refuse_altered_proof(identity):
         record = loads(original)
         del record['compiled_packages']['context']
         path.write_text(dumps(record))
-        error = expect_raises(OperationalError, lambda: build_identity(ROOT),
+        error = expect_raises(client.OperationalError, lambda: client.build_identity(ROOT),
                               'incomplete compiled inventory was accepted')
         require('stale or incomplete' in str(error), 'inventory control failed during unrelated setup')
         record = loads(original)
         require(len(record['prepared_dependencies']) > 1, 'prepared dependency subject is absent')
         record['prepared_dependencies'] = record['prepared_dependencies'][:1]
         path.write_text(dumps(record))
-        error = expect_raises(OperationalError, lambda: build_identity(ROOT),
+        error = expect_raises(client.OperationalError, lambda: client.build_identity(ROOT),
                               'incomplete prepared dependency inventory was accepted')
         require('stale or incomplete' in str(error), 'dependency omission failed during unrelated setup')
         record = loads(original)
         record['prepared_dependencies'].append(record['prepared_dependencies'][0])
         path.write_text(dumps(record))
-        error = expect_raises(OperationalError, lambda: build_identity(ROOT),
+        error = expect_raises(client.OperationalError, lambda: client.build_identity(ROOT),
                               'duplicate prepared dependency identity was accepted')
         require('malformed or repeated' in str(error), 'duplicate dependency failed during unrelated setup')
         # Even a supplied identity claiming the original native executable
         # must agree with the executable's own hello before credentials flow.
         altered = {**identity, 'compiled_graph_sha256': '0' * 64}
         path.write_bytes(original)
-        import _postgres_client
-        with temporary_attribute(_postgres_client, 'build_identity', lambda _root: altered):
-            error = expect_raises(OperationalError, lambda: NativeConnection('invalid destination'),
+        with temporary_attribute(client, 'build_identity', lambda _root: altered):
+            error = expect_raises(client.OperationalError, lambda: client.NativeConnection('invalid destination'),
                                   'native handshake accepted an unrelated graph identity')
         require('handshake differs' in str(error), 'identity control reached destination parsing')
     finally:
         path.write_bytes(original)
-    require(build_identity(ROOT) == identity, 'native proof control did not restore its subject')
+    require(client.build_identity(ROOT) == identity, 'native proof control did not restore its subject')
     binary = ROOT / identity['binary']
     executable = binary.read_bytes()
     try:
         binary.write_bytes(b'invalid replacement')
-        error = expect_raises(OperationalError, lambda: build_identity(ROOT),
+        error = expect_raises(client.OperationalError, lambda: client.build_identity(ROOT),
                               'replaced native executable was accepted')
         require('binary differs' in str(error), 'binary control failed for an unrelated reason')
     finally:
         binary.write_bytes(executable)
-    require(build_identity(ROOT) == identity, 'binary control did not restore its subject')
+    require(client.build_identity(ROOT) == identity, 'binary control did not restore its subject')
 
 
 def test_published_supplier_material_requires_complete_actual_bytes(identity):
@@ -179,20 +177,20 @@ def test_published_supplier_material_requires_complete_actual_bytes(identity):
         original = path.read_bytes()
         try:
             path.write_bytes(original + b'\nchanged supplier material\n')
-            error = expect_raises(OperationalError, lambda: build_identity(ROOT), 'changed supplier notice was accepted')
+            error = expect_raises(client.OperationalError, lambda: client.build_identity(ROOT), 'changed supplier notice was accepted')
             require('published supplier population differs' in str(error), 'changed notice failed during unrelated setup')
             path.unlink()
-            error = expect_raises(OperationalError, lambda: build_identity(ROOT), 'missing supplier notice was accepted')
+            error = expect_raises(client.OperationalError, lambda: client.build_identity(ROOT), 'missing supplier notice was accepted')
             require('published supplier population differs' in str(error), 'missing notice failed during unrelated setup')
         finally:
             path.write_bytes(original)
-        require(build_identity(ROOT) == identity, 'supplier notice control did not restore the actual artifact')
+        require(client.build_identity(ROOT) == identity, 'supplier notice control did not restore the actual artifact')
         exercised.add(item['path'])
     require(exercised == {item['path'] for item in notices}, 'published notice refusal population was incomplete')
     extra = published / 'unexpected-source-control'
     try:
         extra.write_bytes(b'unexpected supplier source')
-        error = expect_raises(OperationalError, lambda: build_identity(ROOT), 'extra supplier source was accepted')
+        error = expect_raises(client.OperationalError, lambda: client.build_identity(ROOT), 'extra supplier source was accepted')
         require('published supplier population differs' in str(error), 'extra source failed during unrelated setup')
     finally:
         extra.unlink()
@@ -201,13 +199,13 @@ def test_published_supplier_material_requires_complete_actual_bytes(identity):
     selected.rename(parked)
     try:
         selected.symlink_to(parked)
-        error = expect_raises(OperationalError, lambda: build_identity(ROOT), 'linked supplier notice was accepted')
+        error = expect_raises(client.OperationalError, lambda: client.build_identity(ROOT), 'linked supplier notice was accepted')
         require('nonregular entry' in str(error), 'linked notice failed during unrelated setup')
     finally:
         if selected.is_symlink():
             selected.unlink()
         parked.rename(selected)
-    require(build_identity(ROOT) == identity, 'published source controls did not restore the actual artifact')
+    require(client.build_identity(ROOT) == identity, 'published source controls did not restore the actual artifact')
 
 
 if __name__ == '__main__':

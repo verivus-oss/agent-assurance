@@ -9,4 +9,4 @@ license_path = "validators/licenses/CPython-LICENSE.txt"
 license_sha256 = "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf"
 retained_definitions = ["NodeTransformer", "NodeVisitor", "_Precedence", "_Unparser", "copy_location", "fix_missing_locations", "iter_child_nodes", "iter_fields", "literal_eval", "walk"]
 retired_apis = ["dump", "get_docstring", "get_source_segment", "increment_lineno", "main", "deprecated constant/slice aliases and visitor callbacks"]
-changed_behaviors = ["immutable source normalization and coordinate-free syntax errors", "coordinate-free literal failures", "explicit missing-field sentinel", "optimized-mode-safe unparser failures", "unsupported newer syntax rejected before source emission"]
+changed_behaviors = ["immutable source normalization and coordinate-free syntax errors", "native parser results must match the declared syntax root", "coordinate-free literal failures", "explicit missing-field sentinel", "optimized-mode-safe unparser failures", "unsupported newer syntax rejected before source emission"]

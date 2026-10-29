@@ -225,6 +225,7 @@ def loads(source, **options):
     if issubclass(type(source), bytes):
         source = bytes.__bytes__(source)
         invalid = None
+        text = None
         try:
             text = source.decode("utf-8")
         except UnicodeDecodeError as error:

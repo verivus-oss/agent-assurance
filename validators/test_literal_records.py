@@ -79,6 +79,10 @@ def test_equality_representations_and_recursion():
     same = records.Vocabulary("mode", ("one",), False, "source", {"attribute": "mode"})
     changed = records.Vocabulary("other", ("one",), False, "source", {"attribute": "mode"})
     require(value == same and value != changed)
+    hashable = records.Vocabulary('mode', ('one',), False, 'source', ('declaration',))
+    equal_hashable = records.Vocabulary('mode', ('one',), False, 'source', ('declaration',))
+    require(hashable == equal_hashable and hash(hashable) == hash(equal_hashable))
+    require(hashable.__eq__(records.Specimen('name', 'kind', True, 'owner', {})) is NotImplemented)
     require(repr(value) == "Vocabulary(attribute='mode', values=('one',), extensible=False, source='source', declaration={'attribute': 'mode'})")
     declaration["record"] = value
     require("'record': ..." in repr(value))

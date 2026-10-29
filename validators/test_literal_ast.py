@@ -1,11 +1,13 @@
 """Independent source, literal, visitor and mutation-helper controls."""
 
 import hashlib
+import builtins
 import os
 import sys
 
 import _literal_ast as ast
 from _test_require import expect_raises, require
+from _temporary_attribute import temporary_attribute, returning
 
 
 def shape(value):
@@ -45,11 +47,27 @@ def test_sources_and_literal_goldens():
         expect_raises((ValueError, TypeError), lambda: ast.literal_eval(source), 'general expression executed as a literal')
     for value in (None, 1, bytearray(b'a=1'), memoryview(b'a=1')):
         expect_raises(TypeError, lambda: ast.parse(value), 'unsupported source operand passed')
-    expect_raises(TypeError, lambda: ast.parse('a=1', type_comments=True), 'retired parse option passed')
+    retired_options = {'type_comments': True}
+    expect_raises(TypeError, lambda: ast.parse('a=1', **retired_options), 'retired parse option passed')
     for mode in ('func_type', 'future', None):
         expect_raises(ValueError, lambda: ast.parse('a=1', mode=mode), 'unsupported parse mode passed')
     for retired in ('dump', 'get_docstring', 'get_source_segment', 'increment_lineno', 'main', 'Num', 'Str', 'Index', 'ExtSlice'):
         require(not hasattr(ast, retired), 'retired AST API remained: ' + retired)
+
+
+def test_native_parser_requires_the_declared_root():
+    native = builtins.compile
+    wrong = (None, object(), native('value = 1', '<private-control>', 'exec'),
+             ast.AST(), ast.parse('1', mode='eval'))
+    for value in wrong:
+        with temporary_attribute(builtins, 'compile', returning(value)):
+            error = expect_raises(RuntimeError, lambda: ast.parse('value = 1'),
+                                  'absent or unrelated native parser output was accepted')
+        require(str(error) == 'native Python parser did not return its declared syntax root')
+        require(builtins.compile is native)
+    require(type(ast.parse('value = 1')) is ast.Module)
+    require(type(ast.parse('1', mode='eval')) is ast.Expression)
+    require(type(ast.parse('value = 1', mode='single')) is ast.Interactive)
 
 
 def test_source_subclass_buffers_and_diagnostics():
