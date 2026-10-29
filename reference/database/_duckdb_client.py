@@ -320,9 +320,6 @@ class NativeConnection:
         with self._lock:
             self._current()
             try:
-                # A caller can change this setting through SQL. Restore the
-                # structured error boundary before each public operation.
-                self._connection.execute('SET errors_as_json=true')
                 cursor = self._connection.execute(sql, values)
                 rows = cursor.fetchall() if cursor.description is not None else []
             except self._module.Error as error:

@@ -222,7 +222,7 @@ the floor moved.
 | Tool                        | Lang  | Purpose                                                                 |
 | --------------------------- | ----- | ----------------------------------------------------------------------- |
 | `dagtoml-spell/`            | Rust  | Source and filename spelling with pinned literal corrections and typed data spans. |
-| `dagtoml-osv/`              | Rust  | Local locked-package advisory evaluator under validation; the existing required scanner remains active. |
+| `dagtoml-osv/`              | Rust  | Required local locked-package advisory gate with typed version evaluation against published ecosystem archives. |
 | `dagtoml-osv-http-go/`      | Go    | Bounded HTTPS archive transport with complete source, executable and compiled-graph identity. |
 | `dagtoml-rdf/`              | Rust  | Generate `reference/database/rdf/schema.ttl` from the ontology.         |
 | `dagtoml-rdf-go/`           | Go    | Same as `dagtoml-rdf`, in Go. Functional output verified equivalent.    |

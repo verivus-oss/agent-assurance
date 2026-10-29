@@ -216,7 +216,8 @@ dependency audits remain separate requirements.
 The maintained native reference connector uses structured DuckDB errors and
 returns only their primary message in the original exception class. An error
 without a valid structured primary message becomes a neutral native error.
-The bridge resets structured mode before every query, and the prepared SDK
+The connection starts in structured error mode. If a caller disables that
+mode, errors stay neutral until the setting is restored. The prepared SDK
 does not register caller-frame replacement scans. These boundaries were
 repaired after actual missing-table errors on
 `c7c58b131d8c6d03a2c512a30ae61ea69c25124f` exposed a forbidden parser

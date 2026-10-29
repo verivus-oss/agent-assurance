@@ -9,15 +9,30 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Make the native locked-package advisory evaluator the required CI gate and
+  retire the old OSV action and its Python staging scripts. At
+  `4529e5f26916c54ee251ecc1bf958de11af3f5ea`, the clean evaluator
+  measured 20 tracked lock subjects and 102 package identities against the
+  complete Go, PyPI and crates.io archives, with independent affected and
+  unaffected record controls. Its source matched the fresh dependency audit
+  at `59889665f89c2a8283b448ab33c56d64d19069e5`: 41 registry archives,
+  38 compiled packages, nine executed build scripts and three generated
+  regular files. Compiler internals, other verification tools and final
+  independent reviews remain separate requirements.
+
 - Reconstruct DuckDB reference errors from the structured primary message
   and refuse an unstructured native error with a neutral message. The native
   core can add query context before the binding reads its raw message, as
   observed against `c7c58b131d8c6d03a2c512a30ae61ea69c25124f`.
+  Configure structured errors when connecting; an attempted per-statement
+  reset on `4529e5f26916c54ee251ecc1bf958de11af3f5ea` made both
+  initialization contenders report busy. A caller that disables structured
+  errors receives a neutral native error until the setting is restored.
   Remove the Python replacement scan registration from both pinned SDK
   builds, since a missing table could otherwise import a forbidden parser
   dependency while looking through caller frames. Check accepted queries,
-  each native error class, restored error mode, and a missing table after a
-  caller attempts to reenable replacement scanning.
+  transactions, each native error class, restored error mode, and a missing
+  table after a caller attempts to reenable replacement scanning.
 
 - Retire the floor core's unguarded HTTP implementation after compilation at
   `5c32a84befa67d3828b428f5257a974a7af7dd8a` showed that disabling extension

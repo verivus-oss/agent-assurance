@@ -309,8 +309,6 @@ def exercise_primary_native_errors(connection):
          'Referenced column'),
         ("SELECT CAST('not-an-integer' AS INTEGER)", connection._module.ConversionException, 'Could not convert'),
         ("SELECT regexp_matches('a','a')", connection._module.Error, 'pattern execution is retired'),
-        ('SET errors_as_json=false; SELECT dagtoml_missing_function(1)', connection._module.CatalogException,
-         'without a structured primary message'),
     )
     reached = set()
     for sql, kind, expected in cases:
@@ -322,6 +320,23 @@ def exercise_primary_native_errors(connection):
                 'native error retained an original exception through its context')
         reached.add(sql)
     require(reached == {sql for sql, _kind, _expected in cases})
+    connection.execute('BEGIN')
+    require(connection.execute('SELECT 7').fetchone() == (7,), 'structured mode disturbed an accepted transaction')
+    connection.execute('COMMIT')
+    connection.execute('SET errors_as_json=false')
+    for sql in ('SELECT dagtoml_missing_function(1)', 'SELECT * FROM dagtoml_missing_table'):
+        error = expect_raises(connection._module.CatalogException, lambda: connection.execute(sql),
+                              'unstructured native error was accepted')
+        require(str(error) == 'native DuckDB operation failed without a structured primary message',
+                'unstructured native error retained query or source context')
+        require(error.__context__ is None and error.__cause__ is None,
+                'unstructured native error retained its original exception')
+    connection.execute('SET errors_as_json=true')
+    error = expect_raises(connection._module.CatalogException,
+                          lambda: connection.execute('SELECT dagtoml_missing_function(1)'),
+                          'restored structured error was accepted')
+    require('Scalar Function' in str(error) and '\nLINE ' not in str(error),
+            'restored structured primary error is unavailable')
     require(connection.execute('SELECT 7').fetchone() == (7,), 'structured error mode did not recover')
 
 

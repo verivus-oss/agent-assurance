@@ -1,10 +1,13 @@
 # Locked package advisory evaluation
 
-This replacement is under validation against the repository contract at
-`82f10ba69328b94e5b831baad5ddc6a0ad9ed2f6`. The existing required OSV workflow
-remains active until extraction, evaluation, dependency and failure controls
-support its retirement. A scanner result does not establish repository policy
-compliance or approve a pull request.
+The required advisory gate uses the repository contract at
+`82f10ba69328b94e5b831baad5ddc6a0ad9ed2f6`. The previous OSV action and
+its Python lock staging scripts were retired after extraction, archive
+evaluation and failure controls were measured against
+`4529e5f26916c54ee251ecc1bf958de11af3f5ea`, with source and generated-build
+inspection at `59889665f89c2a8283b448ab33c56d64d19069e5` over byte-identical
+scanner sources. A scanner
+result does not establish repository policy compliance or approve a pull request.
 
 The native Linux command is `dagtoml-osv CHECKOUT`. Build with
 `cargo build --release --locked`; Rust 1.85 is the declared floor. The command
@@ -26,7 +29,7 @@ populations, package identities, archive generations and advisory record
 hashes. Native parser diagnostics and advisory metadata are not returned as
 source coordinates.
 
-The proposed evaluator contract is:
+The evaluator contract is:
 
 - Derive all tracked Cargo locks, Go module declarations, Python requirements
   entry points and requirements-directory locks from the Git index. Reject
@@ -110,7 +113,7 @@ Neighboring names and direct files that the upstream directory predicate does
 not select remain admitted. This is a refusal boundary, not fingerprint
 identification.
 
-The next repair uses the discovery boundary at project baseline
+The discovery repair uses the boundary at project baseline
 `7d871361d4275860dab54b628894a54d20d977e6`. It enumerates actual visible
 directories independently of the index, including empty directories and
 directories containing only ignored files. Git checks each literal directory
@@ -122,8 +125,9 @@ that filesystem subject, matching the existing workflow's default ignore
 selection. Directory enumeration errors, non-UTF-8 names and exceeded
 discovery bounds stop evaluation. New controls exercise every supplier parent
 name with both empty and ignored-content roots, accepted neighboring names,
-literal subtree ignores and directory changes. The original required workflow
-gate remains active while the dependency/build audit supports replacement.
+literal subtree ignores and directory changes. The required workflow gate
+now runs this evaluator. Other verification tools retain separate dependency
+audits.
 
 The semantic query prototype is retired. At upstream OSV commit
 `2550f6d61565de3a813e19f64a24b04b8af0ce39`, the current Go API dispatches both
@@ -146,9 +150,17 @@ ignored; CI requires the explicit run. It checks every current producer and
 builder source, omitted roster members, linked and extra inputs, the graph,
 binary and executed identity, then requires restored positive acceptance.
 
-Complete dependency, generated-source and native transport audits,
-omission and stale-instrument controls, clean candidate
-validation and fresh cumulative review remain required before retirement of
-the existing gate. CI runs the native controls and evaluation alongside that
-gate during replacement validation. No transitive, vendored or remote consumer has an automatic
+The Linux dependency audit at
+`59889665f89c2a8283b448ab33c56d64d19069e5` compared all 41 locked registry archives
+with the committed lock checksums and the extracted source cache. A fresh
+build recorded 38 compiled packages, nine executed build scripts and three
+generated regular files. Candidate source hits were reviewed against that
+build graph: platform FFI declarations were not compiled, while the compiled
+library hits were documentation and a separate unbuilt example. The current
+scanner and HTTPS helper source bytes at
+`4529e5f26916c54ee251ecc1bf958de11af3f5ea` match that audited commit. This audit
+used fixed strings to locate candidates; a missing hit does not prove absence.
+It does not cover compiler internals, other verification tools, other targets
+or future feature combinations. CI runs the native controls and full evaluation
+as a required gate. No transitive, vendored or remote consumer has an automatic
 policy exception.
