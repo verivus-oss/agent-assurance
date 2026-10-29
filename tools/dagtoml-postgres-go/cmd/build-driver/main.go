@@ -420,6 +420,7 @@ func build(root, output string) (resultErr error) {
 func main() {
 	output := flag.String("output", "", "absolute output path outside this source module")
 	producer := flag.String("instrument-producer", "", "private compiler ownership control")
+	capsule := flag.String("capsule-source", "", "absolute standard-library-only capsule source module")
 	flag.Parse()
 	if *producer != "" {
 		if err := instrumentProducer(*producer); err != nil {
@@ -432,6 +433,14 @@ func main() {
 	if err != nil || !filepath.IsAbs(*output) || flag.NArg() != 0 {
 		fmt.Fprintln(os.Stderr, "build requires an absolute output path")
 		os.Exit(2)
+	}
+	if *capsule != "" {
+		if err = buildCapsule(root, *capsule, *output); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		fmt.Println("built standard-library capsule and complete source/graph identity")
+		return
 	}
 	relative, err := filepath.Rel(root, *output)
 	if err != nil || relative == ".." || !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {

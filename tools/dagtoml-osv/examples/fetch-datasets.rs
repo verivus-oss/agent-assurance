@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-use dagtoml_osv::{archive, https::Curl, require_current_instrument, source};
+use dagtoml_osv::{archive, https::Native, require_current_instrument, source};
 
 fn main() -> Result<(), String> {
     let arguments: Vec<_> = std::env::args_os().skip(1).collect();
@@ -22,10 +22,10 @@ fn main() -> Result<(), String> {
         .iter()
         .map(|package| package.ecosystem.clone())
         .collect();
-    let curl = Curl::new(&source::find_curl()?)?;
+    let transport = Native::new(&root)?;
     let mut results = Vec::new();
     for ecosystem in ecosystems {
-        let (bytes, retrieval) = curl.archive(&ecosystem)?;
+        let (bytes, retrieval) = transport.archive(&ecosystem)?;
         let evaluated = archive::evaluate(&ecosystem, &bytes, &required)?;
         if evaluated.archive_sha256 != retrieval.archive_sha256
             || evaluated.archive_bytes != retrieval.archive_bytes
@@ -37,9 +37,9 @@ fn main() -> Result<(), String> {
     if source::Snapshot::capture(&root, &git)? != before {
         return Err("development subjects moved".into());
     }
-    curl.require_unchanged()?;
+    transport.require_unchanged()?;
     require_current_instrument(&instrument)?;
-    let output = serde_json::json!({"status":"online-development-evaluation","source":before,"transport":curl,"datasets":results,
+    let output = serde_json::json!({"status":"online-development-evaluation","source":before,"transport":transport,"datasets":results,
         "skipped":["complete dependency/generated-source audit","required workflow integration","clean final candidate validation and independent review"],
         "comparison":"Complete HTTPS-retrieved ecosystem archives with object generation, byte identity and clock bounds; exact typed version/interval predicates and independent affected/unaffected historical record controls. This remains a development observation."});
     println!(

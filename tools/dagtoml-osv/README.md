@@ -8,6 +8,17 @@ compliance or approve a pull request.
 
 The native Linux command is `dagtoml-osv CHECKOUT`. Build with
 `cargo build --release --locked`; Rust 1.85 is the declared floor. The command
+also requires the current native HTTPS artifact described in
+[`../dagtoml-osv-http-go/README.md`](../dagtoml-osv-http-go/README.md).
+Build that artifact from the PostgreSQL builder module before evaluating.
+The native transport binds its complete producer and builder sources, compiled
+package graph and executable digest to an identity returned by the actual
+executable. The consumer checks those populations before and after retrieval.
+It replaces the curl consumer present at
+`8e64e6851b6ca8230b325c5b83414414d66bc0de`; it does not establish an audit of
+other curl entry points or the Go compiler.
+
+The command
 requires its complete current source and an empty Git porcelain status. It
 returns zero for no listed advisories, one for affected packages, and two for
 an incomplete evaluation. Results identify the commit, source hashes, byte
@@ -128,6 +139,12 @@ do not produce a final clean-candidate verdict. Unit controls cover malformed
 pins, missing subjects, affected/unaffected boundaries, archive corruption,
 HTTP identity and freshness, bounded process streams and descendant-held
 pipes. Documentation tests with no cases are not additional coverage.
+The actual HTTPS artifact integration control is explicitly selected with
+`cargo test --locked --test https_artifact -- --ignored` after building the
+producer. Ordinary `cargo test` reports this prerequisite-bound case as
+ignored; CI requires the explicit run. It checks every current producer and
+builder source, omitted roster members, linked and extra inputs, the graph,
+binary and executed identity, then requires restored positive acceptance.
 
 Complete dependency, generated-source and native transport audits,
 omission and stale-instrument controls, clean candidate

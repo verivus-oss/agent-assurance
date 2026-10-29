@@ -91,9 +91,12 @@ jobs:
         # typed version predicates rather than the semantic query service.
         run: |
           set -euo pipefail
+          (cd tools/dagtoml-postgres-go && GOTOOLCHAIN=go1.26.10 go run ./cmd/build-driver --capsule-source "$GITHUB_WORKSPACE/tools/dagtoml-osv-http-go" --output "$GITHUB_WORKSPACE/.local/osv-https/dagtoml-osv-http-go")
+          .local/osv-https/dagtoml-osv-http-go --self-check
           cargo fmt --manifest-path tools/dagtoml-osv/Cargo.toml --check
           cargo clippy --locked --manifest-path tools/dagtoml-osv/Cargo.toml --all-targets -- -D warnings
           cargo test --locked --manifest-path tools/dagtoml-osv/Cargo.toml
+          cargo test --locked --manifest-path tools/dagtoml-osv/Cargo.toml --test https_artifact -- --ignored
           cargo build --locked --manifest-path tools/dagtoml-osv/Cargo.toml
           tools/dagtoml-osv/target/debug/dagtoml-osv .
 

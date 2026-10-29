@@ -9,6 +9,15 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Replace the native advisory evaluator's curl consumer measured against
+  `8e64e6851b6ca8230b325c5b83414414d66bc0de` with a bounded Go HTTPS
+  producer. Bind the complete producer and builder sources, compiled package
+  graph and actual executable identity before and after retrieval. Preserve
+  independent Rust object, byte, header and freshness checks. Reuse owned
+  build-command supervision and require actual source/artifact refusal
+  controls in CI. The original required scanner remains active during the
+  remaining replacement audit.
+
 - Repair native build-command ownership measured against
   `48fbde757f63bf4e6aa7c889cee54b67e3e25c26`. The PostgreSQL build wrapper
   could wait beyond a time-scaled deadline on a descendant-held stream. The

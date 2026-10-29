@@ -4,6 +4,7 @@ pub mod archive;
 pub mod digest;
 mod formats;
 pub mod https;
+mod https_identity;
 pub mod locks;
 pub mod model;
 pub mod process;

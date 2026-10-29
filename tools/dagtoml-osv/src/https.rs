@@ -5,7 +5,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{digest, model::Ecosystem, process, records};
+use crate::{digest, https_identity, model::Ecosystem, process, records};
 
 const MAX_ARCHIVE: usize = 256 * 1024 * 1024;
 const FOOTER: &[u8] = b"\nDAGTOML_HTTP_META:";
@@ -14,10 +14,10 @@ const CLOCK_TOLERANCE: u64 = 300;
 const MAX_CACHE_AGE: u64 = 3600;
 
 #[derive(Debug, Serialize)]
-pub struct Curl {
-    pub path: PathBuf,
-    pub executable_sha256: String,
-    pub version_output: String,
+pub struct Native {
+    pub artifact: https_identity::Executable,
+    #[serde(skip)]
+    root: PathBuf,
 }
 
 #[derive(Debug, Serialize)]
@@ -40,40 +40,6 @@ struct Response {
     status: u16,
     url: String,
     headers: BTreeMap<String, Vec<String>>,
-}
-
-fn identity(path: &Path) -> Result<String, String> {
-    let metadata = std::fs::metadata(path).map_err(|_| "HTTPS transport executable is absent")?;
-    if !metadata.is_file() || metadata.len() == 0 || metadata.len() > 64 * 1024 * 1024 {
-        return Err("HTTPS transport requires a bounded regular executable".into());
-    }
-    Ok(digest::sha256(&std::fs::read(path).map_err(
-        |_| "cannot identify HTTPS transport executable",
-    )?))
-}
-
-fn supported_version(source: &str) -> bool {
-    let Some(first) = source.lines().next() else {
-        return false;
-    };
-    let mut parts = first.split_ascii_whitespace();
-    if parts.next() != Some("curl") {
-        return false;
-    }
-    let Some(value) = parts.next() else {
-        return false;
-    };
-    let numbers: Option<Vec<u32>> = value
-        .split('.')
-        .map(|part| {
-            if part.is_empty() || !part.bytes().all(|byte| byte.is_ascii_digit()) {
-                None
-            } else {
-                part.parse().ok()
-            }
-        })
-        .collect();
-    matches!(numbers.as_deref(), Some([major, minor, patch]) if (*major, *minor, *patch) >= (8, 5, 0))
 }
 
 fn decimal(value: &str) -> Option<u64> {
@@ -229,40 +195,21 @@ fn decode(mut bytes: Vec<u8>, url: &str, now: u64) -> Result<(Vec<u8>, Retrieval
     Ok((bytes, receipt))
 }
 
-impl Curl {
-    pub fn new(path: &Path) -> Result<Self, String> {
-        let path = path
-            .canonicalize()
-            .map_err(|_| "HTTPS transport executable is absent")?;
-        let executable_sha256 = identity(&path)?;
-        let result = process::run(
-            Command::new(&path).args(["--disable", "--version"]),
-            vec![],
-            65536,
-            Duration::from_secs(10),
-        )?;
-        let version_output =
-            String::from_utf8(result.stdout).map_err(|_| "HTTPS transport version is not UTF-8")?;
-        if !result.status.success()
-            || !result.stderr.is_empty()
-            || !supported_version(&version_output)
-        {
-            return Err(
-                "HTTPS transport is not curl with required bounded-transfer support".into(),
-            );
-        }
-        let transport = Self {
-            path,
-            executable_sha256,
-            version_output,
-        };
-        transport.require_unchanged()?;
-        Ok(transport)
+impl Native {
+    pub fn new(root: &Path) -> Result<Self, String> {
+        let artifact = https_identity::verify(root)?;
+        Ok(Self {
+            artifact,
+            root: root.to_owned(),
+        })
     }
 
     pub fn require_unchanged(&self) -> Result<(), String> {
-        if identity(&self.path)? != self.executable_sha256 {
-            return Err("HTTPS transport executable moved during the scan".into());
+        if https_identity::verify(&self.root)? != self.artifact {
+            return Err(
+                "HTTPS executable or complete producer/builder identity moved during assessment"
+                    .into(),
+            );
         }
         Ok(())
     }
@@ -273,12 +220,12 @@ impl Curl {
             records::label(ecosystem)
         );
         self.require_unchanged()?;
-        let result = process::run(Command::new(&self.path).args([
-            "--disable","--globoff","--silent","--show-error","--fail-with-body","--proto","=https",
-            "--proto-redir","=https","--tlsv1.2","--location","--max-redirs","0","--connect-timeout","10",
-            "--max-time","90","--max-filesize","268435456","--header","Cache-Control: no-cache",
-            "--write-out","\nDAGTOML_HTTP_META:{\"status\":%{http_code},\"url\":\"%{url_effective}\",\"headers\":%{header_json}}\n",
-            "--url",&url]),vec![],MAX_ARCHIVE+65536,Duration::from_secs(100))?;
+        let result = process::run(
+            Command::new(&self.artifact.path).arg(&url),
+            vec![],
+            MAX_ARCHIVE + 65536,
+            Duration::from_secs(100),
+        )?;
         self.require_unchanged()?;
         if !result.status.success() {
             return Err(format!(
@@ -390,26 +337,8 @@ mod tests {
     }
 
     #[test]
-    fn native_transport_version_boundary() {
-        for version in [
-            "curl 8.5.0 (platform)",
-            "curl 8.14.1 (platform)",
-            "curl 9.0.0 (platform)",
-        ] {
-            assert!(supported_version(version));
-        }
-        for version in [
-            "",
-            "curl",
-            "other 8.14.1",
-            "curl 8.4.1",
-            "curl 8.5",
-            "curl 8.x.0",
-            "curl 8.5.0-extra",
-        ] {
-            assert!(!supported_version(version));
-        }
-        assert!(Curl::new(Path::new("/nonexistent/dagtoml-osv-curl")).is_err());
-        assert!(Curl::new(Path::new("/bin/true")).is_err());
+    fn native_transport_requires_the_complete_retained_identity() {
+        assert!(Native::new(Path::new("/nonexistent/dagtoml-osv-native-root")).is_err());
+        assert!(Native::new(Path::new("/bin/true")).is_err());
     }
 }

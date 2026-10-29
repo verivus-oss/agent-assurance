@@ -79,3 +79,12 @@ other drivers and scanners still require their separate estate audits.
 Neither a database result nor this component's build record establishes
 whole-repository no-regex compliance. Final cumulative validation and fresh
 review remain required.
+
+The same owned build-command supervisor also builds a standard-library-only
+Go command with `--capsule-source ABSOLUTE_MODULE --output ABSOLUTE_BINARY`.
+This mode refuses dependency directives, unsupported native source and
+unsafe/regex imports, checks the complete compiled package graph, and embeds
+both full source populations and the graph identity. It executes the compiled
+identity operation before writing the binary-bound build declaration. The
+advisory HTTPS producer is the current consumer. This shares process ownership
+with the driver builder while keeping the two producer protocols separate.

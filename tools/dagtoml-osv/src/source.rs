@@ -57,10 +57,6 @@ fn program(name: &str) -> Result<PathBuf, String> {
     Err(format!("required native executable is absent: {name}"))
 }
 
-pub fn find_curl() -> Result<PathBuf, String> {
-    program("curl")
-}
-
 impl Git {
     pub fn new() -> Result<Self, String> {
         let path = program("git")?;

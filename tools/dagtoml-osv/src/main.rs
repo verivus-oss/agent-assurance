@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use dagtoml_osv::{archive, https::Curl, require_current_instrument, source};
+use dagtoml_osv::{archive, https::Native, require_current_instrument, source};
 
 fn evaluate() -> Result<bool, String> {
     let arguments: Vec<_> = std::env::args_os().skip(1).collect();
@@ -26,12 +26,12 @@ fn evaluate() -> Result<bool, String> {
         .iter()
         .map(|package| package.ecosystem.clone())
         .collect();
-    let curl = Curl::new(&source::find_curl()?)?;
+    let transport = Native::new(&root)?;
     let mut datasets = Vec::new();
     let mut measured = BTreeSet::new();
     let mut affected = BTreeSet::new();
     for ecosystem in &ecosystems {
-        let (bytes, retrieval) = curl.archive(ecosystem)?;
+        let (bytes, retrieval) = transport.archive(ecosystem)?;
         let evaluation = archive::evaluate(ecosystem, &bytes, &packages)?;
         if evaluation.archive_sha256 != retrieval.archive_sha256
             || evaluation.archive_bytes != retrieval.archive_bytes
@@ -57,11 +57,11 @@ fn evaluate() -> Result<bool, String> {
         return Err("advisory subjects moved during evaluation".into());
     }
     git.require_unchanged()?;
-    curl.require_unchanged()?;
+    transport.require_unchanged()?;
     require_current_instrument(&instrument)?;
     let clear = affected.is_empty();
     let output = serde_json::json!({"status":if clear {"no-listed-advisories"} else {"affected-packages"},
-        "source":before,"instrument_sha256":dagtoml_osv::BUILD_TREE_SHA256,"git":git,"transport":curl,
+        "source":before,"instrument_sha256":dagtoml_osv::BUILD_TREE_SHA256,"git":git,"transport":transport,
         "packages_evaluated":measured.len(),"affected_packages":affected,"datasets":datasets,
         "comparison":"Every external package identity from the complete derived tracked lock population against every applicable record in the complete retrieved ecosystem archives. Typed release equality and range boundaries are evaluated locally. Independent affected/unaffected controls must agree.",
         "outside_subject":["unregistered local package roots are identified but have no registry advisory claim","Git-ignored directory subtrees and repository metadata; selected visible vendor roots stop evaluation before a package verdict","commit ancestry, directory fingerprint identification, function reachability, exploitability and installation environments","upstream unpublished advisories, unparsable package names disclosed in each dataset, and provider ingestion completeness"]});
