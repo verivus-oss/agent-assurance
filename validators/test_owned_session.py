@@ -21,6 +21,7 @@ def require_closed(session, descriptors):
 
 def test_fragmented_frames_and_request_reply():
     program = '''import os
+if os.getpgrp()!=os.getpid(): raise RuntimeError('child did not receive its own process group')
 def write(value):
     for byte in len(value).to_bytes(4,'big')+value: os.write(1,bytes([byte]))
 def read(size):

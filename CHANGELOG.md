@@ -9,6 +9,12 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Use the portable POSIX process-group option for the native session launcher.
+  The Python 3.11 PostgreSQL workflow at
+  `a3fcedc8426810b9b991045c0404ffc65b3c52a8` rejected the optional session
+  launch flag. Retain an owned child group and descendant cleanup without
+  requiring that platform extension.
+
 - Extend scanner directory discovery from
   `7d871361d4275860dab54b628894a54d20d977e6` to visible empty directories
   and directories whose files are ignored. Check each literal directory's

@@ -37,7 +37,7 @@ class Session:
             actions = [(os.POSIX_SPAWN_DUP2, child_in, 0), (os.POSIX_SPAWN_DUP2, child_out, 1),
                        (os.POSIX_SPAWN_DUP2, child_error, 2)]
             actions.extend((os.POSIX_SPAWN_CLOSE, descriptor) for descriptor in self.descriptors)
-            self.pid = os.posix_spawn(command[0], command, dict(os.environ), file_actions=actions, setsid=True)
+            self.pid = os.posix_spawn(command[0], command, dict(os.environ), file_actions=actions, setpgroup=0)
             for descriptor in (child_in, child_out, child_error):
                 os.close(descriptor)
                 self.descriptors.remove(descriptor)
