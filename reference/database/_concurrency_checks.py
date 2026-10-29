@@ -3,7 +3,7 @@
 from _parallel_checks import run_calls
 from _json_decode import loads as loads_json
 from _path_scan import Path
-import subprocess
+from _posix_process import run as run_process
 import sys
 import threading
 import _sql_probes as sql_probes
@@ -177,9 +177,11 @@ except StorageError as exc:
 connection.close()
 sys.exit(1)
 '''
-        result = subprocess.run([sys.executable, "-c", code, str(store.root / "reference/database"), destination],  # nosec B603 # noqa: S603
-                                check=False, capture_output=True, text=True, timeout=20)
-        if result.returncode != 0 or loads_json(result.stdout).get("status") != "busy/unsupported-writer":
+        status, output, _errors = run_process(
+            [sys.executable, "-c", code, str(store.root / "reference/database"), destination],
+            timeout=20, output_limit=65536,
+        )
+        if status != 0 or loads_json(output).get("status") != "busy/unsupported-writer":
             raise AssertionError("external DuckDB writer was not refused at file-open")
         checks.append({"check": "duckdb-external-writer-process", "outcome": "busy/unsupported-writer"})
     else:

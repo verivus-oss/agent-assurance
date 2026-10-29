@@ -153,6 +153,16 @@ Worker controls run under the cold import guard; persistent engine lanes
 separately exercise the real initialization and writer outcomes. This does not
 complete native driver, subprocess or build dependency audits.
 
+Receipt source binding replaces the inherited-environment Git calls from
+`a867058bc03a98c9b1a478543b690f046fe25a7d` with the owned Git transport.
+It verifies the selected repository root and named commit, ignores inherited
+Git location/index/configuration overrides, and records complete status and
+tracked-diff digests. The clean-receipt gate also rejects untracked content.
+The DuckDB external-writer probe shares the bounded native child transport
+with the cold-guard launcher: both own and reap their child, drain both output
+streams, and fail on deadline or output overflow. These Python import-boundary
+repairs do not establish absence inside Git, database engines or build tools.
+
 The PostgreSQL connector requires text connection parameters and an optional
 text database name. It normalizes string subclasses to their underlying text
 and rejects NUL before loading the driver or opening a connection. Invalid

@@ -34,8 +34,8 @@ def validate_receipts(root: Path, paths: list[Path], *, require_clean=True, incl
     if len(names) != len(set(names)) or set(names) != set(by_lane):
         raise ValueError("missing, duplicate, or unexpected executed lane receipt")
     source = source_identity(root)
-    if require_clean and (not source["tracked_tree_clean"] or not source["bundle_files_tracked"]):
-        raise ValueError("full executed receipt gate requires a clean tracked tree at a named commit")
+    if require_clean and (not source["working_tree_clean"] or not source["bundle_files_tracked"]):
+        raise ValueError("full executed receipt gate requires a clean tree at a named commit")
     artifacts, digest = artifact_hashes(root), bundle_digest(root)
     registry = expected_counts(root)
     catalog = load_catalog(root)

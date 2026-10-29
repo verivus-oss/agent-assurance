@@ -3,11 +3,11 @@
 import _ast as ast
 import errno
 import os
-import select
 import sys
 import time
 
 from _credential_git import git
+from _posix_process import run
 from _literal_path import Path
 from _random_id import random_id_hex
 from _test_require import expect_raises, require
@@ -91,63 +91,6 @@ def test_root_derivation():
                   'wrong import-root separator passed')
 
 
-def run(command, *, output_limit=16 * 1024 * 1024):
-    """Own the child and both streams without a pattern-importing wrapper."""
-    require(os.name == 'posix' and hasattr(os, 'posix_spawn'), 'cold guard integrity requires POSIX process controls')
-    require(type(output_limit) is int and output_limit > 0, 'cold guard output bound must be a positive integer')
-    descriptors = []
-    pid = status = None
-    streams = {}
-    try:
-        out_read, out_write = os.pipe()
-        descriptors.extend((out_read, out_write))
-        err_read, err_write = os.pipe()
-        descriptors.extend((err_read, err_write))
-        empty = os.open(os.devnull, os.O_RDONLY)
-        descriptors.append(empty)
-        require(min(descriptors) >= 3)
-        actions = [(os.POSIX_SPAWN_DUP2, empty, 0), (os.POSIX_SPAWN_DUP2, out_write, 1),
-                   (os.POSIX_SPAWN_DUP2, err_write, 2)]
-        actions.extend((os.POSIX_SPAWN_CLOSE, descriptor) for descriptor in descriptors)
-        pid = os.posix_spawn(command[0], command, dict(os.environ), file_actions=actions)
-        for descriptor in (out_write, err_write, empty):
-            os.close(descriptor)
-            descriptors.remove(descriptor)
-        pending = {out_read, err_read}
-        streams = {out_read: bytearray(), err_read: bytearray()}
-        deadline = time.monotonic() + 120
-        while pending or status is None:
-            require(time.monotonic() < deadline, 'cold guard child did not complete before its deadline')
-            ready, _, _ = select.select(sorted(pending), [], [], 0.1)
-            for descriptor in ready:
-                chunk = os.read(descriptor, 65536)
-                if chunk:
-                    streams[descriptor].extend(chunk)
-                    require(len(streams[descriptor]) <= output_limit, 'cold guard output exceeded its declared bound')
-                else:
-                    pending.remove(descriptor)
-            if status is None:
-                child, result = os.waitpid(pid, os.WNOHANG)
-                if child:
-                    require(child == pid)
-                    status = result
-        return os.waitstatus_to_exitcode(status), bytes(streams[out_read]), bytes(streams[err_read])
-    finally:
-        try:
-            if pid is not None and status is None:
-                try:
-                    os.kill(pid, 9)
-                except ProcessLookupError:
-                    child, status = os.waitpid(pid, 0)
-                    require(child == pid, 'cold guard cleanup lost its owned child')
-                if status is None:
-                    child, status = os.waitpid(pid, 0)
-                    require(child == pid, 'cold guard cleanup reaped the wrong child')
-        finally:
-            for descriptor in descriptors:
-                os.close(descriptor)
-
-
 def test_owned_process_transport():
     def measured(command, *, expired=False, output_limit=16 * 1024 * 1024):
         owned = []
@@ -199,16 +142,18 @@ def test_owned_process_transport():
     error = expect_raises(AssertionError,
                           lambda: measured([sys.executable, '-S', '-c', "import os; os.write(1, b'x' * 65)"], output_limit=64),
                           'excess child output produced a result')
-    require(str(error) == 'cold guard output exceeded its declared bound')
+    require(str(error) == 'child output exceeded its declared bound')
     for invalid in (0, -1, False, None):
         expect_raises(AssertionError, lambda: run([sys.executable], output_limit=invalid), 'invalid output bound passed')
+    for invalid in (0, -1, False, None, float('inf'), float('nan'), 121):
+        expect_raises(AssertionError, lambda: run([sys.executable], timeout=invalid), 'invalid process deadline passed')
     root = Path(__file__).resolve().parents[1]
     missing = root / '.local/cold-guard-absent' / random_id_hex()
     require(not missing.exists())
     expect_raises(FileNotFoundError, lambda: measured([str(missing)]), 'absent executable produced a result')
     error = expect_raises(AssertionError, lambda: measured([sys.executable, '-S', '-c', 'import time; time.sleep(60)'], expired=True),
                           'expired child deadline produced a result')
-    require(str(error) == 'cold guard child did not complete before its deadline')
+    require(str(error) == 'child did not complete before its deadline')
 
 
 def test_complete_cold_guard_population():

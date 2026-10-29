@@ -9,6 +9,15 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Bind database receipt metadata to the selected checkout independently of
+  inherited Git location, index and configuration settings. The source-binding
+  function at `a867058bc03a98c9b1a478543b690f046fe25a7d` could label a dirty
+  supplied root clean by inspecting another checkout. Require the actual
+  repository root, retain the complete status digest, and refuse untracked
+  content at the clean-receipt gate. Replace its process wrapper with the owned
+  Git transport, and share the bounded native child transport with the DuckDB
+  external-writer probe. Native tool and driver audits remain open.
+
 - Replace the three database acceptance-harness executor sites measured at
   `4069dfababe2b74bb1ed7fc8795cc0a8263e7943` with one or two explicit worker
   threads. Preserve simultaneous contenders, input-ordered results and fatal

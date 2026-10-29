@@ -5,8 +5,7 @@ import _literal_args as argparse
 import hashlib
 import _literal_json as json
 from _literal_path import Path
-import subprocess
-import shutil
+from _credential_git import git
 import sys
 from _random_id import random_id_hex
 
@@ -22,17 +21,20 @@ from _connection_checks import exercise_connection  # noqa: E402
 
 
 def source_identity(root: Path) -> dict:
-    def git(*args):
-        binary = shutil.which("git")
-        if binary is None:
-            raise ValueError("Git is required to bind the receipt to a source commit")
-        # Fixed read-only Git subcommands, list arguments, no shell.
-        return subprocess.run([binary, *args], cwd=root, check=True, capture_output=True).stdout  # nosec B603 # noqa: S603
-    tracked = set(git("ls-files", "-z").decode().split("\0"))
-    return {"commit": git("rev-parse", "HEAD").decode().strip(),
-            "tracked_tree_clean": not bool(git("status", "--porcelain", "--untracked-files=no")),
+    root = root.resolve()
+    actual = git(root, ["rev-parse", "--show-toplevel"]).decode().rstrip("\n")
+    if actual != str(root):
+        raise ValueError("database source binding requires the repository root")
+    commit = git(root, ["rev-parse", "--verify", "HEAD^{commit}"]).decode().rstrip("\n")
+    if len(commit) not in (40, 64) or any(char not in "0123456789abcdef" for char in commit):
+        raise ValueError("database source binding requires a named commit")
+    tracked = set(git(root, ["ls-files", "-z"]).decode().split("\0"))
+    status = git(root, ["status", "--porcelain", "-z"])
+    return {"commit": commit, "working_tree_clean": not status,
+            "status_sha256": hashlib.sha256(status).hexdigest(),
+            "tracked_tree_clean": not bool(git(root, ["status", "--porcelain", "--untracked-files=no", "-z"])),
             "bundle_files_tracked": set(bundle_entries(root)) <= tracked,
-            "diff_sha256": hashlib.sha256(git("diff", "HEAD", "--binary")).hexdigest()}
+            "diff_sha256": hashlib.sha256(git(root, ["diff", "HEAD", "--binary"])).hexdigest()}
 
 
 def engine_version(store: Store) -> str:
