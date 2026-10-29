@@ -30,7 +30,11 @@ def test_workers_overlap_and_retain_input_order():
 
 
 def test_worker_exceptions_are_raised_and_workers_finish():
-    for failure in (ValueError('worker failed'), KeyboardInterrupt('worker interrupted')):
+    class WorkerAbort(BaseException):
+        pass
+
+    for failure in (ValueError('worker failed'), KeyboardInterrupt('worker interrupted'),
+                    SystemExit('worker exited'), GeneratorExit('worker closed'), WorkerAbort('worker aborted')):
         done = threading.Event()
         aborted = []
 
