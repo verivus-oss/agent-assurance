@@ -285,7 +285,7 @@ class NativeConnection:
         paths += [prefix + '/core-sources/' + name for name in ('NOTICE', 'prepared.cpp', 'static_extensions.cpp')]
         self._fingerprints = {path: _metadata(os.stat(self._root / path)) for path in paths}
         self._lock = threading.RLock()
-        self._connection = self._module.connect(destination)
+        self._connection = self._module.connect(destination, config={'errors_as_json': 'true'})
         self.closed = False
 
     @property
@@ -315,10 +315,33 @@ class NativeConnection:
         if '\0' in sql:
             raise TypeError('native DuckDB SQL must not contain NUL bytes')
         values = [parameter(value) for value in parameters]
+        failure = None
+        rows = None
         with self._lock:
             self._current()
-            cursor = self._connection.execute(sql, values)
-            return _Rows(cursor.fetchall() if cursor.description is not None else [])
+            try:
+                # A caller can change this setting through SQL. Restore the
+                # structured error boundary before each public operation.
+                self._connection.execute('SET errors_as_json=true')
+                cursor = self._connection.execute(sql, values)
+                rows = cursor.fetchall() if cursor.description is not None else []
+            except self._module.Error as error:
+                message = 'native DuckDB operation failed without a structured primary message'
+                try:
+                    record = loads(str(error))
+                except (TypeError, ValueError):
+                    record = None
+                if (type(record) is dict and type(record.get('exception_message')) is str
+                        and record['exception_message']):
+                    message = record['exception_message']
+                failure = type(error)(message)
+        # Raising outside the handler prevents the original rendered error
+        # from remaining reachable through the public exception context.
+        if failure is not None:
+            raise failure from None
+        if rows is None:
+            raise ArtifactError('native DuckDB operation returned no complete result')
+        return _Rows(rows)
 
     def close(self):
         with self._lock:

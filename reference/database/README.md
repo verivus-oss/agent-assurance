@@ -213,6 +213,15 @@ This entry-point repair targets the connector at
 `eaefe4ca6146fcfd3a433a183c102f5a283922b6`; native binding, engine and build
 dependency audits remain separate requirements.
 
+The maintained native reference connector uses structured DuckDB errors and
+returns only their primary message in the original exception class. An error
+without a valid structured primary message becomes a neutral native error.
+The bridge resets structured mode before every query, and the prepared SDK
+does not register caller-frame replacement scans. These boundaries were
+repaired after actual missing-table errors on
+`c7c58b131d8c6d03a2c512a30ae61ea69c25124f` exposed a forbidden parser
+import and query context in the public error.
+
 Ingestion supports the three kinds above, agent-assurance/AGDF, and schema major
 zero. It runs metadata, provenance, IJB, closure, controlling-descriptor/capability,
 and implemented kind checks, reporting that scope. Adapter/binding INV04 prohibits

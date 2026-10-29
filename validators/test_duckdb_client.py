@@ -299,6 +299,32 @@ def exercise_retired_matching(connection):
     require(connection.execute("SELECT value FROM (VALUES ('a'), ('b')) AS rows(value) WHERE value = 'a'").fetchall() == [('a',)])
 
 
+def exercise_primary_native_errors(connection):
+    cases = (
+        ('SELECT dagtoml_missing_function(1)', connection._module.CatalogException, 'Scalar Function'),
+        ('SELECT * FROM dagtoml_missing_table', connection._module.CatalogException, 'Table with name'),
+        ('SET python_enable_replacements=true; SELECT * FROM dagtoml_missing_table',
+         connection._module.CatalogException, 'Table with name'),
+        ('SELECT dagtoml_missing_column FROM (SELECT 1 AS present)', connection._module.BinderException,
+         'Referenced column'),
+        ("SELECT CAST('not-an-integer' AS INTEGER)", connection._module.ConversionException, 'Could not convert'),
+        ("SELECT regexp_matches('a','a')", connection._module.Error, 'pattern execution is retired'),
+        ('SET errors_as_json=false; SELECT dagtoml_missing_function(1)', connection._module.CatalogException,
+         'without a structured primary message'),
+    )
+    reached = set()
+    for sql, kind, expected in cases:
+        error = expect_raises(kind, lambda: connection.execute(sql), 'native error was accepted')
+        require(expected in str(error), 'native error changed its declared primary message')
+        require('\nLINE ' not in str(error) and 'SELECT ' not in str(error),
+                'native error retained rendered query context')
+        require(error.__context__ is None and error.__cause__ is None,
+                'native error retained an original exception through its context')
+        reached.add(sql)
+    require(reached == {sql for sql, _kind, _expected in cases})
+    require(connection.execute('SELECT 7').fetchone() == (7,), 'structured error mode did not recover')
+
+
 def exercise_native():
     proof = client.build_identity(ROOT)
     directory = (ROOT / proof['binary']).parent
@@ -337,6 +363,7 @@ def exercise_native():
             require(connection.driver_identity == proof)
             exercise_native_paths(connection)
             exercise_retired_matching(connection)
+            exercise_primary_native_errors(connection)
             exercise_external_extension_refusals(connection)
             exercise_native_sql_states(connection)
             values = ([7, 8], {'name': 'value'}, date(2026, 10, 29), Decimal('1.250'),
@@ -364,7 +391,7 @@ def exercise_native():
                 parked.rename(binary)
         require(boundary.proof() == expected_proof())
     require(client.build_identity(ROOT) == proof)
-    print('Native DuckDB: exact typed values, canonical UUID and primary errors, both native path consumers with six accepted and six NUL-rejected cases, six population omissions, complete actual prepared core source/notice tamper refusals, retired matching operations, three actual loaded-module identity mismatches, real closed/missing-artifact cleanup; no boundary attempts; full SQL lane and core/compiler audit skipped')
+    print('Native DuckDB: exact typed values, canonical UUID and structured primary errors with unstructured refusal, both native path consumers with six accepted and six NUL-rejected cases, six population omissions, complete actual prepared core source/notice tamper refusals, retired matching operations, three actual loaded-module identity mismatches, real closed/missing-artifact cleanup; no boundary attempts; full SQL lane and core/compiler audit skipped')
 
 
 if __name__ == '__main__':

@@ -9,6 +9,16 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Reconstruct DuckDB reference errors from the structured primary message
+  and refuse an unstructured native error with a neutral message. The native
+  core can add query context before the binding reads its raw message, as
+  observed against `c7c58b131d8c6d03a2c512a30ae61ea69c25124f`.
+  Remove the Python replacement scan registration from both pinned SDK
+  builds, since a missing table could otherwise import a forbidden parser
+  dependency while looking through caller frames. Check accepted queries,
+  each native error class, restored error mode, and a missing table after a
+  caller attempts to reenable replacement scanning.
+
 - Retire the floor core's unguarded HTTP implementation after compilation at
   `5c32a84befa67d3828b428f5257a974a7af7dd8a` showed that disabling extension
   loading removed its declarations while leaving the HTTP class and response

@@ -75,7 +75,7 @@
         },
         "src/duckdb_py/pyconnection.cpp": {
           "before_sha256": "46bebf3c7b3f1692967437e4842c1e7b5b73dd808ebbf78be18a1420da55aa42",
-          "after_sha256": "90ecf20189cd0c77b0231e2a05077152a0cdb2ebdbb99ff78b24e288716d8497",
+          "after_sha256": "5df1015bc2c26504db7df3e08a834b8e090b273d0c236f49d7021e51b4960b74",
           "replacements": [
             [
               "import_cache.pathlib.Path()",
@@ -96,6 +96,10 @@
             [
               "return text.cast<string>();",
               "return PathLike::GetText(text);"
+            ],
+            [
+              "\tconfig.replacement_scans.emplace_back(PythonReplacementScan::Replace);\n",
+              ""
             ]
           ]
         },
@@ -270,7 +274,7 @@
         },
         "src/duckdb_py/pyconnection.cpp": {
           "before_sha256": "c7f2cdce8b08ab9a5c039896dc51489f4255e75fac9240be10242d4a676ffa42",
-          "after_sha256": "e864aff200ae0ed1368836af414d6adf65be4a695fd62775864f1b3812cd2a3c",
+          "after_sha256": "e7f7c7a55adddadeecaf38318bac4ecdf7e990f5829404deee7f2c23e4e02d60",
           "replacements": [
             [
               "import_cache.pathlib.Path()",
@@ -291,6 +295,10 @@
             [
               "return text.cast<string>();",
               "return PathLike::GetText(text);"
+            ],
+            [
+              "\tconfig.replacement_scans.emplace_back(PythonReplacementScan::Replace);\n",
+              ""
             ]
           ]
         },
