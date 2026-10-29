@@ -32,6 +32,22 @@ type sourceFile struct {
 	Data   []byte `json:"-"`
 }
 
+func dependencyInventory(files []sourceFile) string {
+	names := append([]sourceFile{}, files...)
+	sort.Slice(names, func(i, j int) bool { return names[i].Path < names[j].Path })
+	digest := sha256.New()
+	digest.Write([]byte("dagtoml-postgres-dependencies-v1\x00"))
+	for _, file := range names {
+		for _, value := range []string{file.Path, file.SHA256} {
+			var length [8]byte
+			binary.BigEndian.PutUint64(length[:], uint64(len(value)))
+			digest.Write(length[:])
+			digest.Write([]byte(value))
+		}
+	}
+	return hex.EncodeToString(digest.Sum(nil))
+}
+
 func population(root string) (_ []sourceFile, _ string, resultErr error) {
 	confined, err := os.OpenRoot(root)
 	if err != nil {
@@ -339,10 +355,11 @@ func build(root, output string) (resultErr error) {
 	if err = requireNoMatcherImports(work); err != nil {
 		return err
 	}
-	dependencies, vendorStamp, err := population(filepath.Join(work, "vendor"))
+	dependencies, _, err := population(filepath.Join(work, "vendor"))
 	if err != nil {
 		return err
 	}
+	vendorStamp := dependencyInventory(dependencies)
 	roots, err := sourceRoots(append(append([]sourceFile{}, sources...), sourceFile{Path: "cmd/supplier-controls/main.go", Data: []byte(supplierControls)}))
 	if err != nil {
 		return err

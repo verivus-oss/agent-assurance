@@ -9,6 +9,12 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Bind the complete native PostgreSQL dependency file inventory to the
+  executed client. The build-record reader at
+  `713901fddff9ded2cb41dd04b3e2f5fcb0def754` accepted an inventory with all
+  but one prepared dependency file removed. Require its canonical digest and
+  unique identities before accepting the artifact proof.
+
 - Use the portable POSIX process-group option for the native session launcher.
   The Python 3.11 PostgreSQL workflow at
   `a3fcedc8426810b9b991045c0404ffc65b3c52a8` rejected the optional session

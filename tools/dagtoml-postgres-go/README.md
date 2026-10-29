@@ -30,6 +30,12 @@ connection parameters, then rechecks source and executable identity during
 the session. Executed receipts retain that driver identity; the receipt gate
 requires the retained native executable and build record.
 
+The complete prepared file inventory is itself bound into the native
+handshake. Its digest frames sorted relative paths and lowercase file SHA-256
+text with unsigned 64-bit big-endian byte lengths, under the
+`dagtoml-postgres-dependencies-v1` domain and a zero separator. Omitted,
+duplicated or altered records cannot retain the executed dependency identity.
+
 Connection parameters travel over standard input, never command arguments.
 Query values use PostgreSQL's separate parameter protocol. The server's
 ReadyForQuery state supplies transaction state. Error results retain SQLSTATE

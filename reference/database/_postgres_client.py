@@ -254,6 +254,29 @@ class _Rows:
         return rows
 
 
+def dependency_inventory(records):
+    if type(records) is not list or not records:
+        raise OperationalError('PostgreSQL native prepared dependency inventory is absent')
+    files = {}
+    for item in records:
+        if type(item) is not dict or set(item) != {'path', 'sha256'}:
+            raise OperationalError('PostgreSQL native prepared dependency record is malformed')
+        name, digest = item['path'], item['sha256']
+        if (type(name) is not str or not name or '\\' in name or name.startswith('/')
+                or any(part in ('', '.', '..') for part in name.split('/'))
+                or any(ord(character) < 32 or ord(character) == 127 for character in name)
+                or name in files or type(digest) is not str or len(digest) != 64
+                or any(character not in '0123456789abcdef' for character in digest)):
+            raise OperationalError('PostgreSQL native prepared dependency identity is malformed or repeated')
+        files[name] = digest
+    result = hashlib.sha256(b'dagtoml-postgres-dependencies-v1\0')
+    for name, digest in sorted(files.items()):
+        for value in (name.encode('utf-8'), digest.encode('ascii')):
+            result.update(len(value).to_bytes(8, 'big'))
+            result.update(value)
+    return result.hexdigest()
+
+
 def build_identity(root):
     root = Path(root).resolve()
     source_sha256, files = source_identity(root / 'tools/dagtoml-postgres-go')
@@ -273,7 +296,8 @@ def build_identity(root):
         graph_digest.update(encoded)
     if (record['source_sha256'] != source_sha256 or record['go_version'] != 'go1.26.10'
             or {item['path']: item['sha256'] for item in record['sources']} != files
-            or not record['prepared_dependencies'] or record['compiled_graph_sha256'] != graph_digest.hexdigest()
+            or record['dependencies_sha256'] != dependency_inventory(record['prepared_dependencies'])
+            or len(record['sources']) != len(files) or record['compiled_graph_sha256'] != graph_digest.hexdigest()
             or any(name == 'regexp' or name.startswith('regexp/') for name in record['compiled_packages'])):
         raise OperationalError('PostgreSQL native driver build identity is stale or incomplete')
     binary_sha256 = hashlib.sha256(binary.read_bytes()).hexdigest()

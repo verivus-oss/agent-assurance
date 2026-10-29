@@ -129,6 +129,19 @@ def test_retained_inventory_and_native_handshake_refuse_altered_proof(identity):
         error = expect_raises(OperationalError, lambda: build_identity(ROOT),
                               'incomplete compiled inventory was accepted')
         require('stale or incomplete' in str(error), 'inventory control failed during unrelated setup')
+        record = loads(original)
+        require(len(record['prepared_dependencies']) > 1, 'prepared dependency subject is absent')
+        record['prepared_dependencies'] = record['prepared_dependencies'][:1]
+        path.write_text(dumps(record))
+        error = expect_raises(OperationalError, lambda: build_identity(ROOT),
+                              'incomplete prepared dependency inventory was accepted')
+        require('stale or incomplete' in str(error), 'dependency omission failed during unrelated setup')
+        record = loads(original)
+        record['prepared_dependencies'].append(record['prepared_dependencies'][0])
+        path.write_text(dumps(record))
+        error = expect_raises(OperationalError, lambda: build_identity(ROOT),
+                              'duplicate prepared dependency identity was accepted')
+        require('malformed or repeated' in str(error), 'duplicate dependency failed during unrelated setup')
         # Even a supplied identity claiming the original native executable
         # must agree with the executable's own hello before credentials flow.
         altered = {**identity, 'compiled_graph_sha256': '0' * 64}
