@@ -1,6 +1,12 @@
 role = "spelling-correction-controls"
 
 [[corrections]]
+name = "title-conjunction"
+input = "Nd"
+case = "title"
+expected = ["And"]
+
+[[corrections]]
 name = "lowercase-receive"
 input = "recieve"
 case = "lower"

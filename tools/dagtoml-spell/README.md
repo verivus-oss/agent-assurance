@@ -36,8 +36,15 @@ UTF-8 source fails. Symlinked or missing selected files fail. Archive contents
 and untracked paths are outside this source population.
 
 `data/project.toml` preserves the preceding literal accepted words and pins
-the credential identity catalogue and Python byte-table operands. Only named
-catalogue identities and validated data spans are outside word checking.
+the credential identity catalogue and Python byte-table operands. Its complete
+`identifiers` table replaces the former hardcoded acceptance set with exact,
+case-sensitive code names. At baseline
+`b506356cd82aa85b8217104357f45a16a51bf952`, four word findings split components
+from the captured supplier enums `NdArray` and `NdDatetime`. Those complete names
+join the preceding four exact code identities. The component word, case
+variants, longer identifiers and adjacent prose still receive dictionary checks.
+Only named catalogue identities, declared complete code names and validated
+data spans are outside word checking.
 Comments and adjacent prose remain governed. The correction-control TOML
 likewise exempts only its declared input and expected-value spans. Unsupported,
 absent, changed or repeated data roles fail instead of widening a file exclusion.

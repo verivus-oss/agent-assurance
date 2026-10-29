@@ -44,7 +44,7 @@ fn inspect(
     for identifier in
         identifiers(source).map_err(|message| Failure::at(path, Some(bytes), message))?
     {
-        if Dictionary::identifier_is_accepted(identifier.text) {
+        if project.identifier_is_accepted(identifier.text) {
             continue;
         }
         for word in words(identifier).map_err(|message| Failure::at(path, Some(bytes), message))? {

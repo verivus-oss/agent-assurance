@@ -8,6 +8,7 @@ from _literal_path import Path
 from _literal_json import dumps
 from _test_require import expect_raises, require
 from _duckdb_guard import Boundary, BoundaryError, FORBIDDEN, expected_proof
+from _random_id import random_id_hex
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'reference/database'))
@@ -83,6 +84,54 @@ def test_guard_refuses_swallowed_ecosystem_imports():
         require(boundary.proof() == expected_proof())
 
 
+def exercise_native_paths(owned):
+    """Exercise both supplier consumers of the maintained path conversion."""
+    class Text(str):
+        def __str__(self):
+            raise AssertionError('native path invoked a display override')
+
+    class TextPath:
+        def __init__(self, value):
+            self.value = value
+
+        def __fspath__(self):
+            return self.value
+
+        def __str__(self):
+            raise AssertionError('native path invoked a display override')
+
+    directory = ROOT / '.local/database-checks/native-path-controls'
+    directory.mkdir(parents=True, exist_ok=True)
+    fixture = directory / (random_id_hex() + '.csv')
+    fixture.write_bytes(b'value\n7\n')
+    accepted, rejected = set(), set()
+    try:
+        for consumer in ('connect', 'read_csv'):
+            destination = ':memory:' if consumer == 'connect' else str(fixture)
+            cases = (('text', destination), ('text-subclass', Text(destination)),
+                     ('filesystem-protocol', TextPath(Text(destination))))
+            for name, value in cases:
+                if consumer == 'connect':
+                    with owned._module.connect(value) as connection:
+                        require(connection.execute('SELECT 7').fetchone() == (7,))
+                else:
+                    require(owned._connection.read_csv(value).fetchall() == [(7,)])
+                accepted.add((consumer, name))
+            cases = (('text', destination + '\0ignored'), ('text-subclass', Text(destination + '\0ignored')),
+                     ('filesystem-protocol', TextPath(Text(destination + '\0ignored'))))
+            for name, value in cases:
+                operation = ((lambda: owned._module.connect(value)) if consumer == 'connect'
+                             else (lambda: owned._connection.read_csv(value)))
+                error = expect_raises(owned._module.InvalidInputException, operation, 'native consumer accepted a NUL path')
+                require('NUL bytes' in str(error), 'native NUL path failed during unrelated setup')
+                rejected.add((consumer, name))
+        expected = {(consumer, name) for consumer in ('connect', 'read_csv')
+                    for name in ('text', 'text-subclass', 'filesystem-protocol')}
+        require(len(expected) == 6 and accepted == rejected == expected, 'native path consumer population changed')
+    finally:
+        fixture.unlink()
+
+
 def exercise_native():
     proof = client.build_identity(ROOT)
     directory = (ROOT / proof['binary']).parent
@@ -102,8 +151,23 @@ def exercise_native():
         record_path.write_bytes(original)
     require(client.build_identity(ROOT) == proof)
     with Boundary() as boundary:
+        module = client._module(ROOT, proof)
+        for attribute, wrong in (('__file__', str(directory / 'unexpected.so')),
+                                 ('__dagtoml_binding_identity__', '0' * 64), ('__version__', 'unsupported')):
+            original_value = getattr(module, attribute)
+            client._MODULE, client._BOUND = None, None
+            setattr(module, attribute, wrong)
+            try:
+                error = expect_raises(client.ArtifactError, lambda: client._module(ROOT, proof),
+                                      'preloaded native module with a changed identity was accepted')
+                require('loaded native DuckDB module or core differs' in str(error) and client._MODULE is None,
+                        'native module mismatch failed during unrelated setup or was retained')
+            finally:
+                setattr(module, attribute, original_value)
+            require(client._module(ROOT, proof) is module)
         with client.connect(':memory:') as connection:
             require(connection.driver_identity == proof)
+            exercise_native_paths(connection)
             values = ([7, 8], {'name': 'value'}, date(2026, 10, 29), Decimal('1.250'),
                       datetime(2026, 10, 29, 12, 34, 56, tzinfo=timezone.utc), b'\0\xff', 'text\0ü')
             require(connection.execute('SELECT ?,?,?,?,?,?,?', values).fetchone() == values,
@@ -129,7 +193,7 @@ def exercise_native():
                 parked.rename(binary)
         require(boundary.proof() == expected_proof())
     require(client.build_identity(ROOT) == proof)
-    print('Native DuckDB: exact typed values, canonical UUID and primary errors, five population omissions, real closed/missing-artifact cleanup; no boundary attempts; full SQL lane and core/compiler audit skipped')
+    print('Native DuckDB: exact typed values, canonical UUID and primary errors, both native path consumers with six accepted and six NUL-rejected cases, five population omissions, three actual loaded-module identity mismatches, real closed/missing-artifact cleanup; no boundary attempts; full SQL lane and core/compiler audit skipped')
 
 
 if __name__ == '__main__':

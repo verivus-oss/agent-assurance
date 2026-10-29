@@ -43,6 +43,86 @@ fn licensed_proper_names_preserve_adjacent_corrections() {
 }
 
 #[test]
+fn complete_code_identifiers_preserve_component_and_adjacent_corrections() {
+    let project = Project::load(&root()).unwrap();
+    let expected = [
+        "HashiCorp",
+        "NdArray",
+        "NdDatetime",
+        "O_WRONLY",
+        "dBA",
+        "flate2",
+    ];
+    assert_eq!(project.accepted_identifiers, expected);
+    for identifier in expected {
+        assert!(project.identifier_is_accepted(identifier));
+        for lookalike in [
+            format!("{identifier}Other"),
+            format!("Other{identifier}"),
+            identifier.to_ascii_lowercase(),
+        ] {
+            if lookalike != identifier {
+                assert!(!project.identifier_is_accepted(&lookalike));
+            }
+        }
+    }
+    for component in [
+        "NdArray".strip_suffix("Array").unwrap(),
+        "flate2".strip_suffix('2').unwrap(),
+        "HashiCorp".strip_suffix("Corp").unwrap(),
+    ] {
+        assert!(!project.identifier_is_accepted(component));
+    }
+    let corpus: toml::Value = toml::from_str(include_str!("fixtures/corrections.toml")).unwrap();
+    let cases = corpus["corrections"].as_array().unwrap();
+    let conjunction = cases
+        .iter()
+        .find(|case| case["name"].as_str() == Some("title-conjunction"))
+        .unwrap();
+    let receive = cases
+        .iter()
+        .find(|case| case["name"].as_str() == Some("lowercase-receive"))
+        .unwrap();
+    let component = conjunction["input"].as_str().unwrap();
+    let input = receive["input"].as_str().unwrap();
+    let dictionary = Dictionary::pinned(project.accepted_words.clone()).unwrap();
+    let source =
+        format!("PythonObjectType::NdArray PythonObjectType::NdDatetime {component} {input}");
+    let checked =
+        dagtoml_spell::scan::content(&project, &dictionary, "sample.md", source.as_bytes())
+            .unwrap();
+    let answers: Vec<_> = checked
+        .findings
+        .iter()
+        .map(|finding| (finding.token.as_str(), finding.corrections.clone()))
+        .collect();
+    let expected = |case: &toml::Value| {
+        case["expected"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|value| value.as_str().unwrap().to_owned())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        answers,
+        [
+            (component, expected(conjunction)),
+            (input, expected(receive))
+        ]
+    );
+    for identifier in ["NdArray", "NdDatetime"] {
+        for source in [format!("{identifier}Other"), format!("Other{identifier}")] {
+            let checked =
+                dagtoml_spell::scan::content(&project, &dictionary, "sample.md", source.as_bytes())
+                    .unwrap();
+            assert_eq!(checked.findings.len(), 1);
+            assert_eq!(checked.findings[0].token, component);
+        }
+    }
+}
+
+#[test]
 fn current_data_agrees_with_independent_ast_operand_answers() {
     let root = root();
     let project = Project::load(&root).unwrap();

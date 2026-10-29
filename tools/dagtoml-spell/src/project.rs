@@ -95,6 +95,21 @@ struct PolicyData {
     headers_operand_sha256: String,
     provider_byte_literal: Spanned<String>,
     words: BTreeMap<String, String>,
+    identifiers: BTreeMap<String, String>,
+}
+
+fn valid_identifiers(values: &BTreeMap<String, String>) -> bool {
+    !values.is_empty()
+        && values.iter().all(|(key, value)| {
+            key == value
+                && key
+                    .as_bytes()
+                    .first()
+                    .is_some_and(|byte| byte.is_ascii_alphabetic() || *byte == b'_')
+                && key
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+        })
 }
 
 #[derive(Deserialize)]
@@ -106,6 +121,7 @@ struct CatalogData {
 
 pub struct Project {
     pub accepted_words: Vec<String>,
+    pub accepted_identifiers: Vec<String>,
     names: Vec<String>,
     fixed_spans: BTreeMap<String, (String, Vec<Range<usize>>)>,
     source_hashes: BTreeMap<String, String>,
@@ -122,6 +138,7 @@ impl Project {
                 .bytes()
                 .all(|byte| byte.is_ascii_hexdigit())
             || policy.words.is_empty()
+            || !valid_identifiers(&policy.identifiers)
             || policy.provider_byte_literal.get_ref().is_empty()
             || policy
                 .words
@@ -223,10 +240,17 @@ impl Project {
         source_hashes.insert(CATALOG.to_owned(), sha256(&catalog_bytes));
         Ok(Self {
             accepted_words: policy.words.into_keys().collect(),
+            accepted_identifiers: policy.identifiers.into_keys().collect(),
             names: catalog.rule_ids,
             fixed_spans,
             source_hashes,
         })
+    }
+
+    pub fn identifier_is_accepted(&self, identifier: &str) -> bool {
+        self.accepted_identifiers
+            .iter()
+            .any(|item| item == identifier)
     }
 
     pub fn verify_sources(&self, root: &Path) -> Result<(), Failure> {
@@ -372,8 +396,34 @@ fn correction_fixture_spans(source: &[u8]) -> Result<Vec<Range<usize>>, Failure>
 
 #[cfg(test)]
 mod tests {
-    use super::{CorrectionCorpus, FIXTURES, correction_fixture_spans, document};
+    use super::{
+        CorrectionCorpus, FIXTURES, correction_fixture_spans, document, valid_identifiers,
+    };
     use crate::data_spans::contains;
+
+    #[test]
+    fn identifier_policy_accepts_exact_names_and_rejects_invalid_roles() {
+        use std::collections::BTreeMap;
+        assert!(!valid_identifiers(&BTreeMap::new()));
+        for name in ["NdArray", "_Value2", "O_WRONLY"] {
+            assert!(valid_identifiers(&BTreeMap::from([(
+                name.to_owned(),
+                name.to_owned()
+            )])));
+        }
+        for (key, value) in [
+            ("", ""),
+            ("1Value", "1Value"),
+            ("two words", "two words"),
+            ("Type::Value", "Type::Value"),
+            ("Value", "Other"),
+        ] {
+            assert!(!valid_identifiers(&BTreeMap::from([(
+                key.to_owned(),
+                value.to_owned()
+            )])));
+        }
+    }
 
     #[test]
     fn fixture_inputs_are_data_and_adjacent_comments_stay_governed() {

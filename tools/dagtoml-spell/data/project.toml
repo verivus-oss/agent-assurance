@@ -20,3 +20,12 @@ vai = "vai"
 # Dutch proper names retained verbatim in the CPython license.
 Stichting = "Stichting"
 Mathematisch = "Mathematisch"
+
+# Complete case-sensitive code identifiers, never their component words.
+[identifiers]
+O_WRONLY = "O_WRONLY"
+dBA = "dBA"
+HashiCorp = "HashiCorp"
+flate2 = "flate2"
+NdArray = "NdArray"
+NdDatetime = "NdDatetime"

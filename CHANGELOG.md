@@ -9,6 +9,12 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Preserve complete supplier enum identifiers in the spelling gate after the
+  four fragment findings measured at
+  `b506356cd82aa85b8217104357f45a16a51bf952`. Move the complete identifier
+  acceptance population into validated literal policy data. Keep component
+  words, case variants, longer identifiers and neighboring prose governed.
+
 - Replace the installed DuckDB binding path measured at
   `12cb56dd0a6ce892d51930554080e2411ec35521` with a pinned, directly built
   variant of that existing native dependency. Bind complete source and header
