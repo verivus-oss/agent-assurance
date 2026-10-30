@@ -9,6 +9,9 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Preserve encoded credential detection beside invalid percent escapes, and
+  terminate owned child process groups when bounded commands exceed their
+  deadline or output limit.
 - Make the native locked-package advisory evaluator the required CI gate and
   retire the old OSV action and its Python staging scripts. At
   `4529e5f26916c54ee251ecc1bf958de11af3f5ea`, the clean evaluator

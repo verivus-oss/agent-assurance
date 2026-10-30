@@ -79,6 +79,30 @@ def test_history_boundaries():
         require("graft" in str(error))
 
 
+def test_percent_candidates_with_invalid_neighbors():
+    planted = b"ghp_" + b"Ab12Cd34Ef56Gh78Ij90Kl12Mn34Op56Qr78"
+    encoded = b"".join(b"%" + format(byte, "02X").encode() for byte in planted)
+    with TemporaryTree() as root:
+        initialize(root)
+        write(join(root, "public.txt"), b"public baseline\n")
+        base = commit(root, "public baseline")
+        expected = {}
+        for name, data in (("prefix.txt", b"%00 " + encoded),
+                           ("suffix.txt", encoded + b" %00"),
+                           ("both.txt", b"%ff " + encoded + b" %08")):
+            write(join(root, name), data)
+            expected[name] = commit(root, "encoded candidate with an unrelated invalid escape")
+        measured = history.scan_history(root)
+        events = [event for event in measured["events"] if event["rule"] == "github-pat"]
+        require({event["path"]: event["commit"] for event in events} == expected,
+                "committed history omitted an encoded candidate beside an invalid escape")
+        require(set(measured["scanned_commits"]) == {base, *expected.values()})
+        for event in events:
+            require(event["capture_count"] == 1 and min(event["parent_capture_counts"]) == 0)
+            require(event["value_sha256"] == hashlib.sha256(planted).hexdigest())
+            require(event["captures"][0]["decoding"]["kinds"] == ["percent"])
+
+
 def test_missing_and_corrupt_subjects():
     with TemporaryTree() as root:
         expect_raises(RuntimeError, lambda: history.scan_history(root), "nonrepository subject passed")
@@ -209,6 +233,7 @@ def test_transport_setup_failure_reaps_child_and_descriptors():
 
 if __name__ == "__main__":
     test_history_boundaries()
+    test_percent_candidates_with_invalid_neighbors()
     test_missing_and_corrupt_subjects()
     test_object_formats_and_source_identity()
     test_reference_movement()

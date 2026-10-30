@@ -169,6 +169,28 @@ def test_decoding():
         expect_raises(ValueError, lambda: scan_bytes(value, decode_depth=depth), "invalid decode depth was accepted")
     for source in (b"%00", b"%ff", b"\\uZZZZ", b"U+XYZW", b"00000000000000000000000000000000"):
         require(View(source).decode() is None, "invalid or nonprintable encoded data was admitted")
+    # Invalid escaped bytes on the same line cannot suppress a neighboring
+    # independently encoded candidate, including through repeated decoding.
+    percent = b"".join(b"%" + format(byte, "02X").encode() for byte in value)
+    for invalid in (b"%00", b"%08", b"%7f", b"%ff"):
+        for source in (percent + b" " + invalid, invalid + b" " + percent,
+                       invalid + b" " + percent + b" " + invalid):
+            matches = [c for c in scan_bytes(source) if c.rule == "github-pat"]
+            require(len(matches) == 1, "neighboring invalid escape suppressed an encoded candidate")
+            require(matches[0].value_sha256 == hashlib.sha256(value).hexdigest())
+            require(matches[0].source_sha256 == hashlib.sha256(source).hexdigest())
+            require(matches[0].decoding is not None and "percent" in matches[0].decoding["kinds"])
+        require(View(percent + b" " + invalid).decode().data == value + b" " + invalid,
+                "invalid escape was discarded instead of retained literally")
+        require(View(invalid + b" " + percent).decode().data == invalid + b" " + value,
+                "invalid prefix prevented independent suffix decoding")
+    first = b"".join(b"%" + format(byte, "02X").encode() for byte in value[:10])
+    rest = b"".join(b"%" + format(byte, "02X").encode() for byte in value[10:])
+    require(not any(c.rule == "github-pat" for c in scan_bytes(first + b"%00" + rest)),
+            "discarding an invalid escape manufactured a credential")
+    nested = binascii.b2a_base64(percent + b" %00", newline=False)
+    require(any(c.rule == "github-pat" and c.decoding["depth"] == 2 for c in scan_bytes(nested)),
+            "neighboring invalid escape suppressed a nested encoded candidate")
     # A transformed name with a literal value still needs decoding provenance.
     generic_value = b"0123456789abcdef"
     source = b"t%6fken='" + generic_value + b"'"

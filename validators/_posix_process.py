@@ -1,8 +1,9 @@
 """Owned bounded child processes for POSIX verification commands.
 
-The transport retains the stream and cleanup implementation measured in
+The transport derives from the stream and cleanup implementation measured in
 `test_cold_guard_integrity.run` at project commit
-`a867058bc03a98c9b1a478543b690f046fe25a7d`.
+`a867058bc03a98c9b1a478543b690f046fe25a7d`. Each command owns a process group;
+its leader remains unreaped until inherited output streams close.
 """
 
 import os
@@ -31,7 +32,7 @@ def run(command, *, output_limit=16 * 1024 * 1024, timeout=120):
             actions = [(os.POSIX_SPAWN_DUP2, empty, 0), (os.POSIX_SPAWN_DUP2, out_write, 1),
                        (os.POSIX_SPAWN_DUP2, err_write, 2)]
             actions.extend((os.POSIX_SPAWN_CLOSE, descriptor) for descriptor in [*descriptors, empty])
-            pid = os.posix_spawn(command[0], command, dict(os.environ), file_actions=actions)
+            pid = os.posix_spawn(command[0], command, dict(os.environ), file_actions=actions, setpgroup=0)
         for descriptor in (out_write, err_write):
             os.close(descriptor)
             descriptors.remove(descriptor)
@@ -48,7 +49,8 @@ def run(command, *, output_limit=16 * 1024 * 1024, timeout=120):
                     require(len(streams[descriptor]) <= output_limit, 'child output exceeded its declared bound')
                 else:
                     pending.remove(descriptor)
-            if status is None:
+            # Keep the group leader unreaped while descendants can hold pipes.
+            if status is None and not pending:
                 child, result = os.waitpid(pid, os.WNOHANG)
                 if child:
                     require(child == pid)
@@ -58,7 +60,7 @@ def run(command, *, output_limit=16 * 1024 * 1024, timeout=120):
         try:
             if pid is not None and status is None:
                 try:
-                    os.kill(pid, 9)
+                    os.killpg(pid, 9)
                 except ProcessLookupError:
                     child, status = os.waitpid(pid, 0)
                     require(child == pid, 'process cleanup lost its owned child')

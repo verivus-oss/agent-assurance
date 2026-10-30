@@ -51,6 +51,9 @@ def encoded_segments(data):
             while position != -1:
                 if position + 3 <= limit and all(byte in HEX for byte in data[position + 1:position + 3]):
                     end = position + 3
+                    # Do not repeatedly rescan the rest of a poisoned line.
+                    if not 8 < int(data[position + 1:position + 3], 16) < 127:
+                        break
                 position = data.find(b"%", position + 1, limit)
             value = bytearray()
             offset, valid = start, True
@@ -59,6 +62,11 @@ def encoded_segments(data):
                         and all(byte in HEX for byte in data[offset + 1:offset + 3])):
                     byte = int(data[offset + 1:offset + 3], 16)
                     if not 8 < byte < 127:
+                        # Retain the invalid escape literally, while decoding
+                        # valid neighbors independently on either side.
+                        if offset > start:
+                            yield start, offset, bytes(value), "percent"
+                        end = offset + 3
                         valid = False
                         break
                     value.append(byte)

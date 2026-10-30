@@ -161,6 +161,56 @@ def test_owned_process_transport():
     require(str(error) == 'child did not complete before its deadline')
 
 
+def descendant_cleanup_case(failure_mode):
+    root = Path(__file__).resolve().parents[1]
+    work = root / ".local/process-descendant-controls" / random_id_hex()
+    work.mkdir(parents=True)
+    pid_file = work / "descendant.pid"
+    program = (
+        "import os,sys,time\n"
+        "if os.fork(): os._exit(0)\n"
+        "with open(sys.argv[1], 'w') as stream: stream.write(str(os.getpid()))\n"
+        "if sys.argv[2] == 'output':\n"
+        " time.sleep(0.2)\n"
+        " os.write(1, b'x' * 65)\n"
+        "time.sleep(60)\n"
+    )
+
+    def running(pid):
+        try:
+            state = Path("/proc/" + str(pid) + "/stat").read_text().rpartition(")")[2].split()[0]
+        except FileNotFoundError:
+            return False
+        return state not in ("Z", "X")
+
+    descendant = None
+    try:
+        error = expect_raises(AssertionError,
+            lambda: run([sys.executable, "-S", "-c", program, str(pid_file), failure_mode],
+                        timeout=3, output_limit=64),
+            "descendant holding inherited streams produced a successful result")
+        expected = ("child output exceeded its declared bound" if failure_mode == "output"
+                    else "child did not complete before its deadline")
+        require(str(error) == expected, "descendant control failed outside its intended bound")
+        require(pid_file.is_file(), "descendant did not establish its identity before the failure")
+        descendant = int(pid_file.read_text())
+        require(descendant > 1, "descendant identity is invalid")
+        deadline = time.monotonic() + 3
+        while running(descendant) and time.monotonic() < deadline:
+            time.sleep(0.01)
+        require(not running(descendant), "owned process descendant survived " + failure_mode)
+    finally:
+        if descendant is None and pid_file.is_file():
+            descendant = int(pid_file.read_text())
+        if descendant is not None and descendant > 1 and running(descendant):
+            os.kill(descendant, 9)
+
+
+def test_owned_process_descendant_cleanup():
+    for failure_mode in ("deadline", "output"):
+        descendant_cleanup_case(failure_mode)
+
+
 def test_complete_cold_guard_population():
     root = Path(__file__).resolve().parents[1]
     raw = git(root, ['ls-files', '-z'])
@@ -209,6 +259,7 @@ def test_complete_cold_guard_population():
 if __name__ == '__main__':
     test_root_derivation()
     test_owned_process_transport()
+    test_owned_process_descendant_cleanup()
     test_complete_cold_guard_population()
     print('cold guard integrity: every tracked instrument and declared forbidden root rejected swallowed imports in normal and optimized processes after unmodified controls executed')
     print('scope: guard behavior and its selected subjects; native matching internals and unrelated dependency entry points were not instrumented')
