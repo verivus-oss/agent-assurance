@@ -179,7 +179,7 @@ def descendant_cleanup_case(failure_mode):
     def running(pid):
         try:
             state = Path("/proc/" + str(pid) + "/stat").read_text().rpartition(")")[2].split()[0]
-        except FileNotFoundError:
+        except (FileNotFoundError, ProcessLookupError):
             return False
         return state not in ("Z", "X")
 
