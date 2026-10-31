@@ -9,6 +9,10 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Correct the security posture description to name the required native
+  advisory gate and the retirement of the previous OSV action. Record
+  PR #142's verified repair boundary and issue #141's outstanding cumulative
+  policy requirements without granting approval or changing their scope.
 - Preserve encoded credential detection beside invalid percent escapes, and
   terminate owned child process groups when bounded commands exceed their
   deadline or output limit.

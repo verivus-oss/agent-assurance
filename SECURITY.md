@@ -90,10 +90,10 @@ comment block in `validate.yml`:
 - `ruff` — Python deep linter (security `S` rules, correctness,
   dead-code); defense-in-depth above bandit
 - `bandit` — Python static security analysis of `validators/`
-- `osv-scanner` - CVEs in selected Python locks, Cargo locks and Go module
-  declarations, including declared standard library versions
-  (complements Dependabot: catches transitive and advisory-DB-only
-  entries Dependabot misses)
+- `dagtoml-osv` - the required native advisory gate for derived tracked
+  Python locks, Cargo locks and Go module declarations, including declared
+  standard library versions. It evaluates complete ecosystem archives
+  locally and fails on affected packages or an incomplete evaluation.
 - The native credential gate checks stored blobs throughout reachable Git
   history, including the HEAD tree, merge parents and deletion-only commits.
   Cold controls exercise declared provider candidates, rejected inputs and
@@ -111,14 +111,14 @@ comment block in `validate.yml`:
 Workflow actions are SHA-pinned. Python verification packages use version
 and hash pins; Rust builds use checked-in Cargo.lock files.
 
-The proposed [native advisory evaluator](tools/dagtoml-osv/README.md) consumes
+The required [native advisory evaluator](tools/dagtoml-osv/README.md) consumes
 complete ecosystem archives and performs local typed version comparisons.
-It targets the lock population and protection purpose at
-`82f10ba69328b94e5b831baad5ddc6a0ad9ed2f6`. The existing required OSV
-workflow remains active alongside the native check during validation.
-Dependency and generated-source audits, omission controls and final
-replacement validation remain open; an
-advisory result does not establish whole-repository policy compliance.
+It uses the lock population and protection contract at
+`82f10ba69328b94e5b831baad5ddc6a0ad9ed2f6`. It replaces the previous OSV
+action and its Python lock staging scripts; the legacy action is no longer
+an additional CI control. The component contract records the measured
+source, generated-build, omission and failure controls and their limits.
+An advisory result does not establish whole-repository policy compliance.
 
 The shared JSON codec replaces the wrapper from
 `16d7d85f31a3071d56f4f8c34d99d1800ad5ce73` with explicit syntax validation
@@ -169,6 +169,36 @@ identities bind the session to its build. PostgreSQL receipts require the
 actual lane's cold import/matching guard and retained driver artifacts.
 The server, compiler, other drivers and remaining scanners keep their own
 audit requirements; this client boundary is not a global compliance claim.
+
+## PR #142 completion boundary
+
+[PR #142](https://github.com/verivus-oss/agent-assurance/pull/142) contains
+the authored-consumer replacements and bounded native advisory and database
+paths described above and in their component contracts. Its current
+implementation and successful CI checks do not establish completion of
+[issue #141](https://github.com/verivus-oss/agent-assurance/issues/141).
+
+Independent review at `08954d261a9f777fd90962976640cd0819748c2e` verified
+two repairs: invalid percent escapes preserve neighboring encoded credential
+candidates in direct and history scans; bounded commands terminate their
+owned process group on deadline or output-limit failure while retaining
+the leader until inherited output streams close. These repair units are
+complete within their documented boundaries.
+
+Issue #141 still requires cumulative consumer enumeration, audits and
+behavior-preserving replacement across dependencies, build and test tools,
+and security scanners. The remaining native/compiler, external-driver,
+server and scanner audit requirements retain the separate boundaries
+described above and in [the JSON contract](validators/JSON.md),
+[the native advisory contract](tools/dagtoml-osv/README.md) and
+[the native database contract](tools/dagtoml-duckdb-native-go/README.md).
+Passing component checks and CI does not close those requirements.
+
+PR #142 remains draft and cumulative approval is withheld under the
+current issue scope. This record neither closes issue #141 nor records
+maintainer acceptance of a narrower scope. Any completion or scope decision
+must be explicit before cumulative approval; this documentation correction
+does not authorize further implementation.
 
 ## Disclosure
 

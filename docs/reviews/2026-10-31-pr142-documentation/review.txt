@@ -1,0 +1,89 @@
+PR #142 documentation review record
+Implementation parent: 08954d261a9f777fd90962976640cd0819748c2e
+Reviewed documents: SECURITY.md and CHANGELOG.md.
+Reviewed git diff SHA256: e7e55ea925ea31572d4e96539b1c17513c1da0e71500807d631b027a492b8df6
+Initiator: documentation author; excluded from independent approval.
+Reviewers: two fresh clean-context Codex sessions (fact review and scope review).
+The following full reviewer texts are preserved verbatim. Their approval
+covers only the exact two-document patch, not this record as a new product
+claim, cumulative PR approval, issue #141 closure or any scope waiver.
+
+===== BEGIN fact-review VERBATIM =====
+Independent documentation fact review — PR #142
+Reviewer: fresh clean-context Codex reviewer, independent of the documentation author.
+Review target: the uncommitted SECURITY.md / CHANGELOG.md documentation patch on frozen committed HEAD 08954d261a9f777fd90962976640cd0819748c2e.
+Patch SHA256: e7e55ea925ea31572d4e96539b1c17513c1da0e71500807d631b027a492b8df6.
+
+VERDICT: APPROVE THIS EXACT DOCUMENTATION PATCH ONLY. No actionable file/line/severity blocker established in the bounded patch. This is expressly NOT approval of the whole PR, issue #141 completion, a narrower accepted policy scope, merge readiness, or additional implementation. Keep PR #142 draft and frozen.
+
+Primary evidence and classifications
+1. Current advisory-gate correction: COMPLETE. SECURITY.md:93–96 and :114–121 accurately describe .github/workflows/validate.yml:88–101. That step has set -euo pipefail, native helper preparation/self-check, formatting/lint/test controls, the explicitly selected artifact test, native build and final native evaluation. All tracked workflow files were inspected; no legacy osv-scanner/action invocation remains. The current workflow coverage map names the native evaluator too. tools/dagtoml-osv/README.md:3–10 says the previous OSV action and Python lock staging scripts were retired, and :25–30 states the clean-current-source requirement and affected/incomplete exit statuses. Its later extraction, archive, omission, source/generated-build and dependency-audit sections support the qualified contract reference. The documentation does not assert publisher archive completeness is independently proved, universal parity, or whole-repository compliance. Commit 82f10ba69328b94e5b831baad5ddc6a0ad9ed2f6 resolves locally.
+
+2. Latest bounded repair record: COMPLETE as a documentation statement. Inspected actual implementations and committed regression cases, supplemented by all three independent-08954d2 final reports. validators/_credential_decoding.py:64–79 emits valid prefix intervals and resumes after a rejected escaped byte; View.decode at :164–183 copies untransformed gaps literally. validators/_credential_detection.py:84–118 retains original-source and decoding provenance; _credential_history.py consumes the same scan_bytes routine for stored blobs. test_credential_detection.py:172–193 and test_credential_history.py:82–103 cover direct/history neighbors and identities. validators/_posix_process.py:35 owns the process group, :42–57 defers reaping until inherited streams close, and :61–69 kills the owned group and reaps on unsuccessful paths. test_cold_guard_integrity.py:164–211 exercises exited-leader descendants under deadline/output failure. Independent fix/cumulative reports document actual controls and independently written adversarial probes at the exact cited head. Their limits remain visible: bounded candidate semantics, POSIX owned process groups rather than escape-proof containment, and component-scoped evidence. SECURITY.md:181–186 says complete within documented boundaries, correctly avoiding a universal claim.
+
+3. Scope / completion boundary: COMPLETE. Read current issue #141 directly with the authorized GitHub CLI wrapper running issue view 141 --repo verivus-oss/agent-assurance --json number,title,body,state,url. It remains OPEN. Its Required repair expressly spans authored consumers, dependencies, build/test tools and security scanning; behavior-preserving replacement, tree-derived coverage and cumulative independent review on a frozen candidate are required. Its historical closing paragraph names PR #140; the new prose does not rewrite that history or pretend the issue directly states PR #142 approval. SECURITY.md:157–171 preserves existing estate/scanner/native/server audit obligations; new :188–201 retains them and explicitly withholds cumulative approval, issue closure, narrower-scope acceptance and implementation authorization. validators/JSON.md:49–52 and native database README:117–125 preserve their separate audit/validation boundaries. The independent native report's scope addendum and cumulative report agree that these are existing unresolved completion conditions. Passing CI is not substituted for their resolution.
+
+4. Changelog and citations: COMPLETE. CHANGELOG.md:12–15 records the documentation correction under Unreleased/Changed and accurately describes its repair/scope record. New relative links resolve to tracked existing component contracts; direct read-only GitHub queries resolve the actual PR/issue URLs. The cited repair commit resolves and its six-file repair change matches the described units. No historical dated specification or result is altered. The current PR query confirms isDraft=true and headRefOid=08954d261a9f777fd90962976640cd0819748c2e; returned check runs are completed SUCCESS. This confirms only the current-state wording, not cumulative policy approval.
+
+Validation and process confirmations
+Read AGENTS.md, CONTRIBUTING.md, tools/review-request-dag.toml, and tools/README.md standard slopscan. This is one bounded docs-only review; no product implementation DAG is being approved. The four documentation units above are complete with file/line evidence. Active-user behavior guidance states the actual gate replacement and retained policy limits; no migration is introduced. No dated historical specification is retconned. Standard executable/dependency slopscan is not applicable to this patch: git diff --name-only contains only SECURITY.md and CHANGELOG.md, with no executable, workflow or manifest changes. Existing repair tests were inspected and prior independent execution reports were read; I do not claim to have rerun their tests or reconstructed every broader audit. No native build is needed for the documentation correction.
+
+Fresh executed documentation checks: git diff --check exits 0 with empty diagnostics; current git diff for both files is byte-identical to the captured patch; SHA256 recorded above; exact HEAD and changed-file population asserted; all three local component links exist. Raw output and assertion results are retained externally in final-verification.json. Policy, full source excerpts, all workflow contents, current contracts, independent reports and read-only issue/PR responses are retained verbatim in external raw evidence files. The final state assertions passed. This approval is grounded in those inspected sources and executed documentation checks rather than the initiating author's summary or green CI alone.
+
+Safety / final state
+No checkout content or Git state was changed by this reviewer. Only the authorized external fact-review directory received report/evidence files. No public comment/review/message, PR creation, merge, install, toolchain/workflow change, code edit or additional implementation was performed. The two author-edited documentation files remain uncommitted at the exact reviewed patch. Whole-PR / issue #141 approval remains withheld; PR #142 stays draft.
+
+Read-only command detail: the PR state query ran pr view 142 --repo verivus-oss/agent-assurance --json isDraft,headRefOid,statusCheckRollup through the authorized GitHub CLI wrapper. Other checks used git rev-parse HEAD; git diff --name-only; git diff --check; git diff -- SECURITY.md CHANGELOG.md; git cat-file -t for the two cited commits; and SHA256 over the exact captured patch bytes. All final documentation assertions passed. These commands introduced no source or Git-state mutation.
+
+===== END fact-review VERBATIM =====
+
+===== BEGIN scope-review VERBATIM =====
+Independent documentation scope review — PR #142
+
+Reviewer: fresh Codex/GPT-6 review agent, independent of the documentation author.
+Reviewed implementation HEAD: 08954d261a9f777fd90962976640cd0819748c2e.
+Reviewed artifact: uncommitted SECURITY.md and CHANGELOG.md documentation.patch.
+Exact patch SHA-256: e7e55ea925ea31572d4e96539b1c17513c1da0e71500807d631b027a492b8df6.
+The saved patch and current git diff -- SECURITY.md CHANGELOG.md compared byte-for-byte equal and produced the same SHA-256.
+
+VERDICT
+Unconditional approval of this exact bounded documentation patch only. No actionable documentation findings or concrete blockers remain in this patch. This verdict does not approve PR #142 cumulatively, establish estate no-regex compliance, close issue #141, waive residual requirements, accept a narrower issue scope, or authorize further implementation or merging. Keep PR #142 draft and cumulative approval withheld under the existing issue scope.
+
+UNIT CLASSIFICATION AND EVIDENCE
+1. Correct the advisory-control description — COMPLETE.
+SECURITY.md:93–96 and :114–121 now identify the native required advisory gate and explicitly retire the legacy action as an additional CI control. This agrees with .github/workflows/validate.yml:88–101, which runs the native controls, explicit HTTPS artifact test and native evaluator. Exact inspection of workflow files found native calls rather than the old osv-scanner action. tools/dagtoml-osv/README.md:3–10 documents retirement; :24–29 defines affected/incomplete failure statuses; :34–81 defines derived populations and local archive evaluation. The SHA at SECURITY.md:117 resolves to a commit. The wording retains the distinction between complete archive evaluation within the supported contract and whole-repository policy compliance.
+
+2. Record the verified repair boundary — COMPLETE.
+SECURITY.md:175–186 says the PR contains the component replacements; it does not label the entire PR complete. Its only explicit completion claim is for two bounded repair units at the named frozen SHA.
+I independently read validators/_credential_decoding.py:41–80 and :164–183: the decoder yields preceding valid intervals, retains the invalid escape literally and resumes discovery. I independently read validators/_posix_process.py:35–69: the command owns a group, retains the leader until streams close and kills/reaps on unsuccessful completion. Fresh existing detector/history and focused owned-process checks passed. The prior independent fix review and cumulative review at the same SHA provide broader retained regression evidence, including baseline failures. The documentation accurately attributes independent review rather than implying every dependency or arbitrary descendant escape has been verified.
+
+3. Preserve cumulative policy and authorization boundaries — COMPLETE.
+Primary GitHub issue #141 was independently fetched and remains OPEN. Its Required repair explicitly covers active authored code, dependencies, build/test tools and security scanners, behavior preservation, tree-derived coverage and independent review of the complete frozen cumulative repair. SECURITY.md:188–201 preserves those outstanding requirements and explicitly denies closure, maintainer acceptance of narrower scope and further implementation authorization. Existing SECURITY.md:157–171, validators/JSON.md:49–52, tools/dagtoml-osv/README.md:153–166 and tools/dagtoml-duckdb-native-go/README.md:117–125 substantiate the stated residual boundaries. Passing component checks does not satisfy these conditions. Read-only PR state confirms OPEN, draft=true and the reviewed head SHA.
+Primary links checked: https://github.com/verivus-oss/agent-assurance/issues/141 and https://github.com/verivus-oss/agent-assurance/pull/142. All three new relative component-contract links resolve to tracked existing files.
+
+4. Changelog and active-user guidance — COMPLETE.
+CHANGELOG.md:12–15 accurately records the documentation correction and bounded scope statement under Unreleased. Its adjoining behavior guidance at :16–18 records the credential-neighbor and process-cleanup behavior. No migration action is required by these documentation changes. No historical dated specification is modified: only SECURITY.md and CHANGELOG.md differ. The patch introduces no implementation, manifest, dependency or toolchain change.
+
+CHECKED COMMANDS AND RESULTS
+- git rev-parse HEAD: exact reviewed SHA above.
+- git status --short: only CHANGELOG.md and SECURITY.md modified.
+- sha256sum documentation.patch and git diff -- SECURITY.md CHANGELOG.md | sha256sum: identical exact digest above.
+- cmp documentation.patch <(git diff -- SECURITY.md CHANGELOG.md): exit 0.
+- git diff --check: exit 0.
+- gh-as verivusOSS-releases issue view 141 --repo verivus-oss/agent-assurance --json title,body,state,url: exit 0; primary scope read.
+- gh-as verivusOSS-releases pr view 142 --repo verivus-oss/agent-assurance --json state,isDraft,headRefOid,url: exit 0; OPEN and draft, exact reviewed head.
+- sqry --json encoded_segments validators: exit 0; semantic source lookup retained. An earlier terminate symbol search returned no matches; no absence claim relies on it.
+- timeout 60 python3 -B -S validators/test_credential_detection.py: exit 0; declared accepted/rejected byte controls passed.
+- timeout 60 python3 -B -S validators/test_credential_history.py: exit 0; graph and rejected coverage/integrity controls passed.
+- timeout 20 python3 -B -S -c 'import sys; sys.path.insert(0,"validators"); import test_cold_guard_integrity as t; t.test_owned_process_transport(); t.test_owned_process_descendant_cleanup(); print("focused owned-process controls passed")': exit 0; focused owned-process controls passed.
+- timeout 60 python3 -B -S validators/test_commit_citations.py: exit 0; declared citation/source-data controls passed. Its expected negative argument controls print three missing-path diagnostics; these are not failures.
+- git cat-file -t for the named implementation and advisory-contract commits: both resolve to commit objects.
+- Final git diff --check and patch digest verification: exit 0; same two-file patch.
+
+PROCESS AND LIMITS
+Read AGENTS.md, CONTRIBUTING.md, tools/review-request-dag.toml and the standard-slopscan instructions in tools/README.md. The standard slopscan is not applicable to executable/manifest changes in this two-document patch: there are none. The documentation/source claims and links were inspected explicitly; no claim of a fresh whole-estate slopscan or full cumulative implementation review is made.
+Read the prior independent fix, cumulative and native/advisory reports at this SHA as retained evidence, and checked material documentation claims against source/contracts and primary issue scope. Fresh test outputs are retained separately; earlier reports are not substituted for fresh checks performed here.
+One initial evidence-capture wrapper could not resolve the shell-local gh-as function, and one wrapper reported a carriage-return command error after the detector/history loop. The GitHub captures were rerun through the established login environment; all four focused test invocations themselves recorded exit 0. These capture issues are not represented as product failures or hidden passes.
+No source edits, GitHub writes, installs, rebuilds, compiler/toolchain replacements, new PRs or merges were performed. Evidence and this full verdict are retained separately from the checkout. Repository-convention publication of this verbatim verdict can accompany the separately reviewed documentation change; this reviewer did not modify the checkout.
+
+===== END scope-review VERBATIM =====
