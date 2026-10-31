@@ -9,6 +9,8 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Refresh pinned runner-hardening, CodeQL and Python setup actions while
+  retaining the existing workflow permissions and compiler/runtime versions.
 - Correct the security posture description to name the required native
   advisory gate and the retirement of the previous OSV action. Record
   PR #142's verified repair boundary and issue #141's outstanding cumulative
