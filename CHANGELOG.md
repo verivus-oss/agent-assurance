@@ -9,6 +9,8 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Update unicode-ident to 1.0.27 across the affected Rust lockfiles and the
+  spelling tool's direct pin.
 - Correct the security posture description to name the required native
   advisory gate and the retirement of the previous OSV action. Record
   PR #142's verified repair boundary and issue #141's outstanding cumulative
