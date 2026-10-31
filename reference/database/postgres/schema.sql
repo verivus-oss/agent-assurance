@@ -118,15 +118,19 @@ CREATE TABLE kind_descriptor (
 );
 
 -- One row per declared entity kind. 17 core + 6 profile = 23 rows expected.
--- id_prefix_pattern is a Python regex (e.g., 'REQ', 'U\d+[a-z]?', 'A\d+').
+-- Entity identifiers use either a fixed colon prefix or a typed decimal shape.
 CREATE TABLE entity_kind_descriptor (
     entity_kind        TEXT PRIMARY KEY,
-    id_prefix_pattern  TEXT NOT NULL,
+    id_prefix          TEXT,
+    id_decimal_prefix  TEXT,
+    id_optional_lower_suffix BOOLEAN NOT NULL DEFAULT FALSE,
     layer              spec_layer NOT NULL,
     defining_kind      TEXT NOT NULL REFERENCES kind_descriptor(template_kind),
     ijb_primitive      ijb_primitive NOT NULL,  -- 'thing' for all 23
     ijb_class          ijb_class     NOT NULL,  -- 'structural' for all 23
-    description        TEXT
+    description        TEXT,
+    CHECK ((id_prefix IS NULL) <> (id_decimal_prefix IS NULL)),
+    CHECK (NOT id_optional_lower_suffix OR id_decimal_prefix IS NOT NULL)
 );
 
 -- One row per relation predicate. 30 rows expected (one per [[relations]]
@@ -211,7 +215,7 @@ CREATE TABLE provenance (
     source_description  TEXT,                                -- advisory
     extras              JSONB NOT NULL DEFAULT '{}'::jsonb,
 
-    CONSTRAINT provenance_sha_form CHECK (source_sha256 ~ '^sha256:[0-9a-f]{64}$'),
+    CONSTRAINT provenance_sha_form CHECK (length(source_sha256) = 71 AND left(source_sha256, 7) = 'sha256:' AND translate(substr(source_sha256, 8), '0123456789abcdef', '') = ''),
     CONSTRAINT provenance_bytes_nonneg CHECK (source_bytes >= 0)
 );
 
@@ -219,7 +223,7 @@ CREATE TABLE provenance (
 CREATE TABLE entity (
     id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     qualified_id       TEXT NOT NULL,                       -- e.g., 'REQ:auth-001', 'U1', 'ART:x'
-    prefix             TEXT NOT NULL,                       -- extracted prefix or full id for regex-keyed kinds
+    prefix             TEXT NOT NULL,                       -- extracted prefix or full ID for decimal ID kinds
     entity_kind        TEXT NOT NULL REFERENCES entity_kind_descriptor(entity_kind),
     declared_in        UUID NOT NULL REFERENCES instance_file(id) ON DELETE CASCADE,
     ijb_primitive      ijb_primitive NOT NULL DEFAULT 'thing',
@@ -442,7 +446,7 @@ WHERE r.target_entity_id IS NULL
 -- Document-owned projections, not ontology entities. Raw TOML remains exact.
 CREATE TABLE reference_contract (
     singleton_id INTEGER PRIMARY KEY CHECK (singleton_id = 1),
-    contract_bundle_sha256 TEXT NOT NULL UNIQUE CHECK (length(contract_bundle_sha256) = 64 AND contract_bundle_sha256 ~ '^[0-9a-f]{64}$'),
+    contract_bundle_sha256 TEXT NOT NULL UNIQUE CHECK (length(contract_bundle_sha256) = 64 AND translate(contract_bundle_sha256, '0123456789abcdef', '') = ''),
     projection_version INTEGER NOT NULL CHECK (projection_version = 1)
 );
 

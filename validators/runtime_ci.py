@@ -2,18 +2,17 @@
 """Build validator and syscall instruments, then execute the required gates."""
 
 import os
-from pathlib import Path
+from _literal_path import Path
 import sys
-import tarfile
-import uuid
+from _random_id import random_id_hex
 
 import _toml11 as toml
-from database_ci import download, run
+from database_ci import download, extract_source, run
 
 
 def main():
     root = Path(__file__).resolve().parents[1]
-    work = root / ".local/runtime-ci" / uuid.uuid4().hex
+    work = root / ".local/runtime-ci" / random_id_hex()
     work.mkdir(parents=True)
     (work / "scratch").mkdir()
     env = {**os.environ, "TMPDIR": str(work / "scratch"), "GOCACHE": str(work / "go-cache"),
@@ -23,8 +22,7 @@ def main():
     download(lock["source_url"], lock["source_sha256"], archive)
     source = work / "strace-source"
     source.mkdir()
-    with tarfile.open(archive) as contents:
-        contents.extractall(source, filter="data")
+    extract_source(archive, source)
     directories = list(source.iterdir())
     if len(directories) != 1 or not directories[0].is_dir():
         raise ValueError("unexpected pinned strace source layout")

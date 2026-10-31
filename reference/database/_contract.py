@@ -1,7 +1,8 @@
 """Non-normative storage mapping and immutable validation-bundle identity."""
 
+from _path_scan import glob as literal_glob
 import hashlib
-from pathlib import Path
+from _path_scan import Path
 import struct
 import sys
 
@@ -91,11 +92,15 @@ def bundle_entries(root: Path) -> dict[str, str]:
         "foundations/ijb/canonical-assertion-grammar.md", "reference/database/vocabulary-storage.toml",
         "requirements/toml.txt", "requirements/database.txt",
         "reference/database/engine-lock.toml",
+        "tools/dagtoml-postgres-go/go.mod", "tools/dagtoml-postgres-go/go.sum",
+        "tools/dagtoml-duckdb-native-go/go.mod",
     )}
     for pattern in ("profiles/*/ontology.toml", "core/*-kind.toml", "profiles/*/*-kind.toml",
                     "profiles/*/PROFILE.toml", "validators/**/*.py", "reference/database/**/*.py",
-                    "requirements/database*.txt"):
-        paths.update(root.glob(pattern))
+                    "requirements/database*.txt", "tools/dagtoml-postgres-go/**/*.go",
+                    "tools/dagtoml-duckdb-native-go/**/*.go", "tools/dagtoml-duckdb-native-go/**/*.json",
+                    "tools/dagtoml-duckdb-native-go/**/*.md"):
+        paths.update(literal_glob(root, pattern))
     entries = {}
     for path in paths:
         relative = path.relative_to(root).as_posix()
@@ -127,10 +132,10 @@ def artifact_hashes(root: Path) -> dict[str, str]:
 
 def expected_counts(root: Path) -> dict[str, int]:
     catalog = load_catalog(root)
-    ontologies = [root / "core/ontology.toml", *sorted(root.glob("profiles/*/ontology.toml"))]
+    ontologies = [root / "core/ontology.toml", *sorted(literal_glob(root, "profiles/*/ontology.toml"))]
     docs = [toml.loads_bytes(path.read_bytes()) for path in ontologies]
     return dict(zip(REGISTRY_TABLES, (
-        1 + len(list(root.glob("core/*-kind.toml"))) + len(list(root.glob("profiles/*/*-kind.toml"))),
+        1 + len(list(literal_glob(root, "core/*-kind.toml"))) + len(list(literal_glob(root, "profiles/*/*-kind.toml"))),
         sum(len(doc.get("entities", [])) for doc in docs),
         sum(len(doc.get("relations", [])) for doc in docs),
         len(catalog), sum(len(item.values) for item in catalog.values()),

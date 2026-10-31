@@ -1,0 +1,22 @@
+[package]
+name = "dagtoml-osv"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+license = "Apache-2.0"
+description = "Exact locked-package extraction and local OSV advisory evaluation"
+
+[dependencies]
+sha2 = { version = "=0.11.0", default-features = false }
+toml = { version = "=1.1.5", default-features = false, features = ["parse", "serde"] }
+serde = { version = "=1.0.229", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "=1.0.154", default-features = false, features = ["std"] }
+pep440_rs = { version = "=0.7.3", default-features = false }
+semver = { version = "=1.0.28", default-features = false, features = ["std"] }
+flate2 = { version = "=1.1.10", default-features = false, features = ["rust_backend"] }
+crc32fast = "=1.5.3"
+rustix = { version = "=1.1.5", default-features = false, features = ["std", "fs", "process"] }
+
+[build-dependencies]
+sha2 = { version = "=0.11.0", default-features = false }

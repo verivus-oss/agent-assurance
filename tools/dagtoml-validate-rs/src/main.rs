@@ -7,9 +7,9 @@
 //! as a build break.
 //!
 //! Safety posture: this crate sets `#![forbid(unsafe_code)]` and has no
-//! FFI (enforced by `validators/check_safe_tools.sh`). Transitive parser
-//! dependencies - the widely-vetted `toml`/`toml_parser`/`winnow` and
-//! `serde` crates - may use `unsafe` internally; that is out of scope of
+//! FFI (enforced by `validators/check_safe_tools.py`). Transitive parser
+//! dependencies — the widely-vetted `toml`/`toml_parser`/`winnow` and
+//! `serde` crates — may use `unsafe` internally; that is out of scope of
 //! the safe-tools policy, which governs the code WE write, not our deps.
 
 #![forbid(unsafe_code)]
@@ -186,7 +186,7 @@ fn toml_error_details(raw: &[u8], message: &str, span: Option<std::ops::Range<us
         _ => "byte span unavailable".to_string(),
     };
     format!(
-        "{} (source sha256 {}, {})",
+        "{} (source sha256:{}, {})",
         message,
         digest_hex("sha256", raw),
         location
@@ -213,6 +213,185 @@ mod toml_error_tests {
         assert!(!details.contains("column "));
         assert!(!details.contains("count = @"));
     }
+}
+
+fn missing_candidate(path: &Path) -> Result<(), String> {
+    for (depth, ancestor) in path.ancestors().enumerate() {
+        match std::fs::symlink_metadata(ancestor) {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                let target = std::fs::metadata(ancestor).map_err(|error| {
+                    let kind = if depth == 0 { "candidate" } else { "directory" };
+                    format!("{}: dangling discovery {kind}: {error}", ancestor.display())
+                })?;
+                if depth > 0 && !target.is_dir() {
+                    return Err(format!(
+                        "{}: discovery parent is not a directory",
+                        ancestor.display()
+                    ));
+                }
+            }
+            Ok(meta) if depth > 0 && !meta.is_dir() => {
+                return Err(format!(
+                    "{}: discovery parent is not a directory",
+                    ancestor.display()
+                ));
+            }
+            Ok(_) if depth == 0 => {
+                return Err(format!(
+                    "{}: discovery candidate changed during inspection",
+                    path.display()
+                ));
+            }
+            Ok(_) => (),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+            Err(error) => {
+                return Err(format!(
+                    "{}: candidate inspection failed: {error}",
+                    ancestor.display()
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn candidate_file(path: &Path) -> Result<bool, String> {
+    match std::fs::metadata(path) {
+        Ok(meta) if meta.is_file() => Ok(true),
+        Ok(_) => Err(format!(
+            "{}: discovery candidate is not a regular file",
+            path.display()
+        )),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            missing_candidate(path)?;
+            Ok(false)
+        }
+        Err(error) => Err(format!(
+            "{}: candidate inspection failed: {error}",
+            path.display()
+        )),
+    }
+}
+
+fn candidate_directory(path: &Path) -> Result<bool, String> {
+    match std::fs::metadata(path) {
+        Ok(meta) => Ok(meta.is_dir()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            missing_candidate(path)?;
+            Ok(false)
+        }
+        Err(error) => Err(format!(
+            "{}: directory inspection failed: {error}",
+            path.display()
+        )),
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn load_accepts_valid_toml_and_reports_parse_failure_without_source_coordinates() {
+    let path = std::env::temp_dir().join(format!(
+        "dagtoml-invalid-{}-{:?}.toml",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    std::fs::write(&path, b"valid = 1\n").expect("write valid TOML");
+    let valid = load(&path).expect("valid TOML must load");
+    assert_eq!(valid.get("valid").and_then(Value::as_integer), Some(1));
+    std::fs::write(&path, b"broken = [\n").expect("write malformed TOML");
+    let error = load(&path).expect_err("malformed TOML must fail");
+    std::fs::remove_file(&path).expect("remove test input");
+    assert!(error.contains("TOML parse failed"), "{error}");
+    assert!(
+        error.contains("sha256:663eb4e5c398fe1ebb16c3d167d0d00027440ff6521dab9f063cd06d476d0dc4"),
+        "{error}"
+    );
+    assert!(!error.contains("line "), "{error}");
+    assert!(!error.contains("column "), "{error}");
+}
+
+#[cfg(test)]
+#[test]
+fn profile_discovery_reports_malformed_candidates() {
+    let root = std::env::temp_dir().join(format!(
+        "dagtoml-profiles-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    let valid = root.join("profiles/valid/PROFILE.toml");
+    let malformed = root.join("profiles/malformed/PROFILE.toml");
+    std::fs::create_dir_all(valid.parent().expect("valid parent")).expect("create valid dir");
+    std::fs::create_dir_all(malformed.parent().expect("malformed parent"))
+        .expect("create malformed dir");
+    std::fs::write(
+        &valid,
+        b"[meta]\ntemplate_kind = 'profile-descriptor'\n[profile]\nname = 'valid'\n",
+    )
+    .expect("write valid profile");
+    std::fs::write(&malformed, b"broken = [\n").expect("write malformed profile");
+    let (descriptors, errors) = profile::discover(&root);
+    assert!(
+        descriptors.contains_key("valid"),
+        "valid profile was skipped"
+    );
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    assert!(errors[0].contains("TOML parse failed"), "{errors:?}");
+    #[cfg(unix)]
+    {
+        std::fs::remove_file(&malformed).expect("remove malformed profile");
+        std::os::unix::fs::symlink("missing-profile.toml", &malformed)
+            .expect("create dangling profile");
+        let (_, errors) = profile::discover(&root);
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert!(
+            errors[0].contains("dangling discovery candidate"),
+            "{errors:?}"
+        );
+        std::fs::write(root.join("profiles/README.md"), b"notes\n")
+            .expect("write unrelated profile file");
+        std::os::unix::fs::symlink("missing-directory", root.join("profiles/ghost"))
+            .expect("create dangling profile directory");
+        let (descriptors, errors) = profile::discover(&root);
+        assert!(descriptors.contains_key("valid"));
+        assert_eq!(errors.len(), 2, "{errors:?}");
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("dangling discovery candidate"))
+        );
+    }
+    std::fs::remove_dir_all(&root).expect("remove test profiles");
+}
+
+#[cfg(all(test, unix))]
+#[test]
+fn candidate_predicates_reject_dangling_ancestors() {
+    let root = std::env::temp_dir().join(format!(
+        "dagtoml-ancestor-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    std::fs::create_dir_all(&root).expect("create root");
+    let bridge = root.join("bridge");
+    std::os::unix::fs::symlink("missing-directory", &bridge).expect("create dangling bridge");
+    for candidate in [bridge.join("subdir"), bridge.join("subdir/file.toml")] {
+        assert!(
+            candidate_directory(&candidate)
+                .expect_err("nested dangling directory must fail")
+                .contains("dangling discovery directory")
+        );
+        assert!(
+            candidate_file(&candidate)
+                .expect_err("nested dangling file must fail")
+                .contains("dangling discovery directory")
+        );
+    }
+    std::fs::remove_file(&bridge).expect("remove dangling bridge");
+    std::fs::create_dir(root.join("real")).expect("create real directory");
+    std::os::unix::fs::symlink("real", &bridge).expect("create live bridge");
+    assert_eq!(candidate_directory(&bridge), Ok(true));
+    assert_eq!(candidate_file(&bridge.join("missing.toml")), Ok(false));
+    std::fs::remove_dir_all(&root).expect("remove test root");
 }
 
 fn is_semver(s: &str) -> bool {
@@ -528,9 +707,38 @@ mod ijb {
             if let Some(t) = block.as_table() {
                 let label = t
                     .get("id_prefix")
-                    .or_else(|| t.get("id_pattern"))
+                    .or_else(|| t.get("id_decimal_prefix"))
                     .and_then(Value::as_str)
                     .unwrap_or("?");
+                if t.contains_key("id_pattern") {
+                    errors.push(format!(
+                        "{}:entities[{idx}]: id_pattern is unsupported; use a typed decimal identifier declaration",
+                        source.display()
+                    ));
+                }
+                let colon_present = t.contains_key("id_prefix");
+                let decimal_present = t.contains_key("id_decimal_prefix");
+                let colon_prefix = t.get("id_prefix").and_then(Value::as_str);
+                let decimal_prefix = t.get("id_decimal_prefix").and_then(Value::as_str);
+                if colon_present == decimal_present
+                    || (colon_present
+                        && colon_prefix.is_none_or(|value| !looks_upper_prefix(value)))
+                    || (decimal_present
+                        && decimal_prefix.is_none_or(|value| !looks_upper_prefix(value)))
+                {
+                    errors.push(format!(
+                        "{}:entities[{idx}]: declare exactly one uppercase ASCII id_prefix or id_decimal_prefix",
+                        source.display()
+                    ));
+                }
+                if let Some(suffix) = t.get("id_optional_lower_suffix") {
+                    if !suffix.is_bool() || !decimal_present {
+                        errors.push(format!(
+                            "{}:entities[{idx}]: id_optional_lower_suffix requires a boolean and id_decimal_prefix",
+                            source.display()
+                        ));
+                    }
+                }
                 errors.extend(primitive_class(
                     t,
                     &format!("{}:entities[{idx}] ({label})", source.display()),
@@ -741,14 +949,16 @@ mod ijb {
         }
     }
 
-    fn matches_id_pattern(pattern: &str, value: &str) -> bool {
-        let Some((prefix, rest)) = pattern.split_once("\\d+") else {
-            return value == pattern;
-        };
-        if !value.starts_with(prefix) {
+    struct DecimalIDShape {
+        prefix: String,
+        optional_lower_suffix: bool,
+    }
+
+    fn matches_decimal_id(shape: &DecimalIDShape, value: &str) -> bool {
+        if !value.starts_with(&shape.prefix) {
             return false;
         }
-        let suffix = &value[prefix.len()..];
+        let suffix = &value[shape.prefix.len()..];
         if suffix.is_empty() {
             return false;
         }
@@ -757,20 +967,36 @@ mod ijb {
             return false;
         }
         let after_digits = &suffix[digit_count..];
-        match rest {
-            "" => after_digits.is_empty(),
-            "[a-z]?" => {
-                after_digits.is_empty()
-                    || (after_digits.len() == 1
-                        && after_digits.chars().all(|c| c.is_ascii_lowercase()))
-            }
-            _ => false,
+        after_digits.is_empty()
+            || (shape.optional_lower_suffix
+                && after_digits.len() == 1
+                && after_digits.chars().all(|c| c.is_ascii_lowercase()))
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn decimal_id_shapes_accept_and_reject_boundaries() {
+        let unit = DecimalIDShape {
+            prefix: "U".to_string(),
+            optional_lower_suffix: true,
+        };
+        let artifact = DecimalIDShape {
+            prefix: "A".to_string(),
+            optional_lower_suffix: false,
+        };
+        for value in ["U0", "U01", "U01a"] {
+            assert!(matches_decimal_id(&unit, value), "{value}");
         }
+        for value in ["U", "U01A", "U01aa", "U-1", "X01", "U١"] {
+            assert!(!matches_decimal_id(&unit, value), "{value}");
+        }
+        assert!(matches_decimal_id(&artifact, "A12"));
+        assert!(!matches_decimal_id(&artifact, "A12a"));
     }
 
     fn build_resolver(
         ontologies: &[(PathBuf, Value)],
-    ) -> (BTreeSet<String>, Vec<String>, BTreeSet<String>) {
+    ) -> (BTreeSet<String>, Vec<DecimalIDShape>, BTreeSet<String>) {
         let mut prefixes = BTreeSet::new();
         let mut patterns = Vec::new();
         let mut predicates = BTreeSet::new();
@@ -780,8 +1006,14 @@ mod ijb {
                     if let Some(prefix) = t.get("id_prefix").and_then(Value::as_str) {
                         prefixes.insert(prefix.to_string());
                     }
-                    if let Some(pattern) = t.get("id_pattern").and_then(Value::as_str) {
-                        patterns.push(pattern.to_string());
+                    if let Some(prefix) = t.get("id_decimal_prefix").and_then(Value::as_str) {
+                        patterns.push(DecimalIDShape {
+                            prefix: prefix.to_string(),
+                            optional_lower_suffix: t
+                                .get("id_optional_lower_suffix")
+                                .and_then(Value::as_bool)
+                                .unwrap_or(false),
+                        });
                     }
                 }
             }
@@ -810,7 +1042,7 @@ mod ijb {
     fn check_entity_ref(
         token: &str,
         prefixes: &BTreeSet<String>,
-        patterns: &[String],
+        patterns: &[DecimalIDShape],
     ) -> Option<String> {
         if let Some((prefix, _)) = token.split_once(':') {
             if !looks_upper_prefix(prefix) {
@@ -825,7 +1057,7 @@ mod ijb {
         }
         if patterns
             .iter()
-            .any(|pattern| matches_id_pattern(pattern, token))
+            .any(|pattern| matches_decimal_id(pattern, token))
         {
             return None;
         }
@@ -837,7 +1069,7 @@ mod ijb {
         parent_key: &str,
         path: &str,
         prefixes: &BTreeSet<String>,
-        patterns: &[String],
+        patterns: &[DecimalIDShape],
         predicates: &BTreeSet<String>,
         errors: &mut Vec<String>,
     ) {
@@ -880,18 +1112,12 @@ mod ijb {
         let mut errors = Vec::new();
         let mut ontologies = Vec::new();
         let core_path = repo_root.join("core/ontology.toml");
-        match std::fs::read_to_string(&core_path)
-            .ok()
-            .and_then(|raw| toml::from_str::<Value>(&raw).ok())
-        {
-            Some(core) => {
+        match super::load(&core_path) {
+            Ok(core) => {
                 errors.extend(validate_ontology(&core_path, &core));
                 ontologies.push((core_path, core));
             }
-            None => errors.push(format!(
-                "core ontology not found or unparsable at {}",
-                core_path.display()
-            )),
+            Err(error) => errors.push(error),
         }
         if let Some(fp) = table(doc, "meta")
             .and_then(|m| m.get("framework_profile"))
@@ -902,18 +1128,12 @@ mod ijb {
                 .join("profiles")
                 .join(profile)
                 .join("ontology.toml");
-            match std::fs::read_to_string(&profile_path)
-                .ok()
-                .and_then(|raw| toml::from_str::<Value>(&raw).ok())
-            {
-                Some(profile_doc) => {
+            match super::load(&profile_path) {
+                Ok(profile_doc) => {
                     errors.extend(validate_ontology(&profile_path, &profile_doc));
                     ontologies.push((profile_path, profile_doc));
                 }
-                None => errors.push(format!(
-                    "framework_profile = \"{fp}\" but profile ontology not found or unparsable at {}",
-                    profile_path.display()
-                )),
+                Err(error) => errors.push(format!("framework_profile = \"{fp}\": {error}")),
             }
         }
         if !errors.is_empty() {
@@ -925,10 +1145,10 @@ mod ijb {
             for unit_id in units.keys() {
                 if !patterns
                     .iter()
-                    .any(|pattern| matches_id_pattern(pattern, unit_id))
+                    .any(|pattern| matches_decimal_id(pattern, unit_id))
                 {
                     errors.push(format!(
-                        "units.{unit_id}: identifier does not match any declared entity `id_pattern` in the loaded ontologies"
+                        "units.{unit_id}: identifier does not match any declared decimal entity ID shape in the loaded ontologies"
                     ));
                 }
             }
@@ -988,7 +1208,7 @@ fn validate_provenance_binding(path: &Path, doc: &Value, repo_root: &Path) -> Ve
     };
     // SPEC §11: source_path MUST be relative and resolve to a file under
     // repo root. Reject absolute paths and any path that escapes via `..`
-    // or a symlink - otherwise an attestation could bind its provenance
+    // or a symlink — otherwise an attestation could bind its provenance
     // digest to a file outside the repo (e.g. "../../etc/passwd") and the
     // binding would be meaningless. The Python reference
     // (validators/validate_provenance.py) enforces this; a *primary*
@@ -3292,8 +3512,8 @@ mod profile {
         errors
     }
 
-    /// Discover profile descriptors; also report duplicate profile
-    /// names. A duplicate would let one descriptor shadow another in
+    /// Discover profile descriptors; report every discovery error. A duplicate
+    /// would let one descriptor shadow another in
     /// the name-keyed map and silently erase its closure pins, so the
     /// caller MUST refuse to validate anything when duplicates exist
     /// (SPEC 12.8.1 pin resolution: no pin-free fall-through).
@@ -3304,7 +3524,10 @@ mod profile {
         let entries = match std::fs::read_dir(&dir) {
             Ok(entries) => entries,
             Err(error) => {
-                discovery_errors.push(format!("{}: cannot enumerate profiles: {error}", dir.display()));
+                discovery_errors.push(format!(
+                    "{}: cannot enumerate profiles: {error}",
+                    dir.display()
+                ));
                 return (out, discovery_errors);
             }
         };
@@ -3312,7 +3535,10 @@ mod profile {
             let entry = match entry {
                 Ok(entry) => entry,
                 Err(error) => {
-                    discovery_errors.push(format!("{}: cannot inspect profile entry: {error}", dir.display()));
+                    discovery_errors.push(format!(
+                        "{}: cannot inspect profile entry: {error}",
+                        dir.display()
+                    ));
                     continue;
                 }
             };
@@ -3320,7 +3546,10 @@ mod profile {
             let file_type = match entry.file_type() {
                 Ok(file_type) => file_type,
                 Err(error) => {
-                    discovery_errors.push(format!("{}: cannot inspect profile entry: {error}", entry_path.display()));
+                    discovery_errors.push(format!(
+                        "{}: cannot inspect profile entry: {error}",
+                        entry_path.display()
+                    ));
                     continue;
                 }
             };
@@ -3328,11 +3557,17 @@ mod profile {
                 match std::fs::metadata(&entry_path) {
                     Ok(metadata) if metadata.is_dir() => {}
                     Ok(_) => {
-                        discovery_errors.push(format!("{}: profile link does not target a directory", entry_path.display()));
+                        discovery_errors.push(format!(
+                            "{}: profile link does not target a directory",
+                            entry_path.display()
+                        ));
                         continue;
                     }
                     Err(error) => {
-                        discovery_errors.push(format!("{}: cannot follow profile directory link: {error}", entry_path.display()));
+                        discovery_errors.push(format!(
+                            "{}: cannot follow profile directory link: {error}",
+                            entry_path.display()
+                        ));
                         continue;
                     }
                 }
@@ -3342,13 +3577,26 @@ mod profile {
             let candidate = entry.path().join("PROFILE.toml");
             match candidate.symlink_metadata() {
                 Ok(_) if candidate.is_file() => {}
+                Ok(metadata) if metadata.file_type().is_symlink() && !candidate.exists() => {
+                    discovery_errors.push(format!(
+                        "{}: dangling discovery candidate",
+                        candidate.display()
+                    ));
+                    continue;
+                }
                 Ok(_) => {
-                    discovery_errors.push(format!("{}: profile descriptor is not a regular file", candidate.display()));
+                    discovery_errors.push(format!(
+                        "{}: profile descriptor is not a regular file",
+                        candidate.display()
+                    ));
                     continue;
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
                 Err(error) => {
-                    discovery_errors.push(format!("{}: cannot inspect profile descriptor: {error}", candidate.display()));
+                    discovery_errors.push(format!(
+                        "{}: cannot inspect profile descriptor: {error}",
+                        candidate.display()
+                    ));
                     continue;
                 }
             }
@@ -3365,7 +3613,10 @@ mod profile {
                 .and_then(|x| x.as_str())
                 .unwrap_or("");
             if tk != "profile-descriptor" {
-                discovery_errors.push(format!("{}: expected a profile-descriptor declaration", candidate.display()));
+                discovery_errors.push(format!(
+                    "{}: expected a profile-descriptor declaration",
+                    candidate.display()
+                ));
                 continue;
             }
             let name = doc
@@ -3374,7 +3625,10 @@ mod profile {
                 .and_then(|x| x.as_str())
                 .filter(|name| !name.is_empty());
             let Some(name) = name else {
-                discovery_errors.push(format!("{}: [profile].name must be a nonempty string", candidate.display()));
+                discovery_errors.push(format!(
+                    "{}: [profile].name must be a nonempty string",
+                    candidate.display()
+                ));
                 continue;
             };
             if let Some((existing, _)) = out.get(name) {
@@ -3499,19 +3753,30 @@ mod profile {
         repo_root: &Path,
         slug: &str,
         profile_name: &str,
-    ) -> Vec<PathBuf> {
+    ) -> Result<Vec<PathBuf>, String> {
         let fname = format!("{}-kind.toml", slug);
         let mut out: Vec<PathBuf> = vec![
             repo_root.join("profiles").join(profile_name).join(&fname),
             repo_root.join("core").join(&fname),
         ];
-        if let Ok(entries) = std::fs::read_dir(repo_root.join("profiles")) {
-            for entry in entries.flatten() {
-                // Path::is_dir follows symlinks (DirEntry::file_type does
-                // not), matching the Python candidate enumeration.
-                if entry.path().is_dir() {
-                    out.push(entry.path().join(&fname));
-                }
+        let profile_root = repo_root.join("profiles");
+        if !candidate_directory(&profile_root)? {
+            return Err(format!(
+                "{}: kind discovery directory is missing",
+                profile_root.display()
+            ));
+        }
+        let entries = std::fs::read_dir(&profile_root).map_err(|error| {
+            format!("{}: kind discovery failed: {error}", profile_root.display())
+        })?;
+        for entry in entries {
+            let entry = entry.map_err(|error| {
+                format!("{}: kind discovery failed: {error}", profile_root.display())
+            })?;
+            // Path::is_dir follows symlinks (DirEntry::file_type does
+            // not), matching the Python candidate enumeration.
+            if candidate_directory(&entry.path())? {
+                out.push(entry.path().join(&fname));
             }
         }
         // dedupe preserving order
@@ -3523,7 +3788,50 @@ mod profile {
                 deduped.push(p);
             }
         }
-        deduped
+        Ok(deduped)
+    }
+
+    #[cfg(test)]
+    #[test]
+    fn kind_discovery_requires_readable_profile_directory() {
+        let root = std::env::temp_dir().join(format!(
+            "dagtoml-kinds-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let profiles = root.join("profiles");
+        std::fs::create_dir_all(profiles.join("valid")).expect("create profile directory");
+        let candidates = kind_descriptor_candidates(&root, "foo", "valid")
+            .expect("profile directory must be readable");
+        assert!(candidates.contains(&profiles.join("valid/foo-kind.toml")));
+        #[cfg(unix)]
+        {
+            let real = profiles.join("valid/real.toml");
+            let candidate = profiles.join("valid/foo-kind.toml");
+            std::fs::write(&real, b"valid = 1\n").expect("write real kind file");
+            std::os::unix::fs::symlink("real.toml", &candidate).expect("create live kind link");
+            assert_eq!(candidate_file(&candidate), Ok(true));
+            std::fs::remove_file(&candidate).expect("remove live kind link");
+            std::os::unix::fs::symlink("missing-kind.toml", &candidate)
+                .expect("create dangling kind link");
+            let error = candidate_file(&candidate).expect_err("dangling kind must fail");
+            assert!(error.contains("dangling discovery candidate"), "{error}");
+        }
+        std::fs::remove_dir_all(&root).expect("remove test directory");
+        let error = kind_descriptor_candidates(&root, "foo", "valid")
+            .expect_err("missing profile directory must fail");
+        assert!(error.contains("kind discovery"), "{error}");
+        std::fs::create_dir_all(&root).expect("recreate test root");
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink("missing-profiles", &profiles)
+                .expect("create dangling profile directory");
+            let error = kind_descriptor_candidates(&root, "foo", "valid")
+                .expect_err("dangling profile directory must fail");
+            assert!(error.contains("dangling discovery candidate"), "{error}");
+            std::fs::remove_file(&profiles).expect("remove dangling directory");
+        }
+        std::fs::remove_dir_all(&root).expect("remove test root");
     }
 
     pub fn validate_one(
@@ -3671,26 +3979,40 @@ mod profile {
                     ));
                     continue;
                 };
-                let candidates = kind_descriptor_candidates(repo_root, slug, name);
-                let mut matched = false;
-                for c in &candidates {
-                    if !c.is_file() {
+                let candidates = match kind_descriptor_candidates(repo_root, slug, name) {
+                    Ok(candidates) => candidates,
+                    Err(error) => {
+                        errors.push(error);
                         continue;
                     }
-                    if let Ok(kd) = load(c) {
-                        let m = kd.get("meta").and_then(|x| x.as_table());
-                        let tk = m
-                            .and_then(|t| t.get("template_kind"))
-                            .and_then(|x| x.as_str())
-                            .unwrap_or("");
-                        let dk = m
-                            .and_then(|t| t.get("describes_kind"))
-                            .and_then(|x| x.as_str())
-                            .unwrap_or("");
-                        if tk == "kind-descriptor" && dk == slug {
-                            matched = true;
-                            break;
+                };
+                let mut matched = false;
+                for c in &candidates {
+                    match candidate_file(c) {
+                        Ok(true) => {}
+                        Ok(false) => continue,
+                        Err(error) => {
+                            errors.push(error);
+                            continue;
                         }
+                    }
+                    match load(c) {
+                        Ok(kd) => {
+                            let m = kd.get("meta").and_then(|x| x.as_table());
+                            let tk = m
+                                .and_then(|t| t.get("template_kind"))
+                                .and_then(|x| x.as_str())
+                                .unwrap_or("");
+                            let dk = m
+                                .and_then(|t| t.get("describes_kind"))
+                                .and_then(|x| x.as_str())
+                                .unwrap_or("");
+                            if tk == "kind-descriptor" && dk == slug {
+                                matched = true;
+                                break;
+                            }
+                        }
+                        Err(error) => errors.push(error),
                     }
                 }
                 if !matched {
@@ -5275,7 +5597,7 @@ mod gate_decision {
 }
 
 // ------------------------------------------------------------
-// Meta-field checks (§2.2 + §2.6 + §2.7) - applied to every doc with [meta]
+// Meta-field checks (§2.2 + §2.6 + §2.7) — applied to every doc with [meta]
 // ------------------------------------------------------------
 
 const CONFIDENTIALITY: &[&str] = &[
@@ -5311,7 +5633,7 @@ fn validate_meta_fields(path: &Path, doc: &Value) -> Vec<String> {
     }
 
     if let Some(docs_url) = meta.get("docs").and_then(|x| x.as_str()) {
-        // §2.6 - https only, no query string
+        // §2.6 — https only, no query string
         if !docs_url.starts_with("https://") {
             errors.push(format!(
                 "{}: [meta].docs must start with `https://` (SPEC §2.6)",
@@ -5389,7 +5711,7 @@ fn validate_meta_fields(path: &Path, doc: &Value) -> Vec<String> {
     errors
 }
 
-// SPEC §2.7 - accept either:
+// SPEC §2.7 — accept either:
 //   YYYY-MM-DD                                (full-date)
 //   YYYY-MM-DDTHH:MM:SS[.fff][Z|±HH:MM]       (full date-time)
 // The check is syntactic only; the validator does NOT compare against
@@ -5476,7 +5798,7 @@ fn validate_provenance_encryption(path: &Path, doc: &Value) -> Vec<String> {
     match enc.get("sealed").and_then(|x| x.as_bool()) {
         Some(true) => {}
         Some(false) => errors.push(format!(
-            "{}: [provenance.encryption] is present but `sealed = false` - SPEC §11.1 requires the sub-table to be absent in that case",
+            "{}: [provenance.encryption] is present but `sealed = false` — SPEC §11.1 requires the sub-table to be absent in that case",
             path.display()
         )),
         None => errors.push(format!(
@@ -5497,7 +5819,7 @@ fn validate_provenance_encryption(path: &Path, doc: &Value) -> Vec<String> {
             path.display()
         )),
     }
-    // SPEC §11.1 - `scheme_hint` is OPTIONAL but, when present, MUST
+    // SPEC §11.1 — `scheme_hint` is OPTIONAL but, when present, MUST
     // be a string (free-form label).
     if let Some(v) = enc.get("scheme_hint") {
         if v.as_str().is_none() {
@@ -5875,7 +6197,7 @@ fn validate_framework_profile(
         name
     };
 
-    // 1. Shape check - must match one of the two patterns in §2.5.
+    // 1. Shape check — must match one of the two patterns in §2.5.
     let is_unprefixed = !resolved.is_empty()
         && resolved
             .chars()
@@ -5899,7 +6221,7 @@ fn validate_framework_profile(
         ));
         return errors;
     }
-    // 2. Resolution check - unprefixed names MUST be in the loaded
+    // 2. Resolution check — unprefixed names MUST be in the loaded
     //    profile-descriptor set; reverse-DNS names MAY be locally
     //    declared and SHOULD also resolve but absence is downgraded
     //    to a structural lint (the spec doesn't require third-party

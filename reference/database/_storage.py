@@ -2,11 +2,12 @@
 
 from contextlib import contextmanager
 from datetime import date
-from pathlib import Path
+from _path_scan import Path
+import os
 import sqlite3
 import threading
 import time
-import uuid
+from _random_id import random_id_hex, random_id_text
 
 from _contract import bundle_digest, expected_counts, load_mapping, REGISTRY_TABLES
 from _projection import (INSTANCE_COLUMNS, PROJECTION_COLUMNS, PROVENANCE_COLUMNS,
@@ -26,19 +27,38 @@ class StorageError(RuntimeError):
         super().__init__(f"{code}: {detail}")
 
 
+def connect_postgres(destination: str, *, dbname: str | None = None):
+    """Normalize text before the native PostgreSQL connection parser."""
+    if not isinstance(destination, str) or dbname is not None and not isinstance(dbname, str):
+        raise TypeError("PostgreSQL connection parameters must be text")
+    destination = str.__str__(destination)
+    dbname = None if dbname is None else str.__str__(dbname)
+    if "\0" in destination or dbname is not None and "\0" in dbname:
+        raise StorageError("setup", "PostgreSQL connection parameters must not contain NUL bytes")
+    from _postgres import connect as connect_native
+    return connect_native(destination, dbname=dbname)
+
+
 def connect(engine: str, destination: str):
     if engine == "sqlite":
         return sqlite3.connect(destination, isolation_level=None, timeout=0.25)
     if engine == "duckdb":
-        import duckdb
+        destination = os.fspath(destination)
+        if not isinstance(destination, str):
+            raise TypeError("DuckDB destination must be text")
+        destination = str.__str__(destination)
+        if "\0" in destination:
+            raise StorageError("setup", "DuckDB destination must not contain NUL bytes")
+        from _duckdb_client import connect as connect_native, connection_error
         try:
-            return duckdb.connect(destination)
-        except duckdb.IOException as exc:
+            return connect_native(destination)
+        except Exception as exc:
+            if not connection_error(exc):
+                raise
             code = "busy/unsupported-writer" if "lock" in str(exc).lower() else "setup"
             raise StorageError(code, str(exc)) from exc
     if engine == "postgres":
-        import psycopg
-        return psycopg.connect(destination, autocommit=True)
+        return connect_postgres(destination)
     raise ValueError(f"unsupported database engine: {engine!r}")
 
 
@@ -54,6 +74,12 @@ class Store:
     def __init__(self, engine: str, connection, repo_root: Path, *, reconnect=None):
         if engine not in {"sqlite", "duckdb", "postgres"}:
             raise ValueError("unsupported engine")
+        if engine == "postgres":
+            from _postgres import native_connection
+            connection = native_connection(connection)
+        if engine == "duckdb":
+            from _duckdb_client import native_connection
+            connection = native_connection(connection)
         self.engine = engine
         self.connection = connection
         self.root = repo_root.resolve()
@@ -66,7 +92,13 @@ class Store:
     def execute(self, sql: str, parameters=()):
         # SQL identifiers originate in this module or the validated mapping.
         # Every document-authored value uses driver parameters.
-        return self.connection.execute(sql.replace("?", "%s") if self.engine == "postgres" else sql, parameters)
+        if self.engine == "postgres":
+            parts = sql.split("?")
+            if len(parts) - 1 != len(parameters):
+                raise StorageError("sql-parameters", "SQL marker count differs from parameter count")
+            query = parts[0] + "".join(f"${index}{part}" for index, part in enumerate(parts[1:], 1))
+            return self.connection.execute(query, parameters if parameters else None)
+        return self.connection.execute(sql, parameters)
 
     def rows(self, table: str, columns: tuple, where: str = "", parameters=()) -> list[dict]:
         expressions = [f"CAST({column} AS TEXT) AS {column}" if column in {"meta_extras", "extras"}
@@ -89,7 +121,7 @@ class Store:
             if self.execute("PRAGMA ignore_check_constraints").fetchone() != (0,):
                 raise StorageError("setup", "SQLite CHECK constraints must be enabled")
         elif self.engine == "postgres":
-            from psycopg.pq import TransactionStatus
+            from _postgres import TransactionStatus
             if self.connection.info.transaction_status != TransactionStatus.IDLE:
                 raise StorageError("active-caller-transaction", "supply a dedicated idle connection")
             self.connection.autocommit = True
@@ -179,9 +211,18 @@ class Store:
             raise StorageError("commit-outcome-unknown", "reconnection is unavailable; inspect the destination before retrying")
         try:
             self.connection.close()
-        except Exception:  # nosec B110 # noqa: S110
-            pass
+        except Exception as exc:
+            raise StorageError(
+                "commit-outcome-unknown",
+                "old connection could not be closed before reconnecting",
+            ) from exc
         self.connection = self.reconnect()
+        if self.engine == "postgres":
+            from _postgres import native_connection
+            self.connection = native_connection(self.connection)
+        if self.engine == "duckdb":
+            from _duckdb_client import native_connection
+            self.connection = native_connection(self.connection)
         self.prepare()
 
     def initialize(self, *, exclusive_unpublished: bool = False) -> dict:
@@ -322,7 +363,7 @@ class Store:
                             identifier = self.existing(item, digest)
                             if identifier is None:
                                 new_identities.add((item.instance["source_path"], item.instance["content_sha256"]))
-                                identifier = uuid.uuid4().hex if self.engine == "sqlite" else str(uuid.uuid4())
+                                identifier = random_id_hex() if self.engine == "sqlite" else random_id_text()
                                 self.insert("instance_file", {"id": identifier, **item.instance})
                                 if item.provenance is not None:
                                     self.insert("provenance", {"instance_file_id": identifier, **item.provenance})

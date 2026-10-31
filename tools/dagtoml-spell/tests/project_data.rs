@@ -1,0 +1,225 @@
+#![forbid(unsafe_code)]
+
+use dagtoml_spell::data_spans::{Container, contains, python_table};
+use dagtoml_spell::dictionary::Dictionary;
+use dagtoml_spell::project::{Project, read_source};
+use dagtoml_spell::tokens::{identifiers, words};
+use std::path::PathBuf;
+
+fn root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap()
+        .to_owned()
+}
+
+#[test]
+fn licensed_proper_names_preserve_adjacent_corrections() {
+    let project = Project::load(&root()).unwrap();
+    let dictionary = Dictionary::pinned(project.accepted_words.clone()).unwrap();
+    let corpus: toml::Value = toml::from_str(include_str!("fixtures/corrections.toml")).unwrap();
+    let control = corpus["corrections"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|case| case["name"].as_str() == Some("lowercase-receive"))
+        .unwrap();
+    let input = control["input"].as_str().unwrap();
+    let expected: Vec<_> = control["expected"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|value| value.as_str().unwrap())
+        .collect();
+    let source = format!("Stichting Mathematisch STICHTING MATHEMATISCH {input}");
+    let checked =
+        dagtoml_spell::scan::content(&project, &dictionary, "sample.md", source.as_bytes())
+            .unwrap();
+    assert_eq!(checked.findings.len(), 1);
+    assert_eq!(checked.findings[0].token, input);
+    assert_eq!(checked.findings[0].corrections, expected);
+}
+
+#[test]
+fn complete_code_identifiers_preserve_component_and_adjacent_corrections() {
+    let project = Project::load(&root()).unwrap();
+    let expected = [
+        "HashiCorp",
+        "NdArray",
+        "NdDatetime",
+        "O_WRONLY",
+        "dBA",
+        "flate2",
+    ];
+    assert_eq!(project.accepted_identifiers, expected);
+    for identifier in expected {
+        assert!(project.identifier_is_accepted(identifier));
+        for lookalike in [
+            format!("{identifier}Other"),
+            format!("Other{identifier}"),
+            identifier.to_ascii_lowercase(),
+        ] {
+            if lookalike != identifier {
+                assert!(!project.identifier_is_accepted(&lookalike));
+            }
+        }
+    }
+    for component in [
+        "NdArray".strip_suffix("Array").unwrap(),
+        "flate2".strip_suffix('2').unwrap(),
+        "HashiCorp".strip_suffix("Corp").unwrap(),
+    ] {
+        assert!(!project.identifier_is_accepted(component));
+    }
+    let corpus: toml::Value = toml::from_str(include_str!("fixtures/corrections.toml")).unwrap();
+    let cases = corpus["corrections"].as_array().unwrap();
+    let conjunction = cases
+        .iter()
+        .find(|case| case["name"].as_str() == Some("title-conjunction"))
+        .unwrap();
+    let receive = cases
+        .iter()
+        .find(|case| case["name"].as_str() == Some("lowercase-receive"))
+        .unwrap();
+    let component = conjunction["input"].as_str().unwrap();
+    let input = receive["input"].as_str().unwrap();
+    let dictionary = Dictionary::pinned(project.accepted_words.clone()).unwrap();
+    let source =
+        format!("PythonObjectType::NdArray PythonObjectType::NdDatetime {component} {input}");
+    let checked =
+        dagtoml_spell::scan::content(&project, &dictionary, "sample.md", source.as_bytes())
+            .unwrap();
+    let answers: Vec<_> = checked
+        .findings
+        .iter()
+        .map(|finding| (finding.token.as_str(), finding.corrections.clone()))
+        .collect();
+    let expected = |case: &toml::Value| {
+        case["expected"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|value| value.as_str().unwrap().to_owned())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        answers,
+        [
+            (component, expected(conjunction)),
+            (input, expected(receive))
+        ]
+    );
+    for identifier in ["NdArray", "NdDatetime"] {
+        for source in [format!("{identifier}Other"), format!("Other{identifier}")] {
+            let checked =
+                dagtoml_spell::scan::content(&project, &dictionary, "sample.md", source.as_bytes())
+                    .unwrap();
+            assert_eq!(checked.findings.len(), 1);
+            assert_eq!(checked.findings[0].token, component);
+        }
+    }
+}
+
+#[test]
+fn current_data_agrees_with_independent_ast_operand_answers() {
+    let root = root();
+    let project = Project::load(&root).unwrap();
+    let facts = [
+        (
+            "validators/_credential_words.py",
+            "GENERIC_STOPWORDS",
+            Container::FrozenSet,
+            "ba744bd6fa659705d11a073fe32a1c6d1d1c7c78d4664b18228d1d18f5f9faca",
+        ),
+        (
+            "validators/_credential_structures.py",
+            "JWT_HEADER_PREFIXES",
+            Container::Tuple,
+            "3173f991f1c13bb771d12ef39c09a5571cec22c67a32c5986bd5d2c46292d526",
+        ),
+    ];
+    for (path, binding, container, expected) in facts {
+        let bytes = read_source(&root, path).unwrap();
+        let source = std::str::from_utf8(&bytes).unwrap();
+        let table = python_table(source, binding, container).unwrap();
+        assert_eq!(table.digest().unwrap(), expected);
+        assert_eq!(table.values.len(), table.spans.len());
+        assert!(!table.values.is_empty());
+        for (value, span) in table.values.iter().zip(&table.spans) {
+            assert!(source[span.clone()].contains(value));
+        }
+        let spans = project.spans(path, &bytes).unwrap();
+        for span in &table.spans {
+            assert!(contains(&spans, span.start, span.end));
+        }
+    }
+    let bytes = read_source(&root, "validators/_credential_words.py").unwrap();
+    let source = std::str::from_utf8(&bytes).unwrap();
+    let start = source.find("Pinned literal").unwrap();
+    assert!(!contains(
+        &project
+            .spans("validators/_credential_words.py", &bytes)
+            .unwrap(),
+        start,
+        start + "Pinned literal".len()
+    ));
+}
+
+#[test]
+fn supplier_identity_does_not_exempt_neighboring_prose() {
+    #[derive(serde::Deserialize)]
+    struct Corpus {
+        corrections: Vec<Control>,
+    }
+    #[derive(serde::Deserialize)]
+    struct Control {
+        name: String,
+        input: String,
+        expected: Vec<String>,
+    }
+    let corpus: Corpus = toml::from_str(include_str!("fixtures/corrections.toml")).unwrap();
+    let control = corpus
+        .corrections
+        .into_iter()
+        .find(|case| case.name == "lowercase-receive")
+        .unwrap();
+    let project = Project::load(&root()).unwrap();
+    let dictionary = Dictionary::pinned(project.accepted_words.clone()).unwrap();
+    let catalog_name = "airtable-personnal-access-token";
+    let source = format!("ordinary '{catalog_name}' {} ordinary", control.input);
+    let spans = project.spans("sample.md", source.as_bytes()).unwrap();
+    let start = source.find(catalog_name).unwrap();
+    assert!(contains(&spans, start, start + catalog_name.len()));
+    let outside = source.find(&control.input).unwrap();
+    assert!(!contains(&spans, outside, outside + control.input.len()));
+    let mut findings = Vec::new();
+    for identifier in identifiers(&source).unwrap() {
+        for word in words(identifier).unwrap() {
+            if !contains(&spans, word.start, word.end) {
+                if let Some(corrections) = dictionary.correct(word) {
+                    findings.push((word.text, corrections));
+                }
+            }
+        }
+    }
+    assert_eq!(findings, vec![(control.input.as_str(), control.expected)]);
+    let lookalike = format!("prefix-{catalog_name}-suffix");
+    assert!(
+        project
+            .spans("sample.md", lookalike.as_bytes())
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn moved_data_source_is_rejected() {
+    let project = Project::load(&root()).unwrap();
+    project.verify_sources(&root()).unwrap();
+    let path = "validators/_credential_words.py";
+    let mut source = read_source(&root(), path).unwrap();
+    source.extend_from_slice(b"\n# ordinary additional prose\n");
+    assert!(project.spans(path, &source).is_err());
+}

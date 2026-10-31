@@ -1,7 +1,7 @@
 """Executed SQL witnesses. Setup failures never count as constraint rejections."""
 
 import sqlite3
-import uuid
+from _random_id import random_id_hex, random_id_text
 
 from _contract import load_mapping
 from _projection import PROJECTION_COLUMNS
@@ -21,9 +21,10 @@ CONTRACT_NUL_CASES = ("a" * 64 + "\0tail", *("a" * offset + "\0" + "Z" * (63 - o
 def constraint_failure(engine: str, exc: Exception, family: str, column: str = "") -> bool:
     message = str(exc).lower()
     if engine == "postgres":
-        if family == "encoding" and type(exc).__name__ == "DataError" and "cannot contain NUL" in str(exc):
-            # PostgreSQL text cannot represent NUL. psycopg refuses it at the
-            # binding boundary; retain that layer explicitly in the receipt.
+        from _postgres import ParameterEncodingError
+        if family == "encoding" and isinstance(exc, ParameterEncodingError):
+            # This typed refusal occurs before execution. Keep that boundary
+            # separate from a server-enforced database constraint.
             return True
         codes = {"value": {"22P02", "23514"}, "shape": {"23514", "23502"},
                  "encoding": {"23514", "23502", "22021"},
@@ -99,7 +100,7 @@ def probe_constraints(store, digest: str) -> list[dict]:
     def run(label, kind, setup, target, accepted, family="shape", column="", readback=None):
         store.execute("BEGIN")
         try:
-            identifier = uuid.uuid4().hex if store.engine == "sqlite" else str(uuid.uuid4())
+            identifier = random_id_hex() if store.engine == "sqlite" else random_id_text()
             # These writes are setup, outside the target rejection catch.
             store.insert("reference_contract", {"singleton_id": 1, "contract_bundle_sha256": digest,
                                                 "projection_version": 1})
@@ -184,7 +185,7 @@ def probe_constraints(store, digest: str) -> list[dict]:
             lambda identifier, fixture: store.insert("runtime_document", document_fixture(other_kind, identifier, digest)),
             False, "foreign-key")
         run(f"{kind}/dangling-parent", kind, noop,
-            lambda identifier, fixture: store.insert("runtime_document", {**fixture, "instance_file_id": str(uuid.uuid4())}),
+            lambda identifier, fixture: store.insert("runtime_document", {**fixture, "instance_file_id": random_id_text()}),
             False, "foreign-key")
         run(f"{kind}/duplicate-projection", kind,
             lambda identifier, fixture: store.insert("runtime_document", fixture),

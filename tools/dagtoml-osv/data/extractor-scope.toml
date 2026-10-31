@@ -1,0 +1,250 @@
+schema_version = 1
+scanner_commit = "bfe2f84abd2f09fe0b83ba7f6dad40d296762f40"
+supplier_commit = "5be78a00e3c294c19a0b03949e4eb643653c0218"
+# Complete lockfile preset plus the two separately enabled SBOM extractors.
+# This is entry-point provenance, not an absence or dependency-audit verdict.
+
+[[extractor]]
+name = "cpp/conanlock"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/cpp/conanlock/conanlock.go"
+blob = "3a4471f8fd0f04f1c260be33d3af58da36568a65"
+action = "reject"
+
+[[extractor]]
+name = "erlang/mixlock"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/erlang/mixlock/mixlock.go"
+blob = "03671bbcc903a285da6eb13b28745c272029d852"
+action = "reject"
+
+[[extractor]]
+name = "dart/pubspec"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/dart/pubspec/pubspec.go"
+blob = "63b13ec9089a5d21ea75b4b8089d94b1645ac5e9"
+action = "reject"
+
+[[extractor]]
+name = "dart/packageconfig"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/dart/packageconfig/packageconfig.go"
+blob = "967f3737bf2efa57aa1580b3fb5d1ddcff8b7327"
+action = "reject"
+
+[[extractor]]
+name = "golang/gomod"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/golang/gomod/gomod.go"
+blob = "1af3d507c9780221956e680b89586eade6881082"
+action = "extract"
+
+[[extractor]]
+name = "java/gradlelockfile"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/java/gradlelockfile/gradlelockfile.go"
+blob = "414b5709527e91a9c4823f6c3f6fe3baacb5ad9b"
+action = "reject"
+
+[[extractor]]
+name = "java/gradleverificationmetadataxml"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/java/gradleverificationmetadataxml/gradleverificationmetadataxml.go"
+blob = "a90df83b28ad38b15458b77e9a3afd404230d63b"
+action = "reject"
+
+[[extractor]]
+name = "java/pomxml"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/java/pomxml/pomxml.go"
+blob = "36f241929aeec247ab5ef37b5dd75fceb9d8d9be"
+action = "reject"
+
+[[extractor]]
+name = "javascript/packagelockjson"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/javascript/packagelockjson/packagelockjson.go"
+blob = "5eef2a0db65918b0ca06b784659759428ce776e1"
+action = "reject"
+
+[[extractor]]
+name = "javascript/pnpmlock"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/javascript/pnpmlock/pnpmlock.go"
+blob = "2aef291bbc5b8c239bcae22373f59d703257fe72"
+action = "reject"
+
+[[extractor]]
+name = "javascript/yarnlock"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/javascript/yarnlock/yarnlock.go"
+blob = "3a2659efa199f8ffedf268212ad2389d477f7ef2"
+action = "reject"
+
+[[extractor]]
+name = "javascript/bunlock"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/javascript/bunlock/bunlock.go"
+blob = "e344a61d376c20b1f93fe3c077509f4f636eb4fa"
+action = "reject"
+
+[[extractor]]
+name = "php/composerlock"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/php/composerlock/composerlock.go"
+blob = "41ccb7f39732a0e975e4156b7c9bb418adf683a7"
+action = "reject"
+
+[[extractor]]
+name = "python/pipfilelock"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/python/pipfilelock/pipfilelock.go"
+blob = "67709a8be72e9d5ce578140b8d497c50ae35a5eb"
+action = "reject"
+
+[[extractor]]
+name = "python/pdmlock"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/python/pdmlock/pdmlock.go"
+blob = "4de9850e9105b1b36c536882c6b752db5ad529bb"
+action = "reject"
+
+[[extractor]]
+name = "python/poetrylock"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/python/poetrylock/poetrylock.go"
+blob = "df1b97d784120b3870b26768f45b19a6741953f9"
+action = "reject"
+
+[[extractor]]
+name = "python/pylock"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/python/pylock/pylock.go"
+blob = "d2cb6857acb29799c4a66e7fb5008627be59914d"
+action = "reject"
+
+[[extractor]]
+name = "python/requirements"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/python/requirements/requirements.go"
+blob = "cf802ae82286dda1b3e013d6508aa7927570f140"
+action = "extract"
+
+[[extractor]]
+name = "python/uvlock"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/python/uvlock/uvlock.go"
+blob = "f47b992da7e8c1a893fe2c6da9f53c6e682f088f"
+action = "reject"
+
+[[extractor]]
+name = "r/renvlock"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/r/renvlock/renvlock.go"
+blob = "3cad5219c0b25dc887d7ef9a7a0d43e147181d0c"
+action = "reject"
+
+[[extractor]]
+name = "ruby/gemfilelock"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/ruby/gemfilelock/gemfilelock.go"
+blob = "21fed1a3e5a7134cdf37bf747016bc29a5ddb284"
+action = "reject"
+
+[[extractor]]
+name = "swift/packageresolved"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/swift/packageresolved/packageresolved.go"
+blob = "b63690a5c40f50cb3b8d0594e5f870071723016b"
+action = "reject"
+
+[[extractor]]
+name = "rust/cargolock"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/rust/cargolock/cargolock.go"
+blob = "388190c2e1d995137fe225bf66db858144ee72d1"
+action = "extract"
+
+[[extractor]]
+name = "dotnet/csproj"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/dotnet/csproj/csproj.go"
+blob = "8b50f829f514d3e399e7d6828dfe27e9913fc354"
+action = "reject"
+
+[[extractor]]
+name = "dotnet/depsjson"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/dotnet/depsjson/depsjson.go"
+blob = "fa436aafeef0a9f19a8078711738a6b3dfc3c0bf"
+action = "reject"
+
+[[extractor]]
+name = "dotnet/nugetcpm"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/dotnet/nugetcpm/nugetcpm.go"
+blob = "dc05e053a5fb783537af6561110bfcd720d71c73"
+action = "reject"
+
+[[extractor]]
+name = "dotnet/packagesconfig"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/dotnet/packagesconfig/packagesconfig.go"
+blob = "af8e7df93922b831f19db88edc8060645befdffa"
+action = "reject"
+
+[[extractor]]
+name = "dotnet/packageslockjson"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/dotnet/packageslockjson/packageslockjson.go"
+blob = "c095f605be247859abd8628f1411ce15d20a4ea2"
+action = "reject"
+
+[[extractor]]
+name = "haskell/cabal"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/haskell/cabal/cabal.go"
+blob = "090d85ff66e942d7fdec60a954104af10318c61c"
+action = "reject"
+
+[[extractor]]
+name = "haskell/stacklock"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/language/haskell/stacklock/stacklock.go"
+blob = "bb8c5b2d961114887710e6cd2e0eb8116b5522d4"
+action = "reject"
+
+[[extractor]]
+name = "osv/osvscannerjson"
+supplier = "osv-scanner"
+source = "internal/scalibrextract/language/osv/osvscannerjson/extractor.go"
+blob = "f7b21806231d0078ca04ec2485b3ed283a54fdfa"
+action = "reject"
+
+[[extractor]]
+name = "os/apk"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/os/apk/apk.go"
+blob = "9c79fa642ba37f8f02c4ae4df37108aa9e7bb7ee"
+action = "reject"
+
+[[extractor]]
+name = "os/dpkg"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/os/dpkg/dpkg.go"
+blob = "659d9fe4fe15bec9804badb6b56f8805a4f8ea49"
+action = "reject"
+
+[[extractor]]
+name = "sbom/cdx"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/sbom/cdx/cdx.go"
+blob = "f9fb23264ddc5240b484d6a1d1110d1168e3fa77"
+action = "reject"
+
+[[extractor]]
+name = "sbom/spdx"
+supplier = "osv-scalibr"
+source = "extractor/filesystem/sbom/spdx/spdx.go"
+blob = "64220befb6b4e74b675e1455b0b9e5c80d9ecac8"
+action = "reject"

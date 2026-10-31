@@ -29,13 +29,14 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
-      - name: Install hash-pinned validator and engine dependencies
-        env:
-          DATABASE_LANE: ${{ matrix.lane }}
-        run: |
-          dependency_lock=requirements/database.txt
-          if [ "$DATABASE_LANE" = duckdb-floor ]; then dependency_lock=requirements/database-floor.txt; fi
-          python3 -m pip install --require-hashes -r requirements.txt -r requirements/toml.txt -r "$dependency_lock"
+      - name: Check validator requirements entry points
+        run: python3 -m pip install --require-hashes -r requirements.txt -r requirements/toml.txt
+      - name: Set up the native database driver toolchain
+        if: ${{ !startsWith(matrix.lane, 'sqlite-') }}
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: "1.26.10"
+          cache-dependency-path: tools/dagtoml-postgres-go/go.sum
       - name: Execute the pinned engine lane
         env:
           DATABASE_LANE: ${{ matrix.lane }}
@@ -73,7 +74,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
           toolchain: stable
-      - run: python3 -m pip install --require-hashes -r requirements.txt -r requirements/toml.txt -r requirements/database.txt
+      - run: python3 -m pip install --require-hashes -r requirements.txt -r requirements/toml.txt
       - name: Build and execute the loader, then probe its database
         env:
           LOADER_LANGUAGE: ${{ matrix.language }}
@@ -107,7 +108,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
           toolchain: stable
-      - run: python3 -m pip install --require-hashes -r requirements.txt -r requirements/toml.txt -r requirements/database.txt
+      - run: python3 -m pip install --require-hashes -r requirements.txt -r requirements/toml.txt
       - run: python3 validators/runtime_ci.py
 
   aggregate:

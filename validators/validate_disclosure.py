@@ -29,14 +29,12 @@ picked up without editing this file.
 
 from __future__ import annotations
 
-import argparse
-import pathlib
-import re
+import _literal_args as argparse
+import _literal_path as pathlib
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
+from _ascii_predicates import valid_sha256
 
-
-SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 def parse_args() -> argparse.Namespace:
@@ -208,7 +206,7 @@ def validate_proof(doc: dict, source: str, vocabs: dict[str, dict]) -> list[str]
             errors.append(f"{loc}: `id` must start with `SDP:`")
 
         bound = entry.get("bound_source")
-        if not isinstance(bound, str) or not SHA256_RE.match(bound):
+        if not isinstance(bound, str) or not valid_sha256(bound):
             errors.append(
                 f"{loc}: `bound_source` must match `^sha256:[0-9a-f]{{64}}$` "
                 f"(got {bound!r})"

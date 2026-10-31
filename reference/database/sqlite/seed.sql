@@ -47,35 +47,35 @@ INSERT INTO dagtoml_kind_descriptor (template_kind, layer, descriptor_path, requ
 -- ============================================================
 -- entity_kind_descriptor (27 rows; +1 cost = COST)
 -- ============================================================
-INSERT INTO dagtoml_entity_kind_descriptor (entity_kind, id_prefix_pattern, layer, defining_kind, ijb_primitive, ijb_class, description) VALUES
-    ('intent',           'INT',           'core', 'traceability',         'thing', 'structural', 'User/business intent; top of trace.'),
-    ('feature',          'FEAT',          'core', 'traceability',         'thing', 'structural', 'User-visible capability.'),
-    ('requirement',      'REQ',           'core', 'traceability',         'thing', 'structural', 'Normative, testable requirement.'),
-    ('regulation',       'REG',           'core', 'traceability',         'thing', 'structural', 'Legal/policy/regulatory obligation.'),
-    ('decision',         'DEC',           'core', 'traceability',         'thing', 'structural', 'Design or policy decision.'),
-    ('implementation',   'IMP',           'core', 'traceability',         'thing', 'structural', 'Implementation work package.'),
-    ('code',             'CODE',          'core', 'traceability',         'thing', 'structural', 'Concrete code artifact.'),
-    ('test',             'TEST',          'core', 'traceability',         'thing', 'structural', 'Verification artifact.'),
-    ('output',           'OUT',           'core', 'traceability',         'thing', 'structural', 'User-visible output or deliverable.'),
-    ('unit',             'U\d+[a-z]?',    'core', 'implementation-dag',   'thing', 'structural', 'DAG unit (regex-keyed).'),
-    ('artifact',         'ART',           'core', 'implementation-dag',   'thing', 'structural', 'Internal artifact flowing between DAG units.'),
-    ('artifact_class',   'A\d+',          'core', 'readiness-gate',       'thing', 'structural', 'Review artifact class.'),
-    ('gate',             'G\d+',          'core', 'readiness-gate',       'thing', 'structural', 'Readiness gate keyed to artifact class.'),
-    ('contract',         'C\d+',          'core', 'contract-declaration', 'thing', 'structural', 'Declared contract.'),
-    ('claim',            'E\d+',          'core', 'evidence-matrix',      'thing', 'structural', 'Strong claim.'),
-    ('evidence',         'EV\d+',         'core', 'evidence-matrix',      'thing', 'structural', 'Proof artifact.'),
-    ('matrix',           'M\d+',          'core', 'evidence-matrix',      'thing', 'structural', 'Claim↔evidence linkage.'),
-    ('guarantee',        'GUAR',          'profile:agent-assurance', 'spec-contract',  'thing', 'structural', 'Measurable guarantee.'),
-    ('invariant',        'INV',           'profile:agent-assurance', 'spec-contract',  'thing', 'structural', 'Invariant the implementation MUST not violate.'),
-    ('non_goal',         'NG',            'profile:agent-assurance', 'spec-contract',  'thing', 'structural', 'Explicit non-goal of the change.'),
-    ('threat',           'THREAT',        'profile:agent-assurance', 'threat-model',   'thing', 'structural', 'Identified threat to the change/system.'),
-    ('smoke_check',      'SMOKE',         'profile:agent-assurance', 'smoke-validation','thing', 'structural', 'Smoke-validation check entry.'),
-    ('rollback_trigger', 'TRIG',          'profile:agent-assurance', 'rollback-plan',  'thing', 'structural', 'Pre-declared rollback trigger condition.'),
+INSERT INTO dagtoml_entity_kind_descriptor (entity_kind, id_prefix, id_decimal_prefix, id_optional_lower_suffix, layer, defining_kind, ijb_primitive, ijb_class, description) VALUES
+    ('intent', 'INT', NULL, FALSE,           'core', 'traceability',         'thing', 'structural', 'User/business intent; top of trace.'),
+    ('feature', 'FEAT', NULL, FALSE,          'core', 'traceability',         'thing', 'structural', 'User-visible capability.'),
+    ('requirement', 'REQ', NULL, FALSE,           'core', 'traceability',         'thing', 'structural', 'Normative, testable requirement.'),
+    ('regulation', 'REG', NULL, FALSE,           'core', 'traceability',         'thing', 'structural', 'Legal/policy/regulatory obligation.'),
+    ('decision', 'DEC', NULL, FALSE,           'core', 'traceability',         'thing', 'structural', 'Design or policy decision.'),
+    ('implementation', 'IMP', NULL, FALSE,           'core', 'traceability',         'thing', 'structural', 'Implementation work package.'),
+    ('code', 'CODE', NULL, FALSE,          'core', 'traceability',         'thing', 'structural', 'Concrete code artifact.'),
+    ('test', 'TEST', NULL, FALSE,          'core', 'traceability',         'thing', 'structural', 'Verification artifact.'),
+    ('output', 'OUT', NULL, FALSE,           'core', 'traceability',         'thing', 'structural', 'User-visible output or deliverable.'),
+    ('unit', NULL, 'U', TRUE,    'core', 'implementation-dag',   'thing', 'structural', 'DAG unit with a typed decimal ID.'),
+    ('artifact', 'ART', NULL, FALSE,           'core', 'implementation-dag',   'thing', 'structural', 'Internal artifact flowing between DAG units.'),
+    ('artifact_class', NULL, 'A', FALSE,          'core', 'readiness-gate',       'thing', 'structural', 'Review artifact class.'),
+    ('gate', NULL, 'G', FALSE,          'core', 'readiness-gate',       'thing', 'structural', 'Readiness gate keyed to artifact class.'),
+    ('contract', NULL, 'C', FALSE,          'core', 'contract-declaration', 'thing', 'structural', 'Declared contract.'),
+    ('claim', NULL, 'E', FALSE,          'core', 'evidence-matrix',      'thing', 'structural', 'Strong claim.'),
+    ('evidence', NULL, 'EV', FALSE,         'core', 'evidence-matrix',      'thing', 'structural', 'Proof artifact.'),
+    ('matrix', NULL, 'M', FALSE,          'core', 'evidence-matrix',      'thing', 'structural', 'Claim↔evidence linkage.'),
+    ('guarantee', 'GUAR', NULL, FALSE,          'profile:agent-assurance', 'spec-contract',  'thing', 'structural', 'Measurable guarantee.'),
+    ('invariant', 'INV', NULL, FALSE,           'profile:agent-assurance', 'spec-contract',  'thing', 'structural', 'Invariant the implementation MUST not violate.'),
+    ('non_goal', 'NG', NULL, FALSE,            'profile:agent-assurance', 'spec-contract',  'thing', 'structural', 'Explicit non-goal of the change.'),
+    ('threat', 'THREAT', NULL, FALSE,        'profile:agent-assurance', 'threat-model',   'thing', 'structural', 'Identified threat to the change/system.'),
+    ('smoke_check', 'SMOKE', NULL, FALSE,         'profile:agent-assurance', 'smoke-validation','thing', 'structural', 'Smoke-validation check entry.'),
+    ('rollback_trigger', 'TRIG', NULL, FALSE,          'profile:agent-assurance', 'rollback-plan',  'thing', 'structural', 'Pre-declared rollback trigger condition.'),
     -- Profile: disclosure (3)
-    ('disclosure_attestation',     'DISC', 'profile:disclosure', 'disclosure-attestation',     'thing', 'structural', 'Signed posture statement that a named subject was disclosed at a given posture.'),
-    ('redaction',                  'RED',  'profile:disclosure', 'redaction-manifest',         'thing', 'structural', 'A byte-range or field-path inside a source artifact that was removed before publication.'),
-    ('selective_disclosure_proof', 'SDP',  'profile:disclosure', 'selective-disclosure-proof', 'thing', 'structural', 'A commitment a recipient can verify to confirm the publisher knew the omitted content.'),
-    ('cost_record',                'COST', 'profile:cost',       'cost-record',                'thing', 'structural', 'Declared cost of one costed action (Stream G Cost-Witnessed Decision).');
+    ('disclosure_attestation', 'DISC', NULL, FALSE, 'profile:disclosure', 'disclosure-attestation',     'thing', 'structural', 'Signed posture statement that a named subject was disclosed at a given posture.'),
+    ('redaction', 'RED', NULL, FALSE,  'profile:disclosure', 'redaction-manifest',         'thing', 'structural', 'A byte-range or field-path inside a source artifact that was removed before publication.'),
+    ('selective_disclosure_proof', 'SDP', NULL, FALSE,  'profile:disclosure', 'selective-disclosure-proof', 'thing', 'structural', 'A commitment a recipient can verify to confirm the publisher knew the omitted content.'),
+    ('cost_record', 'COST', NULL, FALSE, 'profile:cost',       'cost-record',                'thing', 'structural', 'Declared cost of one costed action (Stream G Cost-Witnessed Decision).');
 
 -- ============================================================
 -- relation_descriptor (31 rows; +1 vs v1: SPEC §12 `cites_upstream`)

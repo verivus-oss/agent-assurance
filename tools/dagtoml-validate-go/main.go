@@ -13,11 +13,11 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,7 +34,116 @@ import (
 
 type rawDoc = map[string]any
 
+func byteOffsetAt(document []byte, row, column int) (int, bool) {
+	if row < 1 || column < 1 {
+		return 0, false
+	}
+	lineStart := 0
+	for currentRow := 1; currentRow < row; currentRow++ {
+		found := false
+		for index := lineStart; index < len(document); index++ {
+			if document[index] == '\n' {
+				lineStart = index + 1
+				found = true
+				break
+			}
+		}
+		if !found {
+			return 0, false
+		}
+	}
+	if column-1 > len(document)-lineStart {
+		return 0, false
+	}
+	offset := lineStart + column - 1
+	for index := lineStart; index < offset; index++ {
+		if document[index] == '\n' {
+			return 0, false
+		}
+	}
+	return offset, true
+}
+
+func errorByteSpan(document []byte, offset, width int) (int, int, bool) {
+	if len(document) == 0 || offset < 0 || offset > len(document) || width < 0 {
+		return 0, 0, false
+	}
+	if offset == len(document) {
+		return offset - 1, offset, true
+	}
+	remaining := len(document) - offset
+	if width < 1 {
+		width = 1
+	}
+	if width > remaining {
+		width = remaining
+	}
+	return offset, offset + width, true
+}
+
+func candidateDirectory(path string) (bool, error) {
+	info, err := os.Stat(path)
+	if err == nil {
+		return info.IsDir(), nil
+	}
+	if os.IsNotExist(err) {
+		if candidateErr := missingCandidate(path, "directory"); candidateErr != nil {
+			return false, candidateErr
+		}
+		return false, nil
+	}
+	return false, fmt.Errorf("%s: directory inspection failed: %w", path, err)
+}
+
+func candidateFile(path string) (bool, error) {
+	info, err := os.Stat(path)
+	if err == nil {
+		if !info.Mode().IsRegular() {
+			return false, fmt.Errorf("%s: discovery candidate is not a regular file", path)
+		}
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		if candidateErr := missingCandidate(path, "candidate"); candidateErr != nil {
+			return false, candidateErr
+		}
+		return false, nil
+	}
+	return false, fmt.Errorf("%s: file inspection failed: %w", path, err)
+}
+
+func missingCandidate(path, kind string) error {
+	for ancestor := path; ; ancestor = filepath.Dir(ancestor) {
+		entry, err := os.Lstat(ancestor)
+		if err == nil {
+			if entry.Mode()&os.ModeSymlink != 0 {
+				target, targetErr := os.Stat(ancestor)
+				if targetErr != nil {
+					if ancestor != path {
+						kind = "directory"
+					}
+					return fmt.Errorf("%s: dangling discovery %s: %w", ancestor, kind, targetErr)
+				}
+				if ancestor != path && !target.IsDir() {
+					return fmt.Errorf("%s: discovery parent is not a directory", ancestor)
+				}
+			} else if ancestor == path {
+				return fmt.Errorf("%s: discovery candidate changed during inspection", path)
+			} else if !entry.IsDir() {
+				return fmt.Errorf("%s: discovery parent is not a directory", ancestor)
+			}
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("%s: candidate inspection failed: %w", ancestor, err)
+		}
+		parent := filepath.Dir(ancestor)
+		if parent == ancestor {
+			return nil
+		}
+	}
+}
+
 func loadDoc(path string) (rawDoc, error) {
+	// #nosec G304 -- This validator intentionally reads the document selected by its operator.
 	bytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("%s: read failed: %w", path, err)
@@ -50,17 +159,29 @@ func loadDoc(path string) (rawDoc, error) {
 	// pelletier, so the gate adds strictness without regressing acceptance.
 	var strictSink any
 	if err := pelletier.Unmarshal(bytes, &strictSink); err != nil {
-		return nil, fmt.Errorf("%s: TOML parse failed (strict, source sha256 %x)", path, sha256.Sum256(bytes))
+		var decodeError *pelletier.DecodeError
+		if errors.As(err, &decodeError) {
+			row, column := decodeError.Position()
+			if offset, ok := byteOffsetAt(bytes, row, column); ok {
+				if start, end, ok := errorByteSpan(bytes, offset, 1); ok {
+					return nil, fmt.Errorf("%s: TOML parse failed (strict) (source sha256:%x; byte span %d..%d)", path, sha256.Sum256(bytes), start, end)
+				}
+			}
+		}
+		return nil, fmt.Errorf("%s: TOML parse failed (strict) (source sha256:%x)", path, sha256.Sum256(bytes))
 	}
 	// BurntSushi performs the structural decode the rest of the validator
 	// relies on (its typed array/datetime shapes are threaded through
 	// asArray/int64Of and the per-kind validators).
 	var out rawDoc
 	if _, err := toml.Decode(string(bytes), &out); err != nil {
-		// BurntSushi's error string includes source coordinates. The strict
-		// parser already accepted this input, so report the disagreement by
-		// source digest without returning that coordinate.
-		return nil, fmt.Errorf("%s: TOML parser disagreement after strict acceptance (source sha256 %x)", path, sha256.Sum256(bytes))
+		var parseError toml.ParseError
+		if errors.As(err, &parseError) {
+			if start, end, ok := errorByteSpan(bytes, parseError.Position.Start, parseError.Position.Len); ok {
+				return nil, fmt.Errorf("%s: TOML parse failed: %s (source sha256:%x; byte span %d..%d)", path, parseError.Message, sha256.Sum256(bytes), start, end)
+			}
+		}
+		return nil, fmt.Errorf("%s: TOML parse failed (source sha256:%x)", path, sha256.Sum256(bytes))
 	}
 	return out, nil
 }
@@ -451,7 +572,22 @@ func validateIJBOntology(path string, doc rawDoc) []string {
 			if block, ok := raw.(map[string]any); ok {
 				label, _ := block["id_prefix"].(string)
 				if label == "" {
-					label, _ = block["id_pattern"].(string)
+					label, _ = block["id_decimal_prefix"].(string)
+				}
+				if _, legacy := block["id_pattern"]; legacy {
+					errs = append(errs, fmt.Sprintf("%s:entities[%d]: id_pattern is unsupported; use a typed decimal identifier declaration", path, i))
+				}
+				colonValue, hasColonPrefix := block["id_prefix"]
+				decimalValue, hasDecimalPrefix := block["id_decimal_prefix"]
+				colonPrefix, colonString := colonValue.(string)
+				decimalPrefix, decimalString := decimalValue.(string)
+				if hasColonPrefix == hasDecimalPrefix || hasColonPrefix && (!colonString || !looksUpperPrefix(colonPrefix)) || hasDecimalPrefix && (!decimalString || !looksUpperPrefix(decimalPrefix)) {
+					errs = append(errs, fmt.Sprintf("%s:entities[%d]: declare exactly one uppercase ASCII id_prefix or id_decimal_prefix", path, i))
+				}
+				if raw, present := block["id_optional_lower_suffix"]; present {
+					if _, ok := raw.(bool); !ok || !hasDecimalPrefix {
+						errs = append(errs, fmt.Sprintf("%s:entities[%d]: id_optional_lower_suffix requires a boolean and id_decimal_prefix", path, i))
+					}
 				}
 				errs = append(errs, validatePrimitiveClass(block, fmt.Sprintf("%s:entities[%d] (%s)", path, i, label), "thing", "structural", "")...)
 			}
@@ -565,12 +701,16 @@ func validateIJBProfileDescriptor(path string, doc rawDoc) []string {
 	return validatePrimitiveClass(profile, path+":[profile]", "thing", "structural", "")
 }
 
-func matchesIDPattern(pattern, value string) bool {
-	parts := strings.Split(pattern, `\d+`)
-	if len(parts) != 2 || !strings.HasPrefix(value, parts[0]) {
-		return value == pattern
+type decimalIDShape struct {
+	prefix              string
+	optionalLowerSuffix bool
+}
+
+func matchesDecimalID(shape decimalIDShape, value string) bool {
+	if !strings.HasPrefix(value, shape.prefix) {
+		return false
 	}
-	suffix := value[len(parts[0]):]
+	suffix := value[len(shape.prefix):]
 	if suffix == "" {
 		return false
 	}
@@ -582,14 +722,7 @@ func matchesIDPattern(pattern, value string) bool {
 		return false
 	}
 	rest := suffix[i:]
-	switch parts[1] {
-	case "":
-		return rest == ""
-	case "[a-z]?":
-		return rest == "" || (len(rest) == 1 && rest[0] >= 'a' && rest[0] <= 'z')
-	default:
-		return false
-	}
+	return rest == "" || (shape.optionalLowerSuffix && len(rest) == 1 && asciiLower(rest[0]))
 }
 
 func looksUpperPrefix(prefix string) bool {
@@ -608,9 +741,9 @@ func loadOntology(path string) (rawDoc, error) {
 	return loadDoc(path)
 }
 
-func buildIJBResolver(ontologies []rawDoc) (map[string]bool, []string, map[string]bool) {
+func buildIJBResolver(ontologies []rawDoc) (map[string]bool, []decimalIDShape, map[string]bool) {
 	prefixes := map[string]bool{}
-	var patterns []string
+	var patterns []decimalIDShape
 	predicates := map[string]bool{}
 	for _, doc := range ontologies {
 		if entities, ok := asArray(doc["entities"]); ok {
@@ -619,8 +752,9 @@ func buildIJBResolver(ontologies []rawDoc) (map[string]bool, []string, map[strin
 					if prefix, ok := block["id_prefix"].(string); ok && prefix != "" {
 						prefixes[prefix] = true
 					}
-					if pattern, ok := block["id_pattern"].(string); ok && pattern != "" {
-						patterns = append(patterns, pattern)
+					if prefix, ok := block["id_decimal_prefix"].(string); ok && prefix != "" {
+						suffix, _ := block["id_optional_lower_suffix"].(bool)
+						patterns = append(patterns, decimalIDShape{prefix, suffix})
 					}
 				}
 			}
@@ -638,7 +772,7 @@ func buildIJBResolver(ontologies []rawDoc) (map[string]bool, []string, map[strin
 	return prefixes, patterns, predicates
 }
 
-func checkEntityRef(token string, prefixes map[string]bool, patterns []string) string {
+func checkEntityRef(token string, prefixes map[string]bool, patterns []decimalIDShape) string {
 	if parts := strings.SplitN(token, ":", 2); len(parts) == 2 {
 		prefix := parts[0]
 		if !looksUpperPrefix(prefix) {
@@ -650,14 +784,14 @@ func checkEntityRef(token string, prefixes map[string]bool, patterns []string) s
 		return fmt.Sprintf("entity prefix `%s` in `%s` does not resolve to a declared `[[entities]].id_prefix` in the loaded ontologies", prefix, token)
 	}
 	for _, pattern := range patterns {
-		if matchesIDPattern(pattern, token) {
+		if matchesDecimalID(pattern, token) {
 			return ""
 		}
 	}
 	return ""
 }
 
-func walkIJBInstance(node any, parentKey, path string, prefixes map[string]bool, patterns []string, predicates map[string]bool, errs *[]string) {
+func walkIJBInstance(node any, parentKey, path string, prefixes map[string]bool, patterns []decimalIDShape, predicates map[string]bool, errs *[]string) {
 	switch x := node.(type) {
 	case string:
 		if parentKey == "id" || predicates[parentKey] {
@@ -720,13 +854,13 @@ func validateIJBInstance(path string, doc rawDoc, repoRoot string) []string {
 		for unitID := range units {
 			matched := false
 			for _, pattern := range patterns {
-				if matchesIDPattern(pattern, unitID) {
+				if matchesDecimalID(pattern, unitID) {
 					matched = true
 					break
 				}
 			}
 			if !matched {
-				errs = append(errs, fmt.Sprintf("units.%s: identifier does not match any declared entity `id_pattern` in the loaded ontologies", unitID))
+				errs = append(errs, fmt.Sprintf("units.%s: identifier does not match any declared decimal entity ID shape in the loaded ontologies", unitID))
 			}
 		}
 	}
@@ -2122,8 +2256,6 @@ func validateRollbackPlan(doc rawDoc, repoRoot string) []string {
 // SPEC §13 abstraction_class / capability_envelope validation
 // ----------------------------------------------------------------------------
 
-var abstractionIDRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*\.v\d+$`)
-
 func loadCapabilityDomains(repoRoot string) (map[string]bool, error) {
 	doc, err := loadDoc(filepath.Join(repoRoot, "core/ontology.toml"))
 	if err != nil {
@@ -2246,7 +2378,7 @@ func validateAbstractionClass(path string, doc rawDoc, repoRoot string) []string
 	if ac, ok := kind["abstraction_class"].(map[string]any); ok {
 		loc := fmt.Sprintf("%s: [kind.abstraction_class]", path)
 		id, _ := ac["id"].(string)
-		if id == "" || !abstractionIDRe.MatchString(id) {
+		if id == "" || !validAbstractionID(id) {
 			errs = append(errs, fmt.Sprintf("%s.id: must match `<slug>.v<integer>`, got %q", loc, id))
 		}
 		if desc, _ := ac["description"].(string); desc == "" {
@@ -2309,7 +2441,7 @@ func validateMeta(path string, doc rawDoc) []string {
 		return errs
 	}
 
-	if schemaVersion, ok := meta["schema_version"].(string); !ok || !semverRE.MatchString(schemaVersion) {
+	if schemaVersion, ok := meta["schema_version"].(string); !ok || !validSemver(schemaVersion) {
 		errs = append(errs, fmt.Sprintf(
 			"%s: [meta].schema_version must be a semver string `MAJOR.MINOR.PATCH`", path))
 	}
@@ -2386,12 +2518,6 @@ func validateMeta(path string, doc rawDoc) []string {
 //
 // Syntactic check only; SPEC §2.7 forbids the validator from comparing
 // against wall-clock time.
-var (
-	semverRE          = regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
-	rfc3339DateRE     = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
-	rfc3339DateTimeRE = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})$`)
-)
-
 func isPositiveInteger(v any) bool {
 	switch n := v.(type) {
 	case int:
@@ -2406,7 +2532,7 @@ func isPositiveInteger(v any) bool {
 }
 
 func isRFC3339DateOrDateTime(s string) bool {
-	return rfc3339DateRE.MatchString(s) || rfc3339DateTimeRE.MatchString(s)
+	return validDate(s) || validDateTime(s)
 }
 
 func stringIn(s string, xs []string) bool {
@@ -2698,7 +2824,7 @@ func pinnedClosureInputs(path string, doc rawDoc, pinMap map[string][]pinnedClos
 			continue
 		}
 		s, isString := value.(string)
-		if !isString || !sha256RE.MatchString(s) {
+		if !isString || !validSha256(s) {
 			errs = append(errs, fmt.Sprintf(
 				"%s: pinned closure record `%s` must match `sha256:<64 lowercase hex chars>` (SPEC §12.8.1), got %#v",
 				path, pin.field, value))
@@ -2787,8 +2913,8 @@ func validateFrameworkProfile(path string, doc rawDoc, descriptors map[string]de
 	if resolved == "AGDF" {
 		resolved = "agent-assurance"
 	}
-	u := unprefixedRE.MatchString(resolved)
-	r := reverseDNSRE.MatchString(resolved)
+	u := validUnprefixedName(resolved)
+	r := validReverseDNS(resolved)
 	if !u && !r {
 		errs = append(errs, fmt.Sprintf(
 			"%s: [meta].framework_profile = `%s` does not match the SPEC §2.5 namespacing partition (must be unprefixed kebab-case or reverse-DNS)",
@@ -2817,7 +2943,6 @@ var requiredProfileFields = []string{
 var (
 	closureRecordKeys            = []string{"contained_kind", "field", "presence"}
 	closureRecordPresence        = []string{"required", "when-present"}
-	closureRecordFieldRE         = regexp.MustCompile(`^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$`)
 	closureRecordForbiddenFields = []string{"closure_root", "provenance.source_sha256"}
 	postureFields                = []string{"confidentiality", "license", "embargo_until"}
 	boundTupleKeys               = []string{"contained_kind", "digest_field", "fields"}
@@ -2831,12 +2956,6 @@ func stringInSlice(s string, set []string) bool {
 	}
 	return false
 }
-
-var (
-	unprefixedRE = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
-	reverseDNSRE = regexp.MustCompile(`^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$`)
-	sha256RE     = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
-)
 
 type descriptor struct {
 	path string
@@ -2856,29 +2975,28 @@ func discoverDescriptors(repoRoot string) (map[string]descriptor, []string) {
 	root := filepath.Join(repoRoot, "profiles")
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		return out, append(discoveryErrors, fmt.Sprintf("%s: cannot enumerate profiles: %v", root, err))
+		return out, []string{fmt.Sprintf("%s: profile discovery failed: %v", root, err)}
 	}
 	for _, e := range entries {
-		entry := filepath.Join(root, e.Name())
-		if e.Type()&os.ModeSymlink != 0 {
-			info, err := os.Stat(entry)
-			if err != nil || !info.IsDir() {
-				discoveryErrors = append(discoveryErrors, fmt.Sprintf("%s: cannot follow profile directory link", entry))
-				continue
+		profilePath := filepath.Join(root, e.Name())
+		isDirectory, err := candidateDirectory(profilePath)
+		if err != nil {
+			discoveryErrors = append(discoveryErrors, err.Error())
+			continue
+		}
+		if !isDirectory {
+			if e.Type()&os.ModeSymlink != 0 {
+				discoveryErrors = append(discoveryErrors, fmt.Sprintf("%s: profile link does not target a directory", profilePath))
 			}
-		} else if !e.IsDir() {
 			continue
 		}
-		candidate := filepath.Join(root, e.Name(), "PROFILE.toml")
-		if _, err := os.Lstat(candidate); os.IsNotExist(err) {
-			continue
-		} else if err != nil {
-			discoveryErrors = append(discoveryErrors, fmt.Sprintf("%s: cannot inspect profile descriptor: %v", candidate, err))
+		candidate := filepath.Join(profilePath, "PROFILE.toml")
+		isFile, err := candidateFile(candidate)
+		if err != nil {
+			discoveryErrors = append(discoveryErrors, err.Error())
 			continue
 		}
-		info, err := os.Stat(candidate)
-		if err != nil || !info.Mode().IsRegular() {
-			discoveryErrors = append(discoveryErrors, fmt.Sprintf("%s: profile descriptor is not a regular file", candidate))
+		if !isFile {
 			continue
 		}
 		doc, err := loadDoc(candidate)
@@ -2908,8 +3026,8 @@ func discoverDescriptors(repoRoot string) (map[string]descriptor, []string) {
 
 func checkNamespacePartition(name, namespace string) []string {
 	var errs []string
-	u := unprefixedRE.MatchString(name)
-	r := reverseDNSRE.MatchString(name)
+	u := validUnprefixedName(name)
+	r := validReverseDNS(name)
 	if !u && !r {
 		errs = append(errs, fmt.Sprintf(
 			"[profile].name `%s` does not match the SPEC §2.5 namespacing partition", name))
@@ -2976,22 +3094,36 @@ func checkExtendsAcyclic(name string, descriptors map[string]descriptor) []strin
 	return errs
 }
 
-func kindDescriptorCandidates(repoRoot, slug, profileName string) []string {
+func kindDescriptorCandidates(repoRoot, slug, profileName string) ([]string, error) {
 	fname := slug + "-kind.toml"
 	cands := []string{
 		filepath.Join(repoRoot, "profiles", profileName, fname),
 		filepath.Join(repoRoot, "core", fname),
 	}
-	if entries, err := os.ReadDir(filepath.Join(repoRoot, "profiles")); err == nil {
-		for _, e := range entries {
-			// Stat follows symlinked profile directories (DirEntry.IsDir
-			// does not), matching rs/py.
-			info, statErr := os.Stat(filepath.Join(repoRoot, "profiles", e.Name()))
-			if statErr != nil || !info.IsDir() {
-				continue
-			}
-			cands = append(cands, filepath.Join(repoRoot, "profiles", e.Name(), fname))
+	profileRoot := filepath.Join(repoRoot, "profiles")
+	isDirectory, rootErr := candidateDirectory(profileRoot)
+	if rootErr != nil {
+		return nil, rootErr
+	}
+	if !isDirectory {
+		return nil, fmt.Errorf("%s: kind discovery directory is missing", profileRoot)
+	}
+	entries, err := os.ReadDir(profileRoot)
+	if err != nil {
+		return nil, fmt.Errorf("%s: kind discovery failed: %w", profileRoot, err)
+	}
+	for _, e := range entries {
+		// Stat follows symlinked profile directories (DirEntry.IsDir
+		// does not), matching rs/py.
+		profilePath := filepath.Join(profileRoot, e.Name())
+		isDirectory, statErr := candidateDirectory(profilePath)
+		if statErr != nil {
+			return nil, statErr
 		}
+		if !isDirectory {
+			continue
+		}
+		cands = append(cands, filepath.Join(profilePath, fname))
 	}
 	seen := map[string]bool{}
 	out := cands[:0]
@@ -3001,7 +3133,7 @@ func kindDescriptorCandidates(repoRoot, slug, profileName string) []string {
 			out = append(out, c)
 		}
 	}
-	return out
+	return out, nil
 }
 
 // effectiveProfileSets unions `contained_kinds` and `closure_records`
@@ -3163,9 +3295,9 @@ func checkBoundTuples(path, name string, profile map[string]any, descriptors map
 		}
 
 		digestField, _ := table["digest_field"].(string)
-		if !closureRecordFieldRE.MatchString(digestField) {
+		if !validClosureRecordField(digestField) {
 			errs = append(errs, fmt.Sprintf(
-				"%s.digest_field `%s` does not match the frozen path grammar ^[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*$ (INV08)",
+				"%s.digest_field `%s` does not match the frozen dot-separated ASCII path grammar (INV08)",
 				place, digestField))
 		} else if digestField == "closure_root" ||
 			strings.SplitN(digestField, ".", 2)[0] == "meta" ||
@@ -3176,9 +3308,9 @@ func checkBoundTuples(path, name string, profile map[string]any, descriptors map
 		}
 
 		for _, field := range fields {
-			if !closureRecordFieldRE.MatchString(field) {
+			if !validClosureRecordField(field) {
 				errs = append(errs, fmt.Sprintf(
-					"%s.fields member `%s` does not match the frozen path grammar ^[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*$ (INV08)",
+					"%s.fields member `%s` does not match the frozen dot-separated ASCII path grammar (INV08)",
 					place, field))
 			}
 		}
@@ -3292,9 +3424,9 @@ func checkClosureRecords(path, name string, profile map[string]any, descriptors 
 
 		field, _ := table["field"].(string)
 		presence, _ := table["presence"].(string)
-		if !closureRecordFieldRE.MatchString(field) {
+		if !validClosureRecordField(field) {
 			errs = append(errs, fmt.Sprintf(
-				"%s.field `%s` does not match the frozen path grammar ^[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*$ (INV07)",
+				"%s.field `%s` does not match the frozen dot-separated ASCII path grammar (INV07)",
 				place, field))
 		} else if stringInSlice(field, closureRecordForbiddenFields) ||
 			strings.SplitN(field, ".", 2)[0] == "meta" ||
@@ -3431,13 +3563,24 @@ func validateProfileDescriptor(path string, doc rawDoc, repoRoot string, descrip
 					"%s: [profile].contained_kinds entries must be non-empty strings", path))
 				continue
 			}
+			candidates, err := kindDescriptorCandidates(repoRoot, slug, name)
+			if err != nil {
+				errs = append(errs, err.Error())
+				continue
+			}
 			matched := false
-			for _, c := range kindDescriptorCandidates(repoRoot, slug, name) {
-				if info, err := os.Stat(c); err != nil || info.IsDir() {
+			for _, c := range candidates {
+				isFile, err := candidateFile(c)
+				if err != nil {
+					errs = append(errs, err.Error())
+					continue
+				}
+				if !isFile {
 					continue
 				}
 				kd, err := loadDoc(c)
 				if err != nil {
+					errs = append(errs, err.Error())
 					continue
 				}
 				tk, _ := stringOf(kd["meta"], "template_kind")
@@ -3647,7 +3790,7 @@ func validateProof(path string, doc rawDoc, vocabs map[string]vocab) []string {
 			errs = append(errs, fmt.Sprintf("%s: `id` must start with `SDP:`", loc))
 		}
 		bound, _ := t["bound_source"].(string)
-		if !sha256RE.MatchString(bound) {
+		if !validSha256(bound) {
 			errs = append(errs, fmt.Sprintf(
 				"%s: `bound_source` must match `^sha256:[0-9a-f]{64}$` (got %q)", loc, bound))
 		}
@@ -3852,12 +3995,6 @@ func main() {
 // `gate_decision` module in tools/dagtoml-validate-rs/src/main.rs. CI runs
 // all three; divergence is a build break.
 // ----------------------------------------------------------------------------
-
-var (
-	gdHex64Re     = regexp.MustCompile(`^[0-9a-f]{64}$`)
-	gdAssertionRe = regexp.MustCompile(`^A-[A-Za-z0-9][A-Za-z0-9_-]*$`)
-	gdObservedRe  = regexp.MustCompile(`^A-[A-Za-z0-9][A-Za-z0-9_-]*\s*=\s*observed\([^)]+\)\s*$`)
-)
 
 // gdRawArray normalises an array value from BurntSushi/toml's dynamic
 // decoder into a flat []any WITHOUT dropping non-table elements. The Rust
@@ -4759,10 +4896,10 @@ func validateGateDecision(path string, doc rawDoc, repoRoot string) []string {
 			continue
 		}
 		cid, _ := t["constraint_id"].(string)
-		if !gdAssertionRe.MatchString(cid) {
+		if !validAssertionID(cid) {
 			defects = append(defects, fmt.Sprintf(
 				"%s: INV02 violated: failed_constraint_refs[%d].constraint_id = %q does not match %s",
-				path, i, cid, gdAssertionRe.String()))
+				path, i, cid, "an A- assertion identifier"))
 		}
 	}
 
@@ -4776,7 +4913,7 @@ func validateGateDecision(path string, doc rawDoc, repoRoot string) []string {
 			continue
 		}
 		line, _ := t["observation_line"].(string)
-		if !gdObservedRe.MatchString(line) {
+		if !validObservedLine(line) {
 			defects = append(defects, fmt.Sprintf(
 				"%s: INV03 violated: override_refs[%d].observation_line does not match canonical observed(...) shape: %q",
 				path, i, line))
@@ -4785,10 +4922,10 @@ func validateGateDecision(path string, doc rawDoc, repoRoot string) []string {
 
 	// INV04.
 	er, _ := decision["evidence_root"].(string)
-	if !gdHex64Re.MatchString(er) {
+	if !validHex64(er) {
 		defects = append(defects, fmt.Sprintf(
 			"%s: INV04 violated: decision.evidence_root = %q does not match %s",
-			path, er, gdHex64Re.String()))
+			path, er, "64 lowercase hexadecimal characters"))
 	}
 
 	// INV06.

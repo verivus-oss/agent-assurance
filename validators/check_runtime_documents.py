@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """Check fixed runtime-document expectations in three independent validators."""
 
-import argparse
+import _literal_args as argparse
 from copy import deepcopy
 import hashlib
-import json
+import _literal_json as json
 import os
-from pathlib import Path
-import re
+from _literal_path import Path
 import shutil
 import subprocess
 import sys
-from unittest.mock import patch
+from _temporary_attribute import temporary_attribute, raising
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "conformance"))
 from runtime_specimens import FIELDS, dump, specimens, prepare_roots  # noqa: E402
 from _runtime_validation import validate_document  # noqa: E402
 from _vocabulary import load_catalog  # noqa: E402
+from _strace_calls import parsed_calls  # noqa: E402
 
 
 def commands(case, path, root, rs, go):
@@ -54,11 +54,12 @@ def boundary_checks(root, work, rs, go, strace):
                                    "-o", str(trace), *command], cwd=root, capture_output=True, text=True, timeout=60,
                                   env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
             text = trace.read_text() if trace.is_file() else ""
-            executions = re.findall(r"\bexecve(?:at)?\(", text)
             # The trace selection contains only network, execution, and open calls.
-            names = re.findall(r"(?:^|\n)(?:\[pid +[0-9]+\] +|[0-9]+ +)?([a-zA-Z0-9_]+)\(", text)
+            calls = parsed_calls(text)
+            executions = [name for name, _ in calls if name in {"execve", "execveat"}]
+            names = [name for name, _ in calls]
             network = [name for name in names if name not in {"execve", "execveat", "open", "openat"}]
-            reference_opens = [line for line in text.splitlines() if re.search(r"\bopen(?:at)?\(", line) and marker in line]
+            reference_opens = [args for name, args in calls if name in {"open", "openat"} and marker in args]
             if proc.returncode or len(executions) != 1 or network or marker in text:
                 raise AssertionError(f"{case.kind}/{language}: scope boundary failed or instrumentation did not run: {proc.stdout}{proc.stderr}")
             results.append({"kind": case.kind, "implementation": language, "executions": len(executions), "network_calls": len(network),
@@ -127,7 +128,7 @@ def main(argv=None):
     if validate_document(case.doc, captured_path, root, case.kind):
         raise AssertionError("captured-root validation reopened the changed root or rejected the fixed positive control")
     # File-less entry points must not launch anything or open any URL.
-    with patch("subprocess.run", side_effect=AssertionError("validator executed a child process")):
+    with temporary_attribute(subprocess, "run", raising(AssertionError("validator executed a child process"))):
         if validate_document(case.doc, captured_path, root, case.kind):
             raise AssertionError("captured-root validation failed its no-subprocess control")
     boundaries = boundary_checks(root, work, rs, go, Path(args.strace).resolve())

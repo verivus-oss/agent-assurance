@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Emit the owned catalog section from TOML; do not infer SQL semantics."""
 
-import argparse
-from pathlib import Path
+import _argument_parser as argparse
+from _path_scan import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "validators"))

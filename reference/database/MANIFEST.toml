@@ -264,7 +264,7 @@ commands = [
 # At generation, schema.ttl footer records observed counts. Drift check
 # parses the footer and compares to ontology block counts.
 expected_footer_counts = { template_kinds = 23, entity_kinds = 27, relation_predicates = 31, attribute_vocabularies = 50 }
-expected_triple_counts = { schema = 1476, shapes = 148 }
+expected_triple_counts = { schema = 1477, shapes = 148 }
 
 [verification.duckdb]
 generator_build = "cargo build --release -p dagtoml-duckdb --manifest-path tools/dagtoml-duckdb/Cargo.toml"

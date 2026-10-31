@@ -9,19 +9,358 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Correct the security posture description to name the required native
+  advisory gate and the retirement of the previous OSV action. Record
+  PR #142's verified repair boundary and issue #141's outstanding cumulative
+  policy requirements without granting approval or changing their scope.
+- Preserve encoded credential detection beside invalid percent escapes, and
+  terminate owned child process groups when bounded commands exceed their
+  deadline or output limit.
+- Make the native locked-package advisory evaluator the required CI gate and
+  retire the old OSV action and its Python staging scripts. At
+  `4529e5f26916c54ee251ecc1bf958de11af3f5ea`, the clean evaluator
+  measured 20 tracked lock subjects and 102 package identities against the
+  complete Go, PyPI and crates.io archives, with independent affected and
+  unaffected record controls. Its source matched the fresh dependency audit
+  at `59889665f89c2a8283b448ab33c56d64d19069e5`: 41 registry archives,
+  38 compiled packages, nine executed build scripts and three generated
+  regular files. Compiler internals, other verification tools and final
+  independent reviews remain separate requirements.
+
+- Reconstruct DuckDB reference errors from the structured primary message
+  and refuse an unstructured native error with a neutral message. The native
+  core can add query context before the binding reads its raw message, as
+  observed against `c7c58b131d8c6d03a2c512a30ae61ea69c25124f`.
+  Configure structured errors when connecting; an attempted per-statement
+  reset on `4529e5f26916c54ee251ecc1bf958de11af3f5ea` made both
+  initialization contenders report busy. A caller that disables structured
+  errors receives a neutral native error until the setting is restored.
+  Remove the Python replacement scan registration from both pinned SDK
+  builds, since a missing table could otherwise import a forbidden parser
+  dependency while looking through caller frames. Check accepted queries,
+  transactions, each native error class, restored error mode, and a missing
+  table after a caller attempts to reenable replacement scanning.
+
+- Retire the floor core's unguarded HTTP implementation after compilation at
+  `5c32a84befa67d3828b428f5257a974a7af7dd8a` showed that disabling extension
+  loading removed its declarations while leaving the HTTP class and response
+  helper active. Remove those complete definitions and retain the existing
+  client factory with an explicit refusal before any request. Exercise retained,
+  removed, already-retired and partial source populations in preparation controls.
+
+- Replace the published DuckDB core binary input with a source build that
+  retires its matcher implementation and generated SQL scanner. Maintain the
+  existing native ABI with explicit pattern refusal and a byte-state SQL
+  scanner, compile the required core-functions and JSON extensions directly,
+  retain complete third-party notices, and bind prepared core bytes and the
+  derived compiled target set into protocol version two. The isolated
+  experiment used the contract at
+  `59889665f89c2a8283b448ab33c56d64d19069e5`; full artifact admission,
+  version/ABI lanes and fresh review remain required for this repair.
+
+- Clarify Python resource ownership, parser outcomes and verification callback
+  lifetimes after the quality findings reported for
+  `42b35118d077e60519f630b7cfbb0bda4fe8e318` through merge analysis
+  `804c9d57e89be0cff44d7834f0338b3b00df47ac`. Keep descriptor ownership
+  explicit, close null input through a lexical scope, freeze callback mode
+  values and preserve neutral parser errors. Refuse absent or unrelated
+  native syntax roots, align frozen record equality and hashing, and keep
+  refusal/restoration assertions outside statically unreachable branches.
+
+- Preserve raw duplicate HTTPS proof fields after the transport review at
+  `4ff598165fb2715fbf4705203a42a44d587127e0` reproduced standard-client
+  normalization of repeated Content-Length headers. Capture the bounded
+  final header block before parsing, preserve proxy routing and destination
+  TLS verification, and require duplicate rejection at every required Rust
+  header consumer. Exercise production transport settings with accepted
+  TLS 1.2, refused TLS 1.1, proxy and actual wire-evidence controls.
+
+- Replace the native advisory evaluator's curl consumer measured against
+  `8e64e6851b6ca8230b325c5b83414414d66bc0de` with a bounded Go HTTPS
+  producer. Bind the complete producer and builder sources, compiled package
+  graph and actual executable identity before and after retrieval. Preserve
+  independent Rust object, byte, header and freshness checks. Reuse owned
+  build-command supervision and require actual source/artifact refusal
+  controls in CI. The original required scanner remains active during the
+  remaining replacement audit.
+
+- Repair native build-command ownership measured against
+  `48fbde757f63bf4e6aa7c889cee54b67e3e25c26`. The PostgreSQL build wrapper
+  could wait beyond a time-scaled deadline on a descendant-held stream. The
+  DuckDB supervisor treated closed streams as completion and stopped a finite
+  producer before its final write. Require process completion and stream
+  completion, retain the PID until owned-group cleanup, and exercise both
+  accepted completion and bounded refusal with actual private producers.
+
+- Require explicit list populations in the DuckDB identity framer after the
+  quality notice on `bdd63b22483fc7c96b0896c3dcc994f1aa0ce37e`. Preserve
+  accepted list framing and reject string, bytes, mapping, tuple and absent
+  populations before iteration, without suppressing the analysis.
+
+- Publish and verify the complete prepared PostgreSQL supplier tree after
+  the artifact audit at `bdd63b22483fc7c96b0896c3dcc994f1aa0ce37e` found
+  captured notices represented only by hashes in the output. Recheck prepared
+  inputs after compilation and retain every source and notice under its
+  content identity. Replace the dependency updater's four fixed Go roots,
+  which omitted both new native modules, with the complete tooling-directory
+  scope already used for Rust.
+
+- Preserve complete supplier enum identifiers in the spelling gate after the
+  four fragment findings measured at
+  `b506356cd82aa85b8217104357f45a16a51bf952`. Move the complete identifier
+  acceptance population into validated literal policy data. Keep component
+  words, case variants, longer identifiers and neighboring prose governed.
+
+- Replace the installed DuckDB binding path measured at
+  `12cb56dd0a6ce892d51930554080e2411ec35521` with a pinned, directly built
+  variant of that existing native dependency. Bind complete source and header
+  populations, compiler and core identities to the loaded module, retain
+  supplier notices, and require artifact and cold-import proofs in receipts.
+  Retire Python packaging and optional ecosystem conversion from this path;
+  keep supplier origin identities in advisory discovery. Preserve reference
+  parameter types, canonical UUID text, UTC timestamps and primary errors.
+  Native core, compiler and other verification dependency audits remain open.
+
+- Make PostgreSQL sequence admission and database connection ownership
+  explicit after the quality analysis of
+  `544cdec5b5b88500ba149b57050f0d10967a11d1`. Preserve exact sequence
+  types and close the latest reconnection through a managed scope. Also
+  abandon the owned producer immediately when a complete reply fails JSON
+  decoding; the earlier client reported closed while retaining that child.
+
+- Bind the complete native PostgreSQL dependency file inventory to the
+  executed client. The build-record reader at
+  `713901fddff9ded2cb41dd04b3e2f5fcb0def754` accepted an inventory with all
+  but one prepared dependency file removed. Require its canonical digest and
+  unique identities before accepting the artifact proof.
+
+- Use the portable POSIX process-group option for the native session launcher.
+  The Python 3.11 PostgreSQL workflow at
+  `a3fcedc8426810b9b991045c0404ffc65b3c52a8` rejected the optional session
+  launch flag. Retain an owned child group and descendant cleanup without
+  requiring that platform extension.
+
+- Extend scanner directory discovery from
+  `7d871361d4275860dab54b628894a54d20d977e6` to visible empty directories
+  and directories whose files are ignored. Check each literal directory's
+  ignore status, retain the directory population, and refuse unimplemented
+  vendor roots before evaluating advisories. Derive native Go module inputs
+  for security and quality checks so new modules receive those checks.
+
+- Replace the PostgreSQL Python driver path measured at
+  `7d871361d4275860dab54b628894a54d20d977e6` with an owned native protocol
+  session and typed buffered bridge. Preserve server transaction states,
+  separate parameters, supported result values and structured errors. Prepare
+  the pinned supplier sources with explicit password-file fields and fixed
+  diagnostics, retain the compiled dependency and executable identities,
+  and require the actual PostgreSQL lane's cold guard in executed receipts.
+  Retire Psycopg and its exclusive Python support packages from both driver
+  locks. Other drivers, native servers and build/scanner audits remain open.
+
+- Bind database and link receipts to working file bytes even when Git index
+  assumption flags hide changes. Both source identities at
+  `543bc3e3665131854ad7b109d59b562e28664f3f` reported changed files as clean
+  under `assume-unchanged`. Compare committed, indexed and working SHA-256
+  identities directly, capture link text without following linked ancestors,
+  and version the framed delta. Retire rendered Git patches from these
+  fingerprints while preserving shared raw-object integrity checks.
+
+- Refuse tracked vendored-directory roots and unassessed Git submodules in the
+  native advisory replacement. Its snapshot at
+  `16233b65fb855f9bad7582603d5064e6d7e45f27` admitted a package-only result
+  after an active directory subject was added. Derive directory prefixes from
+  the full index and retain the pinned upstream predicate, with neighboring
+  accepted cases. Correct the earlier root-Git scope note against the pinned
+  workflow defaults. Keep the original scanner while complete directory
+  discovery and dependency/build audits remain open.
+
+- Bind database receipt metadata to the selected checkout independently of
+  inherited Git location, index and configuration settings. The source-binding
+  function at `a867058bc03a98c9b1a478543b690f046fe25a7d` could label a dirty
+  supplied root clean by inspecting another checkout. Require the actual
+  repository root, retain the complete status digest, and refuse untracked
+  content at the clean-receipt gate. Replace its process wrapper with the owned
+  Git transport, and share the bounded native child transport with the DuckDB
+  external-writer probe. Native tool and driver audits remain open.
+
+- Replace the three database acceptance-harness executor sites measured at
+  `4069dfababe2b74bb1ed7fc8795cc0a8263e7943` with one or two explicit worker
+  threads. Preserve simultaneous contenders, input-ordered results and fatal
+  worker failures; bound waiting and release barrier peers after startup or
+  deadline failure. Cold controls exercise accepted and rejected calls without
+  loading the retired executor or logging framework. Native driver and other
+  harness dependency audits remain open.
+
+- Repair command and discovery regressions measured at
+  `11660352c4c6c1bd30d051607fd4cdde6ca2b470` against the original behavior at
+  `518656923ee1beadc8b5722617782804b7db2da6`. Restore short help and
+  unambiguous option prefixes, preserve positional operands after attached
+  option values, refuse unknown short options before filesystem access,
+  and prune declared discovery exclusions before inspecting
+  their contents. Exercise every shared CLI entry point and both whole-tree
+  workflow selectors, including rejection of malformed selected sources.
+  Align the active closure discovery instrument measured at
+  `cecc0b90a65b5f3454a7ae26fd8ceb463caf180b` with directory pruning, assert
+  the remaining selected document count, and retain an unexcluded malformed
+  source refusal control for relative and absolute discovery roots.
+
+- Repair the CodeQL findings measured at
+  `8fe869c4c46b8cd696879c176fc7032da906f9ba`: separate shared credential
+  predicates from detector orchestration, give file obligations their own
+  empty-file invariant, own the Git error stream with a closing scope, and
+  preserve explicit database connection closure. Use one import style per
+  module across the tracked Python source population. Keep the PR draft
+  while broader driver and scanner replacements remain under validation.
+
+- Retain actionable link-check outcomes from the wrapper measured at
+  `24ece13835c385ddb7352861c9aae5c22ced471f`. Validate the complete
+  success/error/timeout partition even when the scanner exits nonzero,
+  reject inconsistent counts or statuses, and publish sanitized URL/status
+  results in the CI job summary. Keep producer coordinates and diagnostics
+  out of retained results, preserve source and scanner identities, and
+  refuse artifact destinations that could overwrite checkout sources.
+  Align source enumeration with the sanitized Git environment and reject
+  incomplete framing, repeated paths and noncanonical source identities.
+- Replace the nine `unittest.mock` consumers measured at
+  `6266e2fee491223a715595ef8ba59662aa3c9ba4` with explicit temporary
+  attributes and bounded fault callbacks. Preserve exact restoration and
+  existing property witnesses, and exercise accepted, refused and failure
+  cases in cold normal and optimized processes. Retire dotted import
+  resolution, automatic mock creation and unrelated framework APIs.
+- Replace the advisory source exclusion list observed at
+  `fc4bd5c51fd70f7fa00343350620c4927bc66bb3` with recognition of the
+  pinned scanner's full lockfile and SBOM extractor populations, followed
+  by admission of implemented formats. Include variant requirements
+  filenames; refuse other recognized subjects before advisory evaluation.
+  Keep the original required gate while its directory and dependency
+  consumers remain under repair.
+- Validate PostgreSQL connection text before loading the driver, using the
+  underlying string buffer for accepted subclasses. At source
+  `b83953fb8e209aa34e1a9060559709ec6defe687`, invalid input reached the
+  driver import before rejection and text encoding invoked an override.
+  Exercise NUL and nontext rejections in cold processes, plus accepted
+  text parameters in the persistent PostgreSQL lanes.
+- Bound the native Go advisory graph reader from
+  `80fc9813caab7d58d542b5cd705e7d9f722f2c77` to full patch declarations
+  for Go 1.17 and later. Reject older graphs that need the supplier's
+  checksum recovery path; preserve every current Go 1.26.10 input.
+  Correct the scanner scope description to identify module declarations.
+  Bind malformed Cargo owner diagnostics to the manifest's own digest and
+  byte span, with valid-owner and all three required-field rejection cases.
+- Route the DuckDB reference connector from
+  `eaefe4ca6146fcfd3a433a183c102f5a283922b6` through its installed native
+  interface. Preserve text and text-returning filesystem protocol inputs;
+  reject NUL and nontext destinations before opening a file. Add actual
+  private-destination connection controls for accepted and rejected inputs.
+  The native binding, engine and build dependency audits remain open.
+- Add a safe Rust advisory evaluator for the tracked lock population from
+  `82f10ba69328b94e5b831baad5ddc6a0ad9ed2f6`. Fetch complete ecosystem
+  archives and evaluate typed package versions locally, with archive,
+  freshness, source-identity and affected/unaffected controls. Keep the
+  existing required scanner active alongside the native workflow check
+  while dependency audits and clean candidate validation remain unfinished.
+  Preserve the exact supplier compression identifiers in spelling checks
+  without accepting their component word or longer identifiers.
+- Replace the standard syntax-tree helpers observed at candidate
+  `640db84cf0538c333807631611215ace77a8f150` with owned, licensed
+  compile-only inspection and mutation helpers. Preserve current literal,
+  visitor and source regeneration consumers; reject unsupported syntax
+  before regeneration and report original-byte identities for parse errors.
+  Retire unused debug, CLI and deprecated compatibility APIs. Exercise
+  cold components with swallowed-import controls in both Python modes.
+- Strengthen every cold instrument from candidate
+  `c8590f56eb33205c7b540f2d959cc39b30dd718d` to retain forbidden import
+  attempts even when component code catches the rejection. Exercise every
+  tracked runner and declared forbidden root with successful unmodified
+  controls and deliberately swallowed imports in normal and optimized Python.
+  Retire the unused inherited path `touch` method rejected by the pinned
+  typed-handler lint gate; retain native write and directory controls.
+- Replace current filesystem dependencies from candidate
+  `4df544e0727fd881531b3b2fad716c36468bd996` with owned, licensed native path
+  primitives and literal bootstrap bridges. Preserve traversal and symlink
+  boundaries while retiring unused matching and URI APIs. Replace authored
+  UUID generation and the active argument-parser typing import; exercise
+  cold lexical/filesystem components and actual SQLite store outcomes.
+- Replace the authored record consumers from candidate
+  `1691549990e81ac801fbbc611d1f7e31a36b5719` with explicit constructors and
+  named fields, preserving shallow freezing, mutable specimens and defaults.
+  Retire dataclass code generation and direct imports at those sites; add
+  cold controls and complete tracked-source import checks. Other reference
+  cold dependencies remain open. Express JSON character classes with ASCII
+  range predicates so their source text does not create false commit citations.
+- Replace the shared JSON wrapper from candidate
+  `16d7d85f31a3071d56f4f8c34d99d1800ad5ce73` with explicit syntax validation
+  and direct compiled value/encoding primitives. Retire standard JSON and
+  typing imports from this codec, preserve current hooks and formatting, and
+  retain original-byte diagnostics. Add normal/optimized cold controls and
+  tracked import checks; keep the other reference-store imports in audit scope.
+  Repair the spelling lexer constant rejected by Rust 1.99 Clippy without
+  weakening the lint gate.
+- Replace the source spelling action from candidate
+  `a3420ad83ab0758e389fca86dbdfb837e86df5bc` with a safe Rust command using
+  structured text tokens and the pinned supplier literal dictionary. Retire
+  the old glob/ignore walkers and configuration. Preserve literal word and
+  scope policy, validate named data spans beside governed prose, and report
+  source digests and byte spans. Reject stale instruments and absent inputs.
+  Derive Cargo advisory/license populations from the current tooling tree.
+- Replace the credential workflow from candidate
+  `fa8c3051e3cafd83ddcbd8898f4c0028d824c450` with explicit byte predicates,
+  bounded decoding and complete stored Git blob traversal. Retire the Gitleaks
+  executable, configuration and merge wrapper. Preserve the four exact public
+  history controls; reject corrupt objects, incomplete history and moving refs.
+  Keep source digests and byte spans in candidate reports. Add cold component,
+  policy and Git graph controls in normal and optimized Python. Other active
+  scanner dependencies and cold reference-store imports remain audit blockers.
+- Replace the prefix-shape gate observed at
+  `f445e17dcb281d2a95026928e730f645a13b20ae` with native Turtle parsing
+  and a bounded evaluator for the declared identifier-prefix queries.
+  Retire the Python SHACL gate and its dependency lock. Reject unsupported
+  selected-shape properties, query forms, targets and prefix declarations;
+  retain accepted and rejected graph controls. Withdraw the unsupported
+  scanner/SHACL regex allowance; active scanner dependencies remain a
+  policy blocker until independently evaluated replacements are complete.
+- Complete the PostgreSQL failure-path repair from candidate
+  `8fc48a3d3ea4a665e3625a05f7849d997bddef66` with native libpq execution
+  and structured SQLSTATE diagnostics. Keep compiled driver adaptation, guard
+  against a pure Python fallback, and exercise SQL errors, terminated
+  connections, JSON results and buffered row consumption. Make shim exports
+  explicit, consolidate module imports, and name the public scanner fixture
+  as a planted value.
+- Continue the regex removal from candidate
+  `2941bae9e42b89778559ef1f0701ebfa6a40fe87`: use libpq connection parsing,
+  native PostgreSQL parameters, and disabled statement preparation for the
+  reference store. Reject PAX headers before the standard tar metadata parser
+  in both source build paths, and test unexpected OSV scanner aliases.
+- Replace active regex checks in the Python validators, conformance tools,
+  database mirrors, RDF shapes, website check, and CI text gates with explicit
+  predicates and scanners.
+  Declare ontology decimal ID shapes as typed fields and carry them through
+  the SQL, graph, and RDF mirrors. Third-party verification dependencies
+  remain inside the estate no-regex scope; authored matcher removal alone
+  does not establish compliance.
+- Remove authored regex exemptions from Gitleaks, typos, and lychee
+  configuration. Prepare the link scan from Lychee's extracted URLs with
+  exact path and host comparisons.
+  Check Gitleaks findings against the exact known public literal and its
+  historical commits after an unsuppressed scan; any other finding fails CI.
+  Execute the Python, Go, Rust, website, and RDF prefix boundary controls in
+  CI, including accepted and rejected inputs.
+- Expose all seven pinned Python verification locks to OSV Scanner. Update
+  Go module and CI pins to the patched 1.26.10 release after the expanded
+  scan found vulnerable Go standard library pins at 1.26.6. Canonicalize
+  package names and compact markers, reject symlinked locks, and surface
+  scanner cleanup and malformed-result failures.
 - At commit `6f58c814158c3b1ba46eb49a9b0dec544140ae26`, section 9.2
-  requires the reference validators to be checked against the TOML 1.1.0
-  suite. It no longer names particular parser implementations or relies on
-  byte-for-byte source equivalence as the reason for conformance.
+  requires the reference validators to be checked against the TOML 1.1.0 suite. It no
+  longer names particular parser implementations or relies on byte-for-byte
+  source equivalence as the reason for conformance.
 - Report implementation DAG and shared Python TOML byte-decoding failures
   with source digests and byte spans. Keep parser coordinates out of output.
-- Require the OSV scan to discover and verify tracked Python requirements
-  locks under `requirements/`.
-  Surface cleanup and malformed-result failures, and update Go toolchain pins
-  to 1.26.10.
 - Scan commit citations with explicit ASCII token parsing and report file
   identities without source line coordinates. Exclude vendored parser source
   and unit fixtures from this authored citation check.
+- Replace the Go primary validator's direct regex matchers with typed ASCII
+  predicates for identifiers, dates, versions, digests, and observations.
 - Remove NetworkX from the Python reference validator. Use explicit graph
   traversal for cycle detection and longest weighted paths. Vendor the TOML
   1.1 parser with explicit token scanning and remove the upstream parser pin.

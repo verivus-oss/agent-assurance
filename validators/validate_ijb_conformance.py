@@ -46,12 +46,20 @@ Out of scope for v0.1.0 (see SPEC §10.4):
 
 from __future__ import annotations
 
-import argparse
-import contextlib
-import pathlib
-import re
+import _literal_args as argparse
+import _literal_path as pathlib
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
+from _literal_paths import discovery_root
+from _ascii_predicates import (
+    matches_decimal_id,
+    valid_date,
+    valid_datetime,
+    valid_reverse_dns,
+    valid_semver,
+    valid_unprefixed_name,
+    valid_upper_prefix,
+)
 from _profile_discovery import profile_candidates, profile_name
 
 
@@ -65,11 +73,6 @@ PROFILE_ONTOLOGY_TEMPLATE = "profiles/{profile}/ontology.toml"
 # Profile name aliases per SPEC §2.5.
 FRAMEWORK_PROFILE_ALIASES = {"AGDF": "agent-assurance"}
 
-# SPEC §2.5 namespacing partition regexes (mirrors the Rust + Go primaries).
-UNPREFIXED_NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
-REVERSE_DNS_NAME_RE = re.compile(r"^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$")
-SEMVER_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
-
 # SPEC §2.7 closed set for confidentiality.
 CONFIDENTIALITY_CLOSED = (
     "public",
@@ -82,19 +85,10 @@ CONFIDENTIALITY_CLOSED = (
 # SPEC §11.1 closed set for provenance.encryption.hash_is_over.
 HASH_IS_OVER_CLOSED = ("plaintext", "ciphertext")
 
-# SPEC §2.7 RFC 3339 date-or-datetime regexes. Syntactic only; the
+# SPEC §2.7 RFC 3339 date-or-datetime shape. Syntactic only; the
 # validator MUST NOT compare against wall-clock time.
-RFC3339_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-RFC3339_DATETIME_RE = re.compile(
-    r"^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})$"
-)
-
-
 def _is_rfc3339_date_or_datetime(s: str) -> bool:
-    return bool(RFC3339_DATE_RE.match(s) or RFC3339_DATETIME_RE.match(s))
-
-# Matches a candidate uppercase entity prefix (chars before the first `:`).
-UPPERCASE_PREFIX_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
+    return valid_date(s) or valid_datetime(s)
 
 
 def parse_args() -> argparse.Namespace:
@@ -130,7 +124,7 @@ def load_toml(path: pathlib.Path) -> dict:
 
 def _block_label(block: dict, kind: str) -> str:
     if kind == "entities":
-        return block.get("id_prefix") or block.get("id_pattern") or "?"
+        return block.get("id_prefix") or block.get("id_decimal_prefix") or "?"
     if kind == "relations":
         return block.get("predicate") or "?"
     if kind == "attribute_vocabularies":
@@ -138,7 +132,7 @@ def _block_label(block: dict, kind: str) -> str:
     return "?"
 
 
-# SPEC §10.2 "Structural ontology declarations" table - the full row
+# SPEC §10.2 "Structural ontology declarations" table — the full row
 # set the validator enforces, including the meta and extension-rules
 # rows that lie outside the array-of-tables blocks. Per SPEC §2.7,
 # the disclosure-posture fields (`confidentiality`, `license`,
@@ -172,6 +166,34 @@ def validate_ontology(doc: dict, source: str) -> list[str]:
 
     for index, block in enumerate(doc.get("entities", [])):
         label = _block_label(block, "entities")
+        if "id_pattern" in block:
+            errors.append(
+                f"{source}:entities[{index}]: id_pattern is unsupported; "
+                "use a typed decimal identifier declaration"
+            )
+        colon_prefix = block.get("id_prefix")
+        decimal_prefix = block.get("id_decimal_prefix")
+        if (
+            (colon_prefix is None) == (decimal_prefix is None)
+            or colon_prefix is not None and (
+                not isinstance(colon_prefix, str) or not valid_upper_prefix(colon_prefix)
+            )
+            or decimal_prefix is not None and (
+                not isinstance(decimal_prefix, str) or not valid_upper_prefix(decimal_prefix)
+            )
+        ):
+            errors.append(
+                f"{source}:entities[{index}]: declare exactly one uppercase "
+                "ASCII id_prefix or id_decimal_prefix"
+            )
+        if "id_optional_lower_suffix" in block and (
+            not isinstance(block["id_optional_lower_suffix"], bool)
+            or "id_decimal_prefix" not in block
+        ):
+            errors.append(
+                f"{source}:entities[{index}]: id_optional_lower_suffix "
+                "requires a boolean and id_decimal_prefix"
+            )
         errors.extend(
             _check_primitive_class(
                 block,
@@ -294,7 +316,7 @@ def validate_ontology(doc: dict, source: str) -> list[str]:
                 )
             )
 
-        # Reject unknown annotation keys - every entry in
+        # Reject unknown annotation keys — every entry in
         # [meta.ijb_field_primitives] must correspond to a known
         # SPEC §10.2 meta-field row.
         for fname in field_prims:
@@ -317,7 +339,7 @@ def _check_primitive_class(
 ) -> list[str]:
     """Helper: check a kind-descriptor block carries the expected
     IJB annotations. `expected_class` and `expected_constraint_type`
-    are mutually exclusive - `observed` blocks have neither."""
+    are mutually exclusive — `observed` blocks have neither."""
     errors: list[str] = []
     prim = block.get("ijb_primitive")
     if prim is None:
@@ -472,7 +494,7 @@ def validate_profile_descriptor(doc: dict, source: str) -> list[str]:
     """Enforce profile-descriptor IJB annotations per SPEC §6.1 / §10.2.
 
     The `[profile]` table is the singleton declaration about the named
-    profile and is `(thing, structural)` - mirroring the `[kind]` block
+    profile and is `(thing, structural)` — mirroring the `[kind]` block
     in a kind-descriptor (KD1).
     """
     errors: list[str] = []
@@ -496,9 +518,9 @@ def validate_profile_descriptor(doc: dict, source: str) -> list[str]:
 
 
 def build_resolver(ontologies: list[tuple[str, dict]]) -> tuple[dict, list, dict]:
-    """Build lookup tables for entity prefixes, id patterns, and relation predicates."""
+    """Build lookup tables for entity prefixes, typed ID shapes, and relation predicates."""
     id_prefixes: dict[str, tuple[dict, str]] = {}
-    id_patterns: list[tuple[re.Pattern, dict, str]] = []
+    id_patterns: list[tuple[str, bool, dict, str]] = []
     predicate_to_relation: dict[str, list[tuple[dict, str]]] = {}
 
     for source, doc in ontologies:
@@ -506,12 +528,9 @@ def build_resolver(ontologies: list[tuple[str, dict]]) -> tuple[dict, list, dict
             prefix = block.get("id_prefix")
             if isinstance(prefix, str) and prefix:
                 id_prefixes[prefix] = (block, source)
-            pattern = block.get("id_pattern")
-            if isinstance(pattern, str) and pattern:
-                # An un-compilable id_pattern is skipped here; pattern
-                # validity is reported by the dedicated checks (py/empty-except).
-                with contextlib.suppress(re.error):
-                    id_patterns.append((re.compile(f"^{pattern}$"), block, source))
+            decimal_prefix = block.get("id_decimal_prefix")
+            if isinstance(decimal_prefix, str) and decimal_prefix:
+                id_patterns.append((decimal_prefix, block.get("id_optional_lower_suffix") is True, block, source))
         for block in doc.get("relations", []):
             predicate = block.get("predicate")
             if isinstance(predicate, str) and predicate:
@@ -525,12 +544,12 @@ def looks_like_entity_ref(token: str) -> bool:
 
     An entity reference is either:
     - `PREFIX:slug` where PREFIX is uppercase letters/digits/underscores, OR
-    - a token that could match one of the bare-id patterns (handled by
+    - a token that could match one of the typed bare-ID shapes (handled by
       caller via id_patterns).
     """
     if ":" in token:
         prefix = token.split(":", 1)[0]
-        return bool(UPPERCASE_PREFIX_RE.match(prefix))
+        return valid_upper_prefix(prefix)
     return False
 
 
@@ -545,7 +564,7 @@ def check_entity_ref(
         return None
     if ":" in token:
         prefix = token.split(":", 1)[0]
-        if not UPPERCASE_PREFIX_RE.match(prefix):
+        if not valid_upper_prefix(prefix):
             return None  # not entity-ref-shaped (e.g. "src/checkout::sym")
         if prefix in id_prefixes:
             return None
@@ -553,8 +572,8 @@ def check_entity_ref(
             f"entity prefix `{prefix}` in `{token}` does not resolve to a "
             f"declared `[[entities]].id_prefix` in the loaded ontologies"
         )
-    for rx, _block, _src in id_patterns:
-        if rx.match(token):
+    for decimal_prefix, optional_suffix, _block, _src in id_patterns:
+        if matches_decimal_id(decimal_prefix, optional_suffix, token):
             return None
     return None
 
@@ -587,20 +606,19 @@ def validate_instance(
 
     # Special case: implementation-DAG units are declared as
     # `[units.U01]` so the unit ID is the table key, not a value. Verify
-    # each such key resolves through the declared id_patterns (the
-    # closed `U\d+[a-z]?` pattern in core/ontology.toml).
+    # each such key resolves through a declared decimal ID shape.
     units = doc.get("units")
     if isinstance(units, dict):
         for unit_id in units.keys():
             matched = False
-            for rx, _block, _src in id_patterns:
-                if rx.match(unit_id):
+            for decimal_prefix, optional_suffix, _block, _src in id_patterns:
+                if matches_decimal_id(decimal_prefix, optional_suffix, unit_id):
                     matched = True
                     break
             if not matched:
                 errors.append(
                     f"units.{unit_id}: identifier does not match any declared "
-                    f"entity `id_pattern` in the loaded ontologies"
+                    f"decimal entity ID shape in the loaded ontologies"
                 )
 
     return errors
@@ -616,7 +634,7 @@ def discover_profile_descriptors(repo_root: pathlib.Path) -> set[str]:
     value MUST resolve to a loaded descriptor."""
     names: set[str] = set()
     profiles_dir = repo_root / "profiles"
-    if not profiles_dir.is_dir():
+    if not discovery_root(profiles_dir, required=True):
         return names
     for candidate in profile_candidates(repo_root):
         try:
@@ -640,9 +658,9 @@ def validate_meta_posture(
     if not isinstance(meta, dict):
         return errors
 
-    # §2.2 / §8 - version pin shapes.
+    # §2.2 / §8 — version pin shapes.
     schema_version = meta.get("schema_version")
-    if not isinstance(schema_version, str) or not SEMVER_RE.match(schema_version):
+    if not isinstance(schema_version, str) or not valid_semver(schema_version):
         errors.append(
             f"{source}: [meta].schema_version must be a semver string "
             f"`MAJOR.MINOR.PATCH` (got {schema_version!r})"
@@ -660,7 +678,7 @@ def validate_meta_posture(
                 f"snapshot (got {ontology_version!r})"
             )
 
-    # §2.6 - docs URL shape (https://, no query string).
+    # §2.6 — docs URL shape (https://, no query string).
     docs_url = meta.get("docs")
     if isinstance(docs_url, str):
         if not docs_url.startswith("https://"):
@@ -673,7 +691,7 @@ def validate_meta_posture(
                 f"{source}: [meta].docs must not contain a query string (SPEC §2.6)"
             )
 
-    # §2.7 - confidentiality closed set + embargo_until cross-field.
+    # §2.7 — confidentiality closed set + embargo_until cross-field.
     if "confidentiality" in meta:
         conf = meta["confidentiality"]
         if not isinstance(conf, str):
@@ -707,7 +725,7 @@ def validate_meta_posture(
                     f"match RFC 3339 date or date-time syntax (SPEC §2.7)"
                 )
 
-    # §2.7 - license, when present, MUST be a non-empty string.
+    # §2.7 — license, when present, MUST be a non-empty string.
     if "license" in meta:
         lic = meta["license"]
         if not isinstance(lic, str):
@@ -720,12 +738,12 @@ def validate_meta_posture(
                 f"{source}: [meta].license, when present, must be a non-empty string"
             )
 
-    # §2.5 - framework_profile partition + descriptor resolution.
+    # §2.5 — framework_profile partition + descriptor resolution.
     fp = meta.get("framework_profile")
     if isinstance(fp, str) and fp:
         resolved = resolve_profile_name(fp)
-        is_unprefixed = bool(UNPREFIXED_NAME_RE.match(resolved))
-        is_reverse_dns = bool(REVERSE_DNS_NAME_RE.match(resolved))
+        is_unprefixed = valid_unprefixed_name(resolved)
+        is_reverse_dns = valid_reverse_dns(resolved)
         if not (is_unprefixed or is_reverse_dns):
             errors.append(
                 f"{source}: [meta].framework_profile = `{fp}` does not match the "
@@ -735,17 +753,17 @@ def validate_meta_posture(
         elif is_unprefixed and repo_root is not None:
             try:
                 known = discover_profile_descriptors(repo_root)
-            except ValueError as exc:
-                errors.append(f"{source}: profile discovery failed: {exc}")
-            else:
-                if resolved not in known:
-                    errors.append(
-                        f"{source}: [meta].framework_profile = `{fp}` is an unprefixed "
-                        f"(spec-reserved) name but no loaded profile-descriptor declares it "
-                        f"(SPEC §2.5)"
-                    )
+            except (OSError, ValueError) as exc:
+                errors.append(f"{source}: cannot inspect profile descriptors ({exc})")
+                return errors
+            if resolved not in known:
+                errors.append(
+                    f"{source}: [meta].framework_profile = `{fp}` is an unprefixed "
+                    f"(spec-reserved) name but no loaded profile-descriptor declares it "
+                    f"(SPEC §2.5)"
+                )
 
-    # §11.1 - provenance.encryption sub-table shape (when present).
+    # §11.1 — provenance.encryption sub-table shape (when present).
     prov = doc.get("provenance")
     if isinstance(prov, dict):
         enc = prov.get("encryption")
@@ -759,7 +777,7 @@ def validate_meta_posture(
             elif sealed is False:
                 errors.append(
                     f"{source}: [provenance.encryption] is present but "
-                    f"`sealed = false` - SPEC §11.1 forbids the sub-table in "
+                    f"`sealed = false` — SPEC §11.1 forbids the sub-table in "
                     f"that case"
                 )
             elif sealed is not True:
@@ -810,8 +828,8 @@ def main() -> int:
     errors: list[str] = []
 
     # SPEC §2.5 + §2.6 + §2.7 + §11.1 cross-field semantics apply to
-    # every file with a `[meta]` table - including ontology /
-    # kind-descriptor / profile-descriptor - so the IJB validator
+    # every file with a `[meta]` table — including ontology /
+    # kind-descriptor / profile-descriptor — so the IJB validator
     # agrees with the Rust + Go primaries on the meta surface.
     repo_root_for_posture = None
     if args.repo_root:

@@ -2,7 +2,7 @@
 
 
 import hashlib
-import json
+import _json_decode as json
 
 from _projection import project, semantic_json, timestamp_index
 from _storage import Store, StorageError
@@ -17,6 +17,7 @@ CHECKS = frozenset({
     "native-and-quoted-date-and-local-timestamp-indexes", "semantic-json-order-unicode-escapes-and-decimal-number-equivalence",
     "audit-and-repeat-reject-array-order", "audit-and-repeat-reject-bool-versus-number", "audit-and-repeat-reject-missing-property",
     "audit-and-repeat-detect-raw-bytes-and-projection-corruption", "audit-detects-source-hash-corruption",
+    "failed-close-blocks-reconnect",
 })
 
 
@@ -24,6 +25,27 @@ def exercise_storage(store: Store) -> list[str]:
     """Use an isolated test destination. This function intentionally writes rows."""
     checks = []
     root = store.root
+
+    class FailingClose:
+        def __getattr__(self, name):
+            return getattr(store.connection, name)
+
+        def close(self) -> None:
+            raise OSError("injected close failure")
+
+    def forbidden_reconnect():
+        raise AssertionError("reconnected after old connection close failed")
+
+    close_failure = Store(store.engine, FailingClose(), root, reconnect=forbidden_reconnect)
+    try:
+        close_failure._fresh()
+    except StorageError as exc:
+        require(exc.code == "commit-outcome-unknown")
+        require(isinstance(exc.__cause__, OSError))
+    else:
+        raise AssertionError("failed close was accepted")
+    checks.append("failed-close-blocks-reconnect")
+
     kinds = ("adapter-contract", "adapter-registry-binding", "gate-decision")
     sources = {kind: (root / f"examples/minimal-{kind}.toml").read_bytes() for kind in kinds}
     batch = [(f"check/{kind}.toml", sources[kind]) for kind in kinds]
@@ -54,11 +76,13 @@ def exercise_storage(store: Store) -> list[str]:
     require(relocated["documents"][0]["id"] != first["documents"][0]["id"])
     checks.append("changed-content-and-distinct-source-occurrences")
 
-    import re
-    from pathlib import Path
-    import uuid
-    from unittest.mock import patch
-    omitted = re.sub(rb'^id_derivation[^\n]*\n', b'', sources[kinds[0]], count=1, flags=re.M)
+    from _path_scan import Path
+    from _random_id import random_id_hex
+    from _temporary_attribute import temporary_attribute
+    original_lines = sources[kinds[0]].splitlines(keepends=True)
+    omitted_lines = [line for line in original_lines if not line.startswith(b"id_derivation")]
+    require(len(original_lines) - len(omitted_lines) == 1)
+    omitted = b"".join(omitted_lines)
     require(omitted != sources[kinds[0]])
     optional_result = store.ingest([("optional/derivation.toml", omitted)])
     require(store.rows("runtime_document", ("adapter_id_derivation",), "WHERE instance_file_id = ?",
@@ -67,12 +91,16 @@ def exercise_storage(store: Store) -> list[str]:
     checks.append("optional-derivation-stores-null")
     # Capture valid A, replace its path with valid B, and exercise the complete
     # projection/write/repeat/audit path while forbidding a root-source reopen.
-    capture = root / ".local/storage-capture" / (uuid.uuid4().hex + ".toml")
+    capture = root / ".local/storage-capture" / (random_id_hex() + ".toml")
     capture.parent.mkdir(parents=True, exist_ok=True)
     a = sources[kinds[0]]
     b = a.replace(b'network_policy = "denied"', b'network_policy = "open"')
     if b == a:
-        b = re.sub(rb'(network_policy\s*=\s*)"denied"', rb'\1"open"', a, count=1)
+        candidates = [line for line in a.splitlines(keepends=True)
+                      if line.partition(b"=")[0].strip() == b"runtime_network_policy"
+                      and line.partition(b"=")[2].strip() == b'"denied"']
+        require(len(candidates) == 1)
+        b = a.replace(candidates[0], candidates[0].replace(b'"denied"', b'"open"', 1), 1)
     require(a != b)
     project(a, str(capture), root)
     project(b, str(capture), root)
@@ -83,7 +111,7 @@ def exercise_storage(store: Store) -> list[str]:
     def guarded_read(path):
         require(path != capture, "storage reopened the captured root source")
         return original_read(path)
-    with patch.object(Path, "read_bytes", guarded_read):
+    with temporary_attribute(Path, "read_bytes", guarded_read):
         version_a = store.ingest([(str(capture), captured)])
     version_b = store.ingest([(str(capture), capture.read_bytes())])
     for result, raw, policy in ((version_a, a, "denied"), (version_b, b, "open")):

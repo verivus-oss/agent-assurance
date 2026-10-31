@@ -39,15 +39,15 @@ baseline, 1 when it regresses above it, 2 on an infrastructure error.
 
 from __future__ import annotations
 
-import argparse
-import ast
+import _path_scan as pathlib
+import _argument_parser as argparse
+import _syntax_tree as ast
 import atexit
 import os
-import pathlib
 import signal
 import subprocess
 import sys
-import uuid
+from _random_id import random_id_hex
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "validators"))
 import _toml11 as tomllib  # noqa: E402
@@ -118,7 +118,7 @@ class Restorer:
 
 def rejected(validator: str, pattern: str, root: pathlib.Path) -> set[str]:
     out: set[str] = set()
-    for f in sorted(root.glob(pattern)):
+    for f in sorted(pathlib.glob(root, pattern)):
         rel = str(f.relative_to(root))
         if any(s in rel for s in BASELINE_SKIP):
             continue
@@ -153,7 +153,7 @@ def legacy_main() -> int:
         print("error: baseline suites do not pass; fix the tree before auditing", file=sys.stderr)
         return 2
 
-    unprotected: list[tuple[str, int, str]] = []
+    unprotected: list[tuple[str, str]] = []
     audited = 0
     for validator, pattern in AUDITED.items():
         path = root / validator
@@ -173,16 +173,16 @@ def legacy_main() -> int:
                     path.write_text(original)
                 audited += 1
                 if not detected:
-                    unprotected.append((validator, tr.line or 0, tr.fingerprint))
+                    unprotected.append((validator, tr.fingerprint))
 
     declared = set(baseline_doc["coverage"].get("unprotected", []))
-    actual = {f"{v}|{fp}" for v, _line, fp in unprotected}
+    actual = {f"{v}|{fp}" for v, fp in unprotected}
 
     print("COVERAGE AUDIT")
     print(f"- checks audited      : {audited}")
     print(f"- unprotected         : {len(unprotected)}")
     print(f"- declared baseline   : {allowed}")
-    for validator, line, fp in sorted(unprotected):
+    for validator, fp in sorted(unprotected):
         print(f"  UNPROTECTED {validator}  {fp}")
 
     # The SET matters, not only the count. A count-only ratchet is fungible:
@@ -229,10 +229,10 @@ def main():
     parser.add_argument("--runtime-only", action="store_true", help="explicit partial development run")
     args = parser.parse_args()
     root = args.repo_root.resolve()
-    work = root / ".local/coverage-audit" / uuid.uuid4().hex
+    work = root / ".local/coverage-audit" / random_id_hex()
     source = work / "source"
     population = copy_source(root, source)
-    import json
+    import _json_decode as json
     (work / "copy.json").write_text(json.dumps(population, indent=2))
     audit(source, work / "runtime-mutations.json")
     if args.runtime_only:

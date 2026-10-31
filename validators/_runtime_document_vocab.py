@@ -1,7 +1,7 @@
 """Structural adapter/binding checks. References remain inert at the SPEC layer."""
 
-from pathlib import Path
-import re
+from _literal_path import Path
+from _ascii_predicates import valid_assertion_id, valid_hex
 
 from _vocabulary import canonical_profile, load_catalog
 
@@ -14,8 +14,6 @@ BINDINGS = (
     ("adapter-registry-binding", "binding", "adapter_ref_syntax", "adapter_ref_syntax", True),
     ("gate-decision", "decision", "verdict", "gate_decision_verdict", True),
 )
-ASSERTION_ID = re.compile(r"A-[A-Za-z0-9][A-Za-z0-9_-]*")
-HEX64 = re.compile(r"[0-9a-f]{64}")
 PRIMITIVES = frozenset({"thing", "scope", "path", "observed", "constraint", "time"})
 
 
@@ -92,7 +90,7 @@ def validate_adapter(doc: dict, repo_root: Path, *, binding: bool = False) -> li
             _nonempty(entry, "anchor_id", "binding.trust_anchor_refs[]", errors)
         for entry in _entries(table, "policy_constraint_refs", section, errors):
             value = entry.get("constraint_id")
-            if not isinstance(value, str) or ASSERTION_ID.fullmatch(value) is None:
+            if not isinstance(value, str) or not valid_assertion_id(value):
                 errors.append("INV03: binding.policy_constraint_refs[].constraint_id must match the whole ASCII assertion-ID grammar")
     else:
         _nonempty(table, "input_source", section, errors)
@@ -107,7 +105,7 @@ def validate_adapter(doc: dict, repo_root: Path, *, binding: bool = False) -> li
             errors.append("INV02: adapter.runtime_artifact must be a table")
         elif digest_field:
             value = artifact.get(digest_field)
-            if not isinstance(value, str) or HEX64.fullmatch(value) is None:
+            if not isinstance(value, str) or not valid_hex(value, 64):
                 errors.append(f"INV02: adapter.runtime_artifact.{digest_field} must be exactly 64 lowercase ASCII hex characters")
         for entry in _entries(table, "emits", section, errors, required=True):
             value = entry.get("ijb_primitive")

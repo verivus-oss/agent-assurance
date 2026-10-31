@@ -1,13 +1,13 @@
 """Executed regression controls for declaration and source-discovery boundaries."""
 
+from _literal_paths import glob as literal_glob
 import contextlib
 import hashlib
 import io
-import json
+from _literal_json import loads as loads_json
 import subprocess
 import sys
-import textwrap
-from unittest.mock import patch
+from _temporary_attribute import temporary_attribute, returning, raising
 
 from _instrument import require
 
@@ -15,7 +15,7 @@ from _instrument import require
 def exercise(candidate, work):
     """Mutate only an isolated source copy; retain each property failure."""
     from check_attribute_values import parse_go_expected_counts, parse_rust_expected_counts
-    from discrimination import discover_cases
+    import discrimination
     from _storage import StorageError
     import ingest_runtime_document as ingest_cli
     import replay_runtime_documents as replay_cli
@@ -78,14 +78,18 @@ def exercise(candidate, work):
 
     workflow = (candidate / ".github/workflows/validate.yml").read_text()
     section = workflow.split("- name: Discrimination coverage (external assertion)", 1)[1]
-    external = textwrap.dedent(section.split("python3 - <<'PY'\n", 1)[1].split("          PY\n", 1)[0])
+    block = section.split("python3 - <<'PY'\n", 1)[1].split("          PY\n", 1)[0]
+    lines = block.splitlines(keepends=True)
+    if not lines or any(line.strip() and not line.startswith("          ") for line in lines):
+        raise AssertionError("external discrimination source indentation changed")
+    external = "".join(line[10:] if line.startswith("          ") else line for line in lines)
     command("external-discovery-positive", [sys.executable, "-c", external], 0, "discrimination coverage OK")
     directory = candidate / "conformance/cases/gate-decision"
     hidden = work / "withheld-gate-decision"
     directory.rename(hidden)
     try:
         try:
-            discover_cases(candidate / "conformance/cases")
+            discrimination.discover_cases(candidate / "conformance/cases")
         except ValueError as exc:
             require("mapped kinds have no conformance directory" in str(exc))
             observations.append({"control": "removed-kind-directory", "status": "killed", "output": str(exc)})
@@ -97,13 +101,13 @@ def exercise(candidate, work):
 
     # A dotted stem's sidecar contains an impossible diagnostic. The readers
     # must consume it even when process results are supplied by this instrument.
-    side = next(directory.glob("invalid/*.expected.toml"))
+    side = next(literal_glob(directory, "invalid/*.expected.toml"))
     case = side.with_name(side.name.removesuffix(".expected.toml") + ".toml")
     dotted = case.with_name("review.dotted.toml")
     dotted_side = dotted.with_suffix(".expected.toml")
     dotted.write_bytes(case.read_bytes())
     dotted_side.write_text('error_contains = ["review-impossible-dotted-sidecar-diagnostic"]\n')
-    require(dotted in discover_cases(candidate / "conformance/cases"))
+    require(dotted in discrimination.discover_cases(candidate / "conformance/cases"))
     # Stub process observations only for this sidecar-reader instrument. The
     # complete conformance suite separately executes the actual validators.
     import runner
@@ -112,12 +116,11 @@ def exercise(candidate, work):
     def verdict(argv):
         return (1 if "/invalid/" in str(argv[-1]) else 0), "review-stub-observation"
     try:
-        with patch.object(runner, "parse_args", return_value=args), patch.object(runner, "run_validator", side_effect=verdict), contextlib.redirect_stdout(io.StringIO()) as output:
+        with temporary_attribute(runner, "parse_args", returning(args)), temporary_attribute(runner, "run_validator", verdict), contextlib.redirect_stdout(io.StringIO()) as output:
             result = runner.main()
         require(result == 1 and "review-impossible-dotted-sidecar-diagnostic" in output.getvalue())
         observations.append({"control": "dotted-sidecar-runner", "status": "killed", "output": output.getvalue()})
-        import discrimination
-        with patch.object(sys, "argv", ["discrimination", "--rs", "inert-rust", "--go", "inert-go", "--repo-root", str(candidate), "--cases", str(candidate / "conformance/cases")]), patch.object(discrimination, "collect_output", return_value="review-stub-observation"), contextlib.redirect_stdout(io.StringIO()) as output:
+        with temporary_attribute(sys, "argv", ["discrimination", "--rs", "inert-rust", "--go", "inert-go", "--repo-root", str(candidate), "--cases", str(candidate / "conformance/cases")]), temporary_attribute(discrimination, "collect_output", returning("review-stub-observation")), contextlib.redirect_stdout(io.StringIO()) as output:
             result = discrimination.main()
         require(result == 1 and "review.dotted.toml: sidecar fails to match" in output.getvalue())
         observations.append({"control": "dotted-sidecar-discrimination", "status": "killed", "output": output.getvalue()})
@@ -129,14 +132,14 @@ def exercise(candidate, work):
     error.context = {"operation": "ingest", "contract_bundle_sha256": "a" * 64,
                      "documents": [{"source_path": "captured.toml", "content_sha256": "sha256:" + hashlib.sha256(b"captured").hexdigest()}]}
     for module in (ingest_cli, replay_cli):
-        with patch.object(module, "connect", side_effect=error), contextlib.redirect_stdout(io.StringIO()) as out, contextlib.redirect_stderr(io.StringIO()) as err:
+        with temporary_attribute(module, "connect", raising(error)), contextlib.redirect_stdout(io.StringIO()) as out, contextlib.redirect_stderr(io.StringIO()) as err:
             args = ["--engine", "sqlite", "--destination", "inert.db"]
             if module is ingest_cli:
                 args += ["ingest", "captured.toml"]
             else:
                 args += ["--manifest", "inert.toml", "--report", str(work / "unknown-report.json")]
             require(module.main(args) == 1)
-        result = json.loads(err.getvalue() if module is ingest_cli else out.getvalue())
+        result = loads_json(err.getvalue() if module is ingest_cli else out.getvalue())
         require(result["status"] == "commit-outcome-unknown" and result["code"] == "commit-outcome-unknown")
         require({key: result[key] for key in error.context} == error.context)
         observations.append({"control": module.__name__ + "/unknown-identities", "status": "confirmed", "output": result})

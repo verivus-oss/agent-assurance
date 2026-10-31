@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Assert discovery exclusions apply below each explicitly selected root."""
 
-import json
+import _literal_json as json
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
-from pathlib import Path
-import uuid
+from _literal_path import Path
+from _random_id import random_id_hex
 
 from validate_closure_root import (
     _loaded_profile_names,
@@ -39,7 +39,9 @@ def expect_cli_failure(repo, root, source):
 
 
 def main():
-    work = Path(".local/closure-discovery") / uuid.uuid4().hex
+    work = Path(".local/closure-discovery") / random_id_hex()
+    (work / "profiles").mkdir(parents=True)
+    (work / "core").mkdir()
     root = work / "source"
     accepted = {"visible.toml", "nested/visible.toml"}
     excluded = {".hidden.toml", ".hidden/visible.toml", "target/visible.toml",
@@ -65,6 +67,18 @@ def main():
     expect_parse_failure(lambda: discover_conforming([root], kinds), malformed)
     expect_cli_failure(work, root, malformed)
     malformed.unlink()
+    wrong_type = root / "wrong-type.toml"
+    for value in ("1", "true", "[\"implementation-dag\"]"):
+        wrong_type.write_text(f"[meta]\ntemplate_kind = {value}\n")
+        try:
+            discover_conforming([root], kinds)
+        except ValueError as exc:
+            if str(wrong_type) not in str(exc) or "not a string" not in str(exc):
+                raise AssertionError(f"wrong-type kind lost its source: {exc}") from exc
+        else:
+            raise AssertionError(f"wrong-type kind was silently skipped: {value}")
+        expect_cli_failure(work, root, wrong_type)
+    wrong_type.unlink()
 
     sweep = work / "sweep"
     sweep.mkdir()
@@ -75,14 +89,24 @@ def main():
     rejected = sweep / "negative" / "malformed.toml"
     rejected.parent.mkdir()
     rejected.write_bytes(b"[meta]\n\xff")
-    output = StringIO()
-    with redirect_stdout(output):
-        result = closure_main([
-            "--repo-root", str(work), "--discover", str(sweep),
-            "--exclude", str(rejected.parent),
-        ])
-    if result != 0 or str(rejected) not in output.getvalue():
-        raise AssertionError("asserted-negative malformed TOML was not excluded before parsing")
+    for selected in (sweep, sweep.resolve()):
+        output, diagnostic = StringIO(), StringIO()
+        with redirect_stdout(output), redirect_stderr(diagnostic):
+            result = closure_main([
+                "--repo-root", str(work), "--discover", str(selected),
+                "--exclude", str(rejected.parent),
+            ])
+        expected = [
+            f"EXCLUDED (asserted-negative path): {selected / 'negative'}",
+            "CLOSURE-ROOT VALIDATION PASSED (1 file(s)).",
+        ]
+        if result != 0 or output.getvalue().splitlines() != expected or diagnostic.getvalue():
+            raise AssertionError(
+                f"excluded directory did not preserve the selected document: "
+                f"{result}, {output.getvalue()!r}, {diagnostic.getvalue()!r}"
+            )
+        expect_parse_failure(lambda: discover_conforming([selected], kinds), selected / "negative/malformed.toml")
+        expect_cli_failure(work, selected, selected / "negative/malformed.toml")
 
     repo = work / "repo"
     profile = repo / "profiles" / "broken" / "PROFILE.toml"
@@ -101,14 +125,14 @@ def main():
     posture_errors = validate_meta_posture(
         {"meta": {"framework_profile": "broken"}}, "captured", repo
     )
-    if not any("profile discovery failed" in error for error in posture_errors):
+    if not any(str(profile) in error for error in posture_errors):
         raise AssertionError("invalid profile did not reject IJB posture validation")
     profile.unlink()
     profile.symlink_to("missing-profile.toml")
     for operation in profile_operations:
         try:
             operation()
-        except ValueError as exc:
+        except (OSError, ValueError) as exc:
             if str(profile) not in str(exc):
                 raise AssertionError(f"missing profile source in error: {exc}") from exc
         else:

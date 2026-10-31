@@ -85,11 +85,78 @@ jobs:
           cargo build --release --locked || cargo build --release
           cp target/release/dagtoml-validate-rs "${RUNNER_TEMP}/dagtoml-validate-rs"
 
+      - name: Native locked-package advisory controls and evaluation
+        # Required advisory gate. It derives the complete tracked lock
+        # population, reads published ecosystem archives, and evaluates
+        # typed versions locally. Any incomplete or affected result fails.
+        run: |
+          set -euo pipefail
+          (cd tools/dagtoml-postgres-go && GOTOOLCHAIN=go1.26.10 go run ./cmd/build-driver --capsule-source "$GITHUB_WORKSPACE/tools/dagtoml-osv-http-go" --output "$GITHUB_WORKSPACE/.local/osv-https/dagtoml-osv-http-go")
+          .local/osv-https/dagtoml-osv-http-go --self-check
+          cargo fmt --manifest-path tools/dagtoml-osv/Cargo.toml --check
+          cargo clippy --locked --manifest-path tools/dagtoml-osv/Cargo.toml --all-targets -- -D warnings
+          cargo test --locked --manifest-path tools/dagtoml-osv/Cargo.toml
+          cargo test --locked --manifest-path tools/dagtoml-osv/Cargo.toml --test https_artifact -- --ignored
+          cargo build --locked --manifest-path tools/dagtoml-osv/Cargo.toml
+          tools/dagtoml-osv/target/debug/dagtoml-osv .
+
       - name: Build primary Go validator
         run: |
           set -e
           cd tools/dagtoml-validate-go
           go build -o "${RUNNER_TEMP}/dagtoml-validate-go" ./...
+
+      - name: Native and Python boundary controls
+        run: |
+          set -euo pipefail
+          (cd tools/dagtoml-validate-rs && cargo test --locked)
+          (cd tools/dagtoml-validate-go && go test ./...)
+          python3 - "${RUNNER_TEMP}/dagtoml-validate-rs" "${RUNNER_TEMP}/dagtoml-validate-go" <<'PY'
+          import subprocess
+          import sys
+          sys.path.insert(0, "validators")
+          from _literal_path import Path
+
+          tests = sorted(path for path in Path("validators").iterdir()
+                         if path.is_file() and path.name.startswith("test_")
+                         and path.name.endswith(".py"))
+          tracked = sorted(Path(raw.decode()) for raw in
+                           subprocess.run(["git", "ls-files", "-z", "--", "validators"],
+                                          check=True, capture_output=True).stdout.split(b"\0") if raw
+                           and Path(raw.decode()).name.startswith("test_")
+                           and Path(raw.decode()).suffix == ".py")
+          required = {"test_abstraction_class_errors.py", "test_ai_attribution.py", "test_database_download.py",
+                      "test_cold_guard_integrity.py",
+                      "test_credential_cold_start.py", "test_literal_json_cold_start.py",
+                      "test_literal_records_cold_start.py",
+                      "test_literal_ast_cold_start.py",
+                      "test_path_primitives_cold_start.py",
+                      "test_reference_store_cold_start.py",
+                      "test_link_scan.py", "test_ontology_prefix_types.py",
+                      "test_profile_discovery_errors.py", "test_safe_tools.py", "test_secret_scan_filter.py",
+                      "test_workflow_text.py"}
+          if not tests or tests != tracked or not required <= {path.name for path in tests}:
+              raise SystemExit("FAIL: Python boundary test population changed")
+          for path in tests:
+              command = [sys.executable, str(path)]
+              if path.name.endswith("_cold_start.py"):
+                  command.insert(1, "-S")
+              if path.name == "test_ontology_prefix_types.py":
+                  command.extend(["--rs", sys.argv[1], "--go", sys.argv[2]])
+              subprocess.run(command, check=True)
+              if path.name.endswith("_cold_start.py"):
+                  subprocess.run([sys.executable, "-O", *command[1:]], check=True)
+          print(f"Python boundary controls: {len(tests)} test files executed")
+          PY
+
+      - name: Static site boundaries
+        run: npm run site:check
+
+      - name: RDF prefix shape boundaries
+        run: |
+          set -euo pipefail
+          cargo test --locked --manifest-path tools/dagtoml-rdf/Cargo.toml
+          cargo run --locked --manifest-path tools/dagtoml-rdf/Cargo.toml -- check-prefix-shapes --repo-root .
 
       - name: DAG-TOML cross-implementation conformance corpus
         # Every fixture under conformance/cases/ runs through all three
@@ -154,7 +221,11 @@ jobs:
         run: |
           set -e
           python3 - <<'PY'
-          import ast, pathlib, sys
+          import sys
+          sys.path.insert(0, "validators")
+          import _literal_path as pathlib
+          import _literal_ast as ast
+          from _literal_paths import glob
 
           src = pathlib.Path("conformance/discrimination.py")
           tree = ast.parse(src.read_text())
@@ -173,7 +244,7 @@ jobs:
 
           sidecar_kinds = {
               side.parent.parent.name
-              for side in pathlib.Path("conformance/cases").glob("*/invalid/*.expected.toml")
+              for side in glob(pathlib.Path("conformance/cases"), "*/invalid/*.expected.toml")
           }
           if not sidecar_kinds:
               raise SystemExit("FAIL: no sidecars discovered at all; the corpus or this "
@@ -338,34 +409,47 @@ jobs:
         # Rust crates under tools/ MUST carry #![forbid(unsafe_code)];
         # Go modules under tools/ MUST NOT import "unsafe". Dependencies'
         # internal unsafe is out of scope for this check.
-        run: bash validators/check_safe_tools.sh
+        run: python3 validators/check_safe_tools.py
 
       - name: Parse all TOML
         run: |
           python3 - <<'PY'
-          import sys, pathlib
+          import sys
           # Parse with the vendored TOML 1.1 reference parser; stdlib tomllib
           # is 1.0-only and would reject valid 1.1 content, reintroducing a
           # cross-implementation split (C01).
           sys.path.insert(0, "validators")
+          import _literal_path as pathlib
           import _toml11 as tomllib
-          fails, parsed, skipped = [], [], []
-          for p in sorted(pathlib.Path(".").rglob("*.toml")):
-              if any(part.startswith(".") for part in p.parts):
-                  skipped.append(str(p))
-                  continue
+          from _literal_paths import rglob
+          fails, parsed, skipped = [], [], set()
+
+          def excluded(path):
+              if any(part.startswith(".") for part in path.parts):
+                  skipped.add(str(path))
+                  return True
+              return False
+
+          candidates = sorted(rglob(pathlib.Path("."), "*.toml", exclude=excluded))
+          if len(candidates) != len(set(candidates)):
+              raise SystemExit("FAIL: duplicate TOML discovery candidates")
+          for p in candidates:
               try:
                   tomllib.loads_bytes(p.read_bytes())
                   parsed.append(str(p))
               except Exception as e:
                   fails.append((str(p), str(e)))
+          if len(parsed) + len(fails) != len(candidates):
+              raise SystemExit("FAIL: TOML parse population was not completely exercised")
           if fails:
               for path, err in fails:
                   print(f"PARSE FAIL {path}: {err}")
               sys.exit(1)
           if not parsed:
               raise SystemExit("FAIL: TOML parse population is empty")
-          print(f"parsed OK: {len(parsed)} selected files; excluded {len(skipped)} files under hidden paths")
+          if len(parsed) != len(candidates) or set(parsed) & skipped:
+              raise SystemExit("FAIL: TOML parse and exclusion populations overlap or differ")
+          print(f"parsed OK: {len(parsed)} selected files; pruned {len(skipped)} hidden paths")
           PY
 
       - name: Primary validators (Rust + Go) — full canonical sweep
@@ -493,35 +577,39 @@ jobs:
         run: |
           set -e
           python3 - <<'PY' > "${RUNNER_TEMP}/conforming-dagtoml-files.txt"
-          import sys, pathlib
+          import sys
           # Vendored TOML 1.1 parser; stdlib tomllib is 1.0-only.
           sys.path.insert(0, "validators")
-          from validate_closure_root import spec_reserved_kinds, _read_discovery_toml
+          import _literal_path as pathlib
+          from validate_closure_root import spec_reserved_kinds, is_conforming_toml
+          from _literal_paths import rglob
 
           root = pathlib.Path(".")
           spec_reserved = spec_reserved_kinds(root)
 
           skip_dirs = {"target", "node_modules", "__pycache__"}
-          for path in sorted(root.rglob("*.toml")):
+
+          def excluded(path):
               if any(part.startswith(".") or part in skip_dirs for part in path.parts):
-                  continue
+                  return True
               # examples/negative/ holds deliberately-broken fixtures,
               # including SPEC 12.8/12.8.1 closure negatives with stale
               # roots; every one of them is asserted to FAIL explicitly
               # in the negative-agreement step below. Keeping them out of
               # the positive closure sweep mirrors the [provenance]
               # sweep's explicit exclusion.
-              if path.as_posix().startswith("examples/negative/"):
-                  continue
+              if path.parts[:2] == ("examples", "negative"):
+                  return True
               # Same rule for conformance invalid cases: they are
               # asserted-negative fixtures the runner requires all three
               # implementations to reject (some are deliberately
               # closure-invalid, e.g. the api-snapshot witness-strip case).
-              if path.as_posix().startswith("conformance/cases/") and "/invalid/" in path.as_posix():
-                  continue
-              data = _read_discovery_toml(path)
-              meta = data.get("meta")
-              if isinstance(meta, dict) and meta.get("template_kind") in spec_reserved:
+              if path.parts[:2] == ("conformance", "cases") and len(path.parts) >= 4 and path.parts[3] == "invalid":
+                  return True
+              return False
+
+          for path in sorted(rglob(root, "*.toml", exclude=excluded)):
+              if is_conforming_toml(path, spec_reserved):
                   print(path)
           PY
           mapfile -t closure_targets < "${RUNNER_TEMP}/conforming-dagtoml-files.txt"
@@ -564,7 +652,6 @@ jobs:
         run: |
           set -e
           python3 validators/test_implementation_dag_graph.py
-          python3 tools/test_prepare_osv_python.py
           python3 validators/test_toml11_scanner.py
           python3 validators/validate_implementation_dag.py \
             examples/minimal-implementation-dag.toml
@@ -639,8 +726,9 @@ jobs:
           done
           # Parse every profile example; dedicated validators run separately.
           python3 -c '
-          import sys, pathlib
+          import sys
           sys.path.insert(0, "validators")  # TOML 1.1 reference shim
+          import _literal_path as pathlib
           import _toml11 as tomllib
           for name in [
               "minimal-spec-contract.toml",
@@ -783,35 +871,7 @@ jobs:
           done
 
       - name: Validate [provenance] bindings (spec.md §11)
-        run: |
-          set -e
-          # Every TOML with a [provenance] table must bind to its
-          # source artifact (SHA-256 + byte length recompute).
-          # examples/negative/ holds deliberately-broken fixtures that
-          # MUST fail this validator; they are excluded from the
-          # positive sweep and asserted to fail explicitly below.
-          mapfile -t prov_files < <(grep -rl "^\[provenance\]" \
-            --include="*.toml" . | grep -v "^\./\." \
-            | grep -v "examples/negative/" | sort)
-          if [ "${#prov_files[@]}" -eq 0 ]; then
-            echo "no [provenance] tables found; skipping"
-          else
-            echo "files with [provenance]:"
-            printf '  %s\n' "${prov_files[@]}"
-            python3 validators/validate_provenance.py "${prov_files[@]}" \
-              --repo-root .
-          fi
-          # Expected-failure assertions: each negative fixture must be
-          # REJECTED. A pass here means the gate has stopped guarding.
-          for neg in ./examples/negative/*.toml; do
-            grep -q "^\[provenance\]" "$neg" || continue
-            if python3 validators/validate_provenance.py "$neg" \
-                --repo-root . >/dev/null 2>&1; then
-              echo "ERROR: negative fixture unexpectedly PASSED: $neg"
-              exit 1
-            fi
-            echo "negative fixture correctly rejected: $neg"
-          done
+        run: python3 validators/check_workflow_text.py provenance
 
       - name: Negative fixtures, recursive primary/reference agreement
         run: |
@@ -876,82 +936,11 @@ jobs:
             examples/language-validation/traceability.toml \
             --repo-root . --check-references-exist
 
-      - name: Verify language fixture symbols (grep-level drift check)
-        # This is a cheap, sqry-independent drift gate so the fixtures
-        # cannot silently lose the symbols their TRACEABILITY entries
-        # declare. The full AST-aware check lives in
-        # validators/validate_code_symbols.py and is gated on a
-        # separate sqry-install workflow (see docs/language-validators.md).
-        run: |
-          set -e
-          declare -A expect=(
-            ["examples/language-validation/src/rust/receipt.rs"]="render_receipt"
-            ["examples/language-validation/src/go/receipt.go"]="RenderReceipt"
-            ["examples/language-validation/src/typescript/receipt.ts"]="renderReceipt"
-            ["examples/language-validation/src/java/ReceiptRenderer.java"]="renderReceipt"
-          )
-          for path in "${!expect[@]}"; do
-            symbol="${expect[$path]}"
-            if [ ! -f "$path" ]; then
-              echo "MISSING fixture: $path"; exit 1
-            fi
-            if ! grep -q "$symbol" "$path"; then
-              echo "FAIL: symbol '$symbol' missing in $path"; exit 1
-            fi
-          done
-          echo "all language fixtures contain declared symbols"
+      - name: Verify language fixture symbols
+        run: python3 validators/check_workflow_text.py language-symbols
 
       - name: Verify no banned markers
-        run: |
-          set -e
-          if grep -rn "^[[:space:]]*kind[[:space:]]*=" examples/ --include="*.toml" \
-              | grep -vE "(requirement_kind|test_kind|trigger_kind|template_kind)"; then
-            echo "FAIL: bare \`kind\` field found in examples; use role-specific name."
-            exit 1
-          fi
-          # Look for internal paths (constructed dynamically so this rule
-          # does not match itself when scanning the workflow file).
-          #
-          # Excluded directories (grep --exclude-dir matches the basename,
-          # so we use `.git` and `.github`; docs/reviews/ is filtered with
-          # an explicit post-pipe because --exclude-dir cannot match a
-          # path prefix):
-          #   .git/              — version control internals.
-          #   .github/           — the workflow file constructs the needle
-          #                       and necessarily contains the literal
-          #                       substring in its rationale comments.
-          # Excluded files:
-          #   AGENTS.md          — agent instructions reference the policy
-          #                       by name.
-          #   CHANGELOG.md       — changelog entries discussing this gate
-          #                       must be able to name the policy too.
-          # Post-pipe filter:
-          #   docs/reviews/      — multi-LLM review audit trails legitimately
-          #                       discuss the policy by name as part of
-          #                       their evidence record ("Confirmed —
-          #                       banned internal path prefix absent.").
-          #                       The grep is meant to catch ACTUAL path
-          #                       leaks in spec/example/code/paper surfaces,
-          #                       not narrative discussion of the policy
-          #                       in audit trails. Editing historical
-          #                       review files to obfuscate the string
-          #                       would falsify the audit record.
-          NEEDLE="/srv/$(printf %s repos/internal)"
-          hits=$(grep -rn "$NEEDLE" . \
-                    --exclude-dir=.git \
-                    --exclude-dir=.github \
-                    --exclude-dir=.local \
-                    --exclude=AGENTS.md \
-                    --exclude=CHANGELOG.md \
-                    2>/dev/null \
-                | grep -vE "^\.?/?docs/reviews/" \
-                || true)
-          if [ -n "$hits" ]; then
-            echo "$hits"
-            echo "FAIL: hardcoded internal path leaked into public repo."
-            exit 1
-          fi
-          echo "no banned markers found"
+        run: python3 validators/check_workflow_text.py banned-markers
 
       - name: Verify documented examples exist
         run: |
@@ -1008,18 +997,17 @@ jobs:
       #                     unpinned uses, excessive permissions)
       #   shellcheck      — shell-script correctness for validators/*.sh
       #                     and example witness scripts
-      #   typos           — source-code spellchecker; critical for spec
-      #                     repos (a misspelled ontology predicate is a
-      #                     silent semantic error)
+      #   spelling gate   - pinned literal corrections and structured UTF-8
+      #                     tokens over derived tracked source and filenames
       #   ruff            — Python deep linter (security `S` rules,
       #                     correctness, dead-code); defense-in-depth
       #                     above bandit
       #   bandit          — Python static security analysis of validators/
-      #   osv-scanner     - CVEs in pinned Python locks + Cargo.lock + go.sum
-      #                     (complements Dependabot: catches transitive
-      #                     and advisory-DB-only entries Dependabot misses)
-      #   gitleaks        — secret leak detection in commits + working
-      #                     tree (replaces GHAS secret scanning)
+      #   native advisory evaluator - CVEs in the complete tracked Python,
+      #                     Cargo and Go lock population against published
+      #                     ecosystem archives, checked in the early gate
+      #   credential gate : explicit byte predicates over all reachable
+      #                     committed blobs, including the HEAD tree
       #   cargo-audit     — RustSec advisory DB check for every tools/*-rs
       #   cargo-deny      — Rust license policy + dep ban + advisories
       #                     (catches license drift that audit doesn't)
@@ -1060,18 +1048,23 @@ jobs:
       - name: Shell-script lint (shellcheck)
         continue-on-error: false
         # ubuntu-latest pre-installs shellcheck. Validator shell scripts
-        # are gate-critical (a bug in check_safe_tools.sh would silently
+        # are gate-critical (a bug in check_safe_tools.py would silently
         # let unsafe code ship).
         run: |
           set -euo pipefail
           shellcheck --version
           shellcheck \
-            validators/check_safe_tools.sh \
             validators/check_manifest_drift.sh
 
-      - name: Source-code spellcheck (typos)
+      - name: Source-code spelling (literal correction table)
         continue-on-error: false
-        uses: crate-ci/typos@7f9d0819ca1c008ade73f4b41fa9d258d48f605b  # v1.51.1
+        run: |
+          set -euo pipefail
+          cargo fmt --manifest-path tools/dagtoml-spell/Cargo.toml --check
+          cargo clippy --locked --manifest-path tools/dagtoml-spell/Cargo.toml --all-targets -- -D warnings
+          cargo test --locked --manifest-path tools/dagtoml-spell/Cargo.toml
+          cargo build --locked --manifest-path tools/dagtoml-spell/Cargo.toml
+          tools/dagtoml-spell/target/debug/dagtoml-spell --repo-root .
 
       # --- Language-specific deep checks ---
 
@@ -1100,87 +1093,29 @@ jobs:
           # Skip S404 (import subprocess) — same rationale as bandit:
           # pure informational, the call-site checks (S603) are what
           # matter.
+          # Include typed exception handlers in S110, including IndexError.
           "$HOME/.local/bin/ruff" check \
             --select S,F \
             --ignore S404 \
+            --config 'lint.flake8-bandit.check-typed-exception=true' \
             --line-length 120 \
-            validators/ reference/database/ conformance/ tools/toml-test-decode-py.py tools/prepare_osv_python.py tools/test_prepare_osv_python.py
+            validators/ reference/database/ conformance/ tools/toml-test-decode-py.py
 
-      # --- Existing 5 scanners follow below ---
+      # --- Remaining scanner gates follow below ---
 
-      - name: Stage pinned Python locks for OSV
-        run: python3 tools/prepare_osv_python.py
-
-      - name: Lock-file CVE scan (osv-scanner)
+      - name: Credential complete history scan
         continue-on-error: false
-        uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36  # v2.7.0
-        with:
-          # osv-scanner v2 removed --skip-git (the action's default
-          # already excludes .git internals via image filtering); pass
-          # only the directory + recursive flag.
-          #
-          # --no-resolve disables network-required transitive dependency
-          # resolution. We rely on lockfile-based scanning (Cargo.lock,
-          # go.sum) instead, which has full transitive info baked in.
-          # The root requirements.txt has no runtime package. The staging
-          # step gives each tracked pinned Python lock a recognized filename.
-          # Scan those locks and native lockfiles without transitive resolution.
-          scan-args: |-
-            --recursive
-            --no-resolve
-            --format
-            json
-            --all-packages
-            --output-file
-            ./osv-scan-results.json
-            ./
-            ./osv-python-lockfiles
-
-      - name: Verify Python CVE scan coverage
-        if: always()
-        run: python3 tools/prepare_osv_python.py --verify osv-scan-results.json
-
-      - name: Remove staged Python locks
-        if: always()
-        run: python3 tools/prepare_osv_python.py --cleanup
-
-      - name: Secret scan (gitleaks)
-        continue-on-error: false
-        # Install the official gitleaks binary at a pinned version
-        # (not the gitleaks-action — the action requires an org license
-        # for >25-member orgs and adds a Node.js dep we don't need).
-        # The binary is a single static Go executable; the SHA256 below
-        # is the published release checksum for the linux_x64 tarball.
+        # Normal and optimized cold controls run in the derived boundary suite.
         run: |
           set -euo pipefail
-          VERSION="8.30.1"
-          TARBALL="gitleaks_${VERSION}_linux_x64.tar.gz"
-          # SHA256 fetched from the release artifact directly on
-          # 2026-05-26 by `sha256sum` of the linux_x64 tarball. Update
-          # this pin when bumping the VERSION above.
-          EXPECTED_SHA="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
-          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/${TARBALL}" -o "/tmp/${TARBALL}"
-          actual=$(sha256sum "/tmp/${TARBALL}" | awk '{print $1}')
-          if [ "${actual}" != "${EXPECTED_SHA}" ]; then
-            echo "FAIL: gitleaks tarball SHA256 mismatch."
-            echo "  expected: ${EXPECTED_SHA}"
-            echo "  actual:   ${actual}"
-            exit 1
-          fi
-          mkdir -p /tmp/gitleaks-bin
-          tar -xzf "/tmp/${TARBALL}" -C /tmp/gitleaks-bin gitleaks
-          /tmp/gitleaks-bin/gitleaks detect \
-            --source . \
-            --no-banner \
-            --redact \
-            --verbose \
-            --exit-code 1
+          python3 -S validators/check_secret_scan.py --repo-root .
 
       - name: Python static security analysis (bandit)
         continue-on-error: false
         # bandit catches subprocess shell=True, eval, pickle, weak crypto,
         # hardcoded credentials, path traversal patterns. Scan the
-        # validators/, database, conformance, and Python tool entry points.
+        # validators/ tree (the only Python surface we ship); examples/
+        # and docs/ are TOML/Markdown only.
         run: |
           set -euo pipefail
           python3 -m pip install --user --require-hashes -r requirements/bandit.txt
@@ -1199,7 +1134,7 @@ jobs:
           # annotated with `# nosec B603 - <reason>` where the safety
           # argument is non-obvious.
           python3 -m bandit \
-            --recursive validators/ reference/database/ conformance/ tools/toml-test-decode-py.py tools/prepare_osv_python.py tools/test_prepare_osv_python.py \
+            --recursive validators/ reference/database/ conformance/ tools/toml-test-decode-py.py \
             --severity-level low \
             --confidence-level low \
             --skip B404
@@ -1211,13 +1146,11 @@ jobs:
         run: |
           set -euo pipefail
           cargo install --locked --version 0.22.1 cargo-audit
-          for d in tools/dagtoml-validate-rs \
-                   tools/toml-test-decode-rs \
-                   tools/dagtoml-duckdb \
-                   tools/dagtoml-rdf; do
-            echo "::group::cargo audit in ${d}"
-            (cd "${d}" && cargo audit --deny warnings)
-            echo "::endgroup::"
+          python3 validators/check_safe_tools.py --cargo-manifests > "$RUNNER_TEMP/native-cargo-manifests.bin"
+          mapfile -d '' -t native_manifests < "$RUNNER_TEMP/native-cargo-manifests.bin"
+          test "${#native_manifests[@]}" -gt 0
+          for manifest in "${native_manifests[@]}"; do
+            cargo audit --file "${manifest%Cargo.toml}Cargo.lock" --deny warnings
           done
 
       - name: Go vulnerability scan (govulncheck)
@@ -1228,54 +1161,31 @@ jobs:
         run: |
           set -euo pipefail
           go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
-          for d in tools/dagtoml-validate-go \
-                   tools/dagtoml-duckdb-go \
-                   tools/dagtoml-rdf-go \
-                   tools/toml-test-decode-go; do
+          python3 validators/check_safe_tools.py --go-manifests > "$RUNNER_TEMP/native-go-manifests.bin"
+          mapfile -d '' -t native_go_manifests < "$RUNNER_TEMP/native-go-manifests.bin"
+          test "${#native_go_manifests[@]}" -gt 0
+          for manifest in "${native_go_manifests[@]}"; do
+            d="${manifest%/go.mod}"
             echo "::group::govulncheck in ${d}"
             (cd "${d}" && "$(go env GOPATH)/bin/govulncheck" ./...)
             echo "::endgroup::"
           done
 
-      - name: Rust license + ban + advisory policy (cargo-deny)
+      - name: Rust license, source, ban and advisory policy (cargo-deny)
         continue-on-error: false
-        # cargo-deny adds license policy (require Apache/MIT/BSD/MPL),
-        # banned-crate enforcement, and source allowlist (only crates.io
-        # — no arbitrary git deps). Each tools/*-rs crate is scanned
-        # against the policy in deny.toml at the repo root.
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25  # v2.1.1
-        with:
-          # Default `command: check` runs advisories + bans + licenses
-          # + sources against every Cargo.lock found.
-          command: check advisories bans licenses sources
-          # The action scans the manifest closest to GITHUB_WORKSPACE by
-          # default. We have four independent crates under tools/*-rs;
-          # invoke the action four times, once per crate, via the
-          # `manifest-path` input.
-          manifest-path: tools/dagtoml-validate-rs/Cargo.toml
+        # Retain the previous action's cargo-deny release. Derive every
+        # independent tools crate instead of maintaining a fixed invocation list.
+        run: |
+          set -euo pipefail
+          cargo install --locked --version 0.20.2 cargo-deny
+          python3 validators/check_safe_tools.py --cargo-manifests > "$RUNNER_TEMP/native-cargo-manifests.bin"
+          mapfile -d '' -t native_manifests < "$RUNNER_TEMP/native-cargo-manifests.bin"
+          test "${#native_manifests[@]}" -gt 0
+          for manifest in "${native_manifests[@]}"; do
+            cargo deny --locked --manifest-path "$manifest" --config deny.toml check advisories bans licenses sources
+          done
 
-      - name: Rust license + ban (toml-test-decode-rs)
-        continue-on-error: false
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25  # v2.1.1
-        with:
-          command: check advisories bans licenses sources
-          manifest-path: tools/toml-test-decode-rs/Cargo.toml
-
-      - name: Rust license + ban (dagtoml-duckdb)
-        continue-on-error: false
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25  # v2.1.1
-        with:
-          command: check advisories bans licenses sources
-          manifest-path: tools/dagtoml-duckdb/Cargo.toml
-
-      - name: Rust license + ban (dagtoml-rdf)
-        continue-on-error: false
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25  # v2.1.1
-        with:
-          command: check advisories bans licenses sources
-          manifest-path: tools/dagtoml-rdf/Cargo.toml
-
-      - name: Go meta-linter (golangci-lint)
+      - name: Install the pinned Go meta-linter
         continue-on-error: false
         # golangci-lint runs the configured suite from .golangci.yml:
         # gosec (security), staticcheck (correctness), errcheck (error
@@ -1283,42 +1193,39 @@ jobs:
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
         with:
           version: v2.12.2
-          # Run against each Go module independently. The action accepts
-          # a single working-directory; loop in CI by invoking three
-          # times below via separate steps.
-          working-directory: tools/dagtoml-validate-go
-          args: --config=${{ github.workspace }}/.golangci.yml
-
-      - name: Go meta-linter (golangci-lint - duckdb-go)
-        continue-on-error: false
-        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
-        with:
-          version: v2.12.2
-          working-directory: tools/dagtoml-duckdb-go
-          args: --config=${{ github.workspace }}/.golangci.yml
-
-      - name: Go meta-linter (golangci-lint - rdf-go)
-        continue-on-error: false
-        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
-        with:
-          version: v2.12.2
-          working-directory: tools/dagtoml-rdf-go
-          args: --config=${{ github.workspace }}/.golangci.yml
-
-      - name: Go meta-linter (golangci-lint - toml-test-decode-go)
-        continue-on-error: false
-        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a  # v9.3.0
-        with:
-          version: v2.12.2
-          working-directory: tools/toml-test-decode-go
-          args: --config=${{ github.workspace }}/.golangci.yml
+          install-only: true
+      - name: Go meta-linter for every discovered native module
+        run: |
+          set -euo pipefail
+          python3 validators/check_safe_tools.py --go-manifests > "$RUNNER_TEMP/native-go-manifests.bin"
+          mapfile -d '' -t native_go_manifests < "$RUNNER_TEMP/native-go-manifests.bin"
+          test "${#native_go_manifests[@]}" -gt 0
+          for manifest in "${native_go_manifests[@]}"; do
+            (cd "${manifest%/go.mod}" && golangci-lint run --config="$GITHUB_WORKSPACE/.golangci.yml")
+          done
 
       - name: Link-rot scan (lychee)
         continue-on-error: false
-        # lychee checks every http(s):// URL in tracked markdown, TOML,
-        # and TeX files. Catches dead citations and dead spec references.
-        # Configured by lychee.toml at the repo root.
-        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8  # v2.9.0
-        with:
-          fail: true
-          args: --config lychee.toml --no-progress .
+        # Verify the release digest and assert extracted, admitted and checked
+        # URL populations. Retain sanitized outcomes in the job summary,
+        # including failures, without producer source-coordinate metadata.
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/lychee-0.24.2.tar.gz"
+          expected="1f4e0ef7f6554a6ed33dd7ac144fb2e1bbed98598e7af973042fc5cd43951c9a"
+          curl -fsSL \
+            https://github.com/lycheeverse/lychee/releases/download/lychee-v0.24.2/lychee-x86_64-unknown-linux-gnu.tar.gz \
+            -o "$archive"
+          actual=$(sha256sum "$archive")
+          actual=${actual%% *}
+          if [ "$actual" != "$expected" ]; then
+            echo "FAIL: Lychee release digest differs from the pinned asset."
+            exit 1
+          fi
+          mkdir -p "${RUNNER_TEMP}/lychee-bin"
+          tar -xzf "$archive" -C "${RUNNER_TEMP}/lychee-bin" \
+            --strip-components=1 lychee-x86_64-unknown-linux-gnu/lychee
+          python3 validators/check_link_scan.py \
+            --lychee "${RUNNER_TEMP}/lychee-bin/lychee" \
+            --report "${RUNNER_TEMP}/link-scan-report.json" \
+            --summary "$GITHUB_STEP_SUMMARY"

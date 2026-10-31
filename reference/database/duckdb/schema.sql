@@ -75,12 +75,16 @@ CREATE TABLE dagtoml.kind_descriptor (
 
 CREATE TABLE dagtoml.entity_kind_descriptor (
     entity_kind        VARCHAR PRIMARY KEY,
-    id_prefix_pattern  VARCHAR NOT NULL,
+    id_prefix          VARCHAR,
+    id_decimal_prefix  VARCHAR,
+    id_optional_lower_suffix BOOLEAN NOT NULL DEFAULT FALSE,
     layer              spec_layer NOT NULL,
     defining_kind      VARCHAR NOT NULL REFERENCES dagtoml.kind_descriptor(template_kind),
     ijb_primitive      ijb_primitive NOT NULL,
     ijb_class          ijb_class     NOT NULL,
-    description        VARCHAR
+    description        VARCHAR,
+    CHECK ((id_prefix IS NULL) <> (id_decimal_prefix IS NULL)),
+    CHECK (NOT id_optional_lower_suffix OR id_decimal_prefix IS NOT NULL)
 );
 
 CREATE TABLE dagtoml.relation_descriptor (
@@ -149,7 +153,8 @@ CREATE TABLE dagtoml.provenance (
     extraction_method   VARCHAR,
     source_description  VARCHAR,
     extras              JSON NOT NULL DEFAULT '{}'::JSON,
-    CHECK (regexp_matches(source_sha256, '^sha256:[0-9a-f]{64}$'))
+    CHECK (length(source_sha256) = 71 AND substr(source_sha256, 1, 7) = 'sha256:'
+           AND translate(substr(source_sha256, 8), '0123456789abcdef', '') = '')
 );
 
 CREATE TABLE dagtoml.entity (
@@ -310,7 +315,7 @@ WHERE r.target_entity_id IS NULL
 -- Document-owned projections, not ontology entities. Raw TOML remains exact.
 CREATE TABLE dagtoml.reference_contract (
     singleton_id INTEGER PRIMARY KEY CHECK (singleton_id = 1),
-    contract_bundle_sha256 TEXT NOT NULL UNIQUE CHECK (length(contract_bundle_sha256) = 64 AND regexp_full_match(contract_bundle_sha256, '[0-9a-f]{64}')),
+    contract_bundle_sha256 TEXT NOT NULL UNIQUE CHECK (length(contract_bundle_sha256) = 64 AND translate(contract_bundle_sha256, '0123456789abcdef', '') = ''),
     projection_version INTEGER NOT NULL CHECK (projection_version = 1)
 );
 

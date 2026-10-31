@@ -74,8 +74,8 @@ This repository runs the following defensive controls:
 
 `.github/workflows/validate.yml` runs the following scanners on every
 push and pull request; each step fails the build on any finding. The
-order and one-line role descriptions below are the verbatim "Coverage
-map" comment block in `validate.yml` (lines 694-719):
+order and one-line role descriptions below follow the "Coverage map"
+comment block in `validate.yml`:
 
 - `actionlint` — GHA workflow correctness (broken expressions,
   deprecated APIs, shell-injection in `run:`)
@@ -83,27 +83,122 @@ map" comment block in `validate.yml` (lines 694-719):
   excessive permissions)
 - `shellcheck` — shell-script correctness for `validators/*.sh` and
   example witness scripts
-- `typos` — source-code spellchecker; critical for spec repos (a
-  misspelled ontology predicate is a silent semantic error)
+- `dagtoml-spell` - structured source and filename token checks against a
+  pinned literal correction table, with typed data roles, source digests
+  and explicit omissions. Replaces the spelling action present at
+  `a3420ad83ab0758e389fca86dbdfb837e86df5bc`.
 - `ruff` — Python deep linter (security `S` rules, correctness,
   dead-code); defense-in-depth above bandit
 - `bandit` — Python static security analysis of `validators/`
-- `osv-scanner` — CVEs in `requirements.txt` + `Cargo.lock` + `go.sum`
-  (complements Dependabot: catches transitive and advisory-DB-only
-  entries Dependabot misses)
-- `gitleaks` — secret leak detection in commits + working tree
-  (replaces GHAS secret scanning)
-- `cargo-audit` — RustSec advisory DB check for every `tools/*-rs`
-- `cargo-deny` — Rust license policy + dep ban + advisories (catches
-  license drift that audit doesn't)
+- `dagtoml-osv` - the required native advisory gate for derived tracked
+  Python locks, Cargo locks and Go module declarations, including declared
+  standard library versions. It evaluates complete ecosystem archives
+  locally and fails on affected packages or an incomplete evaluation.
+- The native credential gate checks stored blobs throughout reachable Git
+  history, including the HEAD tree, merge parents and deletion-only commits.
+  Cold controls exercise declared provider candidates, rejected inputs and
+  source identity failures. The exact four historical public-literal events
+  remain the sole event exceptions; all other events fail. See
+  `validators/CREDENTIALS.md` for the candidate contract and scan boundaries.
+- `cargo-audit` - RustSec advisory DB check for every derived tools crate
+- `cargo-deny` - Rust license, source, dependency ban and advisory policy
+  over the same derived tooling manifest population
 - `govulncheck` — Go call-graph-aware vuln check for `tools/*-go`
 - `golangci-lint` — Go meta-linter (gosec + staticcheck + errcheck +
   govet + ineffassign + unused)
 - `lychee` — link rot across `spec.md`, README, `references.bib`
 
-Every workflow action is SHA-pinned. Pip and cargo installs are
-version-pinned; hash-pinning is on the roadmap and tracked in the
-`chore/pip-hash-pinning` branch.
+Workflow actions are SHA-pinned. Python verification packages use version
+and hash pins; Rust builds use checked-in Cargo.lock files.
+
+The required [native advisory evaluator](tools/dagtoml-osv/README.md) consumes
+complete ecosystem archives and performs local typed version comparisons.
+It uses the lock population and protection contract at
+`82f10ba69328b94e5b831baad5ddc6a0ad9ed2f6`. It replaces the previous OSV
+action and its Python lock staging scripts; the legacy action is no longer
+an additional CI control. The component contract records the measured
+source, generated-build, omission and failure controls and their limits.
+An advisory result does not establish whole-repository policy compliance.
+
+The shared JSON codec replaces the wrapper from
+`16d7d85f31a3071d56f4f8c34d99d1800ad5ce73` with explicit syntax validation
+before native value decoding. Its cold controls reject standard JSON and
+regex imports; [the codec contract](validators/JSON.md) names its boundaries.
+Other reference-store cold imports remain inside the audit scope.
+
+The source-inspection consumers use compile-only native syntax trees and
+owned traversal, literal and regeneration helpers. The supplier and license
+are recorded in `vendor-provenance/python-ast.toml`; the bounded interface
+and retirement decisions are in `validators/SYNTAX-TREE.md`. Malformed source
+diagnostics identify original bytes without retaining native parser source
+coordinates. Unknown regeneration nodes fail before source emission. Cold
+component controls cover the helper and current mutation selector, with
+independent swallowed-import guard controls. Native compiler internals and
+other entry points remain outside that component observation.
+
+The authored record sites from `1691549990e81ac801fbbc611d1f7e31a36b5719`
+use explicit carriers with [record component controls](validators/RECORDS.md).
+This retires their dataclass dependency without widening the cold audit scope.
+
+Current filesystem consumers from `4df544e0727fd881531b3b2fad716c36468bd996`
+use [owned native path primitives](validators/PATHS.md), with explicit
+containment and cold SQLite outcome controls. Authored random identifiers
+use OS entropy with version/variant controls. External drivers and the wider
+verification dependencies still require their own consumer audits.
+
+Cold instruments from `c8590f56eb33205c7b540f2d959cc39b30dd718d` retain
+attempted forbidden imports and require that population to remain empty.
+Catching the audit exception cannot turn an attempt into a successful
+boundary result. The guard-integrity instrument derives every tracked cold
+runner and its literal forbidden-root population, checks successful controls,
+then requires swallowed attempts to fail the final property in both modes.
+It does not establish absence inside native dependencies.
+
+The estate no-regex rule also covers dependencies, build and test tools,
+and security scanners. The active scanner engines still require a consumer
+audit and replacement; a successful scan is not evidence of compliance
+with that rule. The link checker receives URLs selected by exact path and
+host comparisons.
+
+The PostgreSQL client path from
+`7d871361d4275860dab54b628894a54d20d977e6` is replaced by the
+[owned native reference session](tools/dagtoml-postgres-go/README.md).
+Its prepared supplier sources use explicit password-file parsing and fixed
+connection-error diagnostics. Current source, dependency and executable
+identities bind the session to its build. PostgreSQL receipts require the
+actual lane's cold import/matching guard and retained driver artifacts.
+The server, compiler, other drivers and remaining scanners keep their own
+audit requirements; this client boundary is not a global compliance claim.
+
+## PR #142 completion boundary
+
+[PR #142](https://github.com/verivus-oss/agent-assurance/pull/142) contains
+the authored-consumer replacements and bounded native advisory and database
+paths described above and in their component contracts. Its current
+implementation and successful CI checks do not establish completion of
+[issue #141](https://github.com/verivus-oss/agent-assurance/issues/141).
+
+Independent review at `08954d261a9f777fd90962976640cd0819748c2e` verified
+two repairs: invalid percent escapes preserve neighboring encoded credential
+candidates in direct and history scans; bounded commands terminate their
+owned process group on deadline or output-limit failure while retaining
+the leader until inherited output streams close. These repair units are
+complete within their documented boundaries.
+
+Issue #141 still requires cumulative consumer enumeration, audits and
+behavior-preserving replacement across dependencies, build and test tools,
+and security scanners. The remaining native/compiler, external-driver,
+server and scanner audit requirements retain the separate boundaries
+described above and in [the JSON contract](validators/JSON.md),
+[the native advisory contract](tools/dagtoml-osv/README.md) and
+[the native database contract](tools/dagtoml-duckdb-native-go/README.md).
+Passing component checks and CI does not close those requirements.
+
+PR #142 remains draft and cumulative approval is withheld under the
+current issue scope. This record neither closes issue #141 nor records
+maintainer acceptance of a narrower scope. Any completion or scope decision
+must be explicit before cumulative approval; this documentation correction
+does not authorize further implementation.
 
 ## Disclosure
 

@@ -32,7 +32,7 @@
 document_kind  = "unresolvable-commit-citations"
 schema_version = "0.1.0"
 normative      = false
-last_verified  = "2026-08-29"
+last_verified  = "2026-10-27"
 root_commit    = "eccdcab"       # first commit this repository carries
 root_committed = "2026-05-27"
 
@@ -42,7 +42,8 @@ token  = "0123456789abcdef"
 file   = "validators/validate_provenance.py"
 reason = "The lowercase hex alphabet, used as a membership set when validating that a digest contains only hex characters. Not a citation."
 
-# Commit citations that do not resolve. Every one predates `eccdcab`.
+# Commit citations that do not resolve from HEAD. Most predate `eccdcab`;
+# the two secret-scan entries below are on other refs scanned by Gitleaks.
 [[unresolvable]]
 sha   = "9996826"
 cited = ["docs/issues/2026-05-23-iss-001-self-approval-discipline.md", "docs/issues/2026-05-23-iss-002-graph-cypher-seed-incomplete.md", "docs/issues/2026-05-23-iss-003-duckdb-hardcoded-counts-duplication.md", "validators/check_attribute_values.py", "validators/check_commit_citations.py"]
@@ -114,3 +115,17 @@ role  = "closed_by for ISS-005. Its closing note names the deleted branch the co
 sha   = "32936b1"
 cited = ["docs/issues/2026-05-23-iss-001-self-approval-discipline.md"]
 role  = "ISS-001: the fourth of the four commits dispatched for independent review"
+
+# At candidate 5d205ddfe07141a5096e0d23fe1d0aeffe3428b3, Gitleaks
+# scans every reachable ref, including commits outside HEAD's ancestry.
+# These exact old public-hex findings remain pinned in check_secret_scan.py;
+# recording the branch-only citations preserves that broader scan.
+[[unresolvable]]
+sha   = "8e52e9bab66d4e2bc1b52b427f69ef0c562096ff"
+cited = ["validators/check_secret_scan.py"]
+role  = "Exact historical Gitleaks finding on docs/audit-count-corrections; this branch-only commit is not an ancestor of the candidate"
+
+[[unresolvable]]
+sha   = "ffac3a202344f42f7608795866065971a08d42ed"
+cited = ["validators/check_secret_scan.py"]
+role  = "Exact historical Gitleaks finding on prelanding/audit-33893ae; this branch-only commit is not an ancestor of the candidate"

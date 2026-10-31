@@ -6,9 +6,19 @@ pub fn vocab(repo_root: &Path, attribute: &str) -> Option<(Vec<String>, bool)> {
     let mut paths = vec![repo_root.join("core/ontology.toml")];
     let profile_root = repo_root.join("profiles");
     for entry in std::fs::read_dir(profile_root).ok()? {
-        let path = entry.ok()?.path().join("ontology.toml");
-        if path.is_file() {
+        let entry = entry.ok()?;
+        let profile = entry.path();
+        if entry.file_type().ok()?.is_file() {
+            continue;
+        }
+        if !candidate_directory(&profile).ok()? {
+            continue;
+        }
+        let path = profile.join("ontology.toml");
+        if candidate_file(&path).ok()? {
             paths.push(path);
+        } else if !candidate_directory(&profile).ok()? {
+            return None;
         }
     }
     if !paths.contains(&repo_root.join("profiles/agent-assurance/ontology.toml")) {
@@ -44,6 +54,43 @@ pub fn vocab(repo_root: &Path, attribute: &str) -> Option<(Vec<String>, bool)> {
         }
     }
     result
+}
+
+#[cfg(all(test, unix))]
+#[test]
+fn vocab_rejects_dangling_profile_ontology() {
+    let root = std::env::temp_dir().join(format!(
+        "dagtoml-vocab-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
+    ));
+    std::fs::create_dir_all(root.join("core")).expect("create core");
+    std::fs::create_dir_all(root.join("profiles/agent-assurance")).expect("create profile");
+    std::fs::create_dir_all(root.join("profiles/zz-extra")).expect("create extra profile");
+    std::fs::write(
+        root.join("core/ontology.toml"),
+        b"[[attribute_vocabularies]]\nattribute = 'core'\nextensible = false\nvalues = ['a']\n",
+    )
+    .expect("write core ontology");
+    std::fs::write(
+        root.join("profiles/agent-assurance/ontology.toml"),
+        b"[[attribute_vocabularies]]\nattribute = 'profile'\nextensible = false\nvalues = ['b']\n",
+    )
+    .expect("write profile ontology");
+    std::fs::write(root.join("profiles/README.md"), b"notes\n").expect("write regular file");
+    assert_eq!(vocab(&root, "core"), Some((vec!["a".into()], false)));
+    let extra = root.join("profiles/zz-extra/ontology.toml");
+    std::os::unix::fs::symlink("missing-ontology.toml", &extra).expect("create dangling ontology");
+    assert_eq!(vocab(&root, "core"), None);
+    std::fs::remove_file(&extra).expect("remove dangling ontology");
+    std::fs::write(
+        root.join("profiles/zz-extra/actual.toml"),
+        b"[[attribute_vocabularies]]\nattribute = 'extra'\nextensible = false\nvalues = ['c']\n",
+    )
+    .expect("write extra ontology");
+    std::os::unix::fs::symlink("actual.toml", &extra).expect("create live ontology");
+    assert_eq!(vocab(&root, "extra"), Some((vec!["c".into()], false)));
+    std::fs::remove_dir_all(&root).expect("remove test root");
 }
 
 pub fn hex64(value: &str) -> bool {
@@ -159,10 +206,10 @@ fn nonempty(
     location: &str,
     errors: &mut Vec<String>,
 ) {
-    if !table
+    if table
         .get(field)
         .and_then(Value::as_str)
-        .is_some_and(|v| !v.trim().is_empty())
+        .is_none_or(|v| v.trim().is_empty())
     {
         errors.push(format!(
             "RDSTRUCT: {location}.{field} must be a nonempty string"

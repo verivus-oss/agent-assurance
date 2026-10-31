@@ -1,10 +1,8 @@
-# cargo-deny policy for every crate under tools/*-rs.
-#
-# This file is consumed by the EmbarkStudios/cargo-deny-action steps in
-# .github/workflows/validate.yml — see the "Rust license + ban..." steps
-# near the end of the workflow. Each Rust crate (tools/dagtoml-validate-rs,
-# tools/toml-test-decode-rs, tools/dagtoml-duckdb, tools/dagtoml-rdf) is
-# scanned against this same policy.
+# Cargo advisory, license, source and dependency policy for derived tools crates.
+# Consumed by the validation workflow's cargo-deny command. Manifest discovery
+# comes from check_safe_tools.cargo_manifests, including newly added crates.
+# Replaces the fixed action invocation list present at project commit
+# a3420ad83ab0758e389fca86dbdfb837e86df5bc.
 #
 # Four sections enforced:
 #   [advisories]  — RustSec advisory DB (complements cargo-audit)

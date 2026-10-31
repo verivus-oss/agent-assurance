@@ -3,7 +3,7 @@
 -- Sibling of reference/database/postgres/schema.sql, adapted to SQLite's
 -- type system. Works on:
 --   * SQLite >= 3.38 (uses STRICT tables, JSON1 built-in, expression
---     DEFAULTs, partial indexes, recursive CTEs, FK enforcement)
+--     default expressions, partial indexes, recursive CTEs, FK enforcement)
 -- libSQL / Turso compatibility is unverified and needs its own executed lane.
 --
 -- Translation table from the PG reference:
@@ -44,12 +44,16 @@ CREATE TABLE dagtoml_kind_descriptor (
 
 CREATE TABLE dagtoml_entity_kind_descriptor (
     entity_kind        TEXT PRIMARY KEY,
-    id_prefix_pattern  TEXT NOT NULL,
+    id_prefix          TEXT,
+    id_decimal_prefix  TEXT,
+    id_optional_lower_suffix INTEGER NOT NULL DEFAULT 0 CHECK (id_optional_lower_suffix IN (0, 1)),
     layer              TEXT NOT NULL CHECK (layer IN ('core', 'profile:agent-assurance', 'profile:disclosure', 'profile:cost', 'profile:com.verivus.runtime')),
     defining_kind      TEXT NOT NULL REFERENCES dagtoml_kind_descriptor(template_kind),
     ijb_primitive      TEXT NOT NULL CHECK (ijb_primitive IN ('thing','scope','path','observed','constraint','time')),
     ijb_class          TEXT NOT NULL CHECK (ijb_class IN ('structural','instance')),
-    description        TEXT
+    description        TEXT,
+    CHECK ((id_prefix IS NULL) <> (id_decimal_prefix IS NULL)),
+    CHECK (id_optional_lower_suffix = 0 OR id_decimal_prefix IS NOT NULL)
 ) STRICT;
 
 CREATE TABLE dagtoml_relation_descriptor (

@@ -57,7 +57,7 @@ taplo lint
 
 # Parse every TOML in the repo with the TOML 1.1 reference parser
 # (validators/_toml11.py wraps the vendored TOML 1.1 parser; stdlib tomllib is 1.0-only).
-python3 -c 'import sys, pathlib; sys.path.insert(0, "validators"); import _toml11 as tomllib; [tomllib.loads_bytes(p.read_bytes()) for p in pathlib.Path(".").rglob("*.toml") if not any(x.startswith(".") for x in p.parts)]'
+python3 -c 'import sys; sys.path.insert(0, "validators"); import _literal_path as pathlib; import _toml11 as tomllib; from _literal_paths import rglob; [tomllib.loads_bytes(p.read_bytes()) for p in rglob(pathlib.Path("."), "*.toml") if not any(x.startswith(".") for x in p.parts)]'
 
 # Validate every kind descriptor (the *-kind.toml files)
 for f in core/*-kind.toml profiles/agent-assurance/*-kind.toml; do
@@ -145,7 +145,7 @@ instance documents. Use the role-specific variants:
 - `test_kind` in `[[tests]]`
 - `trigger_kind` in `[[rollback.triggers]]`
 
-The CI step "Verify no banned markers" greps for bare `kind =` in `examples/`
+The CI step "Verify no banned markers" checks for bare `kind =` in `examples/`
 and fails the build. Validators MUST also accept legacy `kind` as a synonym
 (deprecation removed before the first stable `schema_version = "1.0.0"`),
 but new content must not introduce it.

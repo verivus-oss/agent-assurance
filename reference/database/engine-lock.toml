@@ -22,14 +22,14 @@ id = "postgres-floor"
 engine = "postgres"
 version = "14.0"
 image = "docker.io/library/postgres:14.0-alpine@sha256:9d42dae9405a2650042d31e8ca95887d064cb0594eb5cf03d82eddb34f5ee21c"
-driver_lock = "requirements/database.txt"
+driver_module = "tools/dagtoml-postgres-go/go.mod"
 
 [[lanes]]
 id = "postgres-maintained"
 engine = "postgres"
 version = "16.14"
 image = "docker.io/library/postgres:16.14-alpine@sha256:7a396fd264a2067788b6551122b50f162bf6136312c7fc9d74381cb92c648382"
-driver_lock = "requirements/database.txt"
+driver_module = "tools/dagtoml-postgres-go/go.mod"
 
 [[lanes]]
 id = "sqlite-floor"
@@ -51,10 +51,10 @@ driver = "Python sqlite3 linked to the selected library; assert SELECT sqlite_ve
 id = "duckdb-floor"
 engine = "duckdb"
 version = "1.5.0"
-driver_lock = "requirements/database-floor.txt"
+driver_module = "tools/dagtoml-duckdb-native-go/go.mod"
 
 [[lanes]]
 id = "duckdb-maintained"
 engine = "duckdb"
 version = "1.5.3"
-driver_lock = "requirements/database.txt"
+driver_module = "tools/dagtoml-duckdb-native-go/go.mod"

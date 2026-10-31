@@ -1,12 +1,12 @@
 """Require fresh receipts for every declared engine lane and both seed loaders."""
 
 import hashlib
-import json
-import re
-from pathlib import Path
+from _json_decode import loads as loads_json
+from _path_scan import Path
 import sys
 
 from _contract import artifact_hashes, bundle_digest, expected_counts, load_mapping
+from _text_checks import contains_table_diagnostic
 from _vocabulary import load_catalog
 from _sql_probes import expected_probes
 from _catalog_checks import CHECKS as METADATA_CHECKS
@@ -29,13 +29,13 @@ def validate_receipts(root: Path, paths: list[Path], *, require_clean=True, incl
     if include_loaders:
         for name in ("rust", "go"):
             by_lane["duckdb-loader-" + name] = {**by_lane["duckdb-maintained"], "loader": name}
-    receipts = [json.loads(path.read_text()) for path in paths]
+    receipts = [loads_json(path.read_text()) for path in paths]
     names = [receipt.get("lane") for receipt in receipts]
     if len(names) != len(set(names)) or set(names) != set(by_lane):
         raise ValueError("missing, duplicate, or unexpected executed lane receipt")
     source = source_identity(root)
-    if require_clean and (not source["tracked_tree_clean"] or not source["bundle_files_tracked"]):
-        raise ValueError("full executed receipt gate requires a clean tracked tree at a named commit")
+    if require_clean and (not source["working_tree_clean"] or not source["bundle_files_tracked"]):
+        raise ValueError("full executed receipt gate requires a clean tree at a named commit")
     artifacts, digest = artifact_hashes(root), bundle_digest(root)
     registry = expected_counts(root)
     catalog = load_catalog(root)
@@ -50,6 +50,20 @@ def validate_receipts(root: Path, paths: list[Path], *, require_clean=True, incl
             raise ValueError("failed, skipped, wrong-engine, or wrong-version receipt")
         if receipt.get("source") != source or receipt.get("artifacts") != artifacts or receipt.get("contract_bundle_sha256") != digest:
             raise ValueError("stale receipt: source commit/tree, artifacts, or validation bundle differ")
+        if lane["engine"] == "postgres":
+            from _postgres_client import build_identity
+            from _postgres_guard import expected_proof
+            if receipt.get("native_driver") != build_identity(root):
+                raise ValueError("missing or stale executed native PostgreSQL driver identity")
+            if receipt.get("execution_guard") != expected_proof():
+                raise ValueError("missing or unsuccessful native PostgreSQL execution guard")
+        if lane["engine"] == "duckdb":
+            from _duckdb_client import build_identity
+            from _duckdb_guard import expected_proof
+            if receipt.get("native_driver") != build_identity(root, lane["version"]):
+                raise ValueError("missing or stale executed native DuckDB driver identity")
+            if receipt.get("execution_guard") != expected_proof():
+                raise ValueError("missing or unsuccessful native DuckDB execution guard")
         counts = receipt.get("seed_counts", {})
         if counts != {**registry, "instance_file": 0, "reference_contract": 0, "runtime_document": 0}:
             raise ValueError("receipt seed counts do not match the declarations and empty seed-only contract")
@@ -112,7 +126,7 @@ def validate_receipts(root: Path, paths: list[Path], *, require_clean=True, incl
                 if row.get("exit_code") != code or row.get("counts") != {"reference_contract": contracts, "runtime_document": documents}:
                     raise ValueError("loader standalone verify did not observe the expected populated state")
                 for table, count in row["counts"].items():
-                    if not re.search(r"^\s*" + table + r"\s+" + str(count) + (r" != 0" if count else r" == 0"), row.get("output", ""), re.M):
+                    if not contains_table_diagnostic(row.get("output", ""), table, count):
                         raise ValueError("loader standalone verify lacks the intended table diagnostic")
             binary = root / loader.get("binary", "")
             if not binary.is_file() or hashlib.sha256(binary.read_bytes()).hexdigest() != loader.get("binary_sha256"):

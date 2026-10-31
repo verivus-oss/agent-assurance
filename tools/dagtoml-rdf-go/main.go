@@ -1,4 +1,4 @@
-// dagtoml-rdf-go: Go counterpart of tools/dagtoml-rdf. Generates the
+// dagtoml-rdf-go - Go counterpart of tools/dagtoml-rdf. Generates the
 // DAG-TOML ontology as RDF/Turtle by reading every <repo-root>/core/
 // and <repo-root>/profiles/<name>/ ontology.toml plus *-kind.toml.
 //
@@ -21,9 +21,9 @@
 //
 //	dagtoml-rdf-go [--repo-root <path>] [-o <output>]
 //
-// Default output: stdout. Equivalent to the Rust binary, produces the
+// Default output: stdout. Equivalent to the Rust binary - produces the
 // same Turtle artifact and the same `### Counts at generation:` footer
-// that validators/check_manifest_drift.sh greps.
+// that validators/check_manifest_drift.sh checks as a fixed string.
 package main
 
 import (
@@ -53,11 +53,12 @@ type ontology struct {
 }
 
 type entity struct {
-	IDPrefix    string `toml:"id_prefix"`
-	IDPattern   string `toml:"id_pattern"`
-	Section     string `toml:"section"`
-	Schema      string `toml:"schema"`
-	Description string `toml:"description"`
+	IDPrefix              string `toml:"id_prefix"`
+	IDDecimalPrefix       string `toml:"id_decimal_prefix"`
+	IDOptionalLowerSuffix bool   `toml:"id_optional_lower_suffix"`
+	Section               string `toml:"section"`
+	Schema                string `toml:"schema"`
+	Description           string `toml:"description"`
 }
 
 type relation struct {
@@ -471,8 +472,11 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 		if er.e.IDPrefix != "" {
 			fmt.Fprintf(&b, ";\n    dagtoml:idPrefix %s ", ttlLit(er.e.IDPrefix))
 		}
-		if er.e.IDPattern != "" {
-			fmt.Fprintf(&b, ";\n    dagtoml:idPattern %s ", ttlLit(er.e.IDPattern))
+		if er.e.IDDecimalPrefix != "" {
+			fmt.Fprintf(&b, ";\n    dagtoml:idDecimalPrefix %s ", ttlLit(er.e.IDDecimalPrefix))
+		}
+		if er.e.IDOptionalLowerSuffix {
+			fmt.Fprintf(&b, ";\n    dagtoml:idOptionalLowerSuffix true ")
 		}
 		if er.e.Section != "" {
 			fmt.Fprintf(&b, ";\n    dagtoml:section %s ", ttlLit(er.e.Section))
@@ -560,7 +564,7 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 		b.WriteString(".\n\n")
 	}
 
-	// Footer counts: the drift script greps this line.
+	// Footer counts used by the drift checker.
 	b.WriteString("###\n")
 	fmt.Fprintf(&b,
 		"### Counts at generation: %d template kinds, %d entity kinds, %d relation predicates, %d attribute vocabularies.\n",
@@ -571,6 +575,7 @@ func generate(repoRoot string) (string, int, int, int, int, error) {
 }
 
 func loadToml(path string, v any) error {
+	// #nosec G304 -- The caller intentionally reads a descriptor under the selected repository root.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", path, err)
@@ -586,8 +591,9 @@ func loadToml(path string, v any) error {
 // one of each top-level section. Full RDF parsing is the Rust verifier's
 // job (it has access to oxttl); doing a real RDF parse in Go would
 // require pulling in a heavier dependency. We deliberately keep this
-// counterpart lightweight and stick to grep-like assertions.
+// counterpart lightweight and use fixed-string assertions.
 func verifyTurtle(path string) error {
+	// #nosec G304 -- The operator selects the Turtle artifact to verify.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -610,14 +616,14 @@ func verifyTurtle(path string) error {
 	if len(missing) > 0 {
 		return fmt.Errorf("missing tokens: %v", missing)
 	}
-	// Walk the file as a TOML-adjacent text, light sanity that braces /
+	// Walk the file as a TOML-adjacent text - light sanity that braces /
 	// parens balance enough to flag truncation.
 	open := strings.Count(src, "[")
 	closed := strings.Count(src, "]")
 	if open != closed {
 		return fmt.Errorf("unbalanced brackets: %d open vs %d closed", open, closed)
 	}
-	fmt.Fprintf(os.Stderr, "verify %q: OK, %d lines, balanced brackets\n",
+	fmt.Fprintf(os.Stderr, "verify %q: OK - %d lines, balanced brackets\n",
 		path, strings.Count(src, "\n"))
 	return nil
 }

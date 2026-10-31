@@ -1,7 +1,7 @@
 """Validate one captured root document; referenced evidence resolves separately."""
 
-import argparse
-from pathlib import Path
+import _literal_args as argparse
+from _literal_path import Path
 
 import _toml11 as toml
 from _runtime_document_vocab import KINDS, validate_adapter

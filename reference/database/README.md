@@ -92,14 +92,28 @@ with duplicate keys is rejected. Indexes are not completeness/authenticity claim
 
 ## Initialize and ingest
 
-Install optional database drivers separately. At commit
-`6f58c814158c3b1ba46eb49a9b0dec544140ae26`, the Python TOML 1.1 parser
-is bundled with the reference validators. It is based on Tomli 2.5.0 with
-local scanner and diagnostic changes described in the vendor README:
+Build DuckDB's maintained native binding with the selected CPython installation
+and its matching development headers. At baseline
+`12cb56dd0a6ce892d51930554080e2411ec35521`, the reference used the installed
+native package without binding it to a retained build identity. The replacement
+recipe pins supplier archives, prepares the existing binding and records the
+exact native artifacts. There is no installed-package fallback.
 
 ```sh
-python3 -m pip install --require-hashes -r requirements/database.txt
+cd tools/dagtoml-duckdb-native-go
+GOTOOLCHAIN=go1.26.10 go run . --version 1.5.3 \
+  --python /absolute/path/to/python \
+  --cache /absolute/path/to/archive-cache \
+  --output /absolute/path/to/repository/.local/database-ci/duckdb-driver/1.5.3/cpython-311
 ```
+
+The output ABI directory must match the interpreter. Set
+`DAGTOML_DUCKDB_VERSION=1.5.0` when selecting the floor build. Supplier origin
+identities remain in `requirements/database*.txt` for advisory matching. Those
+files describe native inputs and are not installation instructions. The local
+variant retires optional Python ecosystem conversion; UUID output is canonical
+text and timezone-aware timestamp output is UTC. See the native builder README
+for supported platforms, input inventories and remaining audit boundaries.
 
 Load the engine's `schema.sql` and `seed.sql` into a fresh private destination.
 Those files leave `reference_contract` and `runtime_document` empty. Rust/Go
@@ -129,7 +143,8 @@ zero separator, unsigned 64-bit big-endian entry count, then path-byte length,
 canonical UTF-8 relative path, and raw SHA-256 bytes for each sorted entry.
 Its population includes specification prose, discovered ontologies, kind/profile
 descriptors, assertion grammar, storage mapping, Python validators and database
-support modules, engine lock, and pinned dependencies. Missing or escaping paths
+support modules, native PostgreSQL Go sources and module locks, the complete native DuckDB recipe, engine lock,
+and pinned dependencies. Missing or escaping paths
 fail. SQL artifacts are hashed separately and verified by execution to avoid a
 seed/hash cycle. The bare 64-character lowercase bundle digest never substitutes
 for a document hash or `closure_root`. One database belongs to one immutable bundle.
@@ -140,6 +155,73 @@ reads and an explicit outer transaction. SQLite enables and reads back foreign
 keys and requires CHECK constraints enabled before BEGIN. Embedded DuckDB has one
 writer process and serializes callers within it; another writable process is
 refused. An active caller transaction is rejected without commit or rollback.
+
+The private-lane concurrency harness replaces the executor dependency from
+`4069dfababe2b74bb1ed7fc8795cc0a8263e7943` with explicit worker threads.
+Initialization and repeated-write races still use two simultaneous contenders;
+the SQLite lock-exhaustion probe uses one. Results preserve input order and
+worker exceptions fail the lane. A shared deadline bounds waiting, and startup
+or deadline failure releases peers at the supplied barrier. Python cannot
+cancel a stuck native driver call: a failed lane must abandon its private
+destination and process. No partial worker results become a successful receipt.
+Worker controls run under the cold import guard; persistent engine lanes
+separately exercise the real initialization and writer outcomes. This does not
+complete native driver, subprocess or build dependency audits.
+
+Receipt source binding replaces the inherited-environment Git calls from
+`a867058bc03a98c9b1a478543b690f046fe25a7d` with the owned Git transport.
+It verifies the selected repository root and named commit, ignores inherited
+Git location/index/configuration overrides, and records complete status and
+tracked-diff digests. The clean-receipt gate also rejects untracked content.
+The DuckDB external-writer probe shares the bounded native child transport
+with the cold-guard launcher: both own and reap their child, drain both output
+streams, and fail on deadline or output overflow. These Python import-boundary
+repairs do not establish absence inside Git, database engines or build tools.
+
+The byte comparison also repairs index-cache assumptions measured at
+`543bc3e3665131854ad7b109d59b562e28664f3f`. A clean Git status is accompanied
+by direct SHA-256 comparison of committed, indexed and working contents and
+Git executable modes. The `git-source-bytes-v1` delta is length framed and
+does not render a Git patch or apply content filters. Link text is captured;
+symlinked ancestors, special file types, unmerged entries and unassessed
+submodules refuse binding. Checkouts whose raw bytes differ through content
+normalization remain working files. Source identities still do not attest the
+runtime environment or complete the native dependency audit.
+
+The PostgreSQL connector requires text connection parameters and an optional
+text database name. It normalizes string subclasses to their underlying text
+and rejects NUL before loading the driver or opening a connection. Invalid
+text raises `StorageError` with code `setup`; nontext raises `TypeError`.
+The connector at `7d871361d4275860dab54b628894a54d20d977e6` loaded the
+Psycopg Python stack. It is replaced by the [native reference session](../../tools/dagtoml-postgres-go/README.md),
+whose prepared Go sources replace the supplier's password-file matcher and
+connection-error redactors. PostgreSQL uses separate protocol parameters,
+actual server transaction state and primary-message/SQLSTATE errors. Its
+Python bridge preserves the reference store's supported values and abandons
+the owned child on timeout or malformed framing. Build the native client
+before using PostgreSQL; the private CI runner builds it automatically.
+The executed lane runs with site disabled and guards both the main thread
+and new workers. Receipts require that guard, the current driver source and
+dependency identities, and the retained executable/build record. These
+client checks do not complete the server, compiler or wider tool audits.
+
+The DuckDB connector uses the installed native interface. Its destination is
+text, either supplied directly or returned by the filesystem path protocol.
+It reads the underlying text of a string subclass and rejects NUL bytes before
+opening the destination. Byte paths and nontext protocol results are rejected.
+This entry-point repair targets the connector at
+`eaefe4ca6146fcfd3a433a183c102f5a283922b6`; native binding, engine and build
+dependency audits remain separate requirements.
+
+The maintained native reference connector uses structured DuckDB errors and
+returns only their primary message in the original exception class. An error
+without a valid structured primary message becomes a neutral native error.
+The connection starts in structured error mode. If a caller disables that
+mode, errors stay neutral until the setting is restored. The prepared SDK
+does not register caller-frame replacement scans. These boundaries were
+repaired after actual missing-table errors on
+`c7c58b131d8c6d03a2c512a30ae61ea69c25124f` exposed a forbidden parser
+import and query context in the public error.
 
 Ingestion supports the three kinds above, agent-assurance/AGDF, and schema major
 zero. It runs metadata, provenance, IJB, closure, controlling-descriptor/capability,
@@ -264,6 +346,16 @@ incomplete kind/entity population is recorded in
 [ISS-002](../../docs/issues/2026-05-23-iss-002-graph-cypher-seed-incomplete.md).
 Complete SQL catalogs and this ingestion path do not imply universal kind
 validation or complete graph ingestion.
+
+The native RDF tool's `check-prefix-shapes --repo-root .` gate reads
+`rdf/shapes.ttl`, parses Turtle with the same parser as `verify`, and
+evaluates the identifier-prefix query subset used by the three declared
+prefix shapes. It exercises targeted label graphs with accepted and
+rejected prefixes, absent labels, and unrelated classes. Unsupported
+query forms or selected-shape properties fail the gate. This replaces
+the Python SHACL processor previously used by that specific CI check;
+it does not provide general SHACL conformance or validate the other
+hand-authored graph invariants.
 
 Native enum hints in `vocabulary-storage.toml` describe PostgreSQL and DuckDB
 types, including retained compatibility types. Every engine compares its complete

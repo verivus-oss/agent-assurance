@@ -34,12 +34,13 @@ Exit code 0 on pass; 1 on any violation.
 
 from __future__ import annotations
 
-import argparse
+from _literal_paths import candidate_directory, candidate_file, discovery_root, glob as literal_glob, rglob as literal_rglob
+import _literal_args as argparse
 import hashlib
-import pathlib
-import re
-import sys
+import _literal_path as pathlib
 from collections.abc import Callable
+from _ascii_predicates import split_closure_root, valid_sha256
+import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
 from _profile_discovery import profile_candidates, profile_name as declared_profile_name
 
@@ -54,8 +55,6 @@ FORBIDDEN_ALGOS = ("md5", "sha1")
 # \Z hardening: no reachable verdict divergence today
 # (the raw value is compared for equality downstream), but $ would admit
 # a trailing newline into the match, so anchor like every other gate.
-CLOSURE_ROOT_RE = re.compile(r"^([a-z0-9]+):([0-9a-f]+)\Z")
-
 EMPTY_CLOSURE_SENTINELS = {
     "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "sha384:38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b",
@@ -72,11 +71,9 @@ EMPTY_CLOSURE_SENTINELS = {
 # \Z, not $: Python's $ also matches before a trailing newline, which a
 # TOML multiline string can smuggle in; rs/go reject it, so $ would be a
 # cross-implementation verdict divergence (U10 review, fix 1).
-PINNED_VALUE_RE = re.compile(r"^sha256:[0-9a-f]{64}\Z")
-
 
 def _read_discovery_toml(path: pathlib.Path) -> dict:
-    """A selected declaration must be readable before it can be used."""
+    """Read a selected declaration with its source path in the failure."""
     try:
         return tomllib.loads_bytes(path.read_bytes())
     except (OSError, tomllib.TOMLDecodeError) as exc:
@@ -93,7 +90,7 @@ def duplicate_profile_names(repo_root: pathlib.Path) -> list[str]:
     seen: dict[str, pathlib.Path] = {}
     duplicates: list[str] = []
     profiles_dir = repo_root / "profiles"
-    if profiles_dir.is_dir():
+    if discovery_root(profiles_dir, required=True):
         for candidate in profile_candidates(repo_root):
             doc = _read_discovery_toml(candidate)
             name = declared_profile_name(doc, candidate)
@@ -113,7 +110,7 @@ def load_pinned_records(
     """Return {template_kind: [(field, presence, profile_name), ...]}."""
     descriptors: dict[str, dict] = {}
     profiles_dir = repo_root / "profiles"
-    if profiles_dir.is_dir():
+    if discovery_root(profiles_dir, required=True):
         for candidate in profile_candidates(repo_root):
             doc = _read_discovery_toml(candidate)
             name = declared_profile_name(doc, candidate)
@@ -168,7 +165,7 @@ def _loaded_profile_names(repo_root: pathlib.Path) -> frozenset[str]:
     to one of these)."""
     names: set[str] = set()
     profiles_dir = repo_root / "profiles"
-    if profiles_dir.is_dir():
+    if discovery_root(profiles_dir, required=True):
         for candidate in profile_candidates(repo_root):
             doc = _read_discovery_toml(candidate)
             names.add(declared_profile_name(doc, candidate))
@@ -246,7 +243,7 @@ def pinned_closure_inputs(
                     f"`{profile_name}`, SPEC §12.8.1) is missing"
                 )
             continue
-        if not isinstance(value, str) or not PINNED_VALUE_RE.match(value):
+        if not isinstance(value, str) or not valid_sha256(value):
             errors.append(
                 f"pinned closure record `{field}` must match "
                 f"`sha256:<64 lowercase hex chars>` (SPEC §12.8.1), "
@@ -275,7 +272,7 @@ def canonical_source_hash_inputs(data: dict) -> tuple[list[str], list[str]]:
     raw = provenance.get("source_sha256")
     if raw is None:
         return [], []
-    if not isinstance(raw, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", raw):
+    if not isinstance(raw, str) or not valid_sha256(raw):
         return [], [
             "`[provenance].source_sha256`, when present, must match "
             "`sha256:<64 lowercase hex chars>`"
@@ -319,20 +316,20 @@ def validate(
         )
         return errors
 
-    match = CLOSURE_ROOT_RE.match(value)
-    if not match:
+    parts = split_closure_root(value)
+    if parts is None:
         errors.append(
             f"{path}: `closure_root` must match `<algo>:<lowercase-hex-digest>` "
             f"(SPEC §12.1). Got: {value!r}"
         )
         return errors
 
-    algo, hexpart = match.group(1), match.group(2)
+    algo, hexpart = parts
 
     if algo in FORBIDDEN_ALGOS:
         errors.append(
             f"{path}: `closure_root` uses forbidden weak digest "
-            f"algorithm `{algo}`. SPEC §12.1 forbids MD5 and SHA-1 - "
+            f"algorithm `{algo}`. SPEC §12.1 forbids MD5 and SHA-1 — "
             f"use SHA-256 or stronger."
         )
         return errors
@@ -382,7 +379,7 @@ def validate(
 
 
 ALWAYS_SPEC_RESERVED_KINDS = frozenset({
-    # Meta kinds - the kind that describes other kinds, plus the
+    # Meta kinds — the kind that describes other kinds, plus the
     # ontology kind used by `core/ontology.toml` and friends. Both
     # are spec-layer infrastructure, not declared via a separate
     # `*-kind.toml` descriptor.
@@ -420,11 +417,11 @@ def spec_reserved_kinds(repo_root: pathlib.Path) -> frozenset[str]:
     descriptor lands.
     """
     found: set[str] = set(ALWAYS_SPEC_RESERVED_KINDS)
-    for descriptor in (repo_root / "core").glob("*-kind.toml"):
+    for descriptor in literal_glob(repo_root / "core", "*-kind.toml"):
         found.add(_kind_name_from_descriptor(descriptor))
     profiles_dir = repo_root / "profiles"
-    if profiles_dir.exists():
-        for descriptor in profiles_dir.glob("*/*-kind.toml"):
+    if discovery_root(profiles_dir, required=True):
+        for descriptor in literal_glob(profiles_dir, "*/*-kind.toml"):
             found.add(_kind_name_from_descriptor(descriptor))
     return frozenset(found)
 
@@ -438,18 +435,23 @@ def is_conforming_toml(path: pathlib.Path, spec_reserved: frozenset[str]) -> boo
     ad-hoc local-tool documents using non-spec-reserved `template_kind`
     values) are out of conformance scope and skipped silently.
     """
-    data = _read_discovery_toml(path)
+    try:
+        data = tomllib.loads_bytes(path.read_bytes())
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise ValueError(f"{path}: cannot inspect TOML candidate ({exc})") from exc
     meta = data.get("meta")
     if not isinstance(meta, dict):
         return False
     tk = meta.get("template_kind")
-    return isinstance(tk, str) and tk in spec_reserved
+    if "template_kind" in meta and not isinstance(tk, str):
+        raise ValueError(f"{path}: meta.template_kind is present but is not a string")
+    return tk in spec_reserved
 
 
 def discover_conforming(
     roots: list[pathlib.Path],
     spec_reserved: frozenset[str],
-    skip: Callable[[pathlib.Path], bool] | None = None,
+    excluded: Callable[[pathlib.Path], bool] | None = None,
 ) -> list[pathlib.Path]:
     """Find every conforming DAG-TOML document under the given roots.
 
@@ -462,17 +464,23 @@ def discover_conforming(
     out: list[pathlib.Path] = []
     skip_dirs = {"target", "node_modules", "__pycache__"}
     for root in roots:
-        if not root.exists():
+        if excluded and excluded(root):
             continue
-        if root.is_file():
-            if root.suffix == ".toml" and not (skip and skip(root)) and is_conforming_toml(root, spec_reserved):
+        if not candidate_directory(root):
+            if not candidate_file(root):
+                raise OSError(f"{root}: explicit closure discovery root is missing")
+            if root.suffix == ".toml" and not (excluded and excluded(root)) and is_conforming_toml(root, spec_reserved):
                 out.append(root)
             continue
-        for path in sorted(root.rglob("*.toml")):
-            if any(part.startswith(".") or part in skip_dirs for part in path.relative_to(root).parts):
-                continue
-            if skip and skip(path):
-                continue
+
+        def omitted(path: pathlib.Path, selected_root: pathlib.Path = root) -> bool:
+            if any(part.startswith(".") or part in skip_dirs for part in path.relative_to(selected_root).parts):
+                return True
+            if excluded and excluded(path):
+                return True
+            return False
+
+        for path in sorted(literal_rglob(root, "*.toml", exclude=omitted)):
             if is_conforming_toml(path, spec_reserved):
                 out.append(path)
     return out
@@ -534,16 +542,10 @@ def main(argv: list[str]) -> int:
 
     repo_root = pathlib.Path(args.repo_root).resolve()
     try:
-        return _validate_selected(args, repo_root, parser)
-    except ValueError as exc:
-        print(f"CLOSURE-ROOT VALIDATION FAILED: {exc}", file=sys.stderr)
+        duplicates = duplicate_profile_names(repo_root)
+    except (OSError, ValueError) as exc:
+        print(f"FAIL profile descriptor discovery: {exc}", file=sys.stderr)
         return 1
-
-
-def _validate_selected(
-    args: argparse.Namespace, repo_root: pathlib.Path, parser: argparse.ArgumentParser
-) -> int:
-    duplicates = duplicate_profile_names(repo_root)
     if duplicates:
         for dup in duplicates:
             print(
@@ -552,11 +554,13 @@ def _validate_selected(
             )
         print("\nCLOSURE-ROOT VALIDATION FAILED: duplicate profile names.", file=sys.stderr)
         return 1
-    pin_map = load_pinned_records(repo_root)
-    loaded_profiles = _loaded_profile_names(repo_root)
-
+    try:
+        pin_map = load_pinned_records(repo_root)
+        loaded_profiles = _loaded_profile_names(repo_root)
+    except (OSError, ValueError) as exc:
+        print(f"FAIL profile descriptor discovery: {exc}", file=sys.stderr)
+        return 1
     if args.discover:
-        spec_reserved = spec_reserved_kinds(repo_root)
         # Conformance `invalid/` trees are asserted-negative by construction:
         # conformance/runner.py requires all three implementations to REJECT
         # every one of them. Skipping them here is therefore structural, not a
@@ -585,22 +589,24 @@ def _validate_selected(
             )
 
         prefixes = [pathlib.Path(prefix).resolve() for prefix in (args.exclude or [])]
-        excluded: list[tuple[pathlib.Path, str]] = []
 
-        def skip_asserted_negative(path: pathlib.Path) -> bool:
+        def excluded(path: pathlib.Path) -> bool:
             if is_conformance_invalid(path):
-                excluded.append((path, "conformance invalid tree"))
+                print(f"EXCLUDED (conformance invalid tree): {path}")
                 return True
             if any(path.resolve().is_relative_to(prefix) for prefix in prefixes):
-                excluded.append((path, "asserted-negative path"))
+                print(f"EXCLUDED (asserted-negative path): {path}")
                 return True
             return False
 
-        targets = discover_conforming(
-            [pathlib.Path(r) for r in args.discover], spec_reserved, skip_asserted_negative
-        )
-        for path, reason in excluded:
-            print(f"EXCLUDED ({reason}): {path}")
+        try:
+            spec_reserved = spec_reserved_kinds(repo_root)
+            targets = discover_conforming(
+                [pathlib.Path(r) for r in args.discover], spec_reserved, excluded
+            )
+        except (OSError, tomllib.TOMLDecodeError, ValueError) as exc:
+            print(f"FAIL closure discovery: {exc}", file=sys.stderr)
+            return 1
         if not targets:
             print(
                 "CLOSURE-ROOT VALIDATION: no conforming TOMLs found "

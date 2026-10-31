@@ -1,22 +1,37 @@
 #!/usr/bin/env python3
 """Build a pinned private database lane or loader and retain its executed receipt."""
 
-import argparse
+import _literal_args as argparse
 import hashlib
-import json
+from contextlib import closing
+import _literal_json as json
 import os
-import re
-from pathlib import Path
+from _text_checks import contains_table_diagnostic
+from _literal_path import Path
 import shutil
 import subprocess
 import sys
 import tarfile
 import time
-import urllib.request
-import uuid
+from _random_id import random_id_hex, random_id_text
 import zipfile
 
 import _toml11 as toml
+
+
+class _SourceTarInfo(tarfile.TarInfo):
+    """Pinned source archives use tar members without PAX metadata."""
+
+    def _proc_member(self, archive):
+        if self.type in (tarfile.XHDTYPE, tarfile.XGLTYPE, tarfile.SOLARIS_XHDTYPE):
+            raise ValueError("PAX extended headers are unsupported in pinned source archives")
+        return super()._proc_member(archive)
+
+
+def extract_source(archive, source):
+    """Reject extended headers before tarfile's PAX regex parser is reachable."""
+    with tarfile.open(archive, tarinfo=_SourceTarInfo) as contents:
+        contents.extractall(source, filter="data")
 
 
 def run(command, root, env):
@@ -39,25 +54,22 @@ def loader_verify_checks(root, work, binary, cli, destination, env):
         subject = work / (name + ".duckdb")
         shutil.copy2(destination, subject)
         if name != "pristine-seed":
-            connection = connect("duckdb", str(subject))
-            try:
+            with closing(connect("duckdb", str(subject))) as connection:
                 store = Store("duckdb", connection, root)
                 store.insert("reference_contract", {"singleton_id": 1, "contract_bundle_sha256": digest, "projection_version": 1})
                 if name == "runtime-document-populated":
-                    identifier = str(uuid.uuid4())
+                    identifier = random_id_text()
                     store.insert("instance_file", {"id": identifier, "source_path": "loader-control.toml",
                                  "content_sha256": "sha256:" + "0" * 64, "schema_version": "0.1.0",
                                  "template_kind": "adapter-contract", "framework_profile": "agent-assurance"})
                     store.insert("runtime_document", document_fixture("adapter-contract", identifier, digest))
-            finally:
-                connection.close()
         process = subprocess.run([str(binary), "verify", "--duckdb", str(cli), "-o", str(subject)],  # nosec B603 # noqa: S603
                                  cwd=root, env=env, capture_output=True, text=True, timeout=60)
         output = process.stdout + process.stderr
         expected = {"reference_contract": 0 if name == "pristine-seed" else 1,
                     "runtime_document": int(name == "runtime-document-populated")}
         if process.returncode != int(name != "pristine-seed") or any(
-                not re.search(r"^\s*" + table + r"\s+" + str(count) + (r" != 0" if count else r" == 0"), output, re.M)
+                not contains_table_diagnostic(output, table, count)
                 for table, count in expected.items()):
             raise AssertionError("standalone loader verify missed its intended table state: " + name + "\n" + output)
         outcomes.append({"check": name, "exit_code": process.returncode, "counts": expected, "output": output})
@@ -69,8 +81,17 @@ def loader_verify_checks(root, work, binary, cli, destination, env):
 def download(url, digest, target):
     if not url.startswith("https://"):
         raise ValueError("pinned build artifacts require HTTPS")
-    with urllib.request.urlopen(url, timeout=60) as response:  # nosec B310 # noqa: S310
-        data = response.read()
+    curl = shutil.which("curl")
+    if curl is None:
+        raise RuntimeError("curl is required for pinned build artifact downloads")
+    process = subprocess.run(  # nosec B603  # noqa: S603
+        [curl, "--fail", "--location", "--silent", "--show-error", "--max-time", "60",
+         "--proto", "=https", "--proto-redir", "=https", url],
+        capture_output=True, check=False,
+    )
+    if process.returncode:
+        raise RuntimeError("pinned HTTPS artifact download failed")
+    data = process.stdout
     if hashlib.sha256(data).hexdigest() != digest:
         raise ValueError("downloaded build artifact does not match its pinned SHA-256")
     target.write_bytes(data)
@@ -81,8 +102,7 @@ def build_sqlite(lane, work, env):
     download(lane["source_url"], lane["source_sha256"], archive)
     source = work / "sqlite-source"
     source.mkdir()
-    with tarfile.open(archive) as contents:
-        contents.extractall(source, filter="data")
+    extract_source(archive, source)
     roots = list(source.iterdir())
     if len(roots) != 1 or not roots[0].is_dir():
         raise ValueError("unexpected pinned SQLite source layout")
@@ -107,7 +127,7 @@ def main(argv=None):
     lanes = {lane["id"]: lane for lane in lock["lanes"]}
     lane = lanes[args.lane or "duckdb-maintained"]
     output = root / ".local/database-ci"
-    work = root / ".local/database-work" / name / uuid.uuid4().hex
+    work = root / ".local/database-work" / name / random_id_hex()
     work.mkdir(parents=True)
     (work / "scratch").mkdir()
     (output / "receipts").mkdir(parents=True, exist_ok=True)
@@ -120,23 +140,38 @@ def main(argv=None):
     try:
         if lane["engine"] == "sqlite":
             env["LD_LIBRARY_PATH"] = build_sqlite(lane, work, env)
+        elif lane["engine"] == "duckdb":
+            env["DAGTOML_DUCKDB_VERSION"] = lane["version"]
+            os.environ["DAGTOML_DUCKDB_VERSION"] = lane["version"]
+            driver = output / "duckdb-driver" / lane["version"] / sys.implementation.cache_tag
+            print(run(["go", "run", ".", "--self-check"], root / "tools/dagtoml-duckdb-native-go",
+                      {**env, "GOTOOLCHAIN": "go1.26.10"}), end="")
+            run(["go", "run", ".", "--version", lane["version"], "--python", sys.executable,
+                 "--output", str(driver), "--cache", str(work / "archive-cache")],
+                root / "tools/dagtoml-duckdb-native-go", {**env, "GOTOOLCHAIN": "go1.26.10"})
+            print(run([sys.executable, "-B", "-S", "validators/test_duckdb_client.py", "--native"], root, env), end="")
         elif lane["engine"] == "postgres":
+            driver = root / ".local/database-ci/postgres-driver/dagtoml-postgres-go"
+            run(["go", "run", "./cmd/build-driver", "--output", str(driver)],
+                root / "tools/dagtoml-postgres-go", {**env, "GOTOOLCHAIN": "go1.26.10"})
             runtime = shutil.which(args.container_runtime)
             if runtime is None:
                 raise ValueError("selected container runtime is missing")
-            container = "dagtoml-vocabulary-" + uuid.uuid4().hex
+            container = "dagtoml-vocabulary-" + random_id_hex()
             run([runtime, "run", "-d", "--rm", "--name", container, "-e", "POSTGRES_PASSWORD=dagtoml-ci",
                  "-p", "127.0.0.1::5432", lane["image"]], root, env)
             address = run([runtime, "port", container, "5432/tcp"], root, env).strip()
             if not address.startswith("127.0.0.1:") or not address.removeprefix("127.0.0.1:").isdigit():
                 raise ValueError("container database is not bound to a single loopback port")
             destination = "host=127.0.0.1 port=" + address.split(":")[1] + " user=postgres password=dagtoml-ci dbname=postgres"
-            import psycopg
+            sys.path.insert(0, str(root / "reference/database"))
+            from _postgres import OperationalError
+            from _storage import connect_postgres
             for attempt in range(120):
                 try:
-                    with psycopg.connect(destination, autocommit=True):
+                    with connect_postgres(destination):
                         break
-                except psycopg.OperationalError:
+                except OperationalError:
                     if attempt == 119:
                         raise
                     time.sleep(0.25)
@@ -165,7 +200,7 @@ def main(argv=None):
                              "binary": published_binary.relative_to(root).as_posix(),
                              "binary_sha256": hashlib.sha256(published_binary.read_bytes()).hexdigest(),
                              "verify_checks": loader_verify_checks(root, work, published_binary, work / "duckdb", destination, env)}
-        command = [sys.executable, str(root / "validators/check_database_vocabularies.py"), "--repo-root", str(root),
+        command = [sys.executable, *(["-S"] if lane["engine"] in {"postgres", "duckdb"} else []), str(root / "validators/check_database_vocabularies.py"), "--repo-root", str(root),
                    "--engine", lane["engine"], "--destination", destination, "--expected-version", lane["version"],
                    "--lane", name, "--receipt", str(receipt_path)]
         if args.loader:

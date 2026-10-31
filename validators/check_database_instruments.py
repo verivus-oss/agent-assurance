@@ -2,16 +2,16 @@
 """Exercise gate failure controls and retain property-level mutation evidence."""
 
 
-import argparse
+from _literal_paths import glob as literal_glob
+import _literal_args as argparse
 from copy import deepcopy
-import json
+import _literal_json as json
 import os
-from pathlib import Path
-import re
+from _literal_path import Path
 import sqlite3
 import subprocess
 import sys
-import uuid
+from _random_id import random_id_hex
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "reference/database"))
@@ -34,6 +34,17 @@ def replaced(text, old, new):
     if text.count(old) != 1:
         raise AssertionError("mutation must select exactly one source subject: " + repr(old))
     return text.replace(old, new)
+
+
+def without_table_entry(text: str, marker: str, next_marker: str, *, unique: bool = True) -> str:
+    count = text.count(marker)
+    if count == 0 or unique and count != 1:
+        raise AssertionError("mutation must select an existing table entry")
+    start = text.index(marker)
+    end = text.find(next_marker, start + len(marker))
+    if end < 0:
+        raise AssertionError("mutation needs a following table entry")
+    return text[:start] + text[end:]
 
 
 def read_sql_descriptor(path):
@@ -178,12 +189,14 @@ def controls(root, work):
         mapping = candidate / "reference/database/vocabulary-storage.toml"
         original = mapping.read_text()
         variants = {
-            "missing-vocabulary-mapping": re.sub(r'\[\[vocabularies\]\]\nattribute = "runtime_kind".*?(?=\[\[vocabularies\]\])', '', original, count=1, flags=re.S),
+            "missing-vocabulary-mapping": without_table_entry(
+                original, '[[vocabularies]]\nattribute = "runtime_kind"', '[[vocabularies]]'),
             "missing-validator-module-owner": replaced(original,
                 'validator_owners = ["validators/validate_gate_decision.py", "validators/_runtime_document_vocab.py"]',
                 'validator_owners = ["validators/validate_gate_decision.py"]'),
             "missing-invariant-owner": original[:original.rindex("[[invariant_owners]]")],
-            "missing-required-section-disposition": re.sub(r'\[\[required_section_dispositions\]\].*?(?=\[\[)', '', original, count=1, flags=re.S),
+            "missing-required-section-disposition": without_table_entry(
+                original, '[[required_section_dispositions]]', '[[', unique=False),
         }
         for name, variant in variants.items():
             require(variant != original)
@@ -207,7 +220,7 @@ def controls(root, work):
                 killed(name, lambda: declarations(candidate), ValueError, needle)
             finally:
                 descriptor.write_text(original_descriptor)
-        side = next((candidate / "conformance/cases/gate-decision/invalid").glob("*.expected.toml"))
+        side = next(literal_glob(candidate / "conformance/cases/gate-decision/invalid", "*.expected.toml"))
         contents = side.read_bytes()
         side.unlink()
         try:
@@ -307,6 +320,15 @@ def receipt_controls(root, paths, work):
     variant = deepcopy(original)
     next(row for row in variant if "loader" in row)["loader"]["verify_checks"] = []
     variants["missing-loader-verify-controls"] = variant
+    for name, edit in (
+        ("missing-native-driver", lambda row: row.pop("native_driver")),
+        ("stale-native-driver", lambda row: row["native_driver"].update(binary_sha256="0" * 64)),
+        ("missing-postgres-guard", lambda row: row.pop("execution_guard")),
+        ("suppressed-postgres-import", lambda row: row["execution_guard"].update(import_attempts=["re"])),
+    ):
+        variant = deepcopy(original)
+        edit(next(row for row in variant if row["engine"] == "postgres"))
+        variants[name] = variant
     for name, variant in variants.items():
         directory = work / name
         directory.mkdir()
@@ -331,7 +353,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     root = args.repo_root.resolve()
     identity = source_identity(root)
-    work = root / ".local/database-instruments" / uuid.uuid4().hex
+    work = root / ".local/database-instruments" / random_id_hex()
     work.mkdir(parents=True)
     path = work / "receipt.json"
     path.write_text(json.dumps({"status": "incomplete"}))

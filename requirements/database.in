@@ -1,5 +1,4 @@
-# Optional reference database drivers. TOML-only validators do not import these.
+# Native supplier origin identities for advisory matching, not Python installation.
+# Runtime artifacts are built from tools/dagtoml-duckdb-native-go/data/inputs.json.
 duckdb==1.5.3
-psycopg[binary]==3.3.5
-# DuckDB's Python conversion of TIMESTAMPTZ imports pytz.
-pytz==2026.3.post1
+pybind11==2.13.6

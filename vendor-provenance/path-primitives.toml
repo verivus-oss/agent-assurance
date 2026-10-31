@@ -1,0 +1,12 @@
+supplier_repository = "python/cpython"
+supplier_version = "3.11.15"
+supplier_commit = "2340a037f7450e70fccfe411e6531afb4d57a312"
+source_path = "Lib/pathlib.py"
+source_blob = "ecb1e8a40d8cf02e7df4723c1db6ab3481470e86"
+source_sha256 = "3b21ac188fd9ac20bacc8ccd976fabd5d8ccf5000f8e157d3dfff005b228fb3d"
+license_path = "validators/licenses/CPython-LICENSE.txt"
+license_sha256 = "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf"
+upstream_license_blob = "f26bcf4d2de6eb136e31006ca3ab447d5e488adf"
+owned_path = "validators/_literal_path.py"
+retired_apis = ["glob", "rglob", "match", "as_uri", "__enter__", "__exit__", "link_to", "touch"]
+retired_imports = ["fnmatch", "functools", "re", "urllib.parse", "warnings", "ntpath", "posixpath"]

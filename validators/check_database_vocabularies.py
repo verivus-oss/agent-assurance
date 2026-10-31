@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Execute the reference SQL artifacts and retain an artifact-bound test receipt."""
 
-import argparse
+import _literal_args as argparse
+from contextlib import ExitStack
 import hashlib
-import json
-from pathlib import Path
-import subprocess
-import shutil
+import _literal_json as json
+from _literal_path import Path
+from _credential_git import git
+from _working_source import DIFF_FORMAT, working_delta
 import sys
-import uuid
+from _random_id import random_id_hex
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reference/database"))
 from _contract import artifact_hashes, bundle_digest, bundle_entries  # noqa: E402
@@ -22,17 +23,21 @@ from _connection_checks import exercise_connection  # noqa: E402
 
 
 def source_identity(root: Path) -> dict:
-    def git(*args):
-        binary = shutil.which("git")
-        if binary is None:
-            raise ValueError("Git is required to bind the receipt to a source commit")
-        # Fixed read-only Git subcommands, list arguments, no shell.
-        return subprocess.run([binary, *args], cwd=root, check=True, capture_output=True).stdout  # nosec B603 # noqa: S603
-    tracked = set(git("ls-files", "-z").decode().split("\0"))
-    return {"commit": git("rev-parse", "HEAD").decode().strip(),
-            "tracked_tree_clean": not bool(git("status", "--porcelain", "--untracked-files=no")),
+    root = root.resolve()
+    actual = git(root, ["rev-parse", "--show-toplevel"]).decode().rstrip("\n")
+    if actual != str(root):
+        raise ValueError("database source binding requires the repository root")
+    commit = git(root, ["rev-parse", "--verify", "HEAD^{commit}"]).decode().rstrip("\n")
+    if len(commit) not in (40, 64) or any(char not in "0123456789abcdef" for char in commit):
+        raise ValueError("database source binding requires a named commit")
+    tracked = set(git(root, ["ls-files", "-z"]).decode().split("\0"))
+    status = git(root, ["status", "--porcelain", "-z"])
+    byte_clean, delta = working_delta(root, commit)
+    return {"commit": commit, "working_tree_clean": not status and byte_clean,
+            "status_sha256": hashlib.sha256(status).hexdigest(),
+            "tracked_tree_clean": byte_clean and not bool(git(root, ["status", "--porcelain", "--untracked-files=no", "-z"])),
             "bundle_files_tracked": set(bundle_entries(root)) <= tracked,
-            "diff_sha256": hashlib.sha256(git("diff", "HEAD", "--binary")).hexdigest()}
+            "diff_format": DIFF_FORMAT, "diff_sha256": delta}
 
 
 def engine_version(store: Store) -> str:
@@ -41,14 +46,31 @@ def engine_version(store: Store) -> str:
 
 
 def run_lane(root: Path, engine: str, destination: str, expected_version: str, lane: str, *, existing_seed=False) -> dict:
+    if engine == "postgres":
+        from _postgres_guard import guarded_lane
+        return guarded_lane(lambda: _run_lane(root, engine, destination, expected_version, lane,
+                                               existing_seed=existing_seed))
+    if engine == "duckdb":
+        from _duckdb_guard import guarded_lane
+        return guarded_lane(lambda: _run_lane(root, engine, destination, expected_version, lane,
+                                               existing_seed=existing_seed))
+    return _run_lane(root, engine, destination, expected_version, lane, existing_seed=existing_seed)
+
+
+def _run_lane(root: Path, engine: str, destination: str, expected_version: str, lane: str, *, existing_seed=False) -> dict:
     if destination == ":memory:":
         raise ValueError("full executed lanes require a persistent private destination for connection-loss tests")
     identity = source_identity(root)
     hashes = artifact_hashes(root)
     digest = bundle_digest(root)
-    connection = connect(engine, destination)
-    store = Store(engine, connection, root, reconnect=lambda: connect(engine, destination))
-    try:
+    with ExitStack() as resources:
+        connection = connect(engine, destination)
+        store = None
+        def close_current_connection():
+            (store.connection if store is not None else connection).close()
+        resources.callback(close_current_connection)
+        native_driver = connection.driver_identity if engine in {"postgres", "duckdb"} else None
+        store = Store(engine, connection, root, reconnect=lambda: connect(engine, destination))
         actual_version = engine_version(store)
         if actual_version != expected_version:
             raise ValueError(f"wrong engine version: selected {expected_version}, connected {actual_version}")
@@ -67,7 +89,7 @@ def run_lane(root: Path, engine: str, destination: str, expected_version: str, l
             raise ValueError("schema/seed must leave the instance and initialization populations empty")
         # The table identifier is selected from the closed engine map.
         pairs = store.execute(f"SELECT attribute,value FROM {store.table('attribute_value_allowed')} ORDER BY attribute,value").fetchall()  # nosec B608 # noqa: S608
-        work = root / ".local/database-checks" / lane / uuid.uuid4().hex
+        work = root / ".local/database-checks" / lane / random_id_hex()
         work.mkdir(parents=True)
         metadata_checks = exercise_catalog_metadata(store)
         connection_checks = exercise_connection(store, destination)
@@ -83,8 +105,17 @@ def run_lane(root: Path, engine: str, destination: str, expected_version: str, l
         concurrency_checks = writer_checks(store, destination)
         if source_identity(root) != identity or artifact_hashes(root) != hashes or bundle_digest(root) != digest:
             raise ValueError("source or SQL artifacts changed while the executed gate was running")
+        if engine == "postgres":
+            from _postgres_client import build_identity
+            if build_identity(root) != native_driver:
+                raise ValueError("native PostgreSQL driver artifacts changed while the executed gate was running")
+        if engine == "duckdb":
+            from _duckdb_client import build_identity
+            if build_identity(root, expected_version) != native_driver:
+                raise ValueError("native DuckDB driver artifacts changed while the executed gate was running")
         return {"receipt_version": 1, "status": "passed", "lane": lane, "engine": engine,
                 "expected_version": expected_version, "actual_version": actual_version, "source": identity,
+                **({"native_driver": native_driver} if native_driver is not None else {}),
                 "artifacts": hashes, "contract_bundle_sha256": digest, "seed_counts": counts,
                 "allowed_pairs": pairs, "constraint_probes": initialization["probes"],
                 "storage_checks": storage_checks, "protocol_checks": protocol_checks, "skipped": [],
@@ -92,8 +123,6 @@ def run_lane(root: Path, engine: str, destination: str, expected_version: str, l
                 "replay_checks": replay_checks,
                 "connection_checks": connection_checks, "metadata_checks": metadata_checks,
                 "excluded": ["libSQL compatibility", "runtime execution", "signature verification", "evidence authenticity"]}
-    finally:
-        store.connection.close()
 
 
 def main(argv=None) -> int:

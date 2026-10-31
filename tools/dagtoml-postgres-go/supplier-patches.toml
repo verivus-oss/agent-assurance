@@ -1,0 +1,29 @@
+schema_version = 1
+project_baseline = "7d871361d4275860dab54b628894a54d20d977e6"
+scope = "maintained source preparation for the bounded PostgreSQL reference client"
+compiler = "go1.26.10"
+upstream_checksums = "go.sum"
+
+[[dependency_update]]
+module = "golang.org/x/text"
+version = "v0.41.0"
+reason = "fixed versions reported for GO-2026-6629 and GO-2026-5970; current pinned-toolchain scan remains required"
+
+[[supplier]]
+module = "github.com/jackc/pgx/v5"
+version = "v5.11.0"
+repository = "https://github.com/jackc/pgx"
+license = "MIT"
+source = "pgconn/errors.go"
+symbols = ["ParseConfigError.Error", "redactPW", "redactURLPassword", "uriStructureUnambiguous", "uriQueryStart"]
+change = "fixed parse-error diagnostic; retire heuristic redactors and their unused helpers"
+
+[[supplier]]
+module = "github.com/jackc/pgpassfile"
+version = "v1.0.0"
+repository = "https://github.com/jackc/pgpassfile"
+license = "MIT"
+source = "pgpass.go"
+symbols = ["colonSplitterRegexp", "Entry", "parseLine", "ReadPassfile", "Passfile.FindPassword"]
+change = "retire matcher; explicit escapes, preserved whitespace, literal wildcard flags and regular private-file checks"
+behavioral_source = "PostgreSQL REL_16_14 src/interfaces/libpq/fe-connect.c passwordFromFile and pwdfMatchesString"

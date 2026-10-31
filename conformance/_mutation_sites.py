@@ -1,7 +1,6 @@
 """Shared mutation-site selection and stable diagnostic fingerprints."""
 
-import ast
-import re
+import _syntax_tree as ast
 
 
 class DisableSite(ast.NodeTransformer):
@@ -10,7 +9,6 @@ class DisableSite(ast.NodeTransformer):
     def __init__(self, target: int) -> None:
         self.target = target
         self.seen = 0
-        self.line: int | None = None
         self.fingerprint: str = ""
 
     def visit_Expr(self, node: ast.Expr):
@@ -25,7 +23,6 @@ class DisableSite(ast.NodeTransformer):
             index = self.seen
             self.seen += 1
             if index == self.target:
-                self.line = node.lineno
                 self.fingerprint = fingerprint(call)
                 return ast.copy_location(ast.Pass(), node)
         return node
@@ -44,7 +41,7 @@ def fingerprint(call: ast.Call) -> str:
         if isinstance(node, ast.Constant) and isinstance(node.value, str):
             parts.append(node.value)
     text = " ".join(parts)
-    text = re.sub(r"\s+", " ", text).strip()
+    text = " ".join(text.split())
     # Strip AFTER truncating too. A 70-char cut can land mid-gap and leave a
     # trailing space, and every TOML writer and formatter strips trailing
     # whitespace on the way into the baseline file. The stored identity would

@@ -1,6 +1,6 @@
 """Validate a selected profile declaration before adding it to discovery."""
 
-from pathlib import Path
+from _literal_path import Path
 import stat
 
 
@@ -10,20 +10,20 @@ def profile_candidates(repo_root: Path):
     try:
         entries = sorted(profiles_dir.iterdir())
     except OSError as exc:
-        raise ValueError(f"{profiles_dir}: cannot enumerate profiles ({exc})") from exc
+        raise OSError(f"{profiles_dir}: cannot enumerate profiles ({exc})") from exc
     for entry in entries:
         try:
             entry_link = entry.is_symlink()
             entry_mode = entry.stat().st_mode
         except FileNotFoundError as exc:
             if entry.is_symlink():
-                raise ValueError(f"{entry}: cannot follow profile directory link") from exc
+                raise OSError(f"{entry}: dangling discovery directory") from exc
             continue
         except OSError as exc:
-            raise ValueError(f"{entry}: cannot inspect profile entry ({exc})") from exc
+            raise OSError(f"{entry}: cannot inspect profile entry ({exc})") from exc
         if not stat.S_ISDIR(entry_mode):
             if entry_link:
-                raise ValueError(f"{entry}: profile link does not target a directory")
+                raise OSError(f"{entry}: profile link does not target a directory")
             continue
         candidate = entry / "PROFILE.toml"
         try:
@@ -31,12 +31,12 @@ def profile_candidates(repo_root: Path):
             candidate_mode = candidate.stat().st_mode
         except FileNotFoundError as exc:
             if candidate.is_symlink():
-                raise ValueError(f"{candidate}: cannot follow profile descriptor link") from exc
+                raise OSError(f"{candidate}: dangling discovery candidate") from exc
             continue
         except OSError as exc:
-            raise ValueError(f"{candidate}: cannot inspect profile descriptor ({exc})") from exc
+            raise OSError(f"{candidate}: cannot inspect profile descriptor ({exc})") from exc
         if not stat.S_ISREG(candidate_mode):
-            raise ValueError(f"{candidate}: profile descriptor is not a regular file")
+            raise OSError(f"{candidate}: profile descriptor is not a regular file")
         yield candidate
 
 

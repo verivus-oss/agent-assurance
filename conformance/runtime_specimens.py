@@ -6,13 +6,13 @@ mapping. The gate separately compares this field population with that mapping.
 
 
 from copy import deepcopy
-from dataclasses import dataclass
-import json
-from pathlib import Path
+import _json_decode as json
+from _path_scan import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "validators"))
 import _toml11 as toml  # noqa: E402
+from _literal_records import Specimen  # noqa: E402
 from _instrument import require
 
 FIELDS = (
@@ -36,17 +36,6 @@ def encode(value):
 
 def dump(doc):
     return ("\n".join(json.dumps(key) + " = " + encode(value) for key, value in doc.items()) + "\n").encode()
-
-
-@dataclass
-class Specimen:
-    name: str
-    kind: str
-    accepted: bool
-    owner: str
-    doc: dict
-    needle: str = ""
-    root_mode: str = ""
 
 
 def specimens(root: Path) -> list[Specimen]:

@@ -43,13 +43,11 @@ Exits 0 on pass; 1 on any structural violation.
 
 from __future__ import annotations
 
-import argparse
-import pathlib
-import re
+import _literal_args as argparse
+import _literal_path as pathlib
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
-
-ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]*\.v\d+$")
+from _ascii_predicates import valid_abstraction_id
 
 REQUIRED_IJB_PRIMITIVE = "constraint"
 REQUIRED_IJB_CONSTRAINT_TYPE = "structural"
@@ -244,7 +242,7 @@ def validate_abstraction_class(
     id_val = block.get("id")
     if not isinstance(id_val, str) or not id_val:
         errors.append(f"{loc}.id: must be a non-empty string, got {id_val!r}")
-    elif not ID_PATTERN.match(id_val):
+    elif not valid_abstraction_id(id_val):
         errors.append(
             f"{loc}.id: must match `<slug>.v<integer>` "
             f"(lowercase slug + `.v` + non-negative integer), "
@@ -322,12 +320,7 @@ def validate_capability_envelope(
     return errors
 
 
-def validate(path: pathlib.Path, domains: set[str]) -> list[str]:
-    try:
-        data = tomllib.loads_bytes(path.read_bytes())
-    except (OSError, tomllib.TOMLDecodeError) as exc:
-        return [f"{path}: cannot parse TOML ({exc})"]
-
+def validate_document(data: dict, path: pathlib.Path, domains: set[str]) -> list[str]:
     kind = data.get("kind", {})
     if not isinstance(kind, dict):
         return []  # not a kind descriptor; silently skip
@@ -344,6 +337,14 @@ def validate(path: pathlib.Path, domains: set[str]) -> list[str]:
         )
 
     return errors
+
+
+def validate(path: pathlib.Path, domains: set[str]) -> list[str]:
+    try:
+        data = tomllib.loads_bytes(path.read_bytes())
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        return [f"{path}: cannot parse TOML ({exc})"]
+    return validate_document(data, path, domains)
 
 
 def main(argv: list[str]) -> int:
@@ -379,21 +380,17 @@ def main(argv: list[str]) -> int:
             failures.append(f"{p}: does not exist")
             continue
         checked += 1
-        errs = validate(p, domains)
-        # Detect whether any §13 block was actually declared so the
-        # summary line at the bottom is accurate.
         try:
             data = tomllib.loads_bytes(p.read_bytes())
-            kind = data.get("kind", {})
-            if isinstance(kind, dict) and (
-                "abstraction_class" in kind or "capability_envelope" in kind
-            ):
-                declared += 1
-        # Per-file kind-check failures are intentionally swallowed; the
-        # same defect is already counted in `failures` above, so re-raising
-        # would double-count.
-        except Exception:  # nosec B110  # noqa: S110
-            pass
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            failures.append(f"{p}: cannot parse TOML ({exc})")
+            continue
+        errs = validate_document(data, p, domains)
+        kind = data.get("kind", {})
+        if isinstance(kind, dict) and (
+            "abstraction_class" in kind or "capability_envelope" in kind
+        ):
+            declared += 1
         failures.extend(errs)
 
     if failures:

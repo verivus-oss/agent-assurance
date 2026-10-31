@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Initialize, ingest, or audit runtime documents in a reference SQL mirror."""
 
-import argparse
-import json
-from pathlib import Path
+import _argument_parser as argparse
+import _json_decode as json
+from _path_scan import Path
 import sys
-from contextlib import suppress
 
 from _storage import Store, StorageError, connect
 
@@ -49,11 +48,14 @@ def main(argv=None) -> int:
         return 1
     finally:
         # Connection disposal does not change an acknowledged write outcome.
-        with suppress(Exception):
+        try:
             if store is not None:
                 store.connection.close()
             elif connection is not None:
                 connection.close()
+        except Exception as exc:
+            print(json.dumps({"status": "warning", "code": "connection-close-failed",
+                              "exception": type(exc).__name__}), file=sys.stderr)
 
 
 if __name__ == "__main__":

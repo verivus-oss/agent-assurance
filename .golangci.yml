@@ -25,7 +25,7 @@ linters:
   settings:
     gosec:
       # Default settings cover G101..G505. Exclude G104 (errors not
-      # checked) — errcheck already covers it and gosec G104 emits
+      # checked) - errcheck already covers it and gosec G104 emits
       # duplicates.
       excludes:
         - G104
@@ -41,16 +41,10 @@ linters:
       # static analysis) families remain enforced.
       #
       # Concrete example we hit on 2026-05-27: QF1001 ("could apply
-      # De Morgan's law") fires bidirectionally — both `!(a || b)` and
+      # De Morgan's law") fires bidirectionally - both `!(a || b)` and
       # `!a && !b` trigger it, so applying the rule's suggested
       # rewrite just bounces the warning to the other form. The
       # function the rule flagged (isLowerHex in
       # tools/dagtoml-validate-go/main.go) is correct in either form;
       # there is no validator-semantic change to make.
       checks: ["all", "-QF1001"]
-
-  exclusions:
-    presets:
-      - common-false-positives
-    paths:
-      - vendor

@@ -9,14 +9,13 @@ the intended reference engine: Rust, Go, TypeScript, and Java.
 
 from __future__ import annotations
 
-import argparse
-import json
-import pathlib
+import _literal_args as argparse
+import _literal_json as json
+import _literal_path as pathlib
 import shutil
 import subprocess
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
-from dataclasses import dataclass
 
 
 SUPPORTED_LANGUAGES = {"rust", "go", "typescript", "java"}
@@ -33,12 +32,14 @@ EXTENSION_LANGUAGE = {
 }
 
 
-@dataclass(frozen=True)
 class SymbolRef:
-    entity_id: str
-    path: str
-    symbol: str
-    language: str
+    __slots__ = ("entity_id", "path", "symbol", "language")
+
+    def __init__(self, entity_id: str, path: str, symbol: str, language: str) -> None:
+        self.entity_id = entity_id
+        self.path = path
+        self.symbol = symbol
+        self.language = language
 
 
 def parse_args() -> argparse.Namespace:
@@ -188,7 +189,7 @@ def sqry_search(
         return [], detail
     try:
         payload = json.loads(proc.stdout)
-    except json.JSONDecodeError as exc:
+    except json.InvalidJSON as exc:
         return [], f"sqry returned invalid JSON: {exc}"
     wanted = (repo_root / ref.path).resolve()
     results = []
@@ -198,8 +199,8 @@ def sqry_search(
             continue
         try:
             candidate = pathlib.Path(raw_path).resolve()
-        except OSError:
-            continue
+        except (OSError, TypeError) as exc:
+            return [], f"sqry returned an invalid source path: {exc}"
         if candidate == wanted:
             results.append(item)
     return results, None
@@ -215,7 +216,6 @@ def result_summary(ref: SymbolRef, matches: list[dict]) -> dict:
             {
                 "qualified_name": match.get("qualified_name"),
                 "kind": match.get("kind"),
-                "line": match.get("start_line"),
             }
             for match in matches
         ],

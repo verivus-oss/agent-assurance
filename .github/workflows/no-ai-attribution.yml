@@ -61,31 +61,4 @@ jobs:
             fi
           fi
 
-          rc=0
-
-          # (a) MESSAGE: Co-authored-by Claude/Anthropic trailers, or
-          #     "Generated with Claude Code" footers. Catches the trailer that
-          #     GitHub auto-appends into a squash-merge commit body.
-          MSG_PATTERN='co-authored-by:.*(claude|anthropic)|generated with.*claude'
-          if git log --format='%h %s%n%b' "${ARGS[@]}" | grep -qiE "$MSG_PATTERN"; then
-            echo "::error::AI attribution stamp found in commit message(s) in range: ${ARGS[*]}"
-            git log --format='--- %h %s%n%b' "${ARGS[@]}" | grep -iE "$MSG_PATTERN" -B3 || true
-            rc=1
-          fi
-
-          # (b) IDENTITY: author or committer name/email tied to Anthropic/Claude.
-          #     One record per commit: "<short-sha>|<an>|<ae>|<cn>|<ce>".
-          #     A human legitimately named/emailed "claude"/"anthropic" would
-          #     need an allowlist exception here (accepted trade-off: no such
-          #     contributor exists in this org).
-          ID_PATTERN='anthropic|claude'
-          if git log --format='%h|%an|%ae|%cn|%ce' "${ARGS[@]}" | grep -qiE "$ID_PATTERN"; then
-            echo "::error::AI attribution found in commit author/committer identity in range: ${ARGS[*]}"
-            git log --format='%h|%an|%ae|%cn|%ce' "${ARGS[@]}" | grep -iE "$ID_PATTERN" || true
-            rc=1
-          fi
-
-          if [ "$rc" -ne 0 ]; then
-            exit 1
-          fi
-          echo "OK: no attribution stamps or identities in: ${ARGS[*]}"
+          python3 validators/check_ai_attribution.py "${ARGS[@]}"

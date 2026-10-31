@@ -49,12 +49,11 @@ Usage:
 """
 from __future__ import annotations
 
-import argparse
-import contextlib
+import _literal_args as argparse
 import hashlib
-import pathlib
-import re
+import _literal_path as pathlib
 import sys
+from _ascii_predicates import valid_digest, valid_header_name
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import _toml11 as tomllib  # noqa: E402  (TOML 1.1 reference shim)
@@ -64,9 +63,6 @@ import _toml11 as tomllib  # noqa: E402  (TOML 1.1 reference shim)
 # on the ontology itself.
 WITNESS_SCHEMES = frozenset({"tls-notary", "provider-signature", "tee-quote"})
 ATTESTER_OBSERVED = frozenset({"request", "response", "both"})
-
-DIGEST_HEX_LEN = {"sha256": 64, "sha384": 96, "sha512": 128}
-_DIGEST_RE = re.compile(r"^(sha256|sha384|sha512):([0-9a-f]+)$")
 
 # Closed key sets per table. Any other key inlines a raw payload/header value,
 # which RKV02 forbids (the document carries only digests).
@@ -89,8 +85,7 @@ CAPTURE_MAGIC = b"DAGTOML-API-CAPTURE/1\n"
 def is_digest(value: object) -> bool:
     if not isinstance(value, str):
         return False
-    m = _DIGEST_RE.match(value)
-    return bool(m) and len(m.group(2)) == DIGEST_HEX_LEN[m.group(1)]
+    return valid_digest(value)
 
 
 def _sha256_digest(b: bytes) -> str:
@@ -176,14 +171,13 @@ def verify_subparts(doc: dict, repo_root: pathlib.Path, toml_path, errors: list[
             )
 
 
-def validate_one(toml_path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
-    try:
-        with toml_path.open("rb") as handle:
-            doc = tomllib.load(handle)
-    except FileNotFoundError:
-        return [f"{toml_path}: file not found"]
-    except tomllib.TOMLDecodeError as exc:
-        return [f"{toml_path}: invalid TOML: {exc}"]
+def validate_one(toml_path: pathlib.Path, repo_root: pathlib.Path, document: dict | None = None) -> list[str]:
+    if document is None:
+        try:
+            document = tomllib.loads_bytes(toml_path.read_bytes())
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            return [f"{toml_path}: cannot parse TOML: {exc}"]
+    doc = document
 
     meta = doc.get("meta")
     if not isinstance(meta, dict) or meta.get("template_kind") != "api-snapshot":
@@ -236,7 +230,7 @@ def validate_one(toml_path: pathlib.Path, repo_root: pathlib.Path) -> list[str]:
             errors.append(f"{toml_path}: snapshot.request.significant_headers must be an array of header-name strings")
         else:
             for h in sig:
-                if not isinstance(h, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]*", h):
+                if not isinstance(h, str) or not valid_header_name(h):
                     errors.append(
                         f"{toml_path}: snapshot.request.significant_headers entry {h!r} "
                         f"must be a bare lowercase header name; a ':' or whitespace means "
@@ -315,12 +309,14 @@ def main(argv: list[str]) -> int:
     for raw in args.files:
         path = pathlib.Path(raw)
         checked += 1
-        with contextlib.suppress(Exception):
-            with path.open("rb") as h:
-                d = tomllib.load(h)
-            if isinstance(d.get("meta"), dict) and d["meta"].get("template_kind") == "api-snapshot":
-                snapshots += 1
-        all_errors.extend(validate_one(path, repo_root))
+        try:
+            document = tomllib.loads_bytes(path.read_bytes())
+        except (OSError, tomllib.TOMLDecodeError) as exc:
+            all_errors.append(f"{path}: cannot parse TOML: {exc}")
+            continue
+        if isinstance(document.get("meta"), dict) and document["meta"].get("template_kind") == "api-snapshot":
+            snapshots += 1
+        all_errors.extend(validate_one(path, repo_root, document))
 
     if all_errors:
         print("API-SNAPSHOT VALIDATION FAILED")

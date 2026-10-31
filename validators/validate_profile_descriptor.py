@@ -10,16 +10,16 @@ and is the only artifact that declares profile inheritance
 This validator enforces the hard invariants INV01..INV05 listed in
 `core/profile-descriptor-kind.toml`:
 
-  INV01 - namespace partition consistency:
+  INV01 — namespace partition consistency:
           namespace == "spec.reserved"   iff   name matches ^[a-z][a-z0-9-]*$
           (unprefixed kebab-case)
           otherwise namespace MUST be a strict reverse-DNS prefix of name
           (matches ^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)+$).
-  INV02 - `extends` is acyclic.
-  INV03 - every entry of `extends` resolves to a loaded profile-descriptor.
-  INV04 - `ontology` points at an existing file with
+  INV02 — `extends` is acyclic.
+  INV03 — every entry of `extends` resolves to a loaded profile-descriptor.
+  INV04 — `ontology` points at an existing file with
           `[meta].template_kind = "ontology"`.
-  INV05 - every entry of `contained_kinds` resolves to a `*-kind.toml`
+  INV05 — every entry of `contained_kinds` resolves to a `*-kind.toml`
           under repo root whose `[meta].describes_kind` matches the entry.
 
   INV08: `bound_tuples` entries (spec.md §12.8.2) are well-formed:
@@ -48,19 +48,14 @@ primaries' fall-back semantics (U10 review fix 3).
 
 from __future__ import annotations
 
-import argparse
-import pathlib
-import re
+import _literal_args as argparse
+import _literal_path as pathlib
 import sys
 import _toml11 as tomllib  # TOML 1.1 reference shim (stdlib tomllib is 1.0-only); see validators/_toml11.py
+from _ascii_predicates import valid_closure_field, valid_reverse_dns, valid_unprefixed_name
+from _literal_paths import candidate_directory, candidate_file, discovery_root
 from _profile_discovery import profile_candidates, profile_name
 
-
-# \Z, not $: Python's $ also matches before a trailing newline; rs/go
-# reject such names, so $ would be a cross-implementation divergence
-# (U10 review round 2, R2-1).
-UNPREFIXED_RE = re.compile(r"^[a-z][a-z0-9-]*\Z")
-REVERSE_DNS_RE = re.compile(r"^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+\Z")
 
 REQUIRED_PROFILE_FIELDS = (
     "name",
@@ -75,9 +70,6 @@ REQUIRED_PROFILE_FIELDS = (
 # INV07 (spec.md §12.8.1): profile-pinned closure records.
 CLOSURE_RECORD_KEYS = ("contained_kind", "field", "presence")
 CLOSURE_RECORD_PRESENCE = ("required", "when-present")
-# \Z, not $: see the equivalent note in validate_closure_root.py
-# (Python's $ tolerates a trailing newline; rs/go do not).
-CLOSURE_RECORD_FIELD_RE = re.compile(r"^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*\Z")
 CLOSURE_RECORD_FORBIDDEN_FIELDS = (
     "closure_root",
     "provenance.source_sha256",
@@ -109,21 +101,27 @@ def discover_descriptors(repo_root: pathlib.Path) -> dict[str, tuple[pathlib.Pat
     """Discover every profile-descriptor under `profiles/*/PROFILE.toml`."""
     found: dict[str, tuple[pathlib.Path, dict]] = {}
     profiles_dir = repo_root / "profiles"
-    if not profiles_dir.is_dir():
+    if not discovery_root(profiles_dir, required=True):
         return found
     for candidate in profile_candidates(repo_root):
         try:
             doc = load_toml(candidate)
         except (OSError, tomllib.TOMLDecodeError) as exc:
             raise ValueError(f"{candidate}: cannot parse profile descriptor ({exc})") from exc
-        found[profile_name(doc, candidate)] = (candidate, doc)
+        name = profile_name(doc, candidate)
+        if name in found:
+            raise ValueError(
+                f"duplicate profile-descriptor name `{name}` "
+                f"({found[name][0]} and {candidate}): pin resolution refuses to proceed"
+            )
+        found[name] = (candidate, doc)
     return found
 
 
 def check_namespace_partition(name: str, namespace: str) -> list[str]:
     errors: list[str] = []
-    is_unprefixed = bool(UNPREFIXED_RE.match(name))
-    is_reverse_dns = bool(REVERSE_DNS_RE.match(name))
+    is_unprefixed = valid_unprefixed_name(name)
+    is_reverse_dns = valid_reverse_dns(name)
     if not (is_unprefixed or is_reverse_dns):
         errors.append(
             f"[profile].name `{name}` does not match the SPEC §2.5 namespacing "
@@ -269,10 +267,10 @@ def check_bound_tuples(
             continue
 
         digest_field = entry["digest_field"]
-        if not CLOSURE_RECORD_FIELD_RE.match(digest_field):
+        if not valid_closure_field(digest_field):
             errors.append(
                 f"{where}.digest_field `{digest_field}` does not match the "
-                r"frozen path grammar ^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$ "
+                "frozen path grammar: dot-separated ASCII letters, digits, underscores, or hyphens "
                 f"(INV08)"
             )
         elif (
@@ -287,10 +285,10 @@ def check_bound_tuples(
             )
 
         for field in fields:
-            if not CLOSURE_RECORD_FIELD_RE.match(field):
+            if not valid_closure_field(field):
                 errors.append(
                     f"{where}.fields member `{field}` does not match the "
-                    r"frozen path grammar ^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$ "
+                    "frozen path grammar: dot-separated ASCII letters, digits, underscores, or hyphens "
                     f"(INV08)"
                 )
         if len(set(fields)) != len(fields):
@@ -381,10 +379,10 @@ def check_closure_records(
 
         field = entry["field"]
         presence = entry["presence"]
-        if not CLOSURE_RECORD_FIELD_RE.match(field):
+        if not valid_closure_field(field):
             errors.append(
                 f"{where}.field `{field}` does not match the frozen path "
-                r"grammar ^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$ (INV07)"
+                "grammar of dot-separated ASCII letters, digits, underscores, or hyphens (INV07)"
             )
         elif (
             field in CLOSURE_RECORD_FORBIDDEN_FIELDS
@@ -518,13 +516,13 @@ def validate_one(
     if errors:
         return errors
 
-    # INV01 - namespace partition consistency
+    # INV01 — namespace partition consistency
     errors.extend(check_namespace_partition(name, namespace))
 
-    # INV02 - extends is acyclic
+    # INV02 — extends is acyclic
     errors.extend(check_extends_acyclic(name, descriptors))
 
-    # INV03 - every extends entry resolves to a loaded descriptor
+    # INV03 — every extends entry resolves to a loaded descriptor
     for entry in extends:
         if not isinstance(entry, str):
             errors.append(
@@ -538,7 +536,7 @@ def validate_one(
                 f"`profiles/*/PROFILE.toml` and the file under validation)"
             )
 
-    # INV04 - ontology path exists and is an ontology
+    # INV04 — ontology path exists and is an ontology
     ontology_path = (repo_root / ontology).resolve()
     if not ontology_path.exists() or not ontology_path.is_file():
         errors.append(
@@ -558,7 +556,7 @@ def validate_one(
                     f"not declare `template_kind = \"ontology\"`"
                 )
 
-    # INV05 - every contained_kinds entry resolves to a *-kind.toml
+    # INV05 — every contained_kinds entry resolves to a *-kind.toml
     for slug in contained_kinds:
         if not isinstance(slug, str) or not slug:
             errors.append(
@@ -566,12 +564,16 @@ def validate_one(
                 f"non-empty strings"
             )
             continue
-        candidates = _kind_descriptor_candidates(repo_root, slug, profile_name=name)
+        try:
+            candidates = _kind_descriptor_candidates(repo_root, slug, profile_name=name)
+        except OSError as exc:
+            errors.append(f"{descriptor_path}: kind discovery failed ({exc})")
+            continue
         matched = None
         for candidate in candidates:
-            if not candidate.exists():
-                continue
             try:
+                if not candidate_file(candidate):
+                    continue
                 kd_doc = load_toml(candidate)
             except (OSError, tomllib.TOMLDecodeError) as exc:
                 errors.append(f"{candidate}: cannot parse kind descriptor ({exc})")
@@ -609,9 +611,9 @@ def _kind_descriptor_candidates(
         repo_root / "core" / f"{slug}-kind.toml",
     ]
     profiles_dir = repo_root / "profiles"
-    if profiles_dir.is_dir():
+    if discovery_root(profiles_dir, required=True):
         for entry in sorted(profiles_dir.iterdir()):
-            if not entry.is_dir():
+            if not candidate_directory(entry):
                 continue
             candidates.append(entry / f"{slug}-kind.toml")
     # dedupe while preserving order
@@ -631,40 +633,8 @@ def main() -> int:
     repo_root = pathlib.Path(args.repo_root).resolve()
     try:
         descriptors = discover_descriptors(repo_root)
-    except ValueError as exc:
-        print(f"PROFILE DESCRIPTOR VALIDATION FAILED: {exc}")
-        return 1
-
-    # Duplicate profile names would shadow each other in the name-keyed
-    # map and could erase closure pins; refuse to validate anything
-    # (SPEC 12.8.1 pin resolution, mirrored by the closure validators).
-    seen_names: dict[str, pathlib.Path] = {}
-    duplicate_errors: list[str] = []
-    profiles_dir = repo_root / "profiles"
-    if profiles_dir.is_dir():
-        for candidate in profile_candidates(repo_root):
-            try:
-                dup_doc = load_toml(candidate)
-            except (OSError, tomllib.TOMLDecodeError) as exc:
-                print(f"PROFILE DESCRIPTOR VALIDATION FAILED: {candidate}: {exc}")
-                return 1
-            if (dup_doc.get("meta") or {}).get("template_kind") != "profile-descriptor":
-                continue
-            dup_name = (dup_doc.get("profile") or {}).get("name")
-            if not isinstance(dup_name, str):
-                continue
-            if dup_name in seen_names:
-                duplicate_errors.append(
-                    f"duplicate profile-descriptor name `{dup_name}` "
-                    f"({seen_names[dup_name]} and {candidate}): pin resolution "
-                    f"refuses to proceed (SPEC §12.8.1)"
-                )
-            else:
-                seen_names[dup_name] = candidate
-    if duplicate_errors:
-        print("PROFILE DESCRIPTOR VALIDATION FAILED")
-        for line in duplicate_errors:
-            print(f"- {line}")
+    except (OSError, ValueError) as exc:
+        print(f"PROFILE DESCRIPTOR VALIDATION FAILED: cannot inspect descriptors ({exc})")
         return 1
 
     all_errors: list[str] = []

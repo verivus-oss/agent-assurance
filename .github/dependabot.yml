@@ -15,7 +15,7 @@ version: 2
 # - gomod: primary-validator + reference tooling Go modules under tools/,
 #   consolidated the same way.
 #
-# The directory lists include every crate/module, including the ones that
+# The directory scopes include every crate/module, including the ones that
 # currently declare no third-party dependencies (dagtoml-duckdb,
 # dagtoml-duckdb-go); Dependabot simply finds nothing to update there, and
 # the entry keeps them covered if a dependency is added later.
@@ -54,10 +54,7 @@ updates:
 
   - package-ecosystem: "cargo"
     directories:
-      - "/tools/dagtoml-validate-rs"
-      - "/tools/toml-test-decode-rs"
-      - "/tools/dagtoml-duckdb"
-      - "/tools/dagtoml-rdf"
+      - "/tools/*"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
@@ -76,10 +73,7 @@ updates:
 
   - package-ecosystem: "gomod"
     directories:
-      - "/tools/dagtoml-validate-go"
-      - "/tools/toml-test-decode-go"
-      - "/tools/dagtoml-duckdb-go"
-      - "/tools/dagtoml-rdf-go"
+      - "/tools/*"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5

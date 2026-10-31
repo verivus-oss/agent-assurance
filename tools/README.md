@@ -7,29 +7,28 @@ Native tooling that produces and verifies the artifacts under
 
 This repo has an explicit ordering of acceptable implementation
 languages for spec-critical tooling. The order is **not** a matter of
-taste — CI runs the higher tiers first and treats divergence as a
+taste. CI runs the higher tiers first and treats divergence as a
 build break.
 
-### Tier 1 — default: safe Rust **or** Go
+### Tier 1: default safe Rust **or** Go
 
 New tooling MUST be written in one of these two languages. Both are
 required to be **memory-safe by construction at the level of the code
 we write**:
 
 - **Rust** crates MUST declare `#![forbid(unsafe_code)]` at the top of
-  `src/main.rs` or `src/lib.rs`. The compiler refuses to build any
-  `unsafe { ... }` block inside the crate. Dependencies may use `unsafe`
+  every present `src/main.rs` and `src/lib.rs`. CI also scans every Rust
+  source file for an `unsafe` keyword, including files outside compiled
+  module trees. Dependencies may use `unsafe`
   internally; that is out of scope for this rule. MSRV is pinned in
   each `Cargo.toml` (`rust-version = "1.85"`); CI tracks current
   stable, which MUST be >= MSRV.
 - **Go** modules MUST NOT contain any `.go` file that imports
-  `"unsafe"`. The `go.mod` declares `go 1.26` (latest stable at the
-  time this policy was written); CI's `actions/setup-go@v5` is set to
-  `go-version: "stable"` so the runner tracks Go's release cadence
-  automatically.
+  `"unsafe"`. The `go.mod` files and CI setup use the patched Go 1.26.10
+  release. Update both when a newer supported security release is needed.
 
-Both are enforced by `validators/check_safe_tools.sh`, which runs in
-`.github/workflows/validate.yml` right after the manifest-drift step.
+Both are enforced by `validators/check_safe_tools.py`, which runs in
+`.github/workflows/validate.yml` as part of the validation workflow.
 
 The choice between Rust and Go is judgment-call:
 
@@ -45,7 +44,7 @@ When unsure, ship both. The two reference tools (`dagtoml-rdf` and
 `dagtoml-duckdb`) have Go counterparts at `*-go/`; CI exercises both
 and fails on functional divergence.
 
-### Tier 2 — supported: Java, TypeScript, Python
+### Tier 2: supported Java, TypeScript, Python
 
 Tooling in these languages is **accepted** but never **required**. They
 exist for three legitimate reasons:
@@ -56,7 +55,7 @@ exist for three legitimate reasons:
 2. **Cross-check / fallback**: a second implementation in a different
    language is the cheapest insurance against a primary-language bug.
    The Python validators under `validators/` are first-class
-   cross-checks for the primary Rust/Go validators — CI runs both, and
+   cross-checks for the primary Rust/Go validators. CI runs both, and
    a difference between primary and secondary fails the build.
 3. **Prototype / one-shot scripts**: things you'd otherwise write as a
    notebook. These do not belong in `tools/`; they belong in
@@ -73,16 +72,14 @@ remain enforceable, but they are not described as primary until the
 safe Rust and Go validators implement the same invariant and CI runs
 both implementations against the same positive/negative evidence.
 
-### Tier 0 — forbidden defaults
+### Tier 0: forbidden defaults
 
-- **Bash / shell** for any logic beyond ~100 lines or any computation
-  more involved than `grep`/`awk`/`find`/`wc` orchestration. The
-  drift script (`validators/check_manifest_drift.sh`) and the
-  safe-tools script (`validators/check_safe_tools.sh`) sit at exactly
-  this threshold and intentionally do nothing more.
+- **Bash / shell** for any logic beyond simple process orchestration.
+  Source checks use explicit predicates in Python. The drift script
+  (`validators/check_manifest_drift.sh`) delegates to its Python checker.
 - **Python with a runtime dependency** for new spec-critical tools.
   Python is acceptable for Tier-2 cross-checks using only the stdlib
-  (`tomllib`, `pathlib`, etc.) and the small allowed set in
+  (native IO and the owned TOML/path helpers) and the small allowed set in
   `requirements.txt`.
 - **C, C++, anything FFI-heavy**, unless an existence proof shows that
   Rust or Go cannot reach the required performance. Has not happened
@@ -90,7 +87,7 @@ both implementations against the same positive/negative evidence.
 
 ## Safety policy (CI-enforced)
 
-`validators/check_safe_tools.sh` runs in CI and fails the build on
+`validators/check_safe_tools.py` runs in CI and fails the build on
 any violation in tools/.
 
 ## Standard slopscan
@@ -182,10 +179,9 @@ Every Rust crate under `tools/` MUST declare:
 ```
 
 near the top of its `src/main.rs` or `src/lib.rs`. This is a
-compiler-level lint — the build itself fails if any code inside the
-crate reaches for `unsafe { ... }` or `unsafe fn`. The check script
-also greps `src/**.rs` for stray `unsafe` blocks as a belt-and-braces
-catch.
+compiler-level lint. The build fails if code inside the crate uses
+`unsafe { ... }` or `unsafe fn`. The safety check also verifies the
+declaration in each crate entry point.
 
 Dependencies (serde, oxttl, BurntSushi/toml, pelletier/go-toml/v2,
 etc.) may use `unsafe` internally; auditing them is out of scope for
@@ -194,12 +190,16 @@ coverage of the dependency tree.
 
 ### Go
 
-No `.go` file under `tools/` may `import "unsafe"`. The check script
-greps for any of:
+No `.go` file under `tools/` may import `unsafe`. The safety check
+scans import declarations, including:
 
 - `import "unsafe"`
 - `import _ "unsafe"`
+- `import alias "unsafe"`
 - `"unsafe"` inside an `import (...)` group
+
+The scan ignores comments and string literals outside import declarations.
+Escaped import paths stop the check for manual review.
 
 Dependencies' internal use of `unsafe` is out of scope.
 
@@ -208,7 +208,7 @@ Dependencies' internal use of `unsafe` is out of scope.
 | Language    | CI version          | Pinned in              | Rationale                                                |
 |-------------|---------------------|------------------------|----------------------------------------------------------|
 | Rust        | `stable` (current)  | `Cargo.toml` rust-version = 1.85 (MSRV floor) | Tracks the language; MSRV documents the floor that consumers can rely on. |
-| Go          | `stable` (current)  | `go.mod` `go 1.26`     | Same — track the language, document the floor each module assumes. |
+| Go          | `1.26.10`          | `go.mod` `go 1.26.10`  | Use the patched Go release; update modules and CI together. |
 | Python      | 3.11                | `.github/workflows/validate.yml` | Cross-check only; not the primary path. |
 | Bash        | system (4.x+)       | n/a                    | Used only for the smallest invariant scripts.            |
 
@@ -221,6 +221,9 @@ the floor moved.
 
 | Tool                        | Lang  | Purpose                                                                 |
 | --------------------------- | ----- | ----------------------------------------------------------------------- |
+| `dagtoml-spell/`            | Rust  | Source and filename spelling with pinned literal corrections and typed data spans. |
+| `dagtoml-osv/`              | Rust  | Required local locked-package advisory gate with typed version evaluation against published ecosystem archives. |
+| `dagtoml-osv-http-go/`      | Go    | Bounded HTTPS archive transport with complete source, executable and compiled-graph identity. |
 | `dagtoml-rdf/`              | Rust  | Generate `reference/database/rdf/schema.ttl` from the ontology.         |
 | `dagtoml-rdf-go/`           | Go    | Same as `dagtoml-rdf`, in Go. Functional output verified equivalent.    |
 | `dagtoml-duckdb/`           | Rust  | Build `agent_assurance.duckdb` from `duckdb/{schema,seed}.sql`.         |
@@ -243,7 +246,8 @@ implementation-detail formatting), the build fails.
    Mirror the naming if you ship both.
 4. Add a row to the **Current tools** table above.
 5. Pin toolchain versions in `Cargo.toml` (`rust-version`) or `go.mod`
-   (`go x.y`) at a value that is `<=` what CI currently tracks.
+   (`go x.y.z`) at a value that matches the tested version in CI. Update
+   the workflow setup pins and the Go modules together.
 6. Wire the tool's runtime invocation into
    `.github/workflows/validate.yml` if it produces a CI-checked
    artifact. If it produces a checked-in artifact (like the .ttl),

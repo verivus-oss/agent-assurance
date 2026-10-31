@@ -10,10 +10,10 @@ reported.
 The primary mode is selected for each kind so this compares matching
 kind-layer checks. The separate runtime instrument also tests auto dispatch.
 """
-import pathlib
+import _path_scan as pathlib
 import subprocess
 import sys
-import argparse
+import _argument_parser as argparse
 
 REPO = pathlib.Path(__file__).resolve().parents[1]
 RS = REPO / "tools/dagtoml-validate-rs/target/release/dagtoml-validate-rs"
@@ -109,7 +109,7 @@ def main() -> int:
                     "examples/minimal-review-readiness/*.toml",
                     "conformance/cases/*/invalid/*.toml",
                     "conformance/cases/*/valid/*.toml"):
-        targets.extend(sorted(REPO.glob(pattern)))
+        targets.extend(sorted(pathlib.glob(REPO, pattern)))
     targets = [t for t in targets if not t.name.endswith(".expected.toml")]
 
     divergences = []

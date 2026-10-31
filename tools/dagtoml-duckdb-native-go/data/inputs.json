@@ -1,0 +1,409 @@
+{
+  "schema_version": 1,
+  "project_baseline": "59889665f89c2a8283b448ab33c56d64d19069e5",
+  "versions": {
+    "1.5.3": {
+      "version": "1.5.3",
+      "sdk_url": "https://files.pythonhosted.org/packages/69/00/d579dcb2a536b6ea3a2563cdad6844f77d81a9b2d4b22a858097f2468acf/duckdb-1.5.3.tar.gz",
+      "sdk_sha256": "df39428eb130faa35ae96fd35245bdeae6ecf43936250b116b5fead568eb9f16",
+      "supplier_repository": "duckdb/duckdb-python",
+      "supplier_commit": "811b135ee5a0449378ab9635e0284b96485d58d6",
+      "patches": {
+        "src/duckdb_py/common/exceptions.cpp": {
+          "before_sha256": "f921d7b07afc4695e1a147a42c1d863f229de48b9b8761548ad8798b01fdba30",
+          "after_sha256": "c0457859159d1891267f638e29e1c196cb98514e02c14453d79efb6427ea72ee",
+          "replacements": [
+            [
+              "const auto Dict = py::module_::import(\"typing\").attr(\"Dict\");",
+              "const auto Dict = py::module_::import(\"builtins\").attr(\"dict\");"
+            ],
+            [
+              "error.Message()",
+              "error.RawMessage()"
+            ]
+          ]
+        },
+        "src/duckdb_py/path_like.cpp": {
+          "before_sha256": "84c9c46bf5320a8340714dcb8fc020e113fd4b25db4ff1dbc56b68d9ad87c359",
+          "after_sha256": "066a3cd9bfad8a693e1241e0decd231bd24c47877be0bb2fec29fb76c05f3a6f",
+          "replacements": [
+            [
+              "import_cache.pathlib.Path()",
+              "py::module_::import(\"os\").attr(\"PathLike\")"
+            ],
+            [
+              "PathLikeProcessor(DuckDBPyConnection &connection, PythonImportCache &import_cache)\n\t    : connection(connection), import_cache(import_cache)",
+              "explicit PathLikeProcessor(DuckDBPyConnection &connection)\n\t    : connection(connection)"
+            ],
+            [
+              "\n\tPythonImportCache &import_cache;",
+              ""
+            ],
+            [
+              "\n\tauto &import_cache = *DuckDBPyConnection::ImportCache();\n",
+              "\n"
+            ],
+            [
+              "PathLikeProcessor processor(connection, import_cache);",
+              "PathLikeProcessor processor(connection);"
+            ],
+            [
+              "if (py::isinstance<py::str>(object)) {\n\t\tall_files.push_back(std::string(py::str(object)));",
+              "if (py::isinstance<py::str>(object)) {\n\t\tall_files.push_back(object.cast<string>());"
+            ],
+            [
+              "\tif (py::isinstance(object, py::module_::import(\"os\").attr(\"PathLike\"))) {\n\t\tall_files.push_back(std::string(py::str(object)));\n\t\treturn;\n\t}",
+              "\tauto os = py::module_::import(\"os\");\n\tif (py::isinstance(object, os.attr(\"PathLike\"))) {\n\t\tauto text = os.attr(\"fspath\")(object);\n\t\tif (!py::isinstance<py::str>(text)) {\n\t\t\tthrow InvalidInputException(\"Path protocol objects must return str\");\n\t\t}\n\t\tall_files.push_back(text.cast<string>());\n\t\treturn;\n\t}"
+            ],
+            [
+              "#include \"duckdb_python/path_like.hpp\"",
+              "#include \"duckdb_python/path_like.hpp\"\n#include \"duckdb/common/exception.hpp\""
+            ],
+            [
+              "namespace duckdb {\n",
+              "namespace duckdb {\n\nstring PathLike::GetText(const py::handle &object) {\n\tif (!py::isinstance<py::str>(object)) {\n\t\tthrow InvalidInputException(\"Path protocol objects must return str\");\n\t}\n\tauto text = object.cast<string>();\n\tif (text.find('\\0') != string::npos) {\n\t\tthrow InvalidInputException(\"Text paths must not contain NUL bytes\");\n\t}\n\treturn text;\n}\n"
+            ],
+            [
+              "all_files.push_back(object.cast<string>());",
+              "all_files.push_back(PathLike::GetText(object));"
+            ],
+            [
+              "all_files.push_back(text.cast<string>());",
+              "all_files.push_back(PathLike::GetText(text));"
+            ]
+          ]
+        },
+        "src/duckdb_py/pyconnection.cpp": {
+          "before_sha256": "46bebf3c7b3f1692967437e4842c1e7b5b73dd808ebbf78be18a1420da55aa42",
+          "after_sha256": "5df1015bc2c26504db7df3e08a834b8e090b273d0c236f49d7021e51b4960b74",
+          "replacements": [
+            [
+              "import_cache.pathlib.Path()",
+              "py::module_::import(\"os\").attr(\"PathLike\")"
+            ],
+            [
+              "static string GetPathString(const py::object &path) {\n\tauto &import_cache = *DuckDBPyConnection::ImportCache();",
+              "static string GetPathString(const py::object &path) {"
+            ],
+            [
+              "static string GetPathString(const py::object &path) {\n\tconst bool is_path = py::isinstance(path, py::module_::import(\"os\").attr(\"PathLike\"));\n\tif (is_path || py::isinstance<py::str>(path)) {\n\t\treturn std::string(py::str(path));\n\t}\n\tstring actual_type = py::str(py::type::of(path));\n\tthrow InvalidInputException(\"Please provide either a str or a pathlib.Path, not %s\", actual_type);\n}",
+              "static string GetPathString(const py::object &path) {\n\tif (py::isinstance<py::str>(path)) {\n\t\treturn path.cast<string>();\n\t}\n\tauto os = py::module_::import(\"os\");\n\tif (py::isinstance(path, os.attr(\"PathLike\"))) {\n\t\tauto text = os.attr(\"fspath\")(path);\n\t\tif (py::isinstance<py::str>(text)) {\n\t\t\treturn text.cast<string>();\n\t\t}\n\t}\n\tthrow InvalidInputException(\"Please provide a str or a path protocol object returning str\");\n}"
+            ],
+            [
+              "return path.cast<string>();",
+              "return PathLike::GetText(path);"
+            ],
+            [
+              "return text.cast<string>();",
+              "return PathLike::GetText(text);"
+            ],
+            [
+              "\tconfig.replacement_scans.emplace_back(PythonReplacementScan::Replace);\n",
+              ""
+            ]
+          ]
+        },
+        "src/duckdb_py/native/python_conversion.cpp": {
+          "before_sha256": "b61cae9edaa29e21d265af3b6aeb728c7ef87d8ec58171edc38ef258c76b60f5",
+          "after_sha256": "5d0bd9c6bad1577cb3b44c65db6bee5777f4f5bda04ba3fb14e135f3d1e10132",
+          "replacements": [
+            [
+              "PythonObjectType GetPythonObjectType(py::handle &ele) {\n\tauto &import_cache = *DuckDBPyConnection::ImportCache();\n\n\tif (ele.is_none()) {\n\t\treturn PythonObjectType::None;\n\t} else if (ele.is(import_cache.pandas.NaT())) {\n\t\treturn PythonObjectType::None;\n\t} else if (ele.is(import_cache.pandas.NA())) {\n\t\treturn PythonObjectType::None;\n\t} else if (py::isinstance<py::bool_>(ele)) {\n\t\treturn PythonObjectType::Bool;\n\t} else if (py::isinstance<py::int_>(ele)) {\n\t\treturn PythonObjectType::Integer;\n\t} else if (py::isinstance<py::float_>(ele)) {\n\t\treturn PythonObjectType::Float;\n\t} else if (py::isinstance(ele, import_cache.decimal.Decimal())) {\n\t\treturn PythonObjectType::Decimal;\n\t} else if (py::isinstance(ele, import_cache.uuid.UUID())) {\n\t\treturn PythonObjectType::Uuid;\n\t} else if (py::isinstance(ele, import_cache.datetime.datetime())) {\n\t\treturn PythonObjectType::Datetime;\n\t} else if (py::isinstance(ele, import_cache.datetime.time())) {\n\t\treturn PythonObjectType::Time;\n\t} else if (py::isinstance(ele, import_cache.datetime.date())) {\n\t\treturn PythonObjectType::Date;\n\t} else if (py::isinstance(ele, import_cache.datetime.timedelta())) {\n\t\treturn PythonObjectType::Timedelta;\n\t} else if (py::isinstance<py::str>(ele)) {\n\t\treturn PythonObjectType::String;\n\t} else if (py::isinstance<py::bytearray>(ele)) {\n\t\treturn PythonObjectType::ByteArray;\n\t} else if (py::isinstance<py::memoryview>(ele)) {\n\t\treturn PythonObjectType::MemoryView;\n\t} else if (py::isinstance<py::bytes>(ele)) {\n\t\treturn PythonObjectType::Bytes;\n\t} else if (py::isinstance<py::list>(ele)) {\n\t\treturn PythonObjectType::List;\n\t} else if (py::isinstance<py::tuple>(ele)) {\n\t\treturn PythonObjectType::Tuple;\n\t} else if (py::isinstance<py::dict>(ele)) {\n\t\treturn PythonObjectType::Dict;\n\t} else if (ele.is(import_cache.numpy.ma.masked())) {\n\t\treturn PythonObjectType::None;\n\t} else if (py::isinstance(ele, import_cache.numpy.ndarray())) {\n\t\treturn PythonObjectType::NdArray;\n\t} else if (py::isinstance(ele, import_cache.numpy.datetime64())) {\n\t\treturn PythonObjectType::NdDatetime;\n\t} else if (py::isinstance(ele, import_cache.duckdb.Value())) {\n\t\treturn PythonObjectType::Value;\n\t} else {\n\t\treturn PythonObjectType::Other;\n\t}\n}\n",
+              "PythonObjectType GetPythonObjectType(py::handle &ele) {\n\tif (ele.is_none()) { return PythonObjectType::None; }\n\tif (py::isinstance<py::str>(ele)) { return PythonObjectType::String; }\n\tif (py::isinstance<py::bytes>(ele)) { return PythonObjectType::Bytes; }\n\tif (py::isinstance<py::bytearray>(ele)) { return PythonObjectType::ByteArray; }\n\tif (py::isinstance<py::memoryview>(ele)) { return PythonObjectType::MemoryView; }\n\tif (py::isinstance<py::bool_>(ele)) { return PythonObjectType::Bool; }\n\tif (py::isinstance<py::int_>(ele)) { return PythonObjectType::Integer; }\n\tif (py::isinstance<py::float_>(ele)) { return PythonObjectType::Float; }\n\tif (py::isinstance<py::list>(ele)) { return PythonObjectType::List; }\n\tif (py::isinstance<py::tuple>(ele)) { return PythonObjectType::Tuple; }\n\tif (py::isinstance<py::dict>(ele)) { return PythonObjectType::Dict; }\n\tauto &import_cache = *DuckDBPyConnection::ImportCache();\n\tif (py::isinstance(ele, import_cache.decimal.Decimal())) { return PythonObjectType::Decimal; }\n\tif (py::isinstance(ele, import_cache.datetime.datetime())) { return PythonObjectType::Datetime; }\n\tif (py::isinstance(ele, import_cache.datetime.time())) { return PythonObjectType::Time; }\n\tif (py::isinstance(ele, import_cache.datetime.date())) { return PythonObjectType::Date; }\n\tif (py::isinstance(ele, import_cache.datetime.timedelta())) { return PythonObjectType::Timedelta; }\n\treturn PythonObjectType::Other;\n}\n"
+            ]
+          ]
+        },
+        "src/duckdb_py/native/python_objects.cpp": {
+          "before_sha256": "f7994dd4af323a34baa52502a7ef32437c8097d3825c50faaf7c8f7a5a07daba",
+          "after_sha256": "78f4cd726e455cf1bc4a3aa094525c57a26cf663953111638bd31142093d4c88",
+          "replacements": [
+            [
+              "return import_cache.uuid.UUID()(UUID::ToString(uuid_value));",
+              "return py::str(UUID::ToString(uuid_value));"
+            ],
+            [
+              "\t\t\tauto tz_utc = import_cache.pytz.timezone()(\"UTC\");\n\t\t\tauto timestamp_utc = tz_utc.attr(\"localize\")(py_timestamp);\n\t\t\tauto tz_info = import_cache.pytz.timezone()(client_properties.time_zone);\n\t\t\treturn timestamp_utc.attr(\"astimezone\")(tz_info);",
+              "\t\t\treturn py_timestamp.attr(\"replace\")(py::arg(\"tzinfo\") =\n\t\t\t    py::module_::import(\"datetime\").attr(\"timezone\").attr(\"utc\"));"
+            ]
+          ]
+        },
+        "src/duckdb_py/numpy/array_wrapper.cpp": {
+          "before_sha256": "fe8d79a1052483862f94d362ba5cdcb9d7ad95c0ce49341b653746cf98dd5247",
+          "after_sha256": "fdbb555f34262a2c74762e9a40966d9437e0fe72dafb71be9581efbdc6db087a",
+          "replacements": [
+            [
+              "py::handle h = import_cache.uuid.UUID()(UUID::ToString(val)).release();",
+              "py::handle h = py::str(UUID::ToString(val)).release();"
+            ]
+          ]
+        },
+        "src/duckdb_py/include/duckdb_python/import_cache/python_import_cache.hpp": {
+          "before_sha256": "d3517c0184927ba81c302433ddf24779f57f48fd301fb07d4b49b58f6b9652b6",
+          "after_sha256": "edc4498707e6b060da3ea007b3d7fb6407276e110918e57598a9d486f2a9f581",
+          "replacements": [
+            [
+              "\tPathlibCacheItem pathlib;\n",
+              ""
+            ],
+            [
+              "\tPytzCacheItem pytz;\n",
+              ""
+            ],
+            [
+              "\tUuidCacheItem uuid;\n",
+              ""
+            ]
+          ]
+        },
+        "src/duckdb_py/include/duckdb_python/import_cache/python_import_cache_modules.hpp": {
+          "before_sha256": "dabbfcb614be56705424f6d83c89fbfb534ef2a550117f072a5eee1941904f68",
+          "after_sha256": "6dc2d2b53983203e45a06a423749f47e2e30400b71774ed65a3ef668431353cd",
+          "replacements": [
+            [
+              "#include \"duckdb_python/import_cache/modules/pathlib_module.hpp\"\n",
+              ""
+            ],
+            [
+              "#include \"duckdb_python/import_cache/modules/pytz_module.hpp\"\n",
+              ""
+            ],
+            [
+              "#include \"duckdb_python/import_cache/modules/uuid_module.hpp\"\n",
+              ""
+            ]
+          ]
+        },
+        "src/duckdb_py/include/duckdb_python/path_like.hpp": {
+          "before_sha256": "a5c298398971435978e568023903f0bb8717d95329264fbc53192ba9e5917292",
+          "replacements": [
+            [
+              "struct PathLike {\n",
+              "struct PathLike {\n\tstatic string GetText(const py::handle &object);\n"
+            ]
+          ],
+          "after_sha256": "043f634a4eb291229b9a1c302131a16fe1bd1e53dd8df89874c7b11563b68df1"
+        }
+      },
+      "retired_headers": [
+        {
+          "path": "src/duckdb_py/include/duckdb_python/import_cache/modules/pathlib_module.hpp",
+          "before_sha256": "22c94ff5318343ec34597eb4613ca4a9e5c7131beb3d64ca96f411d0e09a02f3"
+        },
+        {
+          "path": "src/duckdb_py/include/duckdb_python/import_cache/modules/pytz_module.hpp",
+          "before_sha256": "4148199c36232e4fb6e0b9713a62f259a43ecdecdda9f383d40a8f9df2d67c82"
+        },
+        {
+          "path": "src/duckdb_py/include/duckdb_python/import_cache/modules/uuid_module.hpp",
+          "before_sha256": "1611ed708a336d1bd6d9c2c54ffb96a580e76c6560f5ffe58819fc4e30de47b3"
+        }
+      ],
+      "core_url": "https://github.com/duckdb/duckdb/releases/download/v1.5.3/libduckdb-src.zip",
+      "core_sha256": "c9f63a137093b155dff02bfe450262455b073ad0d6a8c61921a37bad7f0f207a"
+    },
+    "1.5.0": {
+      "version": "1.5.0",
+      "sdk_url": "https://files.pythonhosted.org/packages/ee/11/e05a7eb73a373d523e45d83c261025e02bc31ebf868e6282c30c4d02cc59/duckdb-1.5.0.tar.gz",
+      "sdk_sha256": "f974b61b1c375888ee62bc3125c60ac11c4e45e4457dd1bb31a8f8d3cf277edd",
+      "supplier_repository": "duckdb/duckdb-python",
+      "supplier_commit": "87e7928a47eced6b72d6fc95c2d860f769390038",
+      "patches": {
+        "src/duckdb_py/common/exceptions.cpp": {
+          "before_sha256": "f921d7b07afc4695e1a147a42c1d863f229de48b9b8761548ad8798b01fdba30",
+          "after_sha256": "c0457859159d1891267f638e29e1c196cb98514e02c14453d79efb6427ea72ee",
+          "replacements": [
+            [
+              "const auto Dict = py::module_::import(\"typing\").attr(\"Dict\");",
+              "const auto Dict = py::module_::import(\"builtins\").attr(\"dict\");"
+            ],
+            [
+              "error.Message()",
+              "error.RawMessage()"
+            ]
+          ]
+        },
+        "src/duckdb_py/path_like.cpp": {
+          "before_sha256": "84c9c46bf5320a8340714dcb8fc020e113fd4b25db4ff1dbc56b68d9ad87c359",
+          "after_sha256": "066a3cd9bfad8a693e1241e0decd231bd24c47877be0bb2fec29fb76c05f3a6f",
+          "replacements": [
+            [
+              "import_cache.pathlib.Path()",
+              "py::module_::import(\"os\").attr(\"PathLike\")"
+            ],
+            [
+              "PathLikeProcessor(DuckDBPyConnection &connection, PythonImportCache &import_cache)\n\t    : connection(connection), import_cache(import_cache)",
+              "explicit PathLikeProcessor(DuckDBPyConnection &connection)\n\t    : connection(connection)"
+            ],
+            [
+              "\n\tPythonImportCache &import_cache;",
+              ""
+            ],
+            [
+              "\n\tauto &import_cache = *DuckDBPyConnection::ImportCache();\n",
+              "\n"
+            ],
+            [
+              "PathLikeProcessor processor(connection, import_cache);",
+              "PathLikeProcessor processor(connection);"
+            ],
+            [
+              "if (py::isinstance<py::str>(object)) {\n\t\tall_files.push_back(std::string(py::str(object)));",
+              "if (py::isinstance<py::str>(object)) {\n\t\tall_files.push_back(object.cast<string>());"
+            ],
+            [
+              "\tif (py::isinstance(object, py::module_::import(\"os\").attr(\"PathLike\"))) {\n\t\tall_files.push_back(std::string(py::str(object)));\n\t\treturn;\n\t}",
+              "\tauto os = py::module_::import(\"os\");\n\tif (py::isinstance(object, os.attr(\"PathLike\"))) {\n\t\tauto text = os.attr(\"fspath\")(object);\n\t\tif (!py::isinstance<py::str>(text)) {\n\t\t\tthrow InvalidInputException(\"Path protocol objects must return str\");\n\t\t}\n\t\tall_files.push_back(text.cast<string>());\n\t\treturn;\n\t}"
+            ],
+            [
+              "#include \"duckdb_python/path_like.hpp\"",
+              "#include \"duckdb_python/path_like.hpp\"\n#include \"duckdb/common/exception.hpp\""
+            ],
+            [
+              "namespace duckdb {\n",
+              "namespace duckdb {\n\nstring PathLike::GetText(const py::handle &object) {\n\tif (!py::isinstance<py::str>(object)) {\n\t\tthrow InvalidInputException(\"Path protocol objects must return str\");\n\t}\n\tauto text = object.cast<string>();\n\tif (text.find('\\0') != string::npos) {\n\t\tthrow InvalidInputException(\"Text paths must not contain NUL bytes\");\n\t}\n\treturn text;\n}\n"
+            ],
+            [
+              "all_files.push_back(object.cast<string>());",
+              "all_files.push_back(PathLike::GetText(object));"
+            ],
+            [
+              "all_files.push_back(text.cast<string>());",
+              "all_files.push_back(PathLike::GetText(text));"
+            ]
+          ]
+        },
+        "src/duckdb_py/pyconnection.cpp": {
+          "before_sha256": "c7f2cdce8b08ab9a5c039896dc51489f4255e75fac9240be10242d4a676ffa42",
+          "after_sha256": "e7f7c7a55adddadeecaf38318bac4ecdf7e990f5829404deee7f2c23e4e02d60",
+          "replacements": [
+            [
+              "import_cache.pathlib.Path()",
+              "py::module_::import(\"os\").attr(\"PathLike\")"
+            ],
+            [
+              "static string GetPathString(const py::object &path) {\n\tauto &import_cache = *DuckDBPyConnection::ImportCache();",
+              "static string GetPathString(const py::object &path) {"
+            ],
+            [
+              "static string GetPathString(const py::object &path) {\n\tconst bool is_path = py::isinstance(path, py::module_::import(\"os\").attr(\"PathLike\"));\n\tif (is_path || py::isinstance<py::str>(path)) {\n\t\treturn std::string(py::str(path));\n\t}\n\tstring actual_type = py::str(py::type::of(path));\n\tthrow InvalidInputException(\"Please provide either a str or a pathlib.Path, not %s\", actual_type);\n}",
+              "static string GetPathString(const py::object &path) {\n\tif (py::isinstance<py::str>(path)) {\n\t\treturn path.cast<string>();\n\t}\n\tauto os = py::module_::import(\"os\");\n\tif (py::isinstance(path, os.attr(\"PathLike\"))) {\n\t\tauto text = os.attr(\"fspath\")(path);\n\t\tif (py::isinstance<py::str>(text)) {\n\t\t\treturn text.cast<string>();\n\t\t}\n\t}\n\tthrow InvalidInputException(\"Please provide a str or a path protocol object returning str\");\n}"
+            ],
+            [
+              "return path.cast<string>();",
+              "return PathLike::GetText(path);"
+            ],
+            [
+              "return text.cast<string>();",
+              "return PathLike::GetText(text);"
+            ],
+            [
+              "\tconfig.replacement_scans.emplace_back(PythonReplacementScan::Replace);\n",
+              ""
+            ]
+          ]
+        },
+        "src/duckdb_py/native/python_conversion.cpp": {
+          "before_sha256": "b61cae9edaa29e21d265af3b6aeb728c7ef87d8ec58171edc38ef258c76b60f5",
+          "replacements": [
+            [
+              "PythonObjectType GetPythonObjectType(py::handle &ele) {\n\tauto &import_cache = *DuckDBPyConnection::ImportCache();\n\n\tif (ele.is_none()) {\n\t\treturn PythonObjectType::None;\n\t} else if (ele.is(import_cache.pandas.NaT())) {\n\t\treturn PythonObjectType::None;\n\t} else if (ele.is(import_cache.pandas.NA())) {\n\t\treturn PythonObjectType::None;\n\t} else if (py::isinstance<py::bool_>(ele)) {\n\t\treturn PythonObjectType::Bool;\n\t} else if (py::isinstance<py::int_>(ele)) {\n\t\treturn PythonObjectType::Integer;\n\t} else if (py::isinstance<py::float_>(ele)) {\n\t\treturn PythonObjectType::Float;\n\t} else if (py::isinstance(ele, import_cache.decimal.Decimal())) {\n\t\treturn PythonObjectType::Decimal;\n\t} else if (py::isinstance(ele, import_cache.uuid.UUID())) {\n\t\treturn PythonObjectType::Uuid;\n\t} else if (py::isinstance(ele, import_cache.datetime.datetime())) {\n\t\treturn PythonObjectType::Datetime;\n\t} else if (py::isinstance(ele, import_cache.datetime.time())) {\n\t\treturn PythonObjectType::Time;\n\t} else if (py::isinstance(ele, import_cache.datetime.date())) {\n\t\treturn PythonObjectType::Date;\n\t} else if (py::isinstance(ele, import_cache.datetime.timedelta())) {\n\t\treturn PythonObjectType::Timedelta;\n\t} else if (py::isinstance<py::str>(ele)) {\n\t\treturn PythonObjectType::String;\n\t} else if (py::isinstance<py::bytearray>(ele)) {\n\t\treturn PythonObjectType::ByteArray;\n\t} else if (py::isinstance<py::memoryview>(ele)) {\n\t\treturn PythonObjectType::MemoryView;\n\t} else if (py::isinstance<py::bytes>(ele)) {\n\t\treturn PythonObjectType::Bytes;\n\t} else if (py::isinstance<py::list>(ele)) {\n\t\treturn PythonObjectType::List;\n\t} else if (py::isinstance<py::tuple>(ele)) {\n\t\treturn PythonObjectType::Tuple;\n\t} else if (py::isinstance<py::dict>(ele)) {\n\t\treturn PythonObjectType::Dict;\n\t} else if (ele.is(import_cache.numpy.ma.masked())) {\n\t\treturn PythonObjectType::None;\n\t} else if (py::isinstance(ele, import_cache.numpy.ndarray())) {\n\t\treturn PythonObjectType::NdArray;\n\t} else if (py::isinstance(ele, import_cache.numpy.datetime64())) {\n\t\treturn PythonObjectType::NdDatetime;\n\t} else if (py::isinstance(ele, import_cache.duckdb.Value())) {\n\t\treturn PythonObjectType::Value;\n\t} else {\n\t\treturn PythonObjectType::Other;\n\t}\n}\n",
+              "PythonObjectType GetPythonObjectType(py::handle &ele) {\n\tif (ele.is_none()) { return PythonObjectType::None; }\n\tif (py::isinstance<py::str>(ele)) { return PythonObjectType::String; }\n\tif (py::isinstance<py::bytes>(ele)) { return PythonObjectType::Bytes; }\n\tif (py::isinstance<py::bytearray>(ele)) { return PythonObjectType::ByteArray; }\n\tif (py::isinstance<py::memoryview>(ele)) { return PythonObjectType::MemoryView; }\n\tif (py::isinstance<py::bool_>(ele)) { return PythonObjectType::Bool; }\n\tif (py::isinstance<py::int_>(ele)) { return PythonObjectType::Integer; }\n\tif (py::isinstance<py::float_>(ele)) { return PythonObjectType::Float; }\n\tif (py::isinstance<py::list>(ele)) { return PythonObjectType::List; }\n\tif (py::isinstance<py::tuple>(ele)) { return PythonObjectType::Tuple; }\n\tif (py::isinstance<py::dict>(ele)) { return PythonObjectType::Dict; }\n\tauto &import_cache = *DuckDBPyConnection::ImportCache();\n\tif (py::isinstance(ele, import_cache.decimal.Decimal())) { return PythonObjectType::Decimal; }\n\tif (py::isinstance(ele, import_cache.datetime.datetime())) { return PythonObjectType::Datetime; }\n\tif (py::isinstance(ele, import_cache.datetime.time())) { return PythonObjectType::Time; }\n\tif (py::isinstance(ele, import_cache.datetime.date())) { return PythonObjectType::Date; }\n\tif (py::isinstance(ele, import_cache.datetime.timedelta())) { return PythonObjectType::Timedelta; }\n\treturn PythonObjectType::Other;\n}\n"
+            ]
+          ],
+          "after_sha256": "5d0bd9c6bad1577cb3b44c65db6bee5777f4f5bda04ba3fb14e135f3d1e10132"
+        },
+        "src/duckdb_py/native/python_objects.cpp": {
+          "before_sha256": "4472ba8576419de45d7c4a07de6a67283e4ceb498cc1d1f813ce35408e14ba17",
+          "replacements": [
+            [
+              "return import_cache.uuid.UUID()(UUID::ToString(uuid_value));",
+              "return py::str(UUID::ToString(uuid_value));"
+            ],
+            [
+              "\t\t\tauto tz_utc = import_cache.pytz.timezone()(\"UTC\");\n\t\t\tauto timestamp_utc = tz_utc.attr(\"localize\")(py_timestamp);\n\t\t\tauto tz_info = import_cache.pytz.timezone()(client_properties.time_zone);\n\t\t\treturn timestamp_utc.attr(\"astimezone\")(tz_info);",
+              "\t\t\treturn py_timestamp.attr(\"replace\")(py::arg(\"tzinfo\") =\n\t\t\t    py::module_::import(\"datetime\").attr(\"timezone\").attr(\"utc\"));"
+            ]
+          ],
+          "after_sha256": "cee81f53218458f38e3e3d024ef163af4378ded11f506e739f7de0e27f9e9d80"
+        },
+        "src/duckdb_py/numpy/array_wrapper.cpp": {
+          "before_sha256": "0f56878649b6b56bdd377abd45cb145e482f4e36899672b0c53c467a6ab96a8b",
+          "replacements": [
+            [
+              "py::handle h = import_cache.uuid.UUID()(UUID::ToString(val)).release();",
+              "py::handle h = py::str(UUID::ToString(val)).release();"
+            ]
+          ],
+          "after_sha256": "2bb1ac8f30dedda909da8e76bdad7527a4f0385a281c1efe698fe4db9409f357"
+        },
+        "src/duckdb_py/include/duckdb_python/import_cache/python_import_cache.hpp": {
+          "before_sha256": "d3517c0184927ba81c302433ddf24779f57f48fd301fb07d4b49b58f6b9652b6",
+          "after_sha256": "edc4498707e6b060da3ea007b3d7fb6407276e110918e57598a9d486f2a9f581",
+          "replacements": [
+            [
+              "\tPathlibCacheItem pathlib;\n",
+              ""
+            ],
+            [
+              "\tPytzCacheItem pytz;\n",
+              ""
+            ],
+            [
+              "\tUuidCacheItem uuid;\n",
+              ""
+            ]
+          ]
+        },
+        "src/duckdb_py/include/duckdb_python/import_cache/python_import_cache_modules.hpp": {
+          "before_sha256": "dabbfcb614be56705424f6d83c89fbfb534ef2a550117f072a5eee1941904f68",
+          "after_sha256": "6dc2d2b53983203e45a06a423749f47e2e30400b71774ed65a3ef668431353cd",
+          "replacements": [
+            [
+              "#include \"duckdb_python/import_cache/modules/pathlib_module.hpp\"\n",
+              ""
+            ],
+            [
+              "#include \"duckdb_python/import_cache/modules/pytz_module.hpp\"\n",
+              ""
+            ],
+            [
+              "#include \"duckdb_python/import_cache/modules/uuid_module.hpp\"\n",
+              ""
+            ]
+          ]
+        },
+        "src/duckdb_py/include/duckdb_python/path_like.hpp": {
+          "before_sha256": "a5c298398971435978e568023903f0bb8717d95329264fbc53192ba9e5917292",
+          "replacements": [
+            [
+              "struct PathLike {\n",
+              "struct PathLike {\n\tstatic string GetText(const py::handle &object);\n"
+            ]
+          ],
+          "after_sha256": "043f634a4eb291229b9a1c302131a16fe1bd1e53dd8df89874c7b11563b68df1"
+        }
+      },
+      "retired_headers": [
+        {
+          "path": "src/duckdb_py/include/duckdb_python/import_cache/modules/pathlib_module.hpp",
+          "before_sha256": "22c94ff5318343ec34597eb4613ca4a9e5c7131beb3d64ca96f411d0e09a02f3"
+        },
+        {
+          "path": "src/duckdb_py/include/duckdb_python/import_cache/modules/pytz_module.hpp",
+          "before_sha256": "4148199c36232e4fb6e0b9713a62f259a43ecdecdda9f383d40a8f9df2d67c82"
+        },
+        {
+          "path": "src/duckdb_py/include/duckdb_python/import_cache/modules/uuid_module.hpp",
+          "before_sha256": "1611ed708a336d1bd6d9c2c54ffb96a580e76c6560f5ffe58819fc4e30de47b3"
+        }
+      ],
+      "core_url": "https://github.com/duckdb/duckdb/releases/download/v1.5.0/libduckdb-src.zip",
+      "core_sha256": "26f2b5ba7b2e01ec321707a1b82116d31202ac96cbf089f47d1c1b6dbae15379"
+    }
+  },
+  "pybind": {
+    "version": "2.13.6",
+    "url": "https://files.pythonhosted.org/packages/13/2f/0f24b288e2ce56f51c920137620b4434a38fd80583dbbe24fc2a1656c388/pybind11-2.13.6-py3-none-any.whl",
+    "sha256": "237c41e29157b962835d356b370ededd57594a26d5894a795960f0047cb5caf5"
+  }
+}

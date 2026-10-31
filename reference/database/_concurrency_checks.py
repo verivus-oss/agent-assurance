@@ -1,18 +1,19 @@
 """Private-destination initialization and writer concurrency acceptance tests."""
 
-from concurrent.futures import ThreadPoolExecutor
-import json
-from pathlib import Path
-import subprocess
+from _parallel_checks import run_calls
+from _json_decode import loads as loads_json
+from _path_scan import Path
+from _posix_process import run as run_process
 import sys
 import threading
-from unittest.mock import patch
+import _sql_probes as sql_probes
+from _temporary_attribute import temporary_attribute, successive
 
 from _contract import bundle_digest, bundle_entries
-from _storage import Store, StorageError
+import _storage as storage
 
 
-def initialize_checks(store: Store, work: Path) -> list[dict]:
+def initialize_checks(store: storage.Store, work: Path) -> list[dict]:
     store._empty()
     if store.contract():
         raise AssertionError("initialization tests require an empty, uninitialized private destination")
@@ -37,18 +38,16 @@ def initialize_checks(store: Store, work: Path) -> list[dict]:
         barrier = threading.Barrier(2)
 
         def contender(root):
-            candidate = Store(store.engine, store.reconnect(), root, reconnect=store.reconnect)
+            candidate = storage.Store(store.engine, store.reconnect(), root, reconnect=store.reconnect)
             try:
                 barrier.wait(timeout=20)
                 return candidate.initialize(exclusive_unpublished=True)
-            except StorageError as exc:
+            except storage.StorageError as exc:
                 return {"status": exc.code}
             finally:
                 candidate.connection.close()
 
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            futures = [pool.submit(contender, root) for root in roots]
-            results = [future.result(timeout=120) for future in futures]
+        results = run_calls(contender, tuple((root,) for root in roots), timeout=120, abort=barrier.abort)
         statuses = sorted(result["status"] for result in results)
         if statuses.count("initialized") != 1:
             raise AssertionError(f"{name}: race did not produce exactly one initializer: {results!r}")
@@ -64,7 +63,7 @@ def initialize_checks(store: Store, work: Path) -> list[dict]:
         outcomes.append({"check": name + "-initializers", "barrier_participants": 2, "outcomes": statuses})
         reset_private()
 
-    class LoseInitializationAcknowledgement(Store):
+    class LoseInitializationAcknowledgement(storage.Store):
         fired = False
 
         def execute(self, sql, parameters=()):
@@ -98,16 +97,16 @@ def initialize_checks(store: Store, work: Path) -> list[dict]:
             candidate = LoseInitializationAcknowledgement(store.engine, store.connection, store.root, reconnect=store.reconnect)
         sequence = [digest, digest, "f" * 64] if phase == "reconciliation" else [digest, "f" * 64]
         from contextlib import nullcontext
-        probe_context = patch("_sql_probes.probe_constraints", side_effect=concurrent_publication) if phase == "after-probes" else nullcontext()
-        with probe_context, patch("_storage.bundle_digest", side_effect=sequence):
+        probe_context = temporary_attribute(sql_probes, "probe_constraints", concurrent_publication) if phase == "after-probes" else nullcontext()
+        with probe_context, temporary_attribute(storage, "bundle_digest", successive(sequence)):
             try:
                 candidate.initialize(exclusive_unpublished=True)
-            except StorageError as exc:
+            except storage.StorageError as exc:
                 expected_code = "commit-outcome-unknown" if phase == "reconciliation" else "bundle-changed"
                 if exc.code != expected_code:
                     raise AssertionError("bundle-change control failed for the wrong reason") from exc
                 if phase == "reconciliation" and (exc.context != {"operation": "initialize", "contract_bundle_sha256": digest}
-                                                  or not isinstance(exc.__cause__, StorageError) or exc.__cause__.code != "bundle-changed"):
+                                                  or not isinstance(exc.__cause__, storage.StorageError) or exc.__cause__.code != "bundle-changed"):
                     raise AssertionError("indeterminate initialization lost identity or bundle-change cause")
                 outcomes.append({"check": "initialization-bundle-change-" + phase, "outcome": expected_code})
             else:
@@ -120,23 +119,21 @@ def initialize_checks(store: Store, work: Path) -> list[dict]:
     return outcomes
 
 
-def writer_checks(store: Store, destination: str) -> list[dict]:
+def writer_checks(store: storage.Store, destination: str) -> list[dict]:
     raw = (store.root / "examples/minimal-adapter-contract.toml").read_bytes()
     barrier = threading.Barrier(2)
 
     def contender():
-        candidate = Store(store.engine, store.reconnect(), store.root, reconnect=store.reconnect)
+        candidate = storage.Store(store.engine, store.reconnect(), store.root, reconnect=store.reconnect)
         try:
             barrier.wait(timeout=20)
             return candidate.ingest([("concurrent/repeat.toml", raw)])
-        except StorageError as exc:
+        except storage.StorageError as exc:
             return {"status": exc.code}
         finally:
             candidate.connection.close()
 
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        futures = [pool.submit(contender) for _ in range(2)]
-        results = [future.result(timeout=60) for future in futures]
+    results = run_calls(contender, ((), ()), timeout=60, abort=barrier.abort)
     committed = [result for result in results if result["status"] == "committed"]
     if not committed or any(result["status"] not in {"committed", "retryable-busy"} for result in results):
         raise AssertionError("concurrent writers did not reach a supported committed/busy outcome")
@@ -149,18 +146,17 @@ def writer_checks(store: Store, destination: str) -> list[dict]:
         store.execute("BEGIN IMMEDIATE")
 
         def blocked_writer():
-            candidate = Store(store.engine, store.reconnect(), store.root, reconnect=store.reconnect)
+            candidate = storage.Store(store.engine, store.reconnect(), store.root, reconnect=store.reconnect)
             try:
                 candidate.ingest([("concurrent/blocked.toml", raw)])
-            except StorageError as exc:
+            except storage.StorageError as exc:
                 return exc.code
             finally:
                 candidate.connection.close()
             raise AssertionError("locked SQLite writer unexpectedly committed")
 
         try:
-            with ThreadPoolExecutor(max_workers=1) as pool:
-                outcome = pool.submit(blocked_writer).result(timeout=20)
+            outcome, = run_calls(blocked_writer, ((),), timeout=20)
             if outcome != "retryable-busy":
                 raise AssertionError("SQLite lock exhaustion did not return explicit retryable-busy")
         finally:
@@ -169,20 +165,23 @@ def writer_checks(store: Store, destination: str) -> list[dict]:
             raise AssertionError("busy writer left a partial document")
         checks.append({"check": "sqlite-writer-lock-exhaustion", "outcome": outcome})
     elif store.engine == "duckdb":
-        code = '''import json,sys
+        code = '''import sys
 sys.path.insert(0,sys.argv[1])
+from _json_decode import dumps
 from _storage import connect,StorageError
 try:
     connection=connect("duckdb",sys.argv[2])
 except StorageError as exc:
-    print(json.dumps({"status":exc.code}))
+    print(dumps({"status":exc.code}))
     sys.exit(0 if exc.code=="busy/unsupported-writer" else 1)
 connection.close()
 sys.exit(1)
 '''
-        result = subprocess.run([sys.executable, "-c", code, str(store.root / "reference/database"), destination],  # nosec B603 # noqa: S603
-                                check=False, capture_output=True, text=True, timeout=20)
-        if result.returncode != 0 or json.loads(result.stdout).get("status") != "busy/unsupported-writer":
+        status, output, _errors = run_process(
+            [sys.executable, "-S", "-c", code, str(store.root / "reference/database"), destination],
+            timeout=20, output_limit=65536,
+        )
+        if status != 0 or loads_json(output).get("status") != "busy/unsupported-writer":
             raise AssertionError("external DuckDB writer was not refused at file-open")
         checks.append({"check": "duckdb-external-writer-process", "outcome": "busy/unsupported-writer"})
     else:

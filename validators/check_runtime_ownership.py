@@ -1,26 +1,27 @@
 #!/usr/bin/env python3
 """Audit descriptor dispositions and require executed evidence for new owners."""
 
-import argparse
-import json
+from _literal_paths import glob as literal_glob
+import _literal_args as argparse
+import _literal_json as json
 import hashlib
-import re
 from copy import deepcopy
-import uuid
-from pathlib import Path
+from _random_id import random_id_hex
+from _literal_path import Path
 import sys
 
 import _toml11 as toml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "reference/database"))
 from _contract import bundle_digest, load_mapping  # noqa: E402
+from _strace_calls import parsed_calls
 
 
 def declarations(root):
     load_mapping(root)
     mapping = toml.loads_bytes((root / "reference/database/vocabulary-storage.toml").read_bytes())
     descriptors = {path.relative_to(root).as_posix(): toml.loads_bytes(path.read_bytes())["kind"]
-                   for pattern in ("core/*-kind.toml", "profiles/*/*-kind.toml") for path in sorted(root.glob(pattern))}
+                   for pattern in ("core/*-kind.toml", "profiles/*/*-kind.toml") for path in sorted(literal_glob(root, pattern))}
     deferred, sections, scoped = {}, set(), {}
     for path, kind in descriptors.items():
         ids = []
@@ -109,7 +110,7 @@ def executed(root, path, owners):
             raise ValueError("runtime receipt refers to a missing or stale syscall trace")
         # Independently derive the observations from the retained trace. Do
         # not accept producer counts or a matching hash as behavior evidence.
-        calls = re.findall(r"(?:^|\n)(?:\[pid +[0-9]+\] +|[0-9]+ +)?([a-zA-Z0-9_]+)\(([^\n]*)", trace.read_text())
+        calls = parsed_calls(trace.read_text())
         if not calls:
             raise ValueError("syscall instrument trace contains no parsed calls")
         observed = {"executions": sum(name in {"execve", "execveat"} for name, _ in calls),
@@ -157,7 +158,7 @@ def main(argv=None):
 
 def receipt_controls(root, path, owners):
     original = json.loads(path.read_text())
-    work = root / ".local/runtime-ownership-controls" / uuid.uuid4().hex
+    work = root / ".local/runtime-ownership-controls" / random_id_hex()
     work.mkdir(parents=True)
     controls = []
     for name, edit, needle in (

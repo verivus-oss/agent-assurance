@@ -1,0 +1,323 @@
+"""Literal option parsing for repository commands.
+
+The repository's long options, unambiguous prefixes and help aliases use
+fixed strings; no pattern engine participates in dispatch.
+"""
+
+from __future__ import annotations
+
+import sys
+from collections.abc import Callable
+
+
+_MISSING = object()
+
+
+def _is_option_token(word: str) -> bool:
+    if not word.startswith("-") or word == "-":
+        return False
+    if word.startswith("--"):
+        return True
+    number = word[1:]
+    if number.isdecimal():
+        return False
+    whole, dot, fraction = number.partition(".")
+    return not (dot and fraction.isdecimal() and (not whole or whole.isdecimal()))
+
+
+class Namespace:
+    def __init__(self, **values: object) -> None:
+        self.__dict__.update(values)
+
+
+class _Argument:
+    def __init__(
+        self,
+        name: str,
+        destination: str,
+        positional: bool,
+        action: str | None,
+        nargs: str | None,
+        converter: Callable[[str], object],
+        choices: tuple[object, ...] | None,
+        required: bool,
+        default: object,
+        help: str | None,
+        metavar: str | None,
+        version: str | None,
+    ) -> None:
+        self.name = name
+        self.destination = destination
+        self.positional = positional
+        self.action = action
+        self.nargs = nargs
+        self.converter = converter
+        self.choices = choices
+        self.required = required
+        self.default = default
+        self.help = help
+        self.metavar = metavar
+        self.version = version
+
+
+class _Group:
+    def __init__(self, parser: ArgumentParser, required: bool) -> None:
+        self.parser = parser
+        self.required = required
+        self.arguments: list[_Argument] = []
+
+    def add_argument(self, name: str, **options: object) -> _Argument:
+        argument = self.parser.add_argument(name, **options)
+        self.arguments.append(argument)
+        return argument
+
+
+class _Subparsers:
+    def __init__(self, destination: str, required: bool) -> None:
+        self.destination = destination
+        self.required = required
+        self.parsers: dict[str, ArgumentParser] = {}
+
+    def add_parser(self, name: str, **options: object) -> ArgumentParser:
+        if name in self.parsers:
+            raise ValueError("duplicate subcommand: " + name)
+        parser = ArgumentParser(description=options.get("description"), prog=name)
+        self.parsers[name] = parser
+        return parser
+
+
+class ArgumentParser:
+    def __init__(self, *, description: str | None = None, prog: str | None = None) -> None:
+        self.description = description
+        self.prog = prog or sys.argv[0]
+        self.arguments: list[_Argument] = []
+        self.groups: list[_Group] = []
+        self.subparsers: _Subparsers | None = None
+
+    def add_argument(
+        self,
+        name: str,
+        *,
+        action: str | None = None,
+        choices: tuple[object, ...] | list[object] | None = None,
+        default: object = _MISSING,
+        dest: str | None = None,
+        help: str | None = None,
+        metavar: str | None = None,
+        nargs: str | None = None,
+        required: bool = False,
+        type: Callable[[str], object] = str,
+        version: str | None = None,
+    ) -> _Argument:
+        if not isinstance(name, str) or not name or name.startswith("-") and not name.startswith("--"):
+            raise ValueError("only named positionals and long options are supported")
+        if action not in (None, "store_true", "store_false", "append", "version"):
+            raise ValueError("unsupported argument action")
+        if nargs not in (None, "?", "*", "+"):
+            raise ValueError("unsupported argument arity")
+        if default is _MISSING:
+            default = False if action == "store_true" else True if action == "store_false" else None
+        argument = _Argument(name, dest or name.lstrip("-").replace("-", "_"),
+                             not name.startswith("--"), action, nargs, type,
+                             tuple(choices) if choices is not None else None,
+                             required, default, help, metavar, version)
+        if any(existing.name == argument.name for existing in self.arguments):
+            raise ValueError("duplicate argument: " + name)
+        self.arguments.append(argument)
+        return argument
+
+    def add_mutually_exclusive_group(self, *, required: bool = False) -> _Group:
+        group = _Group(self, required)
+        self.groups.append(group)
+        return group
+
+    def add_subparsers(self, *, dest: str, required: bool = False) -> _Subparsers:
+        if self.subparsers is not None:
+            raise ValueError("only one subcommand selector is supported")
+        self.subparsers = _Subparsers(dest, required)
+        return self.subparsers
+
+    def _help(self, child: ArgumentParser | None = None) -> str:
+        lines = ["usage: " + self.prog + " [options]"]
+        if self.description:
+            lines.extend(("", self.description))
+        lines.extend(("", "options:", "  -h, --help  show this help message and exit"))
+        for argument in self.arguments + (child.arguments if child else []):
+            label = argument.name
+            if argument.positional:
+                label = argument.metavar or label
+            elif argument.action not in ("store_true", "store_false", "version"):
+                label += " " + (argument.metavar or argument.destination.upper())
+            lines.append("  " + label + ("  " + argument.help if argument.help else ""))
+        if self.subparsers:
+            lines.append("subcommands: " + ", ".join(self.subparsers.parsers))
+        return "\n".join(lines)
+
+    def error(self, message: str) -> None:
+        print(self._help().splitlines()[0], file=sys.stderr)
+        print(self.prog + ": error: " + message, file=sys.stderr)
+        raise SystemExit(2)
+
+    def _option_name(self, name: str, options: dict[str, _Argument]) -> str:
+        if name in options or name == "--help" or not name.startswith("--"):
+            return name
+        matches = [option for option in sorted(set(options) | {"--help"}) if option.startswith(name)]
+        if len(matches) > 1:
+            self.error("ambiguous option: " + name + " (" + ", ".join(sorted(matches)) + ")")
+        return matches[0] if matches else name
+
+    def parse_args(self, args: list[str] | None = None) -> Namespace:
+        words = list(sys.argv[1:] if args is None else args)
+        child: ArgumentParser | None = None
+        if self.subparsers:
+            parent_options = {argument.name: argument for argument in self.arguments if not argument.positional}
+            cursor = 0
+            while cursor < len(words) and words[cursor] != "--":
+                word = words[cursor]
+                if word in ("-h", "--help"):
+                    break
+                name, equals, _ = word.partition("=")
+                name = self._option_name(name, parent_options)
+                if name == "--help":
+                    break
+                option = parent_options.get(name)
+                if option is not None:
+                    cursor += 1
+                    if not equals and option.action not in ("store_true", "store_false", "version"):
+                        if option.nargs in ("*", "+"):
+                            self.error("variable arity before a subcommand is unsupported")
+                        cursor += 1
+                    continue
+                if _is_option_token(word):
+                    cursor += 1
+                    continue
+                child = self.subparsers.parsers.get(word)
+                if child is None:
+                    self.error("unrecognized subcommand: " + word)
+                words.pop(cursor)
+                break
+        arguments = self.arguments + (child.arguments if child else [])
+        by_name = {argument.name: argument for argument in arguments if not argument.positional}
+        for word in words:
+            if word == "--":
+                break
+            if word.startswith("--"):
+                self._option_name(word.partition("=")[0], by_name)
+        positionals = [argument for argument in arguments if argument.positional]
+        if len(positionals) > 1:
+            raise ValueError("multiple positional arguments are unsupported")
+        values = {argument.destination: argument.default for argument in arguments}
+        if self.subparsers:
+            values[self.subparsers.destination] = next(
+                (name for name, parser in self.subparsers.parsers.items() if parser is child), None
+            )
+        seen: set[str] = set()
+        positional_values: list[str] = []
+        unknown_options: list[str] = []
+        index = 0
+        literal_mode = False
+        while index < len(words):
+            word = words[index]
+            if word == "--" and not literal_mode:
+                literal_mode = True
+                index += 1
+                continue
+            if not literal_mode and word == "-h":
+                print(self._help(child))
+                raise SystemExit(0)
+            name, equals, attached = word.partition("=")
+            if not literal_mode and name.startswith("--"):
+                name = self._option_name(name, by_name)
+                if name == "--help":
+                    if equals:
+                        self.error("option does not accept a value: " + name)
+                    print(self._help(child))
+                    raise SystemExit(0)
+                argument = by_name.get(name)
+                if argument is None:
+                    unknown_options.append(word)
+                    index += 1
+                    continue
+                if argument.action == "version":
+                    if equals:
+                        self.error("option does not accept a value: " + name)
+                    print(argument.version or "")
+                    raise SystemExit(0)
+                if argument.action in ("store_true", "store_false"):
+                    if equals:
+                        self.error("option does not accept a value: " + name)
+                    values[argument.destination] = argument.action == "store_true"
+                    seen.add(argument.name)
+                    index += 1
+                    continue
+                collected = [attached] if equals else []
+                index += 1
+                if argument.nargs in ("*", "+") and not equals:
+                    while index < len(words) and not _is_option_token(words[index]):
+                        collected.append(words[index])
+                        index += 1
+                    if argument.nargs == "+" and not collected:
+                        self.error("option requires at least one value: " + name)
+                else:
+                    if not collected:
+                        if index == len(words) or _is_option_token(words[index]):
+                            self.error("option requires a value: " + name)
+                        collected.append(words[index])
+                        index += 1
+                converted = [self._convert(argument, value) for value in collected]
+                if argument.action == "append":
+                    if values[argument.destination] is None:
+                        values[argument.destination] = []
+                    values[argument.destination].extend(converted)
+                elif argument.nargs in ("*", "+"):
+                    values[argument.destination] = converted
+                else:
+                    values[argument.destination] = converted[0]
+                seen.add(argument.name)
+                continue
+            if not literal_mode and _is_option_token(word):
+                if word.startswith("-h"):
+                    self.error("option does not accept a value: -h")
+                unknown_options.append(word)
+                index += 1
+                continue
+            positional_values.append(word)
+            index += 1
+        if unknown_options:
+            self.error("unrecognized arguments: " + " ".join(unknown_options))
+        if positionals:
+            argument = positionals[0]
+            if argument.nargs in ("*", "+"):
+                if argument.nargs == "+" and not positional_values:
+                    self.error("missing required argument: " + argument.name)
+                values[argument.destination] = [self._convert(argument, value) for value in positional_values]
+            elif argument.nargs == "?":
+                if len(positional_values) > 1:
+                    self.error("too many positional arguments")
+                if positional_values:
+                    values[argument.destination] = self._convert(argument, positional_values[0])
+            else:
+                if len(positional_values) != 1:
+                    self.error("expected one positional argument: " + argument.name)
+                values[argument.destination] = self._convert(argument, positional_values[0])
+        elif positional_values:
+            self.error("unrecognized positional arguments: " + " ".join(positional_values))
+        for argument in arguments:
+            if argument.required and argument.name not in seen:
+                self.error("missing required option: " + argument.name)
+        for group in self.groups + (child.groups if child else []):
+            count = sum(argument.name in seen for argument in group.arguments)
+            if count > 1 or group.required and count != 1:
+                self.error("exactly one of these options is required: " + ", ".join(arg.name for arg in group.arguments))
+        if self.subparsers and self.subparsers.required and child is None:
+            self.error("a subcommand is required")
+        return Namespace(**values)
+
+    def _convert(self, argument: _Argument, value: str) -> object:
+        try:
+            converted = argument.converter(value)
+        except (ValueError, TypeError) as exc:
+            self.error("invalid value for " + argument.name + ": " + str(exc))
+        if argument.choices is not None and converted not in argument.choices:
+            self.error("invalid choice for " + argument.name + ": " + str(converted))
+        return converted
