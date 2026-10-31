@@ -251,7 +251,48 @@ func zipControl(members []archiveMember) ([]byte, error) {
 	return result.Bytes(), nil
 }
 
+func pybindControls(work string) error {
+	item := headerInput{Version: "3.1.0"}
+	header := archiveMember{"pybind11/include/pybind11/pybind11.h", "known header", false}
+	license := archiveMember{"pybind11-3.1.0.dist-info/licenses/LICENSE", "known license", false}
+	good, err := zipControl([]archiveMember{header, license})
+	if err != nil {
+		return err
+	}
+	accepted := filepath.Join(work, "accepted-pybind")
+	if err = extractPybind(good, accepted, item); err != nil {
+		return err
+	}
+	for path, expected := range map[string]string{"pybind11/pybind11.h": "known header", "LICENSE": "known license"} {
+		body, err := os.ReadFile(filepath.Join(accepted, path))
+		if err != nil || string(body) != expected {
+			return errors.New("accepted header supplier content differs")
+		}
+	}
+	for index, members := range [][]archiveMember{
+		{header},
+		{license},
+		{header, {"pybind11-3.1.0.dist-info/LICENSE", "old layout", false}},
+		{header, {"pybind11-3.0.0.dist-info/licenses/LICENSE", "other version", false}},
+		{header, {"pybind11-3.1.0.dist-info/licenses/LICENSE", "", false}},
+		{{"pybind11/include/pybind11/pybind11.h", "", false}, license},
+	} {
+		data, err := zipControl(members)
+		if err != nil {
+			return err
+		}
+		err = extractPybind(data, filepath.Join(work, "rejected-pybind-"+strconv.Itoa(index)), item)
+		if err == nil || err.Error() != "header supplier license or entry point is absent or empty" {
+			return errors.New("incomplete header supplier did not fail its intended admission property")
+		}
+	}
+	return nil
+}
+
 func archiveControls(work string) error {
+	if err := pybindControls(work); err != nil {
+		return err
+	}
 	const selected = "duckdb-1.5.3/src/duckdb_py/control.cpp"
 	item := versionInput{Version: "1.5.3"}
 	good, err := tarControl([]archiveMember{{selected, "known-source", false}}, nil)

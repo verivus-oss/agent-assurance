@@ -4,5 +4,4 @@
 duckdb==1.5.3 \
     --hash=sha256:df39428eb130faa35ae96fd35245bdeae6ecf43936250b116b5fead568eb9f16
 pybind11==3.1.0 \
-    --hash=sha256:a1cc06b524ab3edca51f8ad3895f9c4fa20b8b19283173dff4ae781449dc9639 \
     --hash=sha256:b8488090f8acffbcb6b5d6a85571a6827a0a2981ffb75e5a0b27b87c4a6b7dd0

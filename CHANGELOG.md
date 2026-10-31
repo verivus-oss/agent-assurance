@@ -9,6 +9,9 @@ The format is loosely based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Upgrade the native DuckDB binding's Pybind11 headers and advisory origin
+  locks together to 3.1.0. Admit the wheel's declared license layout and
+  reject missing licenses or header entry points before compilation.
 - Correct the security posture description to name the required native
   advisory gate and the retirement of the previous OSV action. Record
   PR #142's verified repair boundary and issue #141's outstanding cumulative

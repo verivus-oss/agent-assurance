@@ -93,7 +93,7 @@ func loadInputs() (sourceInputs, error) {
 	if err = decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		return record, errors.New("supplier input declarations contain trailing data")
 	}
-	if record.Schema != 1 || len(record.Versions) != 2 || record.Pybind.Version != "2.13.6" {
+	if record.Schema != 1 || len(record.Versions) != 2 || record.Pybind.Version != "3.1.0" {
 		return record, errors.New("supplier input population differs")
 	}
 	if !identity(record.Pybind.SHA) {
@@ -376,6 +376,29 @@ func extractZIP(data []byte, output string, selectName func(string) (string, boo
 	}
 	if selected == 0 {
 		return errors.New("selected supplier ZIP population is absent")
+	}
+	return nil
+}
+
+func extractPybind(data []byte, output string, item headerInput) (resultErr error) {
+	if err := extractZIP(data, output, func(name string) (string, bool) {
+		if strings.HasPrefix(name, "pybind11/include/") && headerFile(name) {
+			return strings.TrimPrefix(name, "pybind11/include/"), true
+		}
+		return "LICENSE", name == "pybind11-"+item.Version+".dist-info/licenses/LICENSE"
+	}); err != nil {
+		return err
+	}
+	root, err := os.OpenRoot(output)
+	if err != nil {
+		return err
+	}
+	defer func() { resultErr = errors.Join(resultErr, root.Close()) }()
+	for _, name := range []string{"LICENSE", "pybind11/pybind11.h"} {
+		body, err := root.ReadFile(name)
+		if err != nil || len(body) == 0 {
+			return errors.New("header supplier license or entry point is absent or empty")
+		}
 	}
 	return nil
 }
