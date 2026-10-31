@@ -1,4 +1,4 @@
 # Native supplier origin identities for advisory matching, not Python installation.
 # Runtime artifacts are built from tools/dagtoml-duckdb-native-go/data/inputs.json.
 duckdb==1.5.3
-pybind11==2.13.6
+pybind11==3.1.0

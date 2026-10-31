@@ -13,7 +13,9 @@ existing scanner and ABI inside that dependency; Go owns preparation and build
 orchestration.
 
 The input declarations pin SDK archives, published native core source archives and
-the Pybind11 header wheel. Source preparation applies the captured full-file
+the Pybind11 3.1.0 header wheel. Its advisory origin locks name the exact
+built wheel. The wheel's versioned license and header entry point must be
+present and nonempty before compilation. Source preparation applies the captured full-file
 before/after identities and literal edits, and retires three unused generated
 Python import-cache headers. UUID results use canonical engine text and
 timestamp-with-time-zone results use aware UTC values. General Python UUID

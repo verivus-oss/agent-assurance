@@ -187,12 +187,7 @@ func build(sourceRoot, cache, output, version, interpreter string) (resultErr er
 	if err = extractSDK(sdkData, sdk, selected); err != nil {
 		return err
 	}
-	if err = extractZIP(pybindData, headers, func(name string) (string, bool) {
-		if strings.HasPrefix(name, "pybind11/include/") && headerFile(name) {
-			return strings.TrimPrefix(name, "pybind11/include/"), true
-		}
-		return "LICENSE", name == "pybind11-"+declarations.Pybind.Version+".dist-info/LICENSE"
-	}); err != nil {
+	if err = extractPybind(pybindData, headers, declarations.Pybind); err != nil {
 		return err
 	}
 	if err = stampModule(sdk); err != nil {
