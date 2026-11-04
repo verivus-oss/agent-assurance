@@ -2,7 +2,7 @@ module github.com/verivus-oss/agent-assurance/tools/dagtoml-postgres-go
 
 go 1.26.10
 
-require github.com/jackc/pgx/v5 v5.11.0
+require github.com/jackc/pgx/v5 v5.12.0
 
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
